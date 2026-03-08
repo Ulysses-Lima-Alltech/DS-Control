@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "altitude" numeric(5, 2) DEFAULT '0.00' NOT NULL;

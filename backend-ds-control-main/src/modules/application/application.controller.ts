@@ -1,0 +1,499 @@
+import type { FastifyReply, FastifyRequest } from "fastify";
+import type { CreateApplicationDTO } from "./dto/create-application.dto";
+import type { ApplicationStatsQueryString } from "./dto/stats.dto";
+import type { UpdateApplicationDTO } from "./dto/update-application.dto";
+import type { DashboardMetricsQueryString } from "./dto/dashboard-metrics.dto";
+
+import AppError from "@common/handlers/app-error";
+import type { PaginatedRequestQueryString } from "@common/types/paginated-request.types";
+import { ApplicationVM } from "@models/application.vm";
+import { app } from "@modules/app/app.module";
+import { ApplicationOrderBy, ApplicationOrderType } from "@repositories/applications/application.types";
+import { ApplicationService } from "./services/application.service";
+
+export class ApplicationController {
+  private service: ApplicationService;
+
+  constructor() {
+    this.service = new ApplicationService();
+  }
+
+  public createApplication = async (
+    request: FastifyRequest<{
+      Body: CreateApplicationDTO;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Starting application creation");
+
+      await this.service.createApplication(request.body);
+
+      app.log.info("[ApplicationController] - Application created successfully");
+      return reply.status(201).send({
+        message: "Application created successfully",
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Application creation failed: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application creation: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public listApplications = async (
+    request: FastifyRequest<{
+      Querystring: PaginatedRequestQueryString & { 
+        search?: string;
+        serviceOrderStatus?: "open" | "completed" | "cancelled";
+        farmId?: string;
+        pilotId?: string;
+        customerId?: string;
+        serviceOrderId?: string;
+        invalidApplication?: boolean;
+        startDate?: string;
+        endDate: string;
+        orderBy?: ApplicationOrderBy;
+        orderType?: ApplicationOrderType;
+      };
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Listing applications");
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const search = request.query.search;
+      const filters = {
+        serviceOrderStatus: request.query.serviceOrderStatus,
+        farmId: request.query.farmId,
+        pilotId: request.query.pilotId,
+        customerId: request.query.customerId,
+        serviceOrderId: request.query.serviceOrderId,
+        invalidApplication: request.query.invalidApplication,
+        startDate: request.query.startDate ? new Date(request.query.startDate) : undefined,
+        endDate: request.query.endDate ? new Date(request.query.endDate) : undefined,
+      };
+      const orderBy = request.query.orderBy;
+      const orderType = request.query.orderType;
+
+      const result = await this.service.listApplications(page, limit, search, filters, orderBy, orderType);
+
+      app.log.info("[ApplicationController] - Successfully listed applications");
+      return reply.status(200).send({
+        message: "Applications listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application listing: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationById = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Fetching application details for application %s", request.params.id);
+      const applicationDb = await this.service.getApplicationById(request.params.id);
+      // For now, return the raw data since the types need to be aligned
+      const application = applicationDb;
+
+      app.log.info("[ApplicationController] - Successfully retrieved application details");
+      return reply.status(200).send({
+        message: "Application details retrieved successfully",
+        application,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to retrieve application details: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application details retrieval: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationsByCustomerId = async (
+    request: FastifyRequest<{
+      Params: { customerId: string };
+      Querystring: PaginatedRequestQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        "[ApplicationController] - Listing applications for customer %s",
+        request.params.customerId,
+      );
+      
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const result = await this.service.getApplicationsByCustomerId(
+        request.params.customerId,
+        page,
+        limit,
+      );
+
+      app.log.info("[ApplicationController] - Successfully listed applications for customer");
+      
+      return reply.status(200).send({
+        message: "Applications for customer listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications for customer: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during applications listing for customer: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationsByPilotId = async (
+    request: FastifyRequest<{
+      Params: { pilotId: string };
+      Querystring: PaginatedRequestQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        "[ApplicationController] - Listing applications for pilot %s",
+        request.params.pilotId,
+      );
+      
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const result = await this.service.getApplicationsByPilotId(
+        request.params.pilotId,
+        page,
+        limit,
+      );
+
+      app.log.info("[ApplicationController] - Successfully listed applications for pilot");
+      
+      return reply.status(200).send({
+        message: "Applications for pilot listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications for pilot: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during applications listing for pilot: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationsByFarmId = async (
+    request: FastifyRequest<{
+      Params: { farmId: string };
+      Querystring: PaginatedRequestQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        "[ApplicationController] - Listing applications for farm %s",
+        request.params.farmId,
+      );
+      
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const result = await this.service.getApplicationsByFarmId(
+        request.params.farmId,
+        page,
+        limit,
+      );
+
+      app.log.info("[ApplicationController] - Successfully listed applications for farm");
+      
+      return reply.status(200).send({
+        message: "Applications for farm listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications for farm: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during applications listing for farm: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationsByServiceOrderId = async (
+    request: FastifyRequest<{
+      Params: { serviceOrderId: string };
+      Querystring: PaginatedRequestQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        "[ApplicationController] - Listing applications for service order %s",
+        request.params.serviceOrderId,
+      );
+      
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const result = await this.service.getApplicationsByServiceOrderId(
+        request.params.serviceOrderId,
+        page,
+        limit,
+      );
+
+      app.log.info("[ApplicationController] - Successfully listed applications for service order");
+      
+      return reply.status(200).send({
+        message: "Applications for service order listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications for service order: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during applications listing for service order: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getApplicationsByPlotId = async (
+    request: FastifyRequest<{
+      Params: { plotId: string };
+      Querystring: PaginatedRequestQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        "[ApplicationController] - Listing applications for plot %s",
+        request.params.plotId,
+      );
+      
+      const page = request.query.page ?? 1;
+      const limit = request.query.limit ?? 10;
+      const result = await this.service.getApplicationsByPlotId(
+        request.params.plotId,
+        page,
+        limit,
+      );
+
+      app.log.info("[ApplicationController] - Successfully listed applications for plot");
+      
+      return reply.status(200).send({
+        message: "Applications for plot listed successfully",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Failed to list applications for plot: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during applications listing for plot: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public updateApplication = async (
+    request: FastifyRequest<{ Params: { id: string }; Body: UpdateApplicationDTO }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Starting application update for application %s", request.params.id);
+
+      const updatedApplication = await this.service.updateApplication(request.params.id, request.body);
+      const application = ApplicationVM.toViewModel(updatedApplication);
+
+      app.log.info("[ApplicationController] - Application updated successfully");
+      return reply.status(200).send({
+        message: "Application updated successfully",
+        application,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Application update failed: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application update: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public applicationStatsSummary = async (
+    request: FastifyRequest<{Querystring: {
+      startDate: string,
+      endDate: string,
+    }}>,
+    reply: FastifyReply
+  ) => {
+    try {
+       const { startDate, endDate  } = request.query;
+
+       app.log.info("[ApplicationController] - Starting application stats for application %s - %s", startDate, endDate);
+       const summary = await this.service.applicationStatsSummary(new Date(startDate), new Date(endDate));
+
+       app.log.info("[ApplicationController] - Application successfully")
+       return reply.status(200).send({
+        message: "application stats sucessfully",
+        summary,
+       });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Application stats failed: %s", error.message)
+        reply.status(error.statusCode).send(error.throw());
+        return 
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application stats: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  }
+
+
+  public getApplicationsPerformance = async (
+    request: FastifyRequest<{ Querystring: {
+      startDate: string, endDate: string
+    }}>,
+    reply: FastifyReply
+  ) => {
+    try {
+      const { startDate, endDate } = request.query;
+
+      const pilots = await this.service.getApplicationsPerformance(new Date(startDate), new Date(endDate));
+
+      return reply.status(200).send({
+        message: "Pilots performance retrieved successfully",
+        pilots,
+      })
+    } catch(error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Application stats performance failed: %s", error.message)
+        reply.status(error.statusCode).send(error.throw());
+        return 
+      }
+      
+      app.log.error("[ApplicationController] - Error on pilots performance: %s", error);
+      return reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  }
+
+  public deleteApplication = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Starting application deletion for application %s", request.params.id);
+
+      await this.service.deleteApplication(request.params.id);
+
+      app.log.info("[ApplicationController] - Application deleted successfully");
+      return reply.status(200).send({
+        message: "Application deleted successfully",
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[ApplicationController] - Application deletion failed: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[ApplicationController] - Unexpected error during application deletion: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public getGeneralStats = async (
+    request: FastifyRequest<{ Querystring: ApplicationStatsQueryString }>, 
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info('[ApplicationController] -  Fetching general statistics');
+
+      const stats = await this.service.getGeneralStats(request.query);
+
+      app.log.info('[ApplicationController] - Successfully retrieved general statistics');
+      return reply.status(200).send({
+        message: 'General statistics retrieved successfully',
+        stats,
+      });
+    } catch (error) {
+      if(error instanceof AppError) {
+        app.log.warn(
+          '[ApplicationController] - Failed to retrieve general statistics: %s',
+          error.message,
+        );
+
+        reply.status(error.statusCode).send(error.throw());
+        return 
+      }
+
+      app.log.error(
+        '[ApplicationController] - Unexpected error during general statistics retrieval: %o',
+        { error },
+      );
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw())
+    }
+  }
+
+  public getDashboardMetrics = async (
+    request: FastifyRequest<{ Querystring: DashboardMetricsQueryString }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info('[ApplicationController] - Fetching dashboard metrics');
+
+      const metrics = await this.service.getDashboardMetrics(request.query);
+
+      app.log.info('[ApplicationController] - Successfully retrieved dashboard metrics');
+      return reply.status(200).send({
+        message: 'Dashboard metrics retrieved successfully',
+        metrics,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn(
+          '[ApplicationController] - Failed to retrieve dashboard metrics: %s',
+          error.message,
+        );
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error(
+        '[ApplicationController] - Unexpected error during dashboard metrics retrieval: %o',
+        { error },
+      );
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  }
+} 

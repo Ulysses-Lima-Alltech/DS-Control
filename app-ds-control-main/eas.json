@@ -1,0 +1,47 @@
+{
+  "cli": {
+    "version": ">= 16.15.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "abstract-production": {
+      "developmentClient": false,
+      "distribution": "store",
+      "android": {
+        "autoIncrement": "versionCode"
+      },
+      "ios": {
+        "autoIncrement": "buildNumber"
+      },
+      "env": {
+        "EXPO_PUBLIC_DS_CONTROL_API_URL": "https://api.dstechbrasil.com.br/v1"
+      }
+    },
+    "preview": {
+      "extends": "abstract-production",
+      "channel": "develop",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "extends": "abstract-production",
+      "credentialsSource": "remote",
+      "channel": "main",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6749278332"
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "plots" ADD CONSTRAINT "plot_farm_id_external_id_unique" UNIQUE("farm_id","external_id");

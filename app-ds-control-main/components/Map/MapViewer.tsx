@@ -1,0 +1,170 @@
+import { View } from 'react-native';
+
+import MapContent from '@/components/Map/MapContent';
+import { Plot } from '@/types/plot.type';
+import { Route } from '@/types/route.type';
+import {
+  convertDatabasePlotsToMapViewerPlotsFeatureCollection,
+  convertDatabaseRoutesToMapViewerRoutesFeatureCollection,
+} from '@/utils/map-utils';
+import MapControls from '@/components/Map/MapControls';
+import MapTools, { useMapTools } from '@/components/Map/MapTools';
+import { useEffect, useMemo, useState } from 'react';
+import { FeatureCollection } from 'geojson';
+import { ActivityIndicator } from 'react-native';
+import ModalPlotViewer from '@/components/Modal/ModalPlotViewer';
+
+interface ButtonsOffset {
+  mapControls?: {
+    bottom?: number;
+    left?: number;
+  };
+  mapTools?: {
+    top?: number;
+    left?: number;
+  };
+}
+
+export type MapViewerProps = {
+  isFetching?: boolean;
+  selectedFarmId: string | null;
+  plots: Plot[];
+  routes?: Route[];
+  navigationRoute?: GeoJSON.FeatureCollection | null;
+  selectedPlotId?: string;
+  onPlotPress?: (plotId: string) => void;
+  showMapControls?: boolean;
+  showMapTools?: boolean;
+  showRoute?: boolean;
+  showNavigationRoute?: boolean;
+  buttonsOffset?: ButtonsOffset;
+  isNavigationMode?: boolean;
+};
+
+export default function MapViewer({
+  isFetching,
+  selectedFarmId,
+  plots,
+  routes = [],
+  navigationRoute = null,
+  selectedPlotId,
+  onPlotPress,
+  showMapControls = true,
+  showMapTools = true,
+  showRoute = false,
+  showNavigationRoute = false,
+  buttonsOffset,
+  isNavigationMode = false,
+}: MapViewerProps) {
+  const [isCameraLockedOnUserLocation, setIsCameraLockedOnUserLocation] = useState<boolean>(true);
+  const [moveCameraToGeodataBbox, triggerMoveCameraToGeodataBbox] = useState(0);
+  const [plotForCameraMovingToIstBbbox, setMoveCameraToPlotGeojson] =
+    useState<FeatureCollection | null>(null);
+  const [isPlotModalVisible, setIsPlotModalVisible] = useState(false);
+  const [selectedPlotIdForModal, setSelectedPlotIdForModal] = useState<string | null>(null);
+
+  const geoData = useMemo(() => {
+    return convertDatabasePlotsToMapViewerPlotsFeatureCollection(plots);
+  }, [plots]);
+
+  const geoDataRoute = useMemo(() => {
+    return convertDatabaseRoutesToMapViewerRoutesFeatureCollection(routes);
+  }, [routes]);
+
+  const mapToolsHookReturn = useMapTools();
+
+  function handlePlotPress(plotId: string) {
+    setSelectedPlotIdForModal(plotId);
+    setIsPlotModalVisible(true);
+
+    // Call the external onPlotPress handler if provided
+    if (onPlotPress) {
+      onPlotPress(plotId);
+    }
+  }
+
+  function handleMoveCameraToPlotBbox() {
+    if (!selectedPlotId || plots.length === 0 || !plots) return;
+    setIsCameraLockedOnUserLocation(false);
+    setMoveCameraToPlotGeojson(plots.find((p) => p.id === selectedPlotId)?.geoJson ?? null);
+  }
+
+  useEffect(() => {
+    handleMoveCameraToPlotBbox();
+  }, [selectedPlotId]);
+
+  function handleMoveCameraToGeodataBbox() {
+    if (!selectedFarmId || plots.length === 0 || !plots) return;
+    setIsCameraLockedOnUserLocation(false);
+    triggerMoveCameraToGeodataBbox((p) => p + 1);
+  }
+
+  useEffect(() => {
+    handleMoveCameraToGeodataBbox();
+  }, [plots]);
+
+  useEffect(() => {
+    if (isNavigationMode) {
+      setIsCameraLockedOnUserLocation(true);
+    }
+  }, [isNavigationMode]);
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: isFetching ? 'black' : 'white',
+        opacity: isFetching ? 0.7 : 1,
+      }}
+    >
+      {isFetching && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <ActivityIndicator color='#EAAE07' size='large' />
+        </View>
+      )}
+      <MapContent
+        geoData={geoData}
+        geoDataRoute={geoDataRoute}
+        showGeoDataRoute={isNavigationMode}
+        navigationRoute={navigationRoute}
+        showNavigationRoute={isNavigationMode}
+        selectedPlotId={selectedPlotId}
+        onPlotPress={handlePlotPress}
+        isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}
+        setIsCameraLockedOnUserLocation={setIsCameraLockedOnUserLocation}
+        moveCameraToGeodataBbox={moveCameraToGeodataBbox}
+        plotForCameraMovingToIstBbbox={plotForCameraMovingToIstBbbox}
+        mapToolsHookReturn={mapToolsHookReturn}
+        isNavigationMode={isNavigationMode}
+      />
+      {showMapControls && !isNavigationMode && (
+        <MapControls
+          buttonsOffset={buttonsOffset?.mapControls}
+          farmIsLoaded={plots.length > 0}
+          setIsCameraLockedOnUserLocation={setIsCameraLockedOnUserLocation}
+          moveCameraToGeodataBbox={handleMoveCameraToGeodataBbox}
+          toggleCameraLockedOnUserLocation={() => setIsCameraLockedOnUserLocation((prev) => !prev)}
+          isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}
+        />
+      )}
+      {showMapTools && !isNavigationMode && <MapTools toolsHookReturn={mapToolsHookReturn} />}
+
+      <ModalPlotViewer
+        plotId={selectedPlotIdForModal}
+        visible={isPlotModalVisible}
+        setVisible={setIsPlotModalVisible}
+      />
+    </View>
+  );
+}

@@ -1,0 +1,258 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1749602366745,
+      "tag": "0000_add_users_and_users_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1749725320185,
+      "tag": "0001_add_customers_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750155579454,
+      "tag": "0002_add_farms_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750155808954,
+      "tag": "0003_add_plots_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1750241759340,
+      "tag": "0004_add_external_id_to_plot",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1750558447452,
+      "tag": "0005_add_hectare_to_plot",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1750708581857,
+      "tag": "0006_add_customer_id_to_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1751318575210,
+      "tag": "0007_add_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1751322550336,
+      "tag": "0008_add_assistants",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1751328744969,
+      "tag": "0009_add_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1751485395168,
+      "tag": "0010_add_os_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1751487774888,
+      "tag": "0011_add_os_relations_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1751547076190,
+      "tag": "0012_os_multiple_farms",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1751649874155,
+      "tag": "0013_add_drones_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1751761456208,
+      "tag": "0014_add_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1751761622729,
+      "tag": "0015_add_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1754228587284,
+      "tag": "0016_add_deleted_at_column_to_the_plot",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1754359302742,
+      "tag": "0017_make_nullable_plot_id_on_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1754490810552,
+      "tag": "0018_add_deleted_at_column_to_the_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1754493230706,
+      "tag": "0019_add_deleted_at_column_to_the_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1754493398380,
+      "tag": "0020_add_deleted_at_column_to_the_customer",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1754493594431,
+      "tag": "0021_add_deleted_at_column_to_the_farms",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1754686810675,
+      "tag": "0022_unique_external_id_for_farm",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1755094032207,
+      "tag": "0023_add_colmun_entity_type_and_renamed_column_cnpj",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1755697767494,
+      "tag": "0024_removed_notNull_at_column_culture_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1755697983158,
+      "tag": "0025_removed_notNull_at_column_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1757856830916,
+      "tag": "0026_delete_service_order_relations_when_delete_the_service_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1758109132314,
+      "tag": "0027_add_column_flow_rate_at_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1758109909917,
+      "tag": "0028_add_column_altitude_at_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1758110659803,
+      "tag": "0029_add_column_route_spacing_at_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1758111333266,
+      "tag": "0030_add_column_droplet_size_at_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1758128102880,
+      "tag": "0031_populate_new_application_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1758129071749,
+      "tag": "0032_add_not_null_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1758465028261,
+      "tag": "0033_add_farm_id_to_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1758467435324,
+      "tag": "0034_populate_farm_id_on_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1761445048839,
+      "tag": "0035_routes_table",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "flow_rate" numeric(5, 2) DEFAULT '0.00' NOT NULL;

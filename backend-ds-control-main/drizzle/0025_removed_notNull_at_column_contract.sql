@@ -1,0 +1,1 @@
+ALTER TABLE "contracts" ALTER COLUMN "observation" DROP NOT NULL;

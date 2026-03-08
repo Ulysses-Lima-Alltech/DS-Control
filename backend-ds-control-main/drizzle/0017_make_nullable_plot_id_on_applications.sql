@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ALTER COLUMN "plot_id" DROP NOT NULL;

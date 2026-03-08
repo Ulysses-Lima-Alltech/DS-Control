@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "droplet_size" numeric(10, 2) DEFAULT '0.00' NOT NULL;

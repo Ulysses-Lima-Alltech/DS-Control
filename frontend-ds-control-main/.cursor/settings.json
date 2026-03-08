@@ -1,0 +1,35 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "prettier",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true,
+    "source.organizeImports": true
+  },
+  "editor.trimTrailingWhitespace": true,
+  "editor.insertFinalNewline": true,
+  "editor.detectIndentation": false,
+  "editor.tabSize": 2,
+  "prettier.singleQuote": true,
+  "prettier.semi": true,
+  "prettier.tabWidth": 2,
+  "prettier.printWidth": 100,
+  "prettier.trailingComma": "es5",
+  "prettier.bracketSpacing": true,
+  "prettier.arrowParens": "always",
+  "prettier.endOfLine": "lf",
+  "[javascript]": {
+    "editor.defaultFormatter": "prettier"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "prettier"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "prettier"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "prettier"
+  },
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}

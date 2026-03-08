@@ -1,0 +1,1 @@
+ALTER TABLE "culture_types" ALTER COLUMN "description" DROP NOT NULL;

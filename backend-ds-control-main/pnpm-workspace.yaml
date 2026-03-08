@@ -1,0 +1,9 @@
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@sentry/profiling-node'
+  - '@swc/core'
+  - bcrypt
+  - es5-ext
+  - esbuild
+  - msgpackr-extract
+  - tree-sitter

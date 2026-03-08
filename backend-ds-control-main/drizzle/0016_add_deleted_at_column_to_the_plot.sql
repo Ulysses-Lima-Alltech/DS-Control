@@ -1,0 +1,1 @@
+ALTER TABLE "plots" ADD COLUMN "deleted_at" timestamp;

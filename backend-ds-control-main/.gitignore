@@ -1,0 +1,17 @@
+.env.swi
+.env.swl
+.env.swn
+.vscode/
+node_modules/
+build/
+covarage/
+dist/
+temp/
+tmp/*
+.env
+ormconfig.json
+yarn-error.log
+coverage/
+build.zip
+.DS_Store
+docker/
