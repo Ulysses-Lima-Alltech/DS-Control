@@ -4,6 +4,7 @@ import { PDFViewer } from '@react-pdf/renderer';
 
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
 import type { Application } from '@/types/applications.type';
+import type { Plot } from '@/types/plot.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 
 const mockPlot = {
@@ -37,7 +38,7 @@ const mockPlot = {
   createdAt: '',
   updatedAt: '',
   deletedAt: null,
-};
+} as Plot;
 
 const MOCK_SERVICE_ORDER: ServiceOrder = {
   id: 'mock-so-id',
