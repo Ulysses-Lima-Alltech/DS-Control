@@ -34,11 +34,14 @@ Font.register({
 interface ApplicationsReportPDFProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
+  /** Data URLs pré-carregadas por plotId (evita <Image> com URL remota no react-pdf). */
+  prefetchedMapImageDataUrls?: Record<string, string | null>;
 }
 
 const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   serviceOrder,
   applications,
+  prefetchedMapImageDataUrls,
 }) => {
   const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
 
@@ -583,6 +586,11 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           ? null
           : getReportMapPlaceholderMessage(mapResult.unavailableReason);
 
+        const prefetchedSrc = prefetchedMapImageDataUrls?.[plotId];
+        const usePrefetchedMap = prefetchedMapImageDataUrls !== undefined;
+        const mapImageSrc = usePrefetchedMap ? prefetchedSrc ?? undefined : mapUrl ?? undefined;
+        const showMapImage = Boolean(mapImageSrc);
+
         if (typeof console !== 'undefined') {
           console.log('[REPORT_MAP_DEBUG]', {
             phase: 'ApplicationsReportPDF',
@@ -591,6 +599,8 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             mapUrl: mapUrl ?? null,
             mapUrlLength: mapUrl?.length ?? 0,
             usedLongUrlFallback: mapResult.usedLongUrlFallback,
+            usePrefetchedMap,
+            prefetchedDataUrlLength: typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
           });
         }
 
@@ -656,11 +666,11 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 border: '1px solid #E5E7EB',
               }}
             >
-              {mapUrl && (
+              {showMapImage && (
                 <>
                   {/* eslint-disable-next-line jsx-a11y/alt-text */}
                   <Image
-                    src={mapUrl}
+                    src={mapImageSrc!}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -669,7 +679,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   />
                 </>
               )}
-              {!mapUrl && (
+              {!showMapImage && (
                 <View
                   style={{
                     width: '100%',
