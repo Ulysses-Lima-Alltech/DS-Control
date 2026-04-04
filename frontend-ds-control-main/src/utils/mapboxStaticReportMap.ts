@@ -1,22 +1,12 @@
-import type { FeatureCollection, GeoJSON } from 'geojson';
+import type { GeoJSON } from 'geojson';
 
 import type { Plot } from '@/types/plot.type';
 
-/** Limite da API Mapbox Static (8192); margem para query string. */
-const MAPBOX_STATIC_URL_SAFE_MAX = 7900;
-
-const DEFAULT_FILL = '#3388ff';
-const DEFAULT_STROKE = '#3388ff';
-const FILL_OPACITY = 0.3;
-const STROKE_WIDTH = 3;
 const DEFAULT_PADDING = 0.1;
 
 const DEBUG_PREFIX = '[REPORT_MAP_DEBUG]';
 
-export type ReportMapSuccessMode =
-  | 'overlay_geojson'
-  | 'bbox_only_overlay_skipped'
-  | 'bbox_only_after_length_fallback';
+export type ReportMapSuccessMode = 'bbox_only';
 
 function logReportMapSuccess(params: {
   plotId: string;
@@ -25,8 +15,6 @@ function logReportMapSuccess(params: {
   geometryTypes: string[];
   finalUrl: string;
   mapMode: ReportMapSuccessMode;
-  usedLongUrlFallback: boolean;
-  overlayUrlLengthBeforeFallback?: number;
 }): void {
   console.log(DEBUG_PREFIX, {
     phase: 'buildReportMapboxStaticUrl:success',
@@ -35,10 +23,8 @@ function logReportMapSuccess(params: {
     bounds: params.bounds,
     geometryTypes: params.geometryTypes,
     mapMode: params.mapMode,
-    usedLongUrlFallback: params.usedLongUrlFallback,
     finalUrlLength: params.finalUrl.length,
     finalUrl: params.finalUrl,
-    overlayUrlLengthBeforeFallback: params.overlayUrlLengthBeforeFallback,
   });
 }
 
@@ -62,7 +48,7 @@ export type ReportMapUnavailableReason =
 export type BuildReportMapboxStaticUrlResult = {
   url: string | null;
   unavailableReason: ReportMapUnavailableReason | null;
-  /** true se a URL com overlay excedeu o limite e foi usado satélite sem polígono embutido. */
+  /** Mantido por compatibilidade; sempre false (sem overlay geojson). */
   usedLongUrlFallback: boolean;
 };
 
@@ -146,71 +132,6 @@ export function calculatePlotBounds(plot: Plot): ReportMapBoundingBox | null {
   };
 }
 
-function getDefaultFillFromPlot(plot: Plot): string {
-  const geoJson = parsePlotGeoJson(plot);
-  if (geoJson?.type === 'FeatureCollection' && geoJson.features?.[0]?.properties) {
-    const fill = (geoJson.features[0].properties as Record<string, unknown>).fill;
-    if (typeof fill === 'string' && fill.length > 0) return fill;
-  }
-  return DEFAULT_FILL;
-}
-
-function getDefaultStrokeFromPlot(plot: Plot): string {
-  const geoJson = parsePlotGeoJson(plot);
-  if (geoJson?.type === 'FeatureCollection' && geoJson.features?.[0]?.properties) {
-    const stroke = (geoJson.features[0].properties as Record<string, unknown>).stroke;
-    if (typeof stroke === 'string' && stroke.length > 0) return stroke;
-  }
-  return DEFAULT_STROKE;
-}
-
-/**
- * GeoJSON para overlay Mapbox Static (simplestyle-spec: fill, fill-opacity, stroke, stroke-width).
- */
-export function buildPlotOverlayFeatureCollection(plot: Plot): FeatureCollection | null {
-  const geoJson = parsePlotGeoJson(plot);
-  if (!geoJson || geoJson.type !== 'FeatureCollection' || !geoJson.features?.length) {
-    return null;
-  }
-
-  const fillDefault = getDefaultFillFromPlot(plot);
-  const strokeDefault = getDefaultStrokeFromPlot(plot);
-
-  const features = geoJson.features
-    .filter((f) => {
-      const t = f.geometry?.type;
-      return t === 'Polygon' || t === 'MultiPolygon';
-    })
-    .map((f) => {
-      const props = { ...(f.properties as Record<string, unknown> | null | undefined) };
-      const fill = typeof props.fill === 'string' && props.fill.length > 0 ? props.fill : fillDefault;
-      const stroke =
-        typeof props.stroke === 'string' && props.stroke.length > 0 ? props.stroke : strokeDefault;
-
-      return {
-        type: 'Feature' as const,
-        geometry: f.geometry!,
-        properties: {
-          ...props,
-          fill,
-          'fill-opacity': FILL_OPACITY,
-          stroke,
-          'stroke-width': STROKE_WIDTH,
-          'stroke-opacity': 1,
-        },
-      };
-    });
-
-  if (features.length === 0) {
-    return null;
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features,
-  };
-}
-
 function paddedBboxString(bounds: ReportMapBoundingBox, paddingRatio: number): string {
   const lngPadding = (bounds.maxLng - bounds.minLng) * paddingRatio;
   const latPadding = (bounds.maxLat - bounds.minLat) * paddingRatio;
@@ -222,6 +143,9 @@ function paddedBboxString(bounds: ReportMapBoundingBox, paddingRatio: number): s
   ].join(',');
 }
 
+/**
+ * Mapbox Static apenas por bbox [west,south,east,north] — sem overlay geojson (evita 404 por URL longa).
+ */
 function buildBboxOnlyStaticUrl(
   bboxStr: string,
   width: number,
@@ -229,19 +153,6 @@ function buildBboxOnlyStaticUrl(
   accessToken: string
 ): string {
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/[${bboxStr}]/${width}x${height}?access_token=${encodeURIComponent(accessToken)}`;
-}
-
-function buildOverlayStaticUrl(
-  bboxStr: string,
-  width: number,
-  height: number,
-  accessToken: string,
-  overlayFeatureCollection: FeatureCollection
-): string {
-  const json = JSON.stringify(overlayFeatureCollection);
-  const encoded = encodeURIComponent(json);
-  const overlaySegment = `geojson(${encoded})`;
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${overlaySegment}[${bboxStr}]/${width}x${height}?access_token=${encodeURIComponent(accessToken)}`;
 }
 
 export type BuildReportMapboxStaticUrlParams = {
@@ -273,8 +184,8 @@ export function getReportMapPlaceholderMessage(
 }
 
 /**
- * URL única Mapbox Static: satélite + polígono embutido via overlay geojson().
- * Sem overlay se não houver geometria válida ou token; fallback satélite-only se URL exceder limite.
+ * URL Mapbox Static: satélite por bbox apenas (sem geojson() overlay).
+ * O geoJson do plot continua a ser usado só para calcular bounds + padding.
  */
 export function buildReportMapboxStaticUrl(
   params: BuildReportMapboxStaticUrlParams
@@ -379,62 +290,20 @@ export function buildReportMapboxStaticUrl(
   }
 
   const bboxStr = paddedBboxString(bounds, padding);
-  const overlayFc = buildPlotOverlayFeatureCollection(plot);
+  const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
 
-  if (!overlayFc) {
-    const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
-    logReportMapSuccess({
-      plotId,
-      plotName,
-      bounds,
-      geometryTypes,
-      finalUrl: url,
-      mapMode: 'bbox_only_overlay_skipped',
-      usedLongUrlFallback: false,
-    });
-    return { url, unavailableReason: null, usedLongUrlFallback: false };
-  }
-
-  const urlWithOverlay = buildOverlayStaticUrl(
-    bboxStr,
-    mapWidth,
-    mapHeight,
-    token,
-    overlayFc
-  );
-  const overlayUrlLength = urlWithOverlay.length;
-
-  if (overlayUrlLength <= MAPBOX_STATIC_URL_SAFE_MAX) {
-    logReportMapSuccess({
-      plotId,
-      plotName,
-      bounds,
-      geometryTypes,
-      finalUrl: urlWithOverlay,
-      mapMode: 'overlay_geojson',
-      usedLongUrlFallback: false,
-    });
-    return {
-      url: urlWithOverlay,
-      unavailableReason: null,
-      usedLongUrlFallback: false,
-    };
-  }
-
-  const fallbackUrl = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
   logReportMapSuccess({
     plotId,
     plotName,
     bounds,
     geometryTypes,
-    finalUrl: fallbackUrl,
-    mapMode: 'bbox_only_after_length_fallback',
-    usedLongUrlFallback: true,
-    overlayUrlLengthBeforeFallback: overlayUrlLength,
+    finalUrl: url,
+    mapMode: 'bbox_only',
   });
+
   return {
-    url: fallbackUrl,
+    url,
     unavailableReason: null,
-    usedLongUrlFallback: true,
+    usedLongUrlFallback: false,
   };
 }
