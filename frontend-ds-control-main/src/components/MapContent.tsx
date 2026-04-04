@@ -56,23 +56,6 @@ export default function MapContent({
       geoData.features[0].geometry?.type === 'MultiLineString');
 
   useEffect(() => {
-    if (!map) {
-      console.log(
-        '[MAP_DEBUG] MapContent: map ainda não disponível (useMap — <Map> pai não montado?)'
-      );
-      return;
-    }
-    console.log('[MAP_DEBUG] MapContent', {
-      mapReady: true,
-      hasGeoData: Boolean(geoData),
-      isLineStringData: Boolean(isLineStringData),
-      renderFillSource: Boolean(geoData && !isLineStringData),
-      renderLineSource: Boolean(geoData && isLineStringData),
-      effectFlyToWithoutGeoData: !geoData,
-    });
-  }, [map, geoData, isLineStringData]);
-
-  useEffect(() => {
     if (!geoData && map) {
       map.flyTo({
         zoom: 2,

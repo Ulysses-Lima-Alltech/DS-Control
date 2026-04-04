@@ -17,7 +17,9 @@ import { Farm } from '@/types/farm.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 
 export default function MapPage() {
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  // Temporário: token fixo no código até corrigir NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify (diagnóstico / contornar env ausente no cliente).
+  // const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  const mapboxToken = 'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
   const mapRef = useRef<MapRef | null>(null);
 
   const [selectedFarmIds, setSelectedFarmIds] = useState<string[]>([]);
