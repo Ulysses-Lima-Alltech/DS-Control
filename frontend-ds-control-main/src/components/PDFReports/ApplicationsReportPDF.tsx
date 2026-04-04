@@ -591,6 +591,32 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const mapImageSrc = usePrefetchedMap ? prefetchedSrc ?? undefined : mapUrl ?? undefined;
         const showMapImage = Boolean(mapImageSrc);
 
+        if (!showMapImage && typeof console !== 'undefined') {
+          const key = plotId;
+          const hasPrefetchKey =
+            prefetchedMapImageDataUrls !== undefined && Object.prototype.hasOwnProperty.call(
+              prefetchedMapImageDataUrls,
+              key
+            );
+          console.log('[REPORT_PREFETCH_DEBUG]', {
+            phase: 'ApplicationsReportPDF:placeholder',
+            plotId: plot.id,
+            loopPlotId: plotId,
+            mapUrlExists: Boolean(mapUrl),
+            usePrefetchedMap,
+            hasPrefetchKey,
+            prefetchedEntryType:
+              prefetchedMapImageDataUrls === undefined
+                ? 'prefetch_prop_undefined'
+                : prefetchedMapImageDataUrls[key] === null
+                  ? 'null'
+                  : typeof prefetchedMapImageDataUrls[key],
+            prefetchedStringLength:
+              typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
+            placeholderText: mapPlaceholderMessage ?? 'Mapa indisponível',
+          });
+        }
+
         if (typeof console !== 'undefined') {
           console.log('[REPORT_MAP_DEBUG]', {
             phase: 'ApplicationsReportPDF',

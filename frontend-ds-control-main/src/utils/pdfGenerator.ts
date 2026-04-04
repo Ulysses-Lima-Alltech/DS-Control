@@ -47,6 +47,15 @@ async function prefetchReportMapImagesByPlotId(
     const plotApplications = applicationsByPlot[plotId];
     const plot = plotApplications[0]?.plot;
     if (!plot) {
+      console.log('[REPORT_PREFETCH_DEBUG]', {
+        phase: 'pdfGenerator:no_plot',
+        plotId,
+        plotName: null,
+        mapUrlExists: false,
+        unavailableReason: null,
+        usedLongUrlFallback: false,
+        note: 'first application sem plot',
+      });
       out[plotId] = null;
       continue;
     }
@@ -56,11 +65,31 @@ async function prefetchReportMapImagesByPlotId(
       mapHeight: REPORT_MAP_HEIGHT,
       accessToken,
     });
+
+    console.log('[REPORT_PREFETCH_DEBUG]', {
+      phase: 'pdfGenerator:after_buildReportMapboxStaticUrl',
+      plotId,
+      plotName: plot.name ?? null,
+      mapUrlExists: Boolean(mapResult.url),
+      mapUrlLength: mapResult.url?.length ?? 0,
+      unavailableReason: mapResult.unavailableReason,
+      usedLongUrlFallback: mapResult.usedLongUrlFallback,
+    });
+
     if (!mapResult.url) {
       out[plotId] = null;
       continue;
     }
-    out[plotId] = await fetchRemoteImageAsDataUrl(mapResult.url);
+    const dataUrl = await fetchRemoteImageAsDataUrl(mapResult.url);
+    out[plotId] = dataUrl;
+
+    console.log('[REPORT_PREFETCH_DEBUG]', {
+      phase: 'pdfGenerator:after_fetchRemoteImageAsDataUrl',
+      plotId,
+      plotName: plot.name ?? null,
+      prefetchResultExists: Boolean(dataUrl),
+      prefetchDataUrlLength: typeof dataUrl === 'string' ? dataUrl.length : 0,
+    });
   }
 
   return out;
