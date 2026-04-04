@@ -22,6 +22,7 @@
       "@common/*": ["./common/*"],
       "@lib/*": ["./lib/*"],
       "@config/*": ["./config/*"],
+      "@integrations/*": ["./integrations/*"],
       "@modules/*": ["./modules/*"],
       "@middleware/*": ["./middleware/*"],
       "@models/*": ["./models/*"],

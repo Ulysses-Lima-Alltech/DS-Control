@@ -11,6 +11,7 @@ import "@modules/culture-type/culture-type.module";
 import "@modules/customer/customer.module";
 import "@modules/drone/drone.module";
 import "@modules/farm/farm.module";
+import "@integrations/dji/dji.module";
 import "@modules/plot/plot.module";
 import "@modules/product/product.module";
 import "@modules/route/route.module";

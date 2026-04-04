@@ -19,6 +19,7 @@
       "@common/*": ["src/common/*"],
       "@lib/*": ["src/lib/*"],
       "@config/*": ["src/config/*"],
+      "@integrations/*": ["src/integrations/*"],
       "@modules/*": ["src/modules/*"],
       "@middleware/*": ["src/middleware/*"],
       "@models/*": ["src/models/*"],

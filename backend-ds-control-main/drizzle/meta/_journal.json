@@ -253,6 +253,13 @@
       "when": 1761445048839,
       "tag": "0035_routes_table",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1762000000000,
+      "tag": "0036_add_integration_events_and_flight_records",
+      "breakpoints": true
     }
   ]
 }
