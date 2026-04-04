@@ -24,7 +24,7 @@ import {
   useCompleteServiceOrderById,
 } from '@/mutations/service-order.mutation';
 import { useGetApplicationsByServiceOrderId } from '@/queries/application.query';
-import { useGetServiceOrderById } from '@/queries/service-order.query';
+import { getServiceOrderById } from '@/services/service-order.service';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
@@ -106,22 +106,6 @@ function LoadedCardServiceOrderDetails({
 
   const { data: applicationsData } = useGetApplicationsByServiceOrderId(serviceOrder.id);
 
-  const { refetch: refetchServiceOrder } = useGetServiceOrderById(
-    serviceOrder.id,
-    {
-      includePlots: 'true',
-      includeGeoJson: 'true',
-      includePilots: 'true',
-      includeFarms: 'true',
-      includeContracts: 'true',
-      includeCustomers: 'true',
-    },
-    {
-      enabled: false,
-      queryKey: ['service-orders', serviceOrder.id, 'full-details'],
-    }
-  );
-
   useEffect(() => {
     if (applicationsData?.data) {
       setApplicationCount(applicationsData.data.length);
@@ -142,9 +126,16 @@ function LoadedCardServiceOrderDetails({
 
       setPdfProgress(10);
 
-      const serviceOrderResult = await refetchServiceOrder();
+      const serviceOrderForReport = await getServiceOrderById(serviceOrder.id, {
+        includePlots: 'true',
+        includeGeoJson: 'true',
+        includePilots: 'true',
+        includeFarms: 'true',
+        includeContracts: 'true',
+        includeCustomers: 'true',
+      });
 
-      if (!serviceOrderResult.data) {
+      if (!serviceOrderForReport) {
         throw new Error('Erro ao carregar dados da ordem de serviço');
       }
 
@@ -158,9 +149,9 @@ function LoadedCardServiceOrderDetails({
 
       const applications = [...applicationsData.data];
 
-      if (serviceOrderResult.data.plots && Array.isArray(serviceOrderResult.data.plots)) {
+      if (serviceOrderForReport.plots && Array.isArray(serviceOrderForReport.plots)) {
         const plotMap = new Map<string, Plot>();
-        serviceOrderResult.data.plots.forEach((plot: Plot) => {
+        serviceOrderForReport.plots.forEach((plot: Plot) => {
           if (plot.id) {
             plotMap.set(plot.id, plot);
           }
@@ -176,12 +167,21 @@ function LoadedCardServiceOrderDetails({
         });
       }
 
+      console.log('[REPORT_PDF_PLOT_DEBUG]', {
+        source: 'CardServiceOrderDetails',
+        serviceOrderPlotsLength: serviceOrderForReport.plots?.length ?? 0,
+        applications: applications.map((a) => ({
+          plotId: a.plotId,
+          hasPlotGeoJson: Boolean(a.plot?.geoJson),
+        })),
+      });
+
       setPdfProgress(75);
 
       clearInterval(progressInterval);
 
       const blob = await generateApplicationsReportPDF({
-        serviceOrder: serviceOrderResult.data,
+        serviceOrder: serviceOrderForReport,
         applications,
       });
 

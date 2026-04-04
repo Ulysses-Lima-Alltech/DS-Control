@@ -93,6 +93,15 @@ function GenerateReportContent() {
         });
       }
 
+      console.log('[REPORT_PDF_PLOT_DEBUG]', {
+        source: 'generate-report',
+        serviceOrderPlotsLength: serviceOrderResult.plots?.length ?? 0,
+        applications: applications.map((a) => ({
+          plotId: a.plotId,
+          hasPlotGeoJson: Boolean(a.plot?.geoJson),
+        })),
+      });
+
       setProgress(75);
 
       const blob = await generateApplicationsReportPDF({

@@ -13,6 +13,35 @@ const DEFAULT_PADDING = 0.1;
 
 const DEBUG_PREFIX = '[REPORT_MAP_DEBUG]';
 
+export type ReportMapSuccessMode =
+  | 'overlay_geojson'
+  | 'bbox_only_overlay_skipped'
+  | 'bbox_only_after_length_fallback';
+
+function logReportMapSuccess(params: {
+  plotId: string;
+  plotName: string;
+  bounds: ReportMapBoundingBox;
+  geometryTypes: string[];
+  finalUrl: string;
+  mapMode: ReportMapSuccessMode;
+  usedLongUrlFallback: boolean;
+  overlayUrlLengthBeforeFallback?: number;
+}): void {
+  console.log(DEBUG_PREFIX, {
+    phase: 'buildReportMapboxStaticUrl:success',
+    plotId: params.plotId,
+    plotName: params.plotName,
+    bounds: params.bounds,
+    geometryTypes: params.geometryTypes,
+    mapMode: params.mapMode,
+    usedLongUrlFallback: params.usedLongUrlFallback,
+    finalUrlLength: params.finalUrl.length,
+    finalUrl: params.finalUrl,
+    overlayUrlLengthBeforeFallback: params.overlayUrlLengthBeforeFallback,
+  });
+}
+
 export type ReportMapBoundingBox = {
   minLng: number;
   minLat: number;
@@ -354,17 +383,13 @@ export function buildReportMapboxStaticUrl(
 
   if (!overlayFc) {
     const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
+    logReportMapSuccess({
       plotId,
       plotName,
-      geoJsonPresent: true,
-      geometryTypes,
-      boundsCalculated: true,
       bounds,
-      returnNullReason: null,
-      overlaySkipped: true,
-      detail: 'no_polygon_features_for_overlay_using_satellite_only',
+      geometryTypes,
+      finalUrl: url,
+      mapMode: 'bbox_only_overlay_skipped',
       usedLongUrlFallback: false,
     });
     return { url, unavailableReason: null, usedLongUrlFallback: false };
@@ -380,16 +405,13 @@ export function buildReportMapboxStaticUrl(
   const overlayUrlLength = urlWithOverlay.length;
 
   if (overlayUrlLength <= MAPBOX_STATIC_URL_SAFE_MAX) {
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
+    logReportMapSuccess({
       plotId,
       plotName,
-      geoJsonPresent: true,
-      geometryTypes,
-      boundsCalculated: true,
       bounds,
-      returnNullReason: null,
-      overlayUrlLength,
+      geometryTypes,
+      finalUrl: urlWithOverlay,
+      mapMode: 'overlay_geojson',
       usedLongUrlFallback: false,
     });
     return {
@@ -400,19 +422,15 @@ export function buildReportMapboxStaticUrl(
   }
 
   const fallbackUrl = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
-  console.log(DEBUG_PREFIX, {
-    tokenPresent: true,
+  logReportMapSuccess({
     plotId,
     plotName,
-    geoJsonPresent: true,
-    geometryTypes,
-    boundsCalculated: true,
     bounds,
-    returnNullReason: null,
-    overlayUrlLength,
+    geometryTypes,
+    finalUrl: fallbackUrl,
+    mapMode: 'bbox_only_after_length_fallback',
     usedLongUrlFallback: true,
-    detail: 'url_exceeds_safe_max_using_satellite_only_fallback',
-    safeMax: MAPBOX_STATIC_URL_SAFE_MAX,
+    overlayUrlLengthBeforeFallback: overlayUrlLength,
   });
   return {
     url: fallbackUrl,

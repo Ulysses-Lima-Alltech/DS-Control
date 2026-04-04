@@ -583,6 +583,17 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           ? null
           : getReportMapPlaceholderMessage(mapResult.unavailableReason);
 
+        if (typeof console !== 'undefined') {
+          console.log('[REPORT_MAP_DEBUG]', {
+            phase: 'ApplicationsReportPDF',
+            plotId: plot.id,
+            plotName: plot.name,
+            mapUrl: mapUrl ?? null,
+            mapUrlLength: mapUrl?.length ?? 0,
+            usedLongUrlFallback: mapResult.usedLongUrlFallback,
+          });
+        }
+
         return (
           <Page
             key={plotId}
