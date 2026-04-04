@@ -1,9 +1,10 @@
-import { Document, Font, Image, Page, Path, Svg, Text, View } from '@react-pdf/renderer';
+import { Document, Font, Image, Page, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import { buildReportMapboxStaticUrl } from '@/utils/mapboxStaticReportMap';
 
 Font.register({
   family: 'Roboto',
@@ -26,276 +27,6 @@ Font.register({
     },
   ],
 });
-
-// Utility functions for map generation
-type BoundingBox = {
-  minLng: number;
-  minLat: number;
-  maxLng: number;
-  maxLat: number;
-  centerLng: number;
-  centerLat: number;
-};
-
-const calculatePlotBounds = (plot: Plot): BoundingBox | null => {
-  // Check if geoJson is a string and parse it
-  let geoJson = plot.geoJson;
-  if (typeof geoJson === 'string') {
-    try {
-      geoJson = JSON.parse(geoJson);
-    } catch (error) {
-      console.error('Failed to parse geoJson string:', error);
-      return null;
-    }
-  }
-
-  if (!geoJson?.features || geoJson.features.length === 0) {
-    return null;
-  }
-
-  let minLng = Infinity;
-  let minLat = Infinity;
-  let maxLng = -Infinity;
-  let maxLat = -Infinity;
-
-  geoJson.features.forEach((feature) => {
-    if (feature.geometry.type === 'Polygon') {
-      feature.geometry.coordinates.forEach((ring) => {
-        ring.forEach((coord) => {
-          const [lng, lat] = coord;
-          minLng = Math.min(minLng, lng);
-          minLat = Math.min(minLat, lat);
-          maxLng = Math.max(maxLng, lng);
-          maxLat = Math.max(maxLat, lat);
-        });
-      });
-    } else if (feature.geometry.type === 'MultiPolygon') {
-      feature.geometry.coordinates.forEach((polygon) => {
-        polygon.forEach((ring) => {
-          ring.forEach((coord) => {
-            const [lng, lat] = coord;
-            minLng = Math.min(minLng, lng);
-            minLat = Math.min(minLat, lat);
-            maxLng = Math.max(maxLng, lng);
-            maxLat = Math.max(maxLat, lat);
-          });
-        });
-      });
-    }
-  });
-
-  return {
-    minLng,
-    minLat,
-    maxLng,
-    maxLat,
-    centerLng: (minLng + maxLng) / 2,
-    centerLat: (minLat + maxLat) / 2,
-  };
-};
-
-const generateMapboxStaticUrl = (bounds: BoundingBox, width: number, height: number): string => {
-  const MAPBOX_ACCESS_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-
-  // Use bbox approach with padding for better reliability
-  const padding = 0.1; // 10% padding
-  const lngPadding = (bounds.maxLng - bounds.minLng) * padding;
-  const latPadding = (bounds.maxLat - bounds.minLat) * padding;
-
-  const bbox = [
-    bounds.minLng - lngPadding,
-    bounds.minLat - latPadding,
-    bounds.maxLng + lngPadding,
-    bounds.maxLat + latPadding,
-  ].join(',');
-
-  const url = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/[${bbox}]/${width}x${height}?access_token=${MAPBOX_ACCESS_TOKEN}`;
-
-  // Test the URL by making a request to see if it's valid
-  fetch(url)
-    .then((response) => {
-      if (!response.ok) {
-        console.error('Mapbox API error:', response.status, response.statusText);
-      }
-    })
-    .catch((error) => {
-      console.error('Mapbox API fetch error:', error);
-    });
-
-  // Use Mapbox Static Images API with bbox
-  return url;
-};
-
-const convertCoordinatesToSvgPath = (
-  plot: Plot,
-  bounds: BoundingBox,
-  width: number,
-  height: number
-): string[] => {
-  // Check if geoJson is a string and parse it
-  let geoJson = plot.geoJson;
-  if (typeof geoJson === 'string') {
-    try {
-      geoJson = JSON.parse(geoJson);
-    } catch (error) {
-      console.error('Failed to parse geoJson string in convertCoordinatesToSvgPath:', error);
-      return [];
-    }
-  }
-
-  if (!geoJson?.features || geoJson.features.length === 0) {
-    return [];
-  }
-
-  // Use Web Mercator projection to match Mapbox exactly
-  const padding = 0.1; // Same padding as map generation
-  const lngPadding = (bounds.maxLng - bounds.minLng) * padding;
-  const latPadding = (bounds.maxLat - bounds.minLat) * padding;
-
-  const paddedMinLng = bounds.minLng - lngPadding;
-  const paddedMaxLng = bounds.maxLng + lngPadding;
-  const paddedMinLat = bounds.minLat - latPadding;
-  const paddedMaxLat = bounds.maxLat + latPadding;
-
-  // Calculate the zoom level that Mapbox would use for this bbox
-  const calculateZoomForBbox = (
-    minLng: number,
-    minLat: number,
-    maxLng: number,
-    maxLat: number
-  ): number => {
-    const latDiff = maxLat - minLat;
-    const lngDiff = maxLng - minLng;
-
-    // Calculate zoom based on the larger dimension
-    const latZoom = Math.floor(Math.log2(360 / latDiff));
-    const lngZoom = Math.floor(Math.log2(360 / lngDiff));
-
-    // Use the smaller zoom to ensure the bbox fits
-    const zoom = Math.min(latZoom, lngZoom, 18);
-
-    return Math.max(zoom, 1); // Minimum zoom of 1
-  };
-
-  const zoom = calculateZoomForBbox(paddedMinLng, paddedMinLat, paddedMaxLng, paddedMaxLat);
-  const scale = Math.pow(2, zoom);
-
-  // Web Mercator projection functions with proper zoom scaling
-  const lngToX = (lng: number): number => {
-    return ((lng + 180) / 360) * 256 * scale;
-  };
-
-  const latToY = (lat: number): number => {
-    const latRad = (lat * Math.PI) / 180;
-    const mercatorY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-    return (256 * scale * (1 - mercatorY / Math.PI)) / 2;
-  };
-
-  // Calculate bounds in Web Mercator coordinates
-  const minX = lngToX(paddedMinLng);
-  const maxX = lngToX(paddedMaxLng);
-  const minY = latToY(paddedMaxLat); // Note: inverted for top-left origin
-  const maxY = latToY(paddedMinLat);
-
-  const xRange = maxX - minX;
-  const yRange = maxY - minY;
-
-  // Calculate the aspect ratio distortion that the map image will have
-  // The map image will be stretched to fill the container, so we need to compress the polygon
-  const mapAspectRatio = xRange / yRange; // Original map aspect ratio
-  const containerAspectRatio = width / height; // Container aspect ratio
-  const horizontalCompression = mapAspectRatio / containerAspectRatio; // Inverse of stretch
-
-  // Convert Web Mercator coordinates to SVG coordinates
-  const coordinateToPixel = (lng: number, lat: number): [number, number] => {
-    const mercatorX = lngToX(lng);
-    const mercatorY = latToY(lat);
-
-    // Map to SVG coordinates with horizontal compression correction
-    const x = ((mercatorX - minX) / xRange) * width;
-    const y = ((mercatorY - minY) / yRange) * height;
-
-    // Apply horizontal compression to match the stretched map image
-    const compressedX = (x - width / 2) * horizontalCompression + width / 2;
-    return [compressedX, y];
-  };
-
-  const paths: string[] = [];
-
-  geoJson.features.forEach((feature) => {
-    if (feature.geometry.type === 'Polygon') {
-      feature.geometry.coordinates.forEach((ring) => {
-        const pathData =
-          ring
-            .map((coord, index) => {
-              const [x, y] = coordinateToPixel(coord[0], coord[1]);
-              return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-            })
-            .join(' ') + ' Z';
-        paths.push(pathData);
-      });
-    } else if (feature.geometry.type === 'MultiPolygon') {
-      feature.geometry.coordinates.forEach((polygon) => {
-        polygon.forEach((ring) => {
-          const pathData =
-            ring
-              .map((coord, index) => {
-                const [x, y] = coordinateToPixel(coord[0], coord[1]);
-                return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-              })
-              .join(' ') + ' Z';
-          paths.push(pathData);
-        });
-      });
-    }
-  });
-
-  return paths;
-};
-
-const getPlotFillColor = (plot: Plot): string => {
-  // Check if geoJson is a string and parse it
-  let geoJson = plot.geoJson;
-  if (typeof geoJson === 'string') {
-    try {
-      geoJson = JSON.parse(geoJson);
-    } catch (error) {
-      console.error('Failed to parse geoJson string in getPlotFillColor:', error);
-      return '#3388ff';
-    }
-  }
-
-  // Extract fill color from geoJson properties if available
-  if (geoJson?.features && geoJson.features.length > 0) {
-    const fill = geoJson.features[0]?.properties?.fill;
-    if (fill && typeof fill === 'string') {
-      return fill;
-    }
-  }
-  return '#3388ff'; // Default blue color
-};
-
-const getPlotStrokeColor = (plot: Plot): string => {
-  // Check if geoJson is a string and parse it
-  let geoJson = plot.geoJson;
-  if (typeof geoJson === 'string') {
-    try {
-      geoJson = JSON.parse(geoJson);
-    } catch (error) {
-      console.error('Failed to parse geoJson string in getPlotStrokeColor:', error);
-      return '#3388ff';
-    }
-  }
-
-  // Extract stroke color from geoJson properties if available
-  if (geoJson?.features && geoJson.features.length > 0) {
-    const stroke = geoJson.features[0]?.properties?.stroke;
-    if (stroke && typeof stroke === 'string') {
-      return stroke;
-    }
-  }
-  return '#3388ff'; // Default blue color
-};
 
 interface ApplicationsReportPDFProps {
   serviceOrder: ServiceOrder;
@@ -833,19 +564,14 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const firstApp = plotApplications[0];
         const plot = firstApp.plot;
 
-        // Generate map data
-        // Use dimensions that match the PDF container aspect ratio better
-        // A4 width with 30px padding on each side = ~535 points, height = 200 points
-        // Aspect ratio ~2.675:1, we'll use 1280x480 (~2.67:1) for high quality
         const mapWidth = 1280;
         const mapHeight = 480;
-        const bounds = calculatePlotBounds(plot);
-        const mapUrl = bounds ? generateMapboxStaticUrl(bounds, mapWidth, mapHeight) : null;
-        const svgPaths = bounds
-          ? convertCoordinatesToSvgPath(plot, bounds, mapWidth, mapHeight)
-          : [];
-        const fillColor = getPlotFillColor(plot);
-        const strokeColor = getPlotStrokeColor(plot);
+        const mapUrl = buildReportMapboxStaticUrl({
+          plot,
+          mapWidth,
+          mapHeight,
+          accessToken: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN,
+        });
 
         return (
           <Page
@@ -917,30 +643,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: 'fill',
+                      objectFit: 'contain',
                     }}
                   />
-                  <Svg
-                    viewBox={`0 0 ${mapWidth} ${mapHeight}`}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                    }}
-                  >
-                    {svgPaths.map((pathData, index) => (
-                      <Path
-                        key={index}
-                        d={pathData}
-                        fill={fillColor}
-                        fillOpacity={0.3}
-                        stroke={strokeColor}
-                        strokeWidth={3}
-                      />
-                    ))}
-                  </Svg>
                 </>
               )}
               {!mapUrl && (

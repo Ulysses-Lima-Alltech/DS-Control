@@ -1,0 +1,17 @@
+---
+description: Paridade web e app (Expo); evitar funcionalidades exclusivas de desktop quando existirem no mobile
+alwaysApply: true
+---
+
+# Web, Android, iOS e paridade com o app
+
+Este repositório tem frontend web (`frontend-ds-control-main`) e app Expo (`app-ds-control-main`). Ao implementar ou alterar funcionalidades:
+
+- **Não criar solução exclusiva de desktop** (fluxos, atalhos de teclado como único caminho, layouts só para viewport largo, APIs ou contratos só consumidos pelo web) **se a mesma funcionalidade também existir no app**. Preferir decisões que possam ser espelhadas ou compartilhadas (mesmos endpoints, mesmo modelo de dados, mesmos passos de UX adaptados a cada plataforma).
+- **Preservar um modelo de dados único** com o backend; evitar divergência de “forma” de entidades entre web e app sem motivo.
+- **Interface responsiva** no web; no app, respeitar telas pequenas e gestos. O mesmo fluxo de negócio deve ser viável nas três superfícies (web, Android, iOS), com UI nativa de cada stack.
+
+```text
+❌ BAD: Feature só na rota Next com lógica e DTO diferentes do que o app já usa para o mesmo caso.
+✅ GOOD: Mesma API e mesma semântica de dados; UI web responsiva + telas equivalentes no Expo quando a funcionalidade for comum.
+```
