@@ -3,7 +3,10 @@ import { ServiceOrder } from '@/types/service-order.type';
 import { Plot } from '@/types/plot.type';
 import { Image } from 'react-native';
 
-import { buildReportMapboxStaticUrl } from '@/utils/mapboxStaticReportMap';
+import {
+  buildReportMapboxStaticUrl,
+  getReportMapPlaceholderMessage,
+} from '@/utils/mapboxStaticReportMap';
 
 const resolveImageUri = (imagePath: any): string => {
   if (typeof imagePath === 'number') {
@@ -184,12 +187,19 @@ export const generateServiceOrderReportHTML = (
 
       const mapWidth = 1280;
       const mapHeight = 480;
-      const mapUrl = buildReportMapboxStaticUrl({
+      // Temporário: alinhar ao web/MapViewer até EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN estável no build (EAS).
+      const mapResult = buildReportMapboxStaticUrl({
         plot,
         mapWidth,
         mapHeight,
-        accessToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN,
+        accessToken:
+          process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+          'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
       });
+      const mapUrl = mapResult.url;
+      const mapPlaceholderMessage = mapUrl
+        ? ''
+        : getReportMapPlaceholderMessage(mapResult.unavailableReason);
 
       return `
       <div class="page">
@@ -206,7 +216,7 @@ export const generateServiceOrderReportHTML = (
           `
               : `
           <div class="map-placeholder">
-            <p>Mapa não disponível</p>
+            <p>${mapPlaceholderMessage || 'Mapa indisponível'}</p>
           </div>
           `
           }

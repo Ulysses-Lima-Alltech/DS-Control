@@ -4,7 +4,10 @@ import React from 'react';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
-import { buildReportMapboxStaticUrl } from '@/utils/mapboxStaticReportMap';
+import {
+  buildReportMapboxStaticUrl,
+  getReportMapPlaceholderMessage,
+} from '@/utils/mapboxStaticReportMap';
 
 Font.register({
   family: 'Roboto',
@@ -566,12 +569,19 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
         const mapWidth = 1280;
         const mapHeight = 480;
-        const mapUrl = buildReportMapboxStaticUrl({
+        // Temporário: mesmo fallback que MapViewer até NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
+        const mapResult = buildReportMapboxStaticUrl({
           plot,
           mapWidth,
           mapHeight,
-          accessToken: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN,
+          accessToken:
+            process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+            'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
         });
+        const mapUrl = mapResult.url;
+        const mapPlaceholderMessage = mapUrl
+          ? null
+          : getReportMapPlaceholderMessage(mapResult.unavailableReason);
 
         return (
           <Page
@@ -666,7 +676,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       fontWeight: 500,
                     }}
                   >
-                    Mapa não disponível
+                    {mapPlaceholderMessage ?? 'Mapa indisponível'}
                   </Text>
                 </View>
               )}
