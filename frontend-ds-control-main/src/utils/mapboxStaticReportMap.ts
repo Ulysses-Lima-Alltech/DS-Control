@@ -52,7 +52,7 @@ export type BuildReportMapboxStaticUrlResult = {
   usedLongUrlFallback: boolean;
 };
 
-function parsePlotGeoJson(plot: Plot): GeoJSON | null {
+export function parsePlotGeoJson(plot: Plot): GeoJSON | null {
   let geoJson: unknown = plot.geoJson;
   if (geoJson === undefined || geoJson === null) {
     return null;
@@ -129,6 +129,40 @@ export function calculatePlotBounds(plot: Plot): ReportMapBoundingBox | null {
     maxLat,
     centerLng: (minLng + maxLng) / 2,
     centerLat: (minLat + maxLat) / 2,
+  };
+}
+
+/** Mesmo retângulo [west,south,east,north] usado no Mapbox Static bbox-only. */
+export type ReportPaddedBoundsWorld = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+/**
+ * Bbox com padding (igual a `buildReportMapboxStaticUrl`) para projetar o polígono do talhão sobre a imagem.
+ */
+export function getReportPaddedBoundsForPlot(
+  plot: Plot,
+  paddingRatio: number = DEFAULT_PADDING
+): ReportPaddedBoundsWorld | null {
+  const bounds = calculatePlotBounds(plot);
+  if (!bounds) {
+    return null;
+  }
+  const lngSpan = bounds.maxLng - bounds.minLng;
+  const latSpan = bounds.maxLat - bounds.minLat;
+  if (lngSpan < 1e-12 || latSpan < 1e-12) {
+    return null;
+  }
+  const lngPadding = lngSpan * paddingRatio;
+  const latPadding = latSpan * paddingRatio;
+  return {
+    west: bounds.minLng - lngPadding,
+    south: bounds.minLat - latPadding,
+    east: bounds.maxLng + lngPadding,
+    north: bounds.maxLat + latPadding,
   };
 }
 

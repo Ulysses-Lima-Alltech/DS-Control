@@ -1,4 +1,4 @@
-import { Document, Font, Image, Page, Text, View } from '@react-pdf/renderer';
+import { Document, Font, Image, Page, Path, Svg, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
 import { Application } from '@/types/applications.type';
@@ -8,6 +8,7 @@ import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
+import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 
 Font.register({
   family: 'Roboto',
@@ -572,6 +573,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
         const mapWidth = 1280;
         const mapHeight = 480;
+        const plotPolygonPathDs = buildPlotPolygonSvgPathDs(plot, mapWidth, mapHeight);
         // Temporário: mesmo fallback que MapViewer até NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
         const mapResult = buildReportMapboxStaticUrl({
           plot,
@@ -698,11 +700,39 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   <Image
                     src={mapImageSrc!}
                     style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
                       width: '100%',
                       height: '100%',
-                      objectFit: 'contain',
+                      objectFit: 'fill',
                     }}
                   />
+                  {plotPolygonPathDs?.length ? (
+                    <Svg
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                      }}
+                      viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+                      preserveAspectRatio='none'
+                    >
+                      {plotPolygonPathDs.map((d, i) => (
+                        <Path
+                          key={`plot-poly-${plotId}-${i}`}
+                          d={d}
+                          fill='#3388ff'
+                          fillOpacity={0.35}
+                          fillRule='evenodd'
+                          stroke='#1d4ed8'
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </Svg>
+                  ) : null}
                 </>
               )}
               {!showMapImage && (
