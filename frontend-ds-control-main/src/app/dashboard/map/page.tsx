@@ -17,6 +17,7 @@ import { Farm } from '@/types/farm.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 
 export default function MapPage() {
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
   const mapRef = useRef<MapRef | null>(null);
 
   const [selectedFarmIds, setSelectedFarmIds] = useState<string[]>([]);
@@ -174,11 +175,22 @@ export default function MapPage() {
     }
   }, [selectedFarmIds]);
 
+  if (!mapboxToken) {
+    return (
+      <div className='flex h-[calc(100vh)] w-full items-center justify-center p-6 text-center text-muted-foreground'>
+        <p>
+          Mapa indisponível: defina NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no ambiente de build (ex.: variáveis
+          do Amplify para o frontend).
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className={`h-[calc(100vh)] ${isLoadingSelectedFarms ? 'opacity-50' : 'opacity-100'}`}>
       <Map
         ref={mapRef}
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+        mapboxAccessToken={mapboxToken}
         style={{ width: '100%', height: '100%', zIndex: 8 }}
         mapStyle='mapbox://styles/mapbox/satellite-streets-v12'
         logoPosition='bottom-right'

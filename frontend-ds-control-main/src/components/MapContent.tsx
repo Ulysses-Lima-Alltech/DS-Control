@@ -56,6 +56,23 @@ export default function MapContent({
       geoData.features[0].geometry?.type === 'MultiLineString');
 
   useEffect(() => {
+    if (!map) {
+      console.log(
+        '[MAP_DEBUG] MapContent: map ainda não disponível (useMap — <Map> pai não montado?)'
+      );
+      return;
+    }
+    console.log('[MAP_DEBUG] MapContent', {
+      mapReady: true,
+      hasGeoData: Boolean(geoData),
+      isLineStringData: Boolean(isLineStringData),
+      renderFillSource: Boolean(geoData && !isLineStringData),
+      renderLineSource: Boolean(geoData && isLineStringData),
+      effectFlyToWithoutGeoData: !geoData,
+    });
+  }, [map, geoData, isLineStringData]);
+
+  useEffect(() => {
     if (!geoData && map) {
       map.flyTo({
         zoom: 2,
@@ -78,6 +95,10 @@ export default function MapContent({
           processCoordinates(geometry.coordinates);
         } else if (geometry.type === 'LineString') {
           geometry.coordinates.forEach(processCoordinates);
+        } else if (geometry.type === 'MultiLineString') {
+          geometry.coordinates.forEach((line: Position[]) => {
+            line.forEach(processCoordinates);
+          });
         } else if (geometry.type === 'Polygon') {
           geometry.coordinates[0].forEach(processCoordinates);
         } else if (geometry.type === 'MultiPolygon') {
@@ -100,11 +121,13 @@ export default function MapContent({
       const padding = { top: 50, bottom: 50, left: 50, right: 50 };
 
       try {
-        map.fitBounds(bounds, {
-          padding,
-          duration: animationDuration,
-          essential: true,
-        });
+        if (!bounds.isEmpty()) {
+          map.fitBounds(bounds, {
+            padding,
+            duration: animationDuration,
+            essential: true,
+          });
+        }
       } catch (error) {
         toast('Erro ao carregar mapa', {
           description: error instanceof Error ? error.message : 'Erro desconhecido',

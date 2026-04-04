@@ -460,6 +460,7 @@ export default function TableRoutes({
           </div>
 
           <div className='rounded-lg border overflow-hidden' style={{ height: '400px' }}>
+            {/* MAP_DEBUG: painel âmbar + logs [MAP_DEBUG] em MapViewer / MapContent (remover após diagnóstico) */}
             {/* eslint-disable-next-line */}
             <MapViewer geoData={route.geoJson as any} />
           </div>
@@ -508,16 +509,7 @@ export default function TableRoutes({
         error={error}
         onRetry={() =>
           queryClient.invalidateQueries({
-            queryKey: [
-              'routes',
-              {
-                customerId: selectedCustomerId,
-                farmId: selectedFarmId,
-                page: currentPage.toString(),
-                limit: pageSize.toString(),
-                search: debouncedSearchValue || undefined,
-              },
-            ],
+            queryKey: ['routes'],
           })
         }
         searchConfig={{
