@@ -19,11 +19,49 @@ const DjiHealthResponseSchema = z.object({
   mqttUsernameConfigured: z.boolean(),
   mqttPasswordConfigured: z.boolean(),
   webhookSecretConfigured: z.boolean(),
+  mqttClientIdConfigured: z.boolean(),
+  mqttTopicsConfigured: z.boolean(),
+  httpBaseUrlConfigured: z.boolean(),
+  logLevelConfigured: z.boolean(),
 });
 
 const DjiTestResponseSchema = z.object({
   success: z.literal(true),
   id: z.string().uuid(),
+});
+
+const DjiMqttStatusSchema = z.object({
+  state: z.enum(["disconnected", "connecting", "connected", "error"]),
+  lastConnectedAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+  brokerUrlMasked: z.string().nullable(),
+  topicsConfigured: z.array(z.string()),
+});
+
+const DjiHttpPreviewSchema = z.object({
+  baseUrl: z.string().nullable(),
+  baseUrlMasked: z.string().nullable(),
+  logLevel: z.string().nullable(),
+});
+
+const DjiConnectionStatusResponseSchema = z.object({
+  config: DjiHealthResponseSchema,
+  mqtt: DjiMqttStatusSchema,
+  http: DjiHttpPreviewSchema,
+});
+
+const DjiConnectSmokeResponseSchema = z.object({
+  success: z.boolean(),
+  attemptEventId: z.string().uuid(),
+  resultEventId: z.string().uuid(),
+  mqtt: DjiMqttStatusSchema,
+  reason: z.string().optional(),
+});
+
+const DjiDisconnectSmokeResponseSchema = z.object({
+  success: z.literal(true),
+  eventId: z.string().uuid(),
+  mqtt: DjiMqttStatusSchema,
 });
 
 export function DjiIntegrationRoutes(
@@ -66,6 +104,62 @@ export function DjiIntegrationRoutes(
     preHandler: [AuthenticationJWT],
     handler: async (_, reply) => {
       const result = await service.createTestEvent();
+      return reply.status(HTTP_STATUS_CODES.OK).send(result);
+    },
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/connection-status",
+    schema: {
+      description:
+        "Smoke test — configuração + estado MQTT em memória + preview HTTP (sem consumo de dados reais)",
+      summary: "DJI connection status",
+      tags: ["integrations-dji"],
+      response: {
+        200: DjiConnectionStatusResponseSchema,
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: async (_, reply) => {
+      const body = service.getConnectionHealth();
+      return reply.status(HTTP_STATUS_CODES.OK).send(body);
+    },
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "POST",
+    url: "/connect",
+    schema: {
+      description:
+        "Smoke test — tenta conexão MQTT manual, registra integration_events (source=smoke_test); não inicia automaticamente no boot",
+      summary: "DJI MQTT smoke connect",
+      tags: ["integrations-dji"],
+      response: {
+        200: DjiConnectSmokeResponseSchema,
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: async (_, reply) => {
+      const result = await service.connectSmokeTest();
+      return reply.status(HTTP_STATUS_CODES.OK).send(result);
+    },
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "POST",
+    url: "/disconnect",
+    schema: {
+      description: "Smoke test — encerra MQTT singleton e grava evento de disconnect em integration_events",
+      summary: "DJI MQTT smoke disconnect",
+      tags: ["integrations-dji"],
+      response: {
+        200: DjiDisconnectSmokeResponseSchema,
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: async (_, reply) => {
+      const result = await service.disconnectSmokeTest();
       return reply.status(HTTP_STATUS_CODES.OK).send(result);
     },
   });

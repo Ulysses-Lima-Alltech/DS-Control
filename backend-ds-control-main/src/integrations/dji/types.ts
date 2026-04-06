@@ -25,3 +25,35 @@ export type DjiTestEventPayload = {
   message: string;
   createdAt: string;
 };
+
+export type DjiMqttConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "error";
+
+export type DjiMqttConnectionStatus = {
+  state: DjiMqttConnectionState;
+  lastConnectedAt: string | null;
+  lastError: string | null;
+  brokerUrlMasked: string | null;
+  topicsConfigured: string[];
+};
+
+export type DjiSmokeMqttConnectAttemptPayload = {
+  kind: "dji_smoke_mqtt_connect_attempt";
+  createdAt: string;
+};
+
+export type DjiSmokeMqttConnectResultPayload = {
+  kind: "dji_smoke_mqtt_connect_result";
+  createdAt: string;
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+};
+
+export type DjiSmokeMqttDisconnectPayload = {
+  kind: "dji_smoke_mqtt_disconnect";
+  createdAt: string;
+};

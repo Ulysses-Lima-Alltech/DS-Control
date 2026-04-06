@@ -43,6 +43,25 @@ export function getDjiEnvConfig(): DjiEnvConfig {
   };
 }
 
+/** Configuração completa DJI (inclui envs adicionais para smoke test / HTTP / MQTT). */
+export type DjiConfig = DjiEnvConfig & {
+  mqttClientId: string | undefined;
+  mqttTopicsRaw: string | undefined;
+  httpBaseUrl: string | undefined;
+  logLevel: string | undefined;
+};
+
+export function getDjiConfig(): DjiConfig {
+  const base = getDjiEnvConfig();
+  return {
+    ...base,
+    mqttClientId: trimOrUndefined(process.env.DJI_MQTT_CLIENT_ID),
+    mqttTopicsRaw: trimOrUndefined(process.env.DJI_MQTT_TOPICS),
+    httpBaseUrl: trimOrUndefined(process.env.DJI_HTTP_BASE_URL),
+    logLevel: trimOrUndefined(process.env.DJI_LOG_LEVEL),
+  };
+}
+
 export type DjiConfigHealth = {
   enabled: boolean;
   appIdConfigured: boolean;
@@ -52,10 +71,14 @@ export type DjiConfigHealth = {
   mqttUsernameConfigured: boolean;
   mqttPasswordConfigured: boolean;
   webhookSecretConfigured: boolean;
+  mqttClientIdConfigured: boolean;
+  mqttTopicsConfigured: boolean;
+  httpBaseUrlConfigured: boolean;
+  logLevelConfigured: boolean;
 };
 
 export function getDjiConfigHealth(): DjiConfigHealth {
-  const c = getDjiEnvConfig();
+  const c = getDjiConfig();
   return {
     enabled: c.enabled,
     appIdConfigured: Boolean(c.appId),
@@ -65,5 +88,15 @@ export function getDjiConfigHealth(): DjiConfigHealth {
     mqttUsernameConfigured: Boolean(c.mqttUsername),
     mqttPasswordConfigured: Boolean(c.mqttPassword),
     webhookSecretConfigured: Boolean(c.webhookSecret),
+    mqttClientIdConfigured: Boolean(c.mqttClientId),
+    mqttTopicsConfigured: Boolean(c.mqttTopicsRaw),
+    httpBaseUrlConfigured: Boolean(c.httpBaseUrl),
+    logLevelConfigured: Boolean(c.logLevel),
   };
+}
+
+/** Broker URL presente e integração DJI habilitada (mínimo para smoke MQTT). */
+export function isDjiMqttConfigured(): boolean {
+  const c = getDjiConfig();
+  return Boolean(c.enabled && c.mqttBrokerUrl);
 }
