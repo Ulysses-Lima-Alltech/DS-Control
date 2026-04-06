@@ -44,13 +44,6 @@ export default function FormRegisterNewServiceOrder({
   isUpdatingServiceOrder?: boolean;
   isEditingServiceOrder?: boolean;
 }) {
-  const debugRunId = 'os-debug-pre';
-  const emitDebugLog = (hypothesisId: string, location: string, message: string, data: Record<string, unknown>) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7864/ingest/41c173a2-8dc0-4d04-b818-e538de3cf1c3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'17c8b7'},body:JSON.stringify({sessionId:'17c8b7',runId:debugRunId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  };
-
   const queryClient = useQueryClient();
   const [customerSearch, setCustomerSearch] = useState('');
   const [contractSearch, setContractSearch] = useState('');
@@ -311,36 +304,6 @@ export default function FormRegisterNewServiceOrder({
       setValue('plotsIds', [...currentPlotIds, plotId]);
     }
   };
-
-  const getPlotIdByNameForTheLastClickedFarm: (plotName: string) => string = (plotName: string) => {
-    return lastClickedFarmData?.farm.plots.find((plot) => plot.name === plotName)?.id ?? '';
-  };
-
-  useEffect(() => {
-    emitDebugLog('H1', 'FormRegisterNewServiceOrder.tsx:component', 'OS component rendered', {
-      component: 'FormRegisterNewServiceOrder',
-      hasInitialValues: !!initialValues,
-      isEditingServiceOrder: !!isEditingServiceOrder,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const plots = lastClickedFarmData?.farm.plots ?? [];
-    const activePlots = plots.filter((plot) => !plot.deletedAt);
-    const inactivePlots = plots.filter((plot) => !!plot.deletedAt);
-    const f76Related = lastClickedFarmData?.farm?.name?.includes('F76') ?? false;
-
-    emitDebugLog('H2', 'FormRegisterNewServiceOrder.tsx:lastClickedFarmData', 'Farm plots payload stats', {
-      farmId: lastClickedFarmId,
-      farmName: lastClickedFarmData?.farm?.name ?? null,
-      isF76: f76Related,
-      totalPlots: plots.length,
-      activePlots: activePlots.length,
-      inactivePlots: inactivePlots.length,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastClickedFarmData, lastClickedFarmId]);
 
   const toggleFarmSelection = (farmId: string) => {
     const selectedFarm = allListedFarms.find((farm) => farm.id === farmId);
@@ -699,28 +662,6 @@ export default function FormRegisterNewServiceOrder({
                 <p className='text-sm text-muted-foreground'>Carregando dados do mapa...</p>
               </div>
             ) : (
-              (() => {
-                const mapPlots =
-                  lastClickedFarmData?.farm.plots?.filter(
-                    (plot) =>
-                      plot.name.toLowerCase().includes(plotSearch.toLowerCase()) && !plot.deletedAt
-                  ) ?? [];
-                const hasInactiveInMap = mapPlots.some((plot) => !!plot.deletedAt);
-                emitDebugLog(
-                  'H3',
-                  'FormRegisterNewServiceOrder.tsx:mapGeoData',
-                  'Map plots before conversion',
-                  {
-                    farmId: lastClickedFarmId,
-                    farmName: lastClickedFarmData?.farm?.name ?? null,
-                    isF76: lastClickedFarmData?.farm?.name?.includes('F76') ?? false,
-                    plotSearch,
-                    mapPlotsCount: mapPlots.length,
-                    hasInactiveInMap,
-                    mapPlotNames: mapPlots.slice(0, 20).map((plot) => plot.name),
-                  }
-                );
-                return (
               <MapViewer
                 geoData={
                   lastClickedFarmData?.farm.plots
@@ -731,27 +672,20 @@ export default function FormRegisterNewServiceOrder({
                       )
                     : undefined
                 }
-                layerNameToHighlight={
-                  lastClickedFarmData?.farm.plots.map((plot) => {
-                    if (currentSelectedPlots.includes(plot.id!)) {
-                      return plot.name;
-                    }
-                    return '';
-                  }) || []
+                layerPlotIdsToHighlight={
+                  lastClickedFarmData?.farm.plots
+                    ?.filter(
+                      (plot) =>
+                        plot.id &&
+                        currentSelectedPlots.includes(plot.id) &&
+                        !plot.deletedAt
+                    )
+                    .map((plot) => plot.id!) ?? []
                 }
-                onPlotClick={(plotName: string) => {
-                  emitDebugLog('H4', 'FormRegisterNewServiceOrder.tsx:onPlotClick', 'Map click payload key', {
-                    farmId: lastClickedFarmId,
-                    farmName: lastClickedFarmData?.farm?.name ?? null,
-                    isF76: lastClickedFarmData?.farm?.name?.includes('F76') ?? false,
-                    clickedPlotName: plotName,
-                    resolvedPlotId: getPlotIdByNameForTheLastClickedFarm(plotName),
-                  });
-                  handleOnPlotClick(getPlotIdByNameForTheLastClickedFarm(plotName));
+                onPlotClick={(plotId: string) => {
+                  handleOnPlotClick(plotId);
                 }}
               />
-                );
-              })()
             )}
           </div>
 

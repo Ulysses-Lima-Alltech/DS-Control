@@ -1,7 +1,7 @@
 import type { GeoJSON, Geometry, Position } from 'geojson';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Layer, Source, useMap } from 'react-map-gl/mapbox';
 import { toast } from 'sonner';
 
@@ -18,13 +18,34 @@ import {
 export type MapContentProps = {
   geoData: GeoJSON | undefined;
   layerNameToHighlight?: string | string[];
-  onPlotClick?: (plotLayerName: string) => void;
+  /** When set, selection highlight uses stable `plot_id` on features (preferred over `plot_name`). */
+  layerPlotIdsToHighlight?: string[];
+  onPlotClick?: (plotId: string) => void;
   animationDuration?: number;
 };
+
+function buildPlotSelectionHighlightExpression(
+  layerPlotIds?: string[],
+  layerNameToHighlight?: string | string[]
+): any {
+  const ids = layerPlotIds?.filter(Boolean) ?? [];
+  const namesRaw = Array.isArray(layerNameToHighlight)
+    ? layerNameToHighlight
+    : layerNameToHighlight
+      ? [layerNameToHighlight]
+      : [];
+  const names = namesRaw.filter((n) => n !== '');
+  if (ids.length === 0 && names.length === 0) return false;
+  const parts: any[] = [];
+  if (ids.length) parts.push(['in', ['get', 'plot_id'], ['literal', ids]]);
+  if (names.length) parts.push(['in', ['get', 'plot_name'], ['literal', names]]);
+  return parts.length === 1 ? parts[0] : ['any', ...parts];
+}
 
 export default function MapContent({
   geoData,
   layerNameToHighlight,
+  layerPlotIdsToHighlight,
   onPlotClick,
   animationDuration = 2000,
 }: MapContentProps) {
@@ -47,6 +68,11 @@ export default function MapContent({
     : layerNameToHighlight
       ? [layerNameToHighlight]
       : [];
+
+  const selectionHighlight = useMemo(
+    () => buildPlotSelectionHighlightExpression(layerPlotIdsToHighlight, layerNameToHighlight),
+    [layerPlotIdsToHighlight, layerNameToHighlight]
+  );
 
   const isLineStringData =
     geoData &&
@@ -129,10 +155,7 @@ export default function MapContent({
       const layer = mapInstance.getLayer('uploaded-layer');
 
       if (layer) {
-        const isHighlighted =
-          layerNamesToHighlight.length > 0
-            ? ['in', ['get', 'plot_name'], ['literal', layerNamesToHighlight]]
-            : false;
+        const isHighlighted = selectionHighlight;
 
         mapInstance.setPaintProperty(
           'uploaded-layer',
@@ -155,7 +178,7 @@ export default function MapContent({
     };
 
     checkLayerAndSetup();
-  }, [map, geoData, layerNamesToHighlight, isLineStringData]);
+  }, [map, geoData, selectionHighlight, isLineStringData]);
 
   useEffect(() => {
     if (!map || !geoData) return;
@@ -182,7 +205,10 @@ export default function MapContent({
           content = `Fazenda: ${farmName}
 Nome: ${properties.plot_name}
 Hectares: ${properties.hectare} ha`;
-          polygonId = properties.plot_name as string;
+          polygonId =
+            properties.plot_id != null && String(properties.plot_id) !== ''
+              ? String(properties.plot_id)
+              : (properties.plot_name as string);
         } else if ('name' in properties) {
           content = `Rota: ${properties.name}`;
           polygonId = properties.name as string;
@@ -219,10 +245,12 @@ Hectares: ${properties.hectare} ha`;
         const feature = features[0];
         const properties = feature.properties || {};
 
-        if ('plot_name' in properties) {
-          onPlotClick?.(properties.plot_name);
+        if (properties.plot_id != null && String(properties.plot_id) !== '') {
+          onPlotClick?.(String(properties.plot_id));
+        } else if ('plot_name' in properties) {
+          onPlotClick?.(String(properties.plot_name));
         } else if ('name' in properties) {
-          onPlotClick?.(properties.name);
+          onPlotClick?.(String(properties.name));
         }
       }
     };
@@ -254,10 +282,7 @@ Hectares: ${properties.hectare} ha`;
     const mapInstance = map.getMap();
     const layer = mapInstance.getLayer('uploaded-layer');
     if (layer) {
-      const isHighlighted =
-        layerNamesToHighlight.length > 0
-          ? ['in', ['get', 'plot_name'], ['literal', layerNamesToHighlight]]
-          : false;
+      const isHighlighted = selectionHighlight;
 
       if (hoveredPolygonId) {
         mapInstance.setPaintProperty(
@@ -293,12 +318,9 @@ Hectares: ${properties.hectare} ha`;
         );
       }
     }
-  }, [hoveredPolygonId, layerNamesToHighlight, map, isLineStringData]);
+  }, [hoveredPolygonId, selectionHighlight, map, isLineStringData]);
 
-  const isHighlighted =
-    layerNamesToHighlight.length > 0
-      ? ['in', ['get', 'plot_name'], ['literal', layerNamesToHighlight]]
-      : false;
+  const isHighlighted = selectionHighlight;
 
   return (
     <>

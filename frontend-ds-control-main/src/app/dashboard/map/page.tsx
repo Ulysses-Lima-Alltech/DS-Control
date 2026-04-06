@@ -130,10 +130,10 @@ export default function MapPage() {
     return convertDatabasePlotsToMapViewerPlotsFeatureCollection(allPlots, selectedFarms);
   }, [selectedFarms]);
 
-  const handlePlotClick = (plotLayerName: string) => {
+  const handlePlotClick = (plotId: string) => {
     const plot = selectedFarms
       .flatMap((farm) => farm?.plots || [])
-      .find((plot) => plot.name === plotLayerName);
+      .find((p) => p.id === plotId);
 
     if (plot && plot.farmId && plot.id) {
       setClickedPlot({ farmId: plot.farmId, plotId: plot.id });

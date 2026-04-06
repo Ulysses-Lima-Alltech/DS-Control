@@ -227,8 +227,8 @@ export default function DialogPlotDetails({
                             )
                           : undefined
                       }
-                      onPlotClick={(plotLayerName) => {
-                        const plot = data?.farm?.plots.find((plot) => plot.name === plotLayerName);
+                      onPlotClick={(plotId) => {
+                        const plot = data?.farm?.plots.find((p) => p.id === plotId);
                         setSelectedPlot(plot ?? null);
                         setSelectedPlotFilter(plot?.id);
                       }}

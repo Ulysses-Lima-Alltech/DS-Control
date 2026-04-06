@@ -8,10 +8,16 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 export type MapViewerProps = {
   geoData: GeoJSON | undefined;
   layerNameToHighlight?: string | string[];
-  onPlotClick?: (plotLayerName: string) => void;
+  layerPlotIdsToHighlight?: string[];
+  onPlotClick?: (plotId: string) => void;
 };
 
-export default function MapViewer({ geoData, layerNameToHighlight, onPlotClick }: MapViewerProps) {
+export default function MapViewer({
+  geoData,
+  layerNameToHighlight,
+  layerPlotIdsToHighlight,
+  onPlotClick,
+}: MapViewerProps) {
   // Temporário: token fixo no código até corrigir NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
   // const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
   const token =
@@ -29,6 +35,7 @@ export default function MapViewer({ geoData, layerNameToHighlight, onPlotClick }
       <MapContent
         geoData={geoData}
         layerNameToHighlight={layerNameToHighlight}
+        layerPlotIdsToHighlight={layerPlotIdsToHighlight}
         onPlotClick={onPlotClick}
       />
     </Map>

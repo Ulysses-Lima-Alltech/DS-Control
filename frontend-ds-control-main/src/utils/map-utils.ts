@@ -26,14 +26,17 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
   geoData.forEach((plot) => {
     const plotFeatureCollection = plot.geoJson as GeoJSON.FeatureCollection;
     if (plotFeatureCollection.features && Array.isArray(plotFeatureCollection.features)) {
-      // Add farm information to each feature
-      const featuresWithFarmInfo = plotFeatureCollection.features.map(feature => ({
+      // Stable plot identity for map ↔ list sync (prefer plot.id over plot_name)
+      const featuresWithFarmInfo = plotFeatureCollection.features.map((feature) => ({
         ...feature,
         properties: {
           ...feature.properties,
+          ...(plot.id ? { plot_id: plot.id } : {}),
+          plot_name: plot.name,
+          hectare: plot.hectare,
           farm_name: plot.farmId ? farmMap.get(plot.farmId) || 'Unknown Farm' : 'Unknown Farm',
           farm_id: plot.farmId,
-        }
+        },
       }));
       formattedPlots.features.push(...featuresWithFarmInfo);
     }
@@ -182,13 +185,22 @@ export function createPlotStrokeColorPaintExpression(
  * @param isHighlighted - Mapbox expression or boolean for highlight condition
  * @returns Complete Mapbox expression for hover-aware fill color
  */
+/** True when hovered id matches feature (plot_id if present, else plot_name). */
+function hoveredPlotMatches(hoveredId: string): MapboxExpression {
+  return [
+    'any',
+    ['all', ['has', 'plot_id'], ['==', ['get', 'plot_id'], hoveredId]],
+    ['all', ['!', ['has', 'plot_id']], ['==', ['get', 'plot_name'], hoveredId]],
+  ];
+}
+
 export function createHoverPlotFillColorPaintExpression(
   hoveredPlotId: string,
   isHighlighted: MapboxExpression | boolean
 ): MapboxExpression {
   return [
     'case',
-    ['==', ['get', 'plot_name'], hoveredPlotId],
+    hoveredPlotMatches(hoveredPlotId),
     'yellow',
     createPlotFillColorPaintExpression(isHighlighted),
   ];
@@ -206,7 +218,7 @@ export function createHoverPlotFillOpacityPaintExpression(
 ): MapboxExpression {
   return [
     'case',
-    ['==', ['get', 'plot_name'], hoveredPlotId],
+    hoveredPlotMatches(hoveredPlotId),
     0.8,
     createPlotFillOpacityPaintExpression(isHighlighted),
   ];
@@ -224,7 +236,7 @@ export function createHoverPlotStrokeColorPaintExpression(
 ): MapboxExpression {
   return [
     'case',
-    ['==', ['get', 'plot_name'], hoveredPlotId],
+    hoveredPlotMatches(hoveredPlotId),
     'yellow',
     createPlotStrokeColorPaintExpression(isHighlighted),
   ];
