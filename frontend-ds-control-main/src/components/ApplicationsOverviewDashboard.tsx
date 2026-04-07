@@ -2,12 +2,14 @@
 
 import { format, subDays } from 'date-fns';
 import { AlertCircle, AlertTriangle, Info, Leaf, Map, RefreshCw, SprayCan, TrendingUp } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ChartConfig } from '@/components/ui/chart';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -16,6 +18,19 @@ import {
   useGetStatsApplications,
 } from '@/queries/application.query';
 import { ServiceOrderStatus } from '@/types/service-order.type';
+
+/**
+ * Gráficos — Visão Geral (Aplicações)
+ *
+ * O `ChartContainer` do shadcn (`ui/chart.tsx`) inclui `aspect-video` no wrapper. Em cards com
+ * altura limitada isso compete com o `ResponsiveContainer` do Recharts e pode gerar SVG com
+ * dimensão incorreta e paths (linhas/barras) vazando para fora do card.
+ *
+ * Nesta tela neutralizamos isso com: (1) `ChartPlotShell` — altura explícita em px; (2) classe
+ * `OVERVIEW_CHART_CONTAINER_CLASS` no `ChartContainer` com `!aspect-auto` (anula o 16:9),
+ * `overflow-hidden` e encadeamento de altura até o ResponsiveContainer; (3) cards com
+ * `min-w-0 overflow-hidden`. Gráficos devem passar por `OverviewChartPlot` para não reabrir regressão.
+ */
 
 type OverviewFilters = {
   search?: string;
@@ -34,6 +49,16 @@ const formatNumber = (value: number, suffix = '') =>
 
 const formatCompact = (value: number) =>
   value.toLocaleString('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Alturas em px — base real para o ResponsiveContainer (evita %/aspect instável). */
+const CHART_EVOLUTION_H = 220;
+const CHART_BAR_H = 200;
+
+function truncateAxisLabel(value: unknown, maxLen = 22): string {
+  const s = String(value ?? '').trim();
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+}
 
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
   return Boolean(
@@ -85,6 +110,50 @@ function ChartEmptyState({ title, hint }: { title: string; hint?: string }) {
       <p className='text-sm text-muted-foreground'>{title}</p>
       {hint ? <p className='text-xs text-muted-foreground/90 max-w-xs leading-relaxed'>{hint}</p> : null}
     </div>
+  );
+}
+
+/** Shell com dimensão fixa: o único ancestral com “altura real” em px para o Recharts. */
+function ChartPlotShell({ heightPx, children }: { heightPx: number; children: ReactNode }) {
+  return (
+    <div
+      className='relative w-full min-h-0 min-w-0 max-h-full overflow-hidden rounded-md'
+      style={{ height: heightPx }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Anula o `aspect-video` padrão do ChartContainer (`!aspect-auto`) e força o fluxo de altura
+ * até `.recharts-responsive-container`, para o SVG não extrapolar o shell.
+ */
+const OVERVIEW_CHART_CONTAINER_CLASS =
+  'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:h-full [&_.recharts-responsive-container]:w-full [&_.recharts-responsive-container]:max-h-full';
+
+/**
+ * Ponto único de montagem de gráfico nesta tela: shell com altura + ChartContainer seguro.
+ * Não usar ChartContainer solto dentro de cards sem este wrapper e sem OVERVIEW_CHART_CONTAINER_CLASS.
+ */
+function OverviewChartPlot({
+  heightPx,
+  chartId,
+  config,
+  children,
+}: {
+  heightPx: number;
+  chartId: string;
+  config: ChartConfig;
+  /** LineChart/BarChart — tipo alinhado ao ResponsiveContainer interno do ChartContainer. */
+  children: ReactElement;
+}) {
+  return (
+    <ChartPlotShell heightPx={heightPx}>
+      <ChartContainer id={chartId} className={OVERVIEW_CHART_CONTAINER_CLASS} config={config}>
+        {children}
+      </ChartContainer>
+    </ChartPlotShell>
   );
 }
 
@@ -152,20 +221,34 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
   const looseCount = stats?.pendingApplicationsCount ?? 0;
   const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
-  const evolutionData = (evolutionQuery.data?.evolution || []).map((item) => ({
-    month: item.yearMonth.slice(5),
-    applications: item.applicationsCount,
-  }));
+  const evolutionData = useMemo(() => {
+    return (evolutionQuery.data?.evolution || [])
+      .filter((item) => typeof item?.yearMonth === 'string' && item.yearMonth.length >= 7)
+      .map((item) => ({
+        month: item.yearMonth.slice(5),
+        applications: Math.max(0, Number(item.applicationsCount) || 0),
+      }));
+  }, [evolutionQuery.data?.evolution]);
 
-  const productData = [...(stats?.typeOfProducts || [])]
-    .sort((a, b) => b.hectares - a.hectares)
-    .slice(0, 5)
-    .map((item) => ({ name: item.product, hectares: item.hectares }));
+  const productData = useMemo(() => {
+    return [...(stats?.typeOfProducts || [])]
+      .filter((row) => row?.product != null && Number(row.hectares) >= 0)
+      .sort((a, b) => Number(b.hectares) - Number(a.hectares))
+      .slice(0, 5)
+      .map((item) => ({
+        name: String(item.product),
+        hectares: Math.max(0, Number(item.hectares) || 0),
+      }));
+  }, [stats?.typeOfProducts]);
 
-  const topFarms = (topFarmsQuery.data?.topFarms || []).map((farm) => ({
-    name: farm.farmName,
-    hectares: farm.totalAreaHectares,
-  }));
+  const topFarms = useMemo(() => {
+    return (topFarmsQuery.data?.topFarms || [])
+      .filter((farm) => farm?.farmName != null)
+      .map((farm) => ({
+        name: String(farm.farmName),
+        hectares: Math.max(0, Number(farm.totalAreaHectares) || 0),
+      }));
+  }, [topFarmsQuery.data?.topFarms]);
 
   const hasNoAlerts =
     (stats?.pendingApplicationsCount || 0) === 0 &&
@@ -243,14 +326,14 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
       ) : null}
 
       {/* Evolução */}
-      <Card>
+      <Card className='min-w-0 overflow-hidden'>
         <CardHeader className='pb-2'>
           <CardTitle className='text-base'>Evolução temporal de aplicações</CardTitle>
           <CardDescription>Últimos meses com consolidação mensal (quantidade)</CardDescription>
         </CardHeader>
-        <CardContent className='min-h-[288px] h-72 pt-1'>
+        <CardContent className='min-w-0 overflow-hidden pt-1'>
           {evolutionQuery.isPending ? (
-            <Skeleton className='h-full w-full min-h-[260px] rounded-md' />
+            <Skeleton className='w-full rounded-md' style={{ height: CHART_EVOLUTION_H }} />
           ) : evolutionQuery.isError ? (
             <SectionError
               compact
@@ -262,47 +345,66 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
               onRetry={() => evolutionQuery.refetch()}
             />
           ) : evolutionData.length === 0 ? (
-            <ChartEmptyState
-              title='Sem dados de evolução para exibir.'
-              hint={emptyChartHint}
-            />
+            <ChartPlotShell heightPx={CHART_EVOLUTION_H}>
+              <ChartEmptyState
+                title='Sem dados de evolução para exibir.'
+                hint={emptyChartHint}
+              />
+            </ChartPlotShell>
           ) : (
-            <ChartContainer config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}>
-              <LineChart data={evolutionData} margin={{ left: 8, right: 8, top: 8 }}>
+            <OverviewChartPlot
+              heightPx={CHART_EVOLUTION_H}
+              chartId='overview-evolution-line'
+              config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
+            >
+              <LineChart
+                data={evolutionData}
+                margin={{ left: 4, right: 8, top: 8, bottom: 4 }}
+              >
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
-                <XAxis dataKey='month' tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tickFormatter={(value) => formatCompact(Number(value))} />
+                <XAxis dataKey='month' tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis
+                  allowDecimals={false}
+                  width={36}
+                  tickFormatter={(value) => formatCompact(Number(value))}
+                />
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} aplicações`, '']}
+                      formatter={(value) => [
+                        `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
+                        '',
+                      ]}
                     />
                   }
                 />
                 <Line
                   type='monotone'
                   dataKey='applications'
+                  name='Aplicações'
                   stroke='var(--color-applications)'
-                  strokeWidth={2.5}
+                  strokeWidth={2}
                   dot={{ r: 2 }}
                   activeDot={{ r: 4 }}
+                  connectNulls={false}
+                  isAnimationActive={false}
                 />
               </LineChart>
-            </ChartContainer>
+            </OverviewChartPlot>
           )}
         </CardContent>
       </Card>
 
-      <div className='grid grid-cols-1 xl:grid-cols-2 gap-4'>
+      <div className='grid grid-cols-1 min-w-0 xl:grid-cols-2 gap-4'>
         {/* Produtos — depende de stats */}
-        <Card>
+        <Card className='min-w-0 overflow-hidden'>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>Distribuição por produto</CardTitle>
             <CardDescription>Comparativo de área aplicada (top 5)</CardDescription>
           </CardHeader>
-          <CardContent className='min-h-[256px] h-64 pt-1'>
+          <CardContent className='min-w-0 overflow-hidden pt-1'>
             {statsQuery.isPending ? (
-              <Skeleton className='h-full w-full min-h-[220px] rounded-md' />
+              <Skeleton className='w-full rounded-md' style={{ height: CHART_BAR_H }} />
             ) : statsQuery.isError ? (
               <SectionError
                 compact
@@ -314,13 +416,24 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                 onRetry={() => statsQuery.refetch()}
               />
             ) : productData.length === 0 ? (
-              <ChartEmptyState
-                title='Sem dados de produto para o período.'
-                hint={emptyChartHint}
-              />
+              <ChartPlotShell heightPx={CHART_BAR_H}>
+                <ChartEmptyState
+                  title='Sem dados de produto para o período.'
+                  hint={emptyChartHint}
+                />
+              </ChartPlotShell>
             ) : (
-              <ChartContainer config={{ hectares: { label: 'Hectares', color: 'var(--chart-2)' } }}>
-                <BarChart data={productData} layout='vertical' margin={{ left: 6, right: 12 }}>
+              <OverviewChartPlot
+                heightPx={CHART_BAR_H}
+                chartId='overview-products-bar'
+                config={{ productBar: { label: 'Hectares', color: 'var(--chart-2)' } }}
+              >
+                <BarChart
+                  data={productData}
+                  layout='vertical'
+                  margin={{ left: 4, right: 10, top: 4, bottom: 4 }}
+                  barCategoryGap='12%'
+                >
                   <CartesianGrid horizontal={false} />
                   <XAxis
                     type='number'
@@ -330,34 +443,49 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                   <YAxis
                     dataKey='name'
                     type='category'
-                    width={120}
+                    width={108}
+                    tickFormatter={truncateAxisLabel}
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
+                    interval={0}
                   />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => [`${formatNumber(Number(value), ' ha')}`, 'Área']}
+                        formatter={(value) => [
+                          `${formatNumber(Number(value ?? 0), ' ha')}`,
+                          'Área',
+                        ]}
+                        labelFormatter={(_, payload) => {
+                          const row = payload?.[0]?.payload as { name?: string } | undefined;
+                          return row?.name ?? '';
+                        }}
                       />
                     }
                   />
-                  <Bar dataKey='hectares' fill='var(--color-hectares)' radius={4} />
+                  <Bar
+                    dataKey='hectares'
+                    fill='var(--color-productBar)'
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={32}
+                    isAnimationActive={false}
+                  />
                 </BarChart>
-              </ChartContainer>
+              </OverviewChartPlot>
             )}
           </CardContent>
         </Card>
 
         {/* Top fazendas */}
-        <Card>
+        <Card className='min-w-0 overflow-hidden'>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>Top 5 fazendas por área</CardTitle>
             <CardDescription>Ranking operacional de aplicação no período</CardDescription>
           </CardHeader>
-          <CardContent className='min-h-[256px] h-64 pt-1'>
+          <CardContent className='min-w-0 overflow-hidden pt-1'>
             {topFarmsQuery.isPending ? (
-              <Skeleton className='h-full w-full min-h-[220px] rounded-md' />
+              <Skeleton className='w-full rounded-md' style={{ height: CHART_BAR_H }} />
             ) : topFarmsQuery.isError ? (
               <SectionError
                 compact
@@ -369,13 +497,24 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                 onRetry={() => topFarmsQuery.refetch()}
               />
             ) : topFarms.length === 0 ? (
-              <ChartEmptyState
-                title='Sem dados de fazendas para exibir.'
-                hint={emptyChartHint}
-              />
+              <ChartPlotShell heightPx={CHART_BAR_H}>
+                <ChartEmptyState
+                  title='Sem dados de fazendas para exibir.'
+                  hint={emptyChartHint}
+                />
+              </ChartPlotShell>
             ) : (
-              <ChartContainer config={{ hectares: { label: 'Hectares', color: 'var(--chart-3)' } }}>
-                <BarChart data={topFarms} layout='vertical' margin={{ left: 6, right: 12 }}>
+              <OverviewChartPlot
+                heightPx={CHART_BAR_H}
+                chartId='overview-farms-bar'
+                config={{ farmBar: { label: 'Hectares', color: 'var(--chart-3)' } }}
+              >
+                <BarChart
+                  data={topFarms}
+                  layout='vertical'
+                  margin={{ left: 4, right: 10, top: 4, bottom: 4 }}
+                  barCategoryGap='12%'
+                >
                   <CartesianGrid horizontal={false} />
                   <XAxis
                     type='number'
@@ -385,21 +524,36 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                   <YAxis
                     dataKey='name'
                     type='category'
-                    width={120}
+                    width={108}
+                    tickFormatter={truncateAxisLabel}
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
+                    interval={0}
                   />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => [`${formatNumber(Number(value), ' ha')}`, 'Área']}
+                        formatter={(value) => [
+                          `${formatNumber(Number(value ?? 0), ' ha')}`,
+                          'Área',
+                        ]}
+                        labelFormatter={(_, payload) => {
+                          const row = payload?.[0]?.payload as { name?: string } | undefined;
+                          return row?.name ?? '';
+                        }}
                       />
                     }
                   />
-                  <Bar dataKey='hectares' fill='var(--color-hectares)' radius={4} />
+                  <Bar
+                    dataKey='hectares'
+                    fill='var(--color-farmBar)'
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={32}
+                    isAnimationActive={false}
+                  />
                 </BarChart>
-              </ChartContainer>
+              </OverviewChartPlot>
             )}
           </CardContent>
         </Card>
