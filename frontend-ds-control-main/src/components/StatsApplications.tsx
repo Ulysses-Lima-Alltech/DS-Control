@@ -11,6 +11,7 @@ interface StatsApplicationsProps {
   pilotId?: string;
   customerId?: string;
   serviceOrderId?: string;
+  invalidApplication?: boolean;
   startDate?: string;
   endDate?: string;
 }
@@ -22,6 +23,7 @@ export const StatsApplications = ({
   pilotId,
   customerId,
   serviceOrderId,
+  invalidApplication,
   startDate,
   endDate,
 }: StatsApplicationsProps) => {
@@ -36,6 +38,7 @@ export const StatsApplications = ({
     pilotId,
     customerId,
     serviceOrderId,
+    invalidApplication,
     startDate,
     endDate,
   });
@@ -48,6 +51,7 @@ export const StatsApplications = ({
     return <SkeletonErrorStats />;
   }
 
+  const totalApplications = stats?.stats?.applicationCount || 0;
   const totalHectares = stats?.stats?.totalAreaHectares || 0;
   const totalHectaresPerDay = stats?.stats?.totalHectaresPerDay || 0;
   const totalHectaresByMonth = stats?.stats?.totalHectaresByMonth || 0;
@@ -56,18 +60,24 @@ export const StatsApplications = ({
   const statsData = [
     {
       title: 'Aplicações Agrícolas',
-      count: `${totalHectares.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`,
+      count: `${totalApplications.toLocaleString('pt-BR')} aplicações`,
       values: [
         {
-          label: `${totalHectares.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`,
+          label: `${totalApplications.toLocaleString('pt-BR')}`,
           status: 'TOTAL',
           statusColor: 'text-blue-600',
+          count: 'Quantidade total de aplicações',
+        },
+        {
+          label: `${totalHectares.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`,
+          status: 'ÁREA TOTAL',
+          statusColor: 'text-green-600',
           count: `${totalHectaresPerDay.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha/dia`,
         },
         {
           label: `${totalHectaresByMonth.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`,
-          status: 'ESTE MÊS',
-          statusColor: 'text-green-600',
+          status: 'ÁREA MÊS',
+          statusColor: 'text-emerald-600',
           count: `${totalHectaresByMonthPerDay.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha/dia`,
         },
       ],
@@ -96,8 +106,10 @@ export const StatsApplications = ({
                     className={`w-2 h-2 rounded-full flex-shrink-0 ${
                       value.status === 'TOTAL'
                         ? 'bg-blue-500'
-                        : value.status === 'ESTE MÊS'
+                        : value.status === 'ÁREA TOTAL'
                           ? 'bg-green-500'
+                          : value.status === 'ÁREA MÊS'
+                            ? 'bg-emerald-500'
                           : 'bg-gray-400'
                     }`}
                   />

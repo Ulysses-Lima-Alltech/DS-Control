@@ -918,7 +918,10 @@ export class ApplicationService {
       )!,
       // Exclude applications from special "avulso" service orders
       // These service orders are used to organize loose/invalid applications and should not be counted
-      not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS))
+      or(
+        isNull(applications.serviceOrderId),
+        not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS))
+      )!
     ];
     let needsJoins = false;
 

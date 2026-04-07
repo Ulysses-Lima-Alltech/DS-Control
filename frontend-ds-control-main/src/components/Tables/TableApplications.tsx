@@ -46,6 +46,7 @@ import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
+import { formatApplicationDate } from '@/utils/application-date-formatter';
 
 interface TableApplicationsProps {
   customerId?: string;
@@ -391,7 +392,20 @@ export const TableApplications = ({
   };
 
   const columns: ColumnDefWithId<Application>[] = [
-    createDateColumn<Application>('date', 'date', 'Data da Aplicação'),
+    {
+      id: 'date',
+      accessorKey: 'date',
+      label: 'Data da Aplicação',
+      header: 'Data da Aplicação',
+      size: 120,
+      minSize: 100,
+      maxSize: 150,
+      cell: ({ row }) => (
+        <div className='text-foreground font-mono text-sm whitespace-nowrap'>
+          {formatApplicationDate(row.original.date)}
+        </div>
+      ),
+    },
     {
       id: 'serviceOrder',
       label: 'Ordem de Serviço',

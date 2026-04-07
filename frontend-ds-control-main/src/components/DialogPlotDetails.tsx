@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useGetApplicationsByFarmId } from '@/queries/application.query';
 import { useGetFarmById } from '@/queries/farm.query';
 import { Plot } from '@/types/plot.type';
+import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
@@ -333,7 +334,7 @@ export default function DialogPlotDetails({
                                   <div className='flex items-center gap-1.5 text-xs text-muted-foreground pl-11'>
                                     <CalendarDays className='w-3 h-3 flex-shrink-0' />
                                     <span>
-                                      {formatTimestamp(application.date as unknown as Date)}
+                                      {formatApplicationDate(application.date)}
                                     </span>
                                   </div>
                                 </div>
