@@ -2,7 +2,7 @@
 
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
-import { Edit, Trash } from 'lucide-react';
+import { Edit, Filter, SearchX, Trash, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
@@ -22,6 +22,14 @@ import {
 } from '@/components/ui/dialog';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -32,9 +40,10 @@ import { DataTable, type ColumnDefWithId } from '@/components/ui/table-data';
 import {
     createActionsColumn,
     createDateColumn,
-    createTextColumn,
 } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { useDeleteApplicationById } from '@/mutations/application.mutation';
 import { useGetAllApplications } from '@/queries/application.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
@@ -106,25 +115,30 @@ export const TableApplications = ({
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
 
-  const [inputSearchValue, setInputSearchValue] = React.useState('');
-  const [debouncedSearchValue, setDebouncedSearchValue] = React.useState('');
+  const [inputSearchValue, setInputSearchValue] = React.useState(propSearch || '');
+  const [debouncedSearchValue, setDebouncedSearchValue] = React.useState(propSearch || '');
   const [customerSearchValue, setCustomerSearchValue] = React.useState('');
   const [farmSearchValue, setFarmSearchValue] = React.useState('');
   const [pilotSearchValue, setPilotSearchValue] = React.useState('');
   const [serviceOrderSearchValue, setServiceOrderSearchValue] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<ServiceOrderStatus | undefined>(
-    defaultStatus
+    propServiceOrderStatus || defaultStatus
   );
-  const [farmFilter, setFarmFilter] = React.useState<string | undefined>(undefined);
-  const [pilotFilter, setPilotFilter] = React.useState<string | undefined>(undefined);
+  const [farmFilter, setFarmFilter] = React.useState<string | undefined>(propFarmId);
+  const [pilotFilter, setPilotFilter] = React.useState<string | undefined>(propPilotId);
   const [customerFilter, setCustomerFilter] = React.useState<string | undefined>(propCustomerId);
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
     propServiceOrderId
   );
-  const [dateFilter, setDateFilter] = React.useState<{startDate: string, endDate:string} | undefined>(undefined)
+  const [dateFilter, setDateFilter] = React.useState<{startDate: string, endDate:string} | undefined>(
+    propStartDate && propEndDate ? { startDate: propStartDate, endDate: propEndDate } : undefined
+  )
 
   const searchParams = useSearchParams();
   const [invalidApplicationFilter, setInvalidApplicationFilter] = React.useState<string>(() => {
+    if (propInvalidApplication !== undefined) {
+      return propInvalidApplication ? 'true' : 'false';
+    }
     const param = searchParams.get('invalidApplication');
     return param === 'true' ? 'true' : 'false';
   });
@@ -136,6 +150,7 @@ export const TableApplications = ({
 
   const [orderBy, setOrderBy] = React.useState<ApplicationOrderBy | undefined>(undefined)
   const [orderType, setOrderType] = React.useState<ApplicationOrderType | undefined>(undefined)
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = React.useState(false);
 
   const orderByOptions = [
     { value: 'date' as ApplicationOrderBy, label: 'Data da aplicação' },
@@ -148,7 +163,7 @@ export const TableApplications = ({
     { value: 'desc' as ApplicationOrderType, label: 'Descendente'},
   ]
 
-  const { data, isLoading, isError, error } = useGetAllApplications({
+  const { data, isLoading, isError, error, refetch } = useGetAllApplications({
     page: currentPage.toString(),
     limit: pageSize.toString(),
     search: propSearch || debouncedSearchValue || undefined,
@@ -256,8 +271,9 @@ export const TableApplications = ({
       debounce((searchTerm: string) => {
         setDebouncedSearchValue(searchTerm);
         setCurrentPage(1);
+        onFilterChange?.setSearch(searchTerm);
       }, 600),
-    []
+    [onFilterChange]
   );
 
   useEffect(() => {
@@ -265,6 +281,49 @@ export const TableApplications = ({
       debouncedSearch.cancel();
     };
   }, [debouncedSearch]);
+
+  useEffect(() => {
+    setInputSearchValue(propSearch || '');
+    setDebouncedSearchValue(propSearch || '');
+  }, [propSearch]);
+
+  useEffect(() => {
+    setStatusFilter(propServiceOrderStatus || defaultStatus);
+  }, [propServiceOrderStatus, defaultStatus]);
+
+  useEffect(() => {
+    setFarmFilter(propFarmId);
+  }, [propFarmId]);
+
+  useEffect(() => {
+    setPilotFilter(propPilotId);
+  }, [propPilotId]);
+
+  useEffect(() => {
+    setCustomerFilter(propCustomerIdFilter || propCustomerId);
+  }, [propCustomerIdFilter, propCustomerId]);
+
+  useEffect(() => {
+    setServiceOrderFilter(propServiceOrderIdFilter || propServiceOrderId);
+  }, [propServiceOrderIdFilter, propServiceOrderId]);
+
+  useEffect(() => {
+    if (propInvalidApplication === undefined) {
+      return;
+    }
+    setInvalidApplicationFilter(propInvalidApplication ? 'true' : 'false');
+  }, [propInvalidApplication]);
+
+  useEffect(() => {
+    if (propStartDate && propEndDate) {
+      setDateFilter({ startDate: propStartDate, endDate: propEndDate });
+      return;
+    }
+
+    if (!propStartDate && !propEndDate) {
+      setDateFilter(undefined);
+    }
+  }, [propStartDate, propEndDate]);
 
   useEffect(() => {
     if (data && data.totalPages > 0 && currentPage > data.totalPages) {
@@ -288,9 +347,8 @@ export const TableApplications = ({
     (value: string) => {
       setInputSearchValue(value);
       debouncedSearch(value);
-      onFilterChange?.setSearch(value);
     },
-    [debouncedSearch, onFilterChange]
+    [debouncedSearch]
   );
 
   const handleStatusChange = useCallback((status: string | undefined) => {
@@ -351,6 +409,30 @@ export const TableApplications = ({
     setCurrentPage(1);
     onFilterChange?.setStartDate(dateRange?.startDate);
     onFilterChange?.setEndDate(dateRange?.endDate);
+  }, [onFilterChange]);
+
+  const clearAllFilters = useCallback(() => {
+    setInputSearchValue('');
+    setDebouncedSearchValue('');
+    setStatusFilter(undefined);
+    setFarmFilter(undefined);
+    setPilotFilter(undefined);
+    setCustomerFilter(undefined);
+    setServiceOrderFilter(undefined);
+    setInvalidApplicationFilter('false');
+    setDateFilter(undefined);
+    setOrderBy(undefined);
+    setOrderType(undefined);
+    setCurrentPage(1);
+    onFilterChange?.setSearch('');
+    onFilterChange?.setServiceOrderStatus(undefined);
+    onFilterChange?.setFarmId(undefined);
+    onFilterChange?.setPilotId(undefined);
+    onFilterChange?.setCustomerId(undefined);
+    onFilterChange?.setServiceOrderId(undefined);
+    onFilterChange?.setInvalidApplication(undefined);
+    onFilterChange?.setStartDate(undefined);
+    onFilterChange?.setEndDate(undefined);
   }, [onFilterChange]);
 
     const handleOrderTypeChange = (orderType: ApplicationOrderType | undefined) => {
@@ -430,8 +512,9 @@ export const TableApplications = ({
       id: 'farm',
       label: 'Fazenda',
       header: 'Fazenda',
+      minSize: 180,
       cell: ({ row }) => (
-        <div className={row.original?.farm ? 'text-foreground' : 'text-red-500'}>
+        <div className={row.original?.farm ? 'text-foreground whitespace-nowrap' : 'text-red-500 whitespace-nowrap'}>
           {row.original?.farm ? row.original.farm.name : 'Fazenda não cadastrada'}
         </div>
       ),
@@ -440,7 +523,8 @@ export const TableApplications = ({
       id: 'pilot',
       label: 'Piloto',
       header: 'Piloto',
-      cell: ({ row }) => <div className='text-foreground'>{row.original.pilot.name}</div>,
+      minSize: 160,
+      cell: ({ row }) => <div className='text-foreground whitespace-nowrap'>{row.original.pilot.name}</div>,
     },
     {
       id: 'assistant',
@@ -464,14 +548,16 @@ export const TableApplications = ({
       id: 'product',
       label: 'Produto',
       header: 'Produto',
-      cell: ({ row }) => <div className='text-foreground'>{row.original.product.name}</div>,
+      minSize: 150,
+      cell: ({ row }) => <div className='text-foreground whitespace-nowrap'>{row.original.product.name}</div>,
     },
     {
       id: 'plot',
       label: 'Talhão',
       header: 'Talhão',
+      minSize: 150,
       cell: ({ row }) => (
-        <div className={row.original.plotId ? 'text-foreground' : 'text-red-500'}>
+        <div className={row.original.plotId ? 'text-foreground whitespace-nowrap' : 'text-red-500 whitespace-nowrap'}>
           {row.original.plotId ? row.original.plot.name : 'Talhão não cadastrado'}
         </div>
       ),
@@ -481,7 +567,14 @@ export const TableApplications = ({
       accessorKey: 'hectares',
       label: 'Hectares',
       header: 'Hectares',
-      cell: ({ row }) => <div className='text-foreground'>{row.original.hectares} ha</div>,
+      size: 110,
+      minSize: 100,
+      maxSize: 130,
+      cell: ({ row }) => (
+        <div className='text-foreground text-right tabular-nums whitespace-nowrap pr-1'>
+          {row.original.hectares} ha
+        </div>
+      ),
     },
     {
       id: 'flowRate',
@@ -511,7 +604,18 @@ export const TableApplications = ({
       header: 'Tamanho da gota',
       cell: ({ row }) => <div className='text-foreground'>{row?.original?.dropletSize} μm</div>,
     },
-    createTextColumn<Application>('observations', 'observations', 'Observações'),
+    {
+      id: 'observations',
+      accessorKey: 'observations',
+      label: 'Observações',
+      header: 'Observações',
+      minSize: 220,
+      cell: ({ row }) => (
+        <div className='max-w-[320px] truncate text-foreground' title={row.original.observations || '-'}>
+          {row.original.observations || '-'}
+        </div>
+      ),
+    },
     createDateColumn<Application>('createdAt', 'createdAt', 'Data de Criação'),
     createActionsColumn<Application>((application) => (
       <>
@@ -585,6 +689,72 @@ export const TableApplications = ({
   const serviceOrderDisplayText =
     propServiceOrderId && selectedServiceOrder ? `OS #${selectedServiceOrder.number}` : undefined;
 
+  const activeFilters = [
+    statusFilter
+      ? {
+          key: 'status',
+          label: `Status: ${statusFilter}`,
+          onRemove: () => handleStatusChange(undefined),
+        }
+      : null,
+    customerFilter
+      ? {
+          key: 'customer',
+          label: `Cliente: ${customers.find((c) => c.id === customerFilter)?.name || 'Selecionado'}`,
+          onRemove: () => handleCustomerChange(undefined),
+        }
+      : null,
+    farmFilter
+      ? {
+          key: 'farm',
+          label: `Fazenda: ${farms.find((f) => f.id === farmFilter)?.name || 'Selecionada'}`,
+          onRemove: () => handleFarmChange(undefined),
+        }
+      : null,
+    pilotFilter
+      ? {
+          key: 'pilot',
+          label: `Piloto: ${pilots.find((p) => p.id === pilotFilter)?.name || 'Selecionado'}`,
+          onRemove: () => handlePilotChange(undefined),
+        }
+      : null,
+    serviceOrderFilter
+      ? {
+          key: 'serviceOrder',
+          label: `OS: #${serviceOrders.find((so) => so.id === serviceOrderFilter)?.number || 'Selecionada'}`,
+          onRemove: () => handleServiceOrderChange(undefined),
+        }
+      : null,
+    invalidApplicationFilter === 'true'
+      ? {
+          key: 'invalid',
+          label: 'Somente inválidas',
+          onRemove: () => handleInvalidApplicationChange('false'),
+        }
+      : null,
+    orderBy
+      ? {
+          key: 'orderBy',
+          label: `Ordenar por: ${orderByOptions.find((o) => o.value === orderBy)?.label}`,
+          onRemove: () => handleOrderByChange(undefined),
+        }
+      : null,
+    orderType
+      ? {
+          key: 'orderType',
+          label: `Ordem: ${orderTypeOptions.find((o) => o.value === orderType)?.label}`,
+          onRemove: () => handleOrderTypeChange(undefined),
+        }
+      : null,
+    dateFilter?.startDate && dateFilter?.endDate
+      ? {
+          key: 'period',
+          label: `Período: ${dateFilter.startDate} até ${dateFilter.endDate}`,
+          onRemove: () => handleDateChange(undefined),
+        }
+      : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; onRemove: () => void }>;
+
   return (
     <>
       <DataTable
@@ -593,138 +763,212 @@ export const TableApplications = ({
         isLoading={isLoading}
         isError={isError}
         error={error}
-        onRetry={() => queryClient.invalidateQueries({ queryKey: ['applications'] })}
+        onRetry={() => void refetch()}
         searchConfig={{
           placeholder: 'Buscar aplicações...',
           searchValue: inputSearchValue,
           onSearchChange: handleSearchChange,
         }}
         filters={
-          <div className='flex gap-2 w-full overflow-auto'>
-            <Select value={invalidApplicationFilter} onValueChange={handleInvalidApplicationChange}>
-              <SelectTrigger className='w-[160px]'>
-                <SelectValue placeholder='Filtrar aplicações' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='false'>Todas</SelectItem>
-                <SelectItem value='true'>Somente inválidas</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <DateRangePicker className='w-[300px]' initialValue={dateFilter} onChange={handleDateChange}/>
-
-            {!propServiceOrderId && (
-              <SearchableSelectQuery
-                options={statusOptions}
-                value={statusFilter}
-                onValueChange={(value) => handleStatusChange(value as string | undefined)}
-                placeholder={
-                  disableStatusFilter && statusDisplayText ? statusDisplayText : 'Status da OS'
-                }
-                searchPlaceholder='Buscar status...'
-                className='w-[140px]'
-                clearable={!disableStatusFilter}
-                disabled={disableStatusFilter}
+          <div className='flex flex-col gap-3 w-full'>
+            <div className='flex flex-wrap items-center gap-2 lg:gap-3'>
+              <DateRangePicker
+                key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
+                className='w-full min-w-[220px] sm:w-[280px]'
+                initialValue={dateFilter}
+                onChange={handleDateChange}
               />
-            )}
-            {!propCustomerId && (
-              <SearchableSelectQuery
-                options={customers.map((customer: Customer) => ({
-                  value: customer.id,
-                  label: customer.name,
-                }))}
-                value={customerFilter}
-                onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-                placeholder={customerDisplayText || 'Cliente'}
-                searchPlaceholder='Buscar cliente...'
-                className='w-auto'
-                popoverClassName='w-[250px]'
-                clearable={!disableCustomerFilter && !propCustomerId}
-                disabled={!!propCustomerId || disableCustomerFilter}
-                onSearchChange={setCustomerSearchValue}
-                onScrollEnd={fetchNextPage}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                isLoading={isLoadingCustomers}
-              />
-            )}
-            <SearchableSelectQuery
-              options={farms.map((farm: Farm) => ({
-                value: farm.id,
-                label: farm.name,
-              }))}
-              value={farmFilter}
-              onValueChange={(value) => handleFarmChange(value as string | undefined)}
-              placeholder='Fazenda'
-              searchPlaceholder='Buscar fazenda...'
-              className='w-auto'
-              popoverClassName='w-[250px]'
-              clearable
-              onSearchChange={setFarmSearchValue}
-              onScrollEnd={fetchNextPageFarms}
-              hasNextPage={hasNextPageFarms}
-              isFetchingNextPage={isFetchingNextPageFarms}
-              isLoading={isLoadingFarms}
-            />
-            <SearchableSelectQuery
-              options={pilots.map((pilot: User) => ({
-                value: pilot.id,
-                label: pilot.name,
-              }))}
-              value={pilotFilter}
-              onValueChange={(value) => handlePilotChange(value as string | undefined)}
-              placeholder='Piloto'
-              searchPlaceholder='Buscar piloto...'
-              className='w-auto'
-              popoverClassName='w-[250px]'
-              clearable
-              onSearchChange={setPilotSearchValue}
-              onScrollEnd={fetchNextPagePilots}
-              hasNextPage={hasNextPagePilots}
-              isFetchingNextPage={isFetchingNextPagePilots}
-              isLoading={isLoadingPilots}
-            />
-            {!propServiceOrderId && (
-              <SearchableSelectQuery
-                options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
-                  value: serviceOrder.id,
-                  label: `OS #${serviceOrder.number}`,
-                }))}
-                value={serviceOrderFilter}
-                onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
-                placeholder={serviceOrderDisplayText || 'Ordem de Serviço'}
-                searchPlaceholder='Buscar OS...'
-                className='w-auto'
-                popoverClassName='w-[250px]'
-                clearable={!propServiceOrderId}
-                disabled={!!propServiceOrderId}
-                onSearchChange={setServiceOrderSearchValue}
-                onScrollEnd={fetchNextPageServiceOrders}
-                hasNextPage={hasNextPageServiceOrders}
-                isFetchingNextPage={isFetchingNextPageServiceOrders}
-                isLoading={isLoadingServiceOrders}
-              />
-            )}
+              <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button variant='outline' className='gap-2'>
+                    <Filter className='h-4 w-4' />
+                    Filtros
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side='right' className='w-[92vw] sm:max-w-md overflow-y-auto'>
+                  <SheetHeader>
+                    <SheetTitle>Filtros avançados</SheetTitle>
+                    <SheetDescription>Refine os registros de aplicações</SheetDescription>
+                  </SheetHeader>
+                  <div className='px-4 pb-4 space-y-4'>
+                    <div className='space-y-2'>
+                      <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                        Situação geral
+                      </p>
+                    <Select value={invalidApplicationFilter} onValueChange={handleInvalidApplicationChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Filtrar aplicações' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='false'>Todas</SelectItem>
+                        <SelectItem value='true'>Somente inválidas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    </div>
+                    <Separator />
 
-            <SearchableSelectQuery
-              options={orderByOptions}
-              value={orderBy}
-              onValueChange={(value) => handleOrderByChange(value as ApplicationOrderBy | undefined)}
-              placeholder='Ordenar por'
-              searchPlaceholder='Buscar...'
-              className='w-[150px]'
-              clearable
-            />
+                    <div className='space-y-3'>
+                      <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                        Relacionamento e estrutura
+                      </p>
 
-            <SearchableSelectQuery
-              options={orderTypeOptions}
-              value={orderType}
-              onValueChange={(value) => handleOrderTypeChange(value as ApplicationOrderType | undefined)}
-              placeholder='Ordenação'
-              searchPlaceholder='Buscar...'
-              className='w-[150px]'
-              clearable
-            />
+                    {!propCustomerId && (
+                      <SearchableSelectQuery
+                        options={customers.map((customer: Customer) => ({
+                          value: customer.id,
+                          label: customer.name,
+                        }))}
+                        value={customerFilter}
+                        onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                        placeholder={customerDisplayText || 'Cliente'}
+                        searchPlaceholder='Buscar cliente...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable={!disableCustomerFilter && !propCustomerId}
+                        disabled={!!propCustomerId || disableCustomerFilter}
+                        onSearchChange={setCustomerSearchValue}
+                        onScrollEnd={fetchNextPage}
+                        hasNextPage={hasNextPage}
+                        isFetchingNextPage={isFetchingNextPage}
+                        isLoading={isLoadingCustomers}
+                      />
+                    )}
+                    <SearchableSelectQuery
+                      options={farms.map((farm: Farm) => ({
+                        value: farm.id,
+                        label: farm.name,
+                      }))}
+                      value={farmFilter}
+                      onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                      placeholder='Fazenda'
+                      searchPlaceholder='Buscar fazenda...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setFarmSearchValue}
+                      onScrollEnd={fetchNextPageFarms}
+                      hasNextPage={hasNextPageFarms}
+                      isFetchingNextPage={isFetchingNextPageFarms}
+                      isLoading={isLoadingFarms}
+                    />
+                    <SearchableSelectQuery
+                      options={pilots.map((pilot: User) => ({
+                        value: pilot.id,
+                        label: pilot.name,
+                      }))}
+                      value={pilotFilter}
+                      onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                      placeholder='Piloto'
+                      searchPlaceholder='Buscar piloto...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setPilotSearchValue}
+                      onScrollEnd={fetchNextPagePilots}
+                      hasNextPage={hasNextPagePilots}
+                      isFetchingNextPage={isFetchingNextPagePilots}
+                      isLoading={isLoadingPilots}
+                    />
+                    {!propServiceOrderId && (
+                      <SearchableSelectQuery
+                        options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
+                          value: serviceOrder.id,
+                          label: `OS #${serviceOrder.number}`,
+                        }))}
+                        value={serviceOrderFilter}
+                        onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
+                        placeholder={serviceOrderDisplayText || 'Ordem de Serviço'}
+                        searchPlaceholder='Buscar OS...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable={!propServiceOrderId}
+                        disabled={!!propServiceOrderId}
+                        onSearchChange={setServiceOrderSearchValue}
+                        onScrollEnd={fetchNextPageServiceOrders}
+                        hasNextPage={hasNextPageServiceOrders}
+                        isFetchingNextPage={isFetchingNextPageServiceOrders}
+                        isLoading={isLoadingServiceOrders}
+                      />
+                    )}
+                    </div>
+
+                    <Separator />
+                    <div className='space-y-3'>
+                      <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                        Operação
+                      </p>
+                      {!propServiceOrderId && (
+                        <SearchableSelectQuery
+                          options={statusOptions}
+                          value={statusFilter}
+                          onValueChange={(value) => handleStatusChange(value as string | undefined)}
+                          placeholder={
+                            disableStatusFilter && statusDisplayText ? statusDisplayText : 'Status da OS'
+                          }
+                          searchPlaceholder='Buscar status...'
+                          className='w-full'
+                          clearable={!disableStatusFilter}
+                          disabled={disableStatusFilter}
+                        />
+                      )}
+                    <SearchableSelectQuery
+                      options={orderByOptions}
+                      value={orderBy}
+                      onValueChange={(value) => handleOrderByChange(value as ApplicationOrderBy | undefined)}
+                      placeholder='Ordenar por'
+                      searchPlaceholder='Buscar...'
+                      className='w-full'
+                      clearable
+                    />
+                    <SearchableSelectQuery
+                      options={orderTypeOptions}
+                      value={orderType}
+                      onValueChange={(value) =>
+                        handleOrderTypeChange(value as ApplicationOrderType | undefined)
+                      }
+                      placeholder='Ordenação'
+                      searchPlaceholder='Buscar...'
+                      className='w-full'
+                      clearable
+                    />
+                    </div>
+
+                    {activeFilters.length > 0 && (
+                      <>
+                        <Separator />
+                        <Button variant='outline' className='w-full' onClick={clearAllFilters}>
+                          <X className='h-4 w-4 mr-1' />
+                          Limpar todos os filtros
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
+              {activeFilters.length > 0 && (
+                <Button variant='ghost' className='text-sm' onClick={clearAllFilters}>
+                  <X className='h-4 w-4 mr-1' />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+            {activeFilters.length > 0 && (
+              <div className='flex flex-wrap items-center gap-2'>
+                {activeFilters.map((filter) => (
+                  <Badge key={filter.key} variant='secondary' className='gap-1.5 pr-1'>
+                    <span>{filter.label}</span>
+                    <button
+                      type='button'
+                      onClick={filter.onRemove}
+                      className='rounded-sm p-0.5 hover:bg-muted-foreground/20'
+                      aria-label={`Remover filtro ${filter.label}`}
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         }
         pagination={{
@@ -740,7 +984,52 @@ export const TableApplications = ({
           },
         }}
         initialColumnVisibility={initialColumnVisibility}
-        renderEmptyState={() => 'Nenhuma aplicação encontrada.'}
+        renderEmptyState={() => (
+          <div className='flex flex-col items-center justify-center gap-3 py-2 px-2 max-w-md mx-auto'>
+            {activeFilters.length > 0 ? (
+              <>
+                <div className='rounded-full bg-muted p-3'>
+                  <SearchX className='h-6 w-6 text-muted-foreground' aria-hidden />
+                </div>
+                <div className='space-y-1 text-center'>
+                  <p className='text-sm font-medium text-foreground'>Nenhum registro com os filtros atuais</p>
+                  <p className='text-xs text-muted-foreground leading-relaxed'>
+                    Ajuste a busca, o período ou os filtros avançados — ou limpe tudo para voltar à lista
+                    completa.
+                  </p>
+                </div>
+                <Button type='button' variant='outline' size='sm' onClick={clearAllFilters}>
+                  Limpar filtros
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className='rounded-full bg-muted p-3'>
+                  <Filter className='h-6 w-6 text-muted-foreground' aria-hidden />
+                </div>
+                <div className='space-y-1 text-center'>
+                  <p className='text-sm font-medium text-foreground'>Nenhuma aplicação encontrada</p>
+                  <p className='text-xs text-muted-foreground leading-relaxed'>
+                    Quando houver registros, eles aparecerão nesta tabela. Use &quot;Nova aplicação&quot; para
+                    incluir dados.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        renderErrorState={() => (
+          <div className='flex flex-col items-center justify-center gap-3 px-4 py-6 max-w-lg mx-auto text-center'>
+            <p className='text-sm font-medium text-foreground'>Não foi possível carregar as aplicações</p>
+            <p className='text-xs text-muted-foreground leading-relaxed'>
+              {error?.message ||
+                'Verifique sua conexão com a internet. Se o problema continuar, tente novamente em instantes.'}
+            </p>
+            <Button type='button' variant='outline' size='sm' onClick={() => void refetch()}>
+              Tentar novamente
+            </Button>
+          </div>
+        )}
       />
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -1,6 +1,8 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { CreateApplicationDTO } from "./dto/create-application.dto";
 import type { ApplicationStatsQueryString } from "./dto/stats.dto";
+import type { ApplicationEvolutionQueryString } from "./dto/stats-evolution.dto";
+import type { TopFarmsStatsQueryString } from "./dto/stats-top-farms.dto";
 import type { UpdateApplicationDTO } from "./dto/update-application.dto";
 import type { DashboardMetricsQueryString } from "./dto/dashboard-metrics.dto";
 
@@ -462,6 +464,70 @@ export class ApplicationController {
         { error },
       );
       reply.status(500).send(new AppError('Internal server error', 500, error).throw())
+    }
+  }
+
+  public getTopFarmsStats = async (
+    request: FastifyRequest<{ Querystring: TopFarmsStatsQueryString }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Fetching top farms statistics");
+
+      const topFarms = await this.service.getTopFarmsStats(request.query);
+
+      app.log.info("[ApplicationController] - Successfully retrieved top farms statistics");
+      return reply.status(200).send({
+        message: "Top farms statistics retrieved successfully",
+        topFarms,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn(
+          "[ApplicationController] - Failed to retrieve top farms statistics: %s",
+          error.message,
+        );
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error(
+        "[ApplicationController] - Unexpected error during top farms statistics retrieval: %o",
+        { error },
+      );
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  }
+
+  public getApplicationsEvolution = async (
+    request: FastifyRequest<{ Querystring: ApplicationEvolutionQueryString }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Fetching applications evolution");
+
+      const evolution = await this.service.getApplicationsEvolution(request.query);
+
+      app.log.info("[ApplicationController] - Successfully retrieved applications evolution");
+      return reply.status(200).send({
+        message: "Applications evolution retrieved successfully",
+        evolution,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn(
+          "[ApplicationController] - Failed to retrieve applications evolution: %s",
+          error.message,
+        );
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error(
+        "[ApplicationController] - Unexpected error during applications evolution retrieval: %o",
+        { error },
+      );
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
     }
   }
 

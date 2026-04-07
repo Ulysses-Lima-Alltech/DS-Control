@@ -120,6 +120,34 @@ export const useGetApplicationsSummary = (
   });
 };
 
+export const useGetApplicationsTopFarms = (
+  params?: ApplicationService.GetTopFarmsApplicationsParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetTopFarmsApplicationsResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetTopFarmsApplicationsResponse, Error>({
+    queryKey: ['applications', 'stats', 'top-farms', params],
+    queryFn: () => ApplicationService.getTopFarmsApplications(params),
+    ...options,
+  });
+};
+
+export const useGetApplicationsEvolution = (
+  params?: ApplicationService.GetApplicationsEvolutionParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetApplicationsEvolutionResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetApplicationsEvolutionResponse, Error>({
+    queryKey: ['applications', 'stats', 'evolution', params],
+    queryFn: () => ApplicationService.getApplicationsEvolution(params),
+    ...options,
+  });
+};
+
 export const useGetApplicationsPerformance = (
   params: ApplicationService.GetApplicationsPerformanceParams,
   options?: Omit<

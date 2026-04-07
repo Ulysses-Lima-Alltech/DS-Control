@@ -17,6 +17,8 @@ import { UserRepository } from "@repositories/users/user.repository";
 import type { CreateApplicationDTO } from "../dto/create-application.dto";
 import { PilotPerformanceDTO } from "../dto/stats-performance.dto";
 import { ApplicationSummaryStatsDTO } from "../dto/stats-summary.dto";
+import type { ApplicationEvolutionQueryString } from "../dto/stats-evolution.dto";
+import type { TopFarmsStatsQueryString } from "../dto/stats-top-farms.dto";
 import type { UpdateApplicationDTO } from "../dto/update-application.dto";
 
 import type { DashboardMetricsDTO, DashboardMetricsQueryString, MonthlySprayedArea, YesterdayStats } from "../dto/dashboard-metrics.dto";
@@ -648,6 +650,72 @@ export class ApplicationService {
       pendingFarmsCount,
       pendingPlotsCount,
     }
+  }
+
+  public async getTopFarmsStats(filters?: TopFarmsStatsQueryString): Promise<Array<{
+    farmId: string | null;
+    farmName: string;
+    applicationsCount: number;
+    totalAreaHectares: number;
+  }>> {
+    const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const limit = filters?.limit ?? 5;
+
+    const results = await db
+      .select({
+        farmId: farms.id,
+        farmName: sql<string>`COALESCE(${farms.name}, 'Fazenda não informada')`,
+        applicationsCount: countDistinct(applications.id),
+        totalAreaHectares: sum(applications.hectares),
+      })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(whereClause)
+      .groupBy(farms.id, farms.name)
+      .orderBy(sql`COALESCE(SUM(${applications.hectares}), 0) DESC`)
+      .limit(limit);
+
+    return results.map((result) => ({
+      farmId: result.farmId,
+      farmName: result.farmName,
+      applicationsCount: Number(result.applicationsCount || 0),
+      totalAreaHectares: Number(result.totalAreaHectares || 0),
+    }));
+  }
+
+  public async getApplicationsEvolution(filters?: ApplicationEvolutionQueryString): Promise<Array<{
+    yearMonth: string;
+    applicationsCount: number;
+  }>> {
+    const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const months = filters?.months ?? 6;
+
+    const results = await db
+      .select({
+        yearMonth: sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`,
+        applicationsCount: countDistinct(applications.id),
+      })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(whereClause)
+      .groupBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM') DESC`)
+      .limit(months);
+
+    return results
+      .map((item) => ({
+        yearMonth: item.yearMonth,
+        applicationsCount: Number(item.applicationsCount || 0),
+      }))
+      .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
   }
 
   /**

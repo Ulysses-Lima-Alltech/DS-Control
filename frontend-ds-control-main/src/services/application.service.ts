@@ -289,6 +289,36 @@ export type GetStatsApplicationsResponse = {
   stats: ApplicationStats;
 };
 
+export type TopFarmStat = {
+  farmId: string | null;
+  farmName: string;
+  applicationsCount: number;
+  totalAreaHectares: number;
+};
+
+export type GetTopFarmsApplicationsParams = GetStatsApplicationsParams & {
+  limit?: number;
+};
+
+export type GetTopFarmsApplicationsResponse = {
+  message: string;
+  topFarms: TopFarmStat[];
+};
+
+export type ApplicationsEvolutionItem = {
+  yearMonth: string;
+  applicationsCount: number;
+};
+
+export type GetApplicationsEvolutionParams = GetStatsApplicationsParams & {
+  months?: number;
+};
+
+export type GetApplicationsEvolutionResponse = {
+  message: string;
+  evolution: ApplicationsEvolutionItem[];
+};
+
 export async function getStatsApplications(
   params?: GetStatsApplicationsParams
 ): Promise<GetStatsApplicationsResponse> {
@@ -315,6 +345,72 @@ export async function getStatsApplications(
     const error = await response.json();
     throw new Error(
       `[Application Service] Erro ao buscar estatísticas das aplicações: ${error.message}`
+    );
+  }
+
+  return await response.json();
+}
+
+export async function getTopFarmsApplications(
+  params?: GetTopFarmsApplicationsParams
+): Promise<GetTopFarmsApplicationsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
+  if (params?.invalidApplication !== undefined)
+    searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.startDate) searchParams.append('startDate', params.startDate);
+  if (params?.endDate) searchParams.append('endDate', params.endDate);
+  if (params?.limit) searchParams.append('limit', params.limit.toString());
+
+  const url = `/applications/stats/top-farms${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(
+      `[Application Service] Erro ao buscar ranking de fazendas: ${error.message}`
+    );
+  }
+
+  return await response.json();
+}
+
+export async function getApplicationsEvolution(
+  params?: GetApplicationsEvolutionParams
+): Promise<GetApplicationsEvolutionResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
+  if (params?.invalidApplication !== undefined)
+    searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.startDate) searchParams.append('startDate', params.startDate);
+  if (params?.endDate) searchParams.append('endDate', params.endDate);
+  if (params?.months) searchParams.append('months', params.months.toString());
+
+  const url = `/applications/stats/evolution${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(
+      `[Application Service] Erro ao buscar evolução de aplicações: ${error.message}`
     );
   }
 

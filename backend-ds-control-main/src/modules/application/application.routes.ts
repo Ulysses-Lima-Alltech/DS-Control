@@ -15,7 +15,12 @@ import { DashboardMetricsQueryStringSchema, DashboardMetricsResponseSchema } fro
 import { GetApplicationQueryStringSchema } from "./dto/get-all-application.dto";
 import { PilotPerformanceSchema } from "./dto/stats-performance.dto";
 import { ApplicationSummaryStatsSchema } from "./dto/stats-summary.dto";
+import {
+  ApplicationEvolutionItemSchema,
+  ApplicationEvolutionQueryStringSchema,
+} from "./dto/stats-evolution.dto";
 import { ApplicationStatsQueryStringSchema } from "./dto/stats.dto";
+import { TopFarmStatsSchema, TopFarmsStatsQueryStringSchema } from "./dto/stats-top-farms.dto";
 import { UpdateApplicationSchema } from "./dto/update-application.dto";
 
 export function ApplicationV1Routes(
@@ -303,6 +308,44 @@ export function ApplicationV1Routes(
     preHandler: [AuthenticationJWT],
     handler: controller.getGeneralStats,
   })
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/stats/evolution",
+    schema: {
+      querystring: ApplicationEvolutionQueryStringSchema,
+      description: "Retrieve monthly evolution of applications with same stats filters",
+      summary: "Get applications evolution",
+      tags: ["applications"],
+      response: {
+        200: z.object({
+          message: z.string(),
+          evolution: z.array(ApplicationEvolutionItemSchema),
+        }),
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.getApplicationsEvolution,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/stats/top-farms",
+    schema: {
+      querystring: TopFarmsStatsQueryStringSchema,
+      description: "Retrieve top farms ranked by applied area",
+      summary: "Get top farms by applied area",
+      tags: ["applications"],
+      response: {
+        200: z.object({
+          message: z.string(),
+          topFarms: z.array(TopFarmStatsSchema),
+        }),
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.getTopFarmsStats,
+  });
 
   // Get dashboard metrics for DashboardCardGeneralMetrics component
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({

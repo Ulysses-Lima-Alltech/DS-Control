@@ -1,15 +1,15 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { ApplicationsOverviewDashboard } from '@/components/ApplicationsOverviewDashboard';
 import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
-import { PendingApplicationsPanel } from '@/components/PendingApplicationsPanel';
-import { StatsApplications } from '@/components/StatsApplications';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 
 export default function AgriculturalApplicationsPage() {
@@ -38,6 +38,21 @@ export default function AgriculturalApplicationsPage() {
     endDate,
   };
 
+  const filterChangeHandlers = useMemo(
+    () => ({
+      setSearch,
+      setServiceOrderStatus,
+      setFarmId,
+      setPilotId,
+      setCustomerId,
+      setServiceOrderId,
+      setInvalidApplication,
+      setStartDate,
+      setEndDate,
+    }),
+    []
+  );
+
   return (
     <div className='p-6 space-y-6 min-h-full max-w-screen'>
       <div className='flex items-center justify-between'>
@@ -57,38 +72,35 @@ export default function AgriculturalApplicationsPage() {
         />
       </div>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-6'>
-        <StatsApplications {...filterProps} />
+      <Tabs defaultValue='overview' className='space-y-4'>
+        <TabsList>
+          <TabsTrigger value='overview'>Visão Geral</TabsTrigger>
+          <TabsTrigger value='records'>Registros</TabsTrigger>
+        </TabsList>
 
-        <PendingApplicationsPanel {...filterProps} />
-      </div>
+        <TabsContent value='overview' className='space-y-4'>
+          <ApplicationsOverviewDashboard {...filterProps} />
+        </TabsContent>
 
-      <Card className='max-w-full overflow-auto p-0'>
-        <CardContent className='ph-6'>
-          <TableApplications
-            search={search}
-            serviceOrderStatus={serviceOrderStatus}
-            farmId={farmId}
-            pilotId={pilotId}
-            customerIdFilter={customerId}
-            serviceOrderIdFilter={serviceOrderId}
-            invalidApplication={invalidApplication}
-            startDate={startDate}
-            endDate={endDate}
-            onFilterChange={{
-              setSearch,
-              setServiceOrderStatus,
-              setFarmId,
-              setPilotId,
-              setCustomerId,
-              setServiceOrderId,
-              setInvalidApplication,
-              setStartDate,
-              setEndDate,
-            }}
-          />
-        </CardContent>
-      </Card>
+        <TabsContent value='records' className='space-y-4'>
+          <Card className='max-w-full overflow-auto p-0'>
+            <CardContent className='ph-6'>
+              <TableApplications
+                search={search}
+                serviceOrderStatus={serviceOrderStatus}
+                farmId={farmId}
+                pilotId={pilotId}
+                customerIdFilter={customerId}
+                serviceOrderIdFilter={serviceOrderId}
+                invalidApplication={invalidApplication}
+                startDate={startDate}
+                endDate={endDate}
+                onFilterChange={filterChangeHandlers}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

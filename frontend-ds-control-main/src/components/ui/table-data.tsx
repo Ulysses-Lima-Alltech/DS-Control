@@ -190,83 +190,86 @@ export function DataTable<TData, TValue>({
     }
   };
 
-  if (isError) {
-    return (
-      <div className={`w-full ${className || ''}`}>
-        {renderErrorState ? (
-          renderErrorState()
-        ) : (
-          <div className='flex flex-col items-center justify-center p-8'>
-            <p className='text-destructive text-center'>
-              Erro ao carregar dados: {error?.message || 'Erro desconhecido'}
-            </p>
-            {onRetry && (
-              <Button variant='outline' onClick={onRetry} className='mt-4'>
-                Tentar novamente
-              </Button>
-            )}
-          </div>
-        )}
+  const toolbar = (
+    <div className='flex flex-col items-center gap-4 py-4 w-auto md:flex-row'>
+      <div className='flex flex-row justify-between w-full overflow-x-scroll scrollbar-hide space-x-2 p-2 px-0'>
+        <Input
+          placeholder={searchConfig?.placeholder || 'Buscar...'}
+          value={searchValue}
+          onChange={(event) => handleSearchChange(event.target.value)}
+          className={`max-w-sm min-w-[150px] w-full md:w-[18rem] text-ellipsis ${searchConfig?.className || ''}`}
+        />
+        {filters && <div className='flex items-center gap-2 w-fit'>{filters}</div>}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant='outline' className='ml-auto'>
+              Colunas <ChevronDown className='ml-2 h-4 w-4' />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => {
+                const columnDef = column.columnDef as ColumnDef<TData, TValue> & {
+                  label?: string;
+                };
+                const isDataColumn = column.id !== 'actions' && column.id !== 'expand';
+                const isVisible = column.getIsVisible();
+
+                const visibleDataColumns = table
+                  .getAllColumns()
+                  .filter((col) => col.getIsVisible() && col.id !== 'actions' && col.id !== 'expand');
+
+                const wouldBeLastDataColumn =
+                  isDataColumn && isVisible && visibleDataColumns.length === 1;
+                const isDisabled = wouldBeLastDataColumn;
+
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className='capitalize'
+                    checked={isVisible}
+                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    disabled={isDisabled}
+                  >
+                    {columnDef.label || column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const errorPanel = (
+    <div className='rounded-md border border-destructive/20 bg-destructive/5'>
+      {renderErrorState ? (
+        renderErrorState()
+      ) : (
+        <div className='flex flex-col items-center justify-center gap-3 px-4 py-10 text-center'>
+          <p className='text-sm font-medium text-foreground'>Não foi possível carregar os dados</p>
+          <p className='text-xs text-muted-foreground max-w-md'>
+            {error?.message || 'Erro desconhecido. Verifique a conexão e tente novamente.'}
+          </p>
+          {onRetry && (
+            <Button variant='outline' size='sm' onClick={onRetry}>
+              Tentar novamente
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className={`w-full ${className || ''}`}>
-      <div className='flex flex-col items-center gap-4 py-4 w-auto md:flex-row'>
-        <div className='flex flex-row justify-between w-full overflow-x-scroll scrollbar-hide space-x-2 p-2 px-0'>
-          <Input
-            placeholder={searchConfig?.placeholder || 'Buscar...'}
-            value={searchValue}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            className={`max-w-sm min-w-[150px] w-full md:w-[18rem] text-ellipsis ${searchConfig?.className || ''}`}
-          />
-          {filters && <div className='flex items-center gap-2 w-fit'>{filters}</div>}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='outline' className='ml-auto'>
-                Colunas <ChevronDown className='ml-2 h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              {table
-                .getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => {
-                  const columnDef = column.columnDef as ColumnDef<TData, TValue> & {
-                    label?: string;
-                  };
-                  const isDataColumn = column.id !== 'actions' && column.id !== 'expand';
-                  const isVisible = column.getIsVisible();
-
-                  const visibleDataColumns = table
-                    .getAllColumns()
-                    .filter(
-                      (col) => col.getIsVisible() && col.id !== 'actions' && col.id !== 'expand'
-                    );
-
-                  const wouldBeLastDataColumn =
-                    isDataColumn && isVisible && visibleDataColumns.length === 1;
-                  const isDisabled = wouldBeLastDataColumn;
-
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={column.id}
-                      className='capitalize'
-                      checked={isVisible}
-                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                      disabled={isDisabled}
-                    >
-                      {columnDef.label || column.id}
-                    </DropdownMenuCheckboxItem>
-                  );
-                })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      {isLoading ? (
-        <div className={`w-full ${className || ''}`}>
+      {toolbar}
+      {isError ? (
+        errorPanel
+      ) : isLoading ? (
+        <>
           <div className='rounded-md border overflow-hidden'>
             <div className='overflow-x-auto'>
               <Table className='w-full'>
@@ -274,7 +277,7 @@ export function DataTable<TData, TValue>({
                   <TableRow>
                     {columns.map((column, index) => (
                       <TableHead key={index} className='px-3 py-2 align-middle'>
-                        <Skeleton className='h-6 w-[120px]' />
+                        <Skeleton className='h-5 w-24 max-w-[min(100%,8rem)]' />
                       </TableHead>
                     ))}
                   </TableRow>
@@ -285,8 +288,10 @@ export function DataTable<TData, TValue>({
                     : Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={index}>
                           {columns.map((_, colIndex) => (
-                            <TableCell key={colIndex} className='px-3 py-2'>
-                              <Skeleton className='h-6 w-[120px]' />
+                            <TableCell key={colIndex} className='px-3 py-2.5'>
+                              <Skeleton
+                                className={`h-5 max-w-full ${['w-28', 'w-36', 'w-32', 'w-24', 'w-40', 'w-20'][colIndex % 6]}`}
+                              />
                             </TableCell>
                           ))}
                         </TableRow>
@@ -304,7 +309,7 @@ export function DataTable<TData, TValue>({
               <Skeleton className='h-8 w-8' />
             </div>
           </div>
-        </div>
+        </>
       ) : (
         <>
           <div className='rounded-md border w-full overflow-hidden'>
@@ -365,7 +370,7 @@ export function DataTable<TData, TValue>({
                     <TableRow>
                       <TableCell
                         colSpan={table.getVisibleLeafColumns().length}
-                        className='h-24 text-center'
+                        className='min-h-[12rem] py-8 text-center align-middle'
                       >
                         {renderEmptyState()}
                       </TableCell>
@@ -374,7 +379,7 @@ export function DataTable<TData, TValue>({
                     <TableRow>
                       <TableCell
                         colSpan={table.getVisibleLeafColumns().length}
-                        className='h-24 text-center'
+                        className='min-h-[12rem] py-8 text-center align-middle text-muted-foreground text-sm'
                       >
                         Nenhum resultado encontrado.
                       </TableCell>
