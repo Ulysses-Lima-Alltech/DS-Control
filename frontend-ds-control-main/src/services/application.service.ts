@@ -289,6 +289,7 @@ export type GetStatsApplicationsParams = {
   invalidApplication?: boolean;
   startDate?: string;
   endDate?: string;
+  ignoreFilters?: boolean;
 };
 
 export type GetStatsApplicationsResponse = {
@@ -345,6 +346,8 @@ export async function getStatsApplications(
     searchParams.append('invalidApplication', params.invalidApplication.toString());
   if (params?.startDate) searchParams.append('startDate', params.startDate);
   if (params?.endDate) searchParams.append('endDate', params.endDate);
+  if (params?.ignoreFilters !== undefined)
+    searchParams.append('ignoreFilters', params.ignoreFilters.toString());
 
   const url = `/applications/stats${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 

@@ -424,6 +424,7 @@ export function ApplicationsOverviewDashboard({
   const filtersActive = useMemo(() => hasActiveOverviewFilters(filters), [filters]);
 
   const statsQuery = useGetStatsApplications(filters);
+  const globalStatsQuery = useGetStatsApplications({ ignoreFilters: true });
   const evolutionQuery = useGetApplicationsEvolution(evolutionQueryParams);
   const topFarmsQuery = useGetApplicationsTopFarms({ ...filters, limit: 5 });
 
@@ -484,6 +485,8 @@ export function ApplicationsOverviewDashboard({
 
   /** Total distinto alinhado ao critério de pendência estrutural (mesmo universo que “avulsas” no KPI). */
   const operationalInconsistencyTotal = stats?.pendingApplicationsCount ?? 0;
+  const globalOperationalInconsistencyTotal =
+    globalStatsQuery.data?.stats?.pendingApplicationsCount ?? 0;
 
   const inconsistencyCompositionRows = useMemo(() => {
     if (!stats) return [] as { issue: ApplicationIssueFilter; count: number }[];
@@ -1053,12 +1056,22 @@ export function ApplicationsOverviewDashboard({
               </SheetHeader>
               <div className='mt-5 flex-1 space-y-6 overflow-y-auto px-1 pb-4'>
                 <div className='rounded-lg border border-border bg-muted/40 p-4'>
-                  <p className='text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>
-                    Total no recorte
+                  <p className='text-[11px] font-semibold text-muted-foreground'>
+                    Inconsistências no filtro atual
                   </p>
                   <p className='mt-1 text-3xl font-semibold tabular-nums text-foreground'>
                     {formatNumber(operationalInconsistencyTotal)}
                   </p>
+                  <div className='mt-3 border-t border-border/80 pt-3'>
+                    <p className='text-[11px] font-medium text-muted-foreground'>
+                      Total geral de inconsistências
+                    </p>
+                    <p className='mt-1 text-xl font-semibold tabular-nums text-foreground'>
+                      {globalStatsQuery.isPending
+                        ? '...'
+                        : formatNumber(globalOperationalInconsistencyTotal)}
+                    </p>
+                  </div>
                   <p className='mt-2 text-xs text-muted-foreground leading-relaxed'>
                     As categorias em &quot;Composição do total&quot; são exclusivas entre si e somam este
                     número. Os recortes adicionais são subconjuntos (podem sobrepor o mesmo registro).

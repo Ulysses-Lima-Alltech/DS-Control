@@ -586,6 +586,7 @@ export class ApplicationService {
    * @returns {Promise<ApplicationStatsDTO>}
    */ 
   public async getGeneralStats(filters?: ApplicationStatsQueryString): Promise<ApplicationStatsDTO> {
+    const effectiveFilters = filters?.ignoreFilters ? undefined : filters;
     const [
       applicationCount,
       applicationCountByMonth,
@@ -608,26 +609,26 @@ export class ApplicationService {
       pendingApplicationsMissingFarmCount,
       pendingApplicationsOtherThanInvalidOpenCount,
     ] = await Promise.all([
-      this.getApplicationCount(filters),
+      this.getApplicationCount(effectiveFilters),
       this.getApplicationCountByMonth(), // Keep this unfiltered as per requirement
-      this.getTotalAreaHectares(filters),
-      this.getAverageApplicationArea(filters),
-      this.getTypeOfProducts(filters),
-      this.getPilotsCount(filters),
-      this.getDronesCount(filters), 
-      this.getCulturesCount(filters),
-      this.getAverageApplicationByPilot(filters),
-      this.getAverageApplicationByDrone(filters),
-      this.averageAreaCoveredApplication(filters),
-      this.getInvalidadApplication(filters),
-      this.getTotalAreaHectaresByMonth(filters),
-      this.getFirstApplicationDate(filters),
-      this.getPendingApplicationsCount(filters),
-      this.getPendingApplicationsTotalArea(filters),
-      this.getPendingFarmsCount(filters),
-      this.getPendingPlotsCount(filters),
-      this.getPendingApplicationsMissingFarmCount(filters),
-      this.getPendingApplicationsOtherThanInvalidOpen(filters),
+      this.getTotalAreaHectares(effectiveFilters),
+      this.getAverageApplicationArea(effectiveFilters),
+      this.getTypeOfProducts(effectiveFilters),
+      this.getPilotsCount(effectiveFilters),
+      this.getDronesCount(effectiveFilters), 
+      this.getCulturesCount(effectiveFilters),
+      this.getAverageApplicationByPilot(effectiveFilters),
+      this.getAverageApplicationByDrone(effectiveFilters),
+      this.averageAreaCoveredApplication(effectiveFilters),
+      this.getInvalidadApplication(effectiveFilters),
+      this.getTotalAreaHectaresByMonth(effectiveFilters),
+      this.getFirstApplicationDate(effectiveFilters),
+      this.getPendingApplicationsCount(effectiveFilters),
+      this.getPendingApplicationsTotalArea(effectiveFilters),
+      this.getPendingFarmsCount(effectiveFilters),
+      this.getPendingPlotsCount(effectiveFilters),
+      this.getPendingApplicationsMissingFarmCount(effectiveFilters),
+      this.getPendingApplicationsOtherThanInvalidOpen(effectiveFilters),
     ]);
 
     // Calculate days elapsed for total hectares
@@ -715,26 +716,19 @@ export class ApplicationService {
           ? Math.min(Math.max(requested, 1), 90)
           : Math.min(Math.max(requested, 1), 40);
 
+    const bucketStartSql =
+      granularity === "day"
+        ? sql`DATE_TRUNC('day', ${applications.date})`
+        : granularity === "year"
+          ? sql`DATE_TRUNC('year', ${applications.date})`
+          : sql`DATE_TRUNC('month', ${applications.date})`;
+
     const periodSql =
       granularity === "day"
-        ? sql<string>`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD')`
+        ? sql<string>`TO_CHAR(${bucketStartSql}, 'YYYY-MM-DD')`
         : granularity === "year"
-          ? sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY')`
-          : sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`;
-
-    const groupOrderSql =
-      granularity === "day"
-        ? sql`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD')`
-        : granularity === "year"
-          ? sql`TO_CHAR(${applications.date}::timestamp, 'YYYY')`
-          : sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`;
-
-    const orderByDesc =
-      granularity === "day"
-        ? sql`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD') DESC`
-        : granularity === "year"
-          ? sql`TO_CHAR(${applications.date}::timestamp, 'YYYY') DESC`
-          : sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM') DESC`;
+          ? sql<string>`TO_CHAR(${bucketStartSql}, 'YYYY')`
+          : sql<string>`TO_CHAR(${bucketStartSql}, 'YYYY-MM')`;
 
     const results = await db
       .select({
@@ -748,8 +742,8 @@ export class ApplicationService {
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause)
-      .groupBy(groupOrderSql)
-      .orderBy(orderByDesc)
+      .groupBy(bucketStartSql)
+      .orderBy(sql`${bucketStartSql} DESC`)
       .limit(limitBuckets);
 
     return results

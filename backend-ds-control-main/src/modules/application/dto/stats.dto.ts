@@ -81,6 +81,11 @@ export const ApplicationStatsQueryStringSchema = z.object({
     .refine(val =>  !isNaN(Date.parse(val)), {message: "invalid date"})
     .optional()
     .describe("Filter application end date"),
+  ignoreFilters: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((val) => val === "true")
+    .describe("Ignore all filters and return global stats"),
 });
 
 export type ApplicationStatsQueryString = z.infer<typeof ApplicationStatsQueryStringSchema>;
