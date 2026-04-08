@@ -1,7 +1,14 @@
 'use client';
 
 import type { InfiniteData } from '@tanstack/react-query';
-import { differenceInCalendarDays, format, isValid, max as maxDate, parseISO, subDays } from 'date-fns';
+import {
+  differenceInCalendarDays,
+  format,
+  isValid,
+  max as maxDate,
+  parseISO,
+  subDays,
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   AlertCircle,
@@ -17,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -221,6 +228,31 @@ function ChartPlotShell({ heightPx, children }: { heightPx: number; children: Re
  */
 const OVERVIEW_CHART_CONTAINER_CLASS =
   'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:h-full [&_.recharts-responsive-container]:w-full [&_.recharts-responsive-container]:max-h-full';
+const EVOLUTION_CHART_CONTAINER_CLASS =
+  'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:!h-full [&_.recharts-responsive-container]:!w-full [&_.recharts-wrapper]:!h-full [&_.recharts-wrapper]:!w-full';
+const DEV_MOCK_EVOLUTION =
+  process.env.NEXT_PUBLIC_DEV_MOCK_EVOLUTION === 'true' && process.env.NODE_ENV === 'development';
+
+function getDevMockEvolution(granularity: EvolutionGranularity): Array<{ date: string; applicationsCount: number }> {
+  if (granularity === 'day') {
+    return [
+      { date: '2026-04-01', applicationsCount: 12 },
+      { date: '2026-04-02', applicationsCount: 15 },
+      { date: '2026-04-03', applicationsCount: 10 },
+      { date: '2026-04-04', applicationsCount: 19 },
+      { date: '2026-04-05', applicationsCount: 13 },
+    ];
+  }
+  if (granularity === 'month') {
+    return [
+      { date: '2026-01-01', applicationsCount: 122 },
+      { date: '2026-02-01', applicationsCount: 118 },
+      { date: '2026-03-01', applicationsCount: 135 },
+      { date: '2026-04-01', applicationsCount: 141 },
+    ];
+  }
+  return [{ date: '2026-01-01', applicationsCount: 516 }];
+}
 
 /**
  * Ponto único de montagem de gráfico nesta tela: shell com altura + ChartContainer seguro.
@@ -244,6 +276,27 @@ function OverviewChartPlot({
         {children}
       </ChartContainer>
     </ChartPlotShell>
+  );
+}
+
+function EvolutionChartPlot({
+  chartId,
+  config,
+  children,
+}: {
+  chartId: string;
+  config: ChartConfig;
+  children: ReactElement;
+}) {
+  return (
+    <div
+      className='relative w-full min-h-0 min-w-0 overflow-hidden rounded-md'
+      style={{ height: CHART_EVOLUTION_H, minHeight: CHART_EVOLUTION_H }}
+    >
+      <ChartContainer id={chartId} className={EVOLUTION_CHART_CONTAINER_CLASS} config={config}>
+        {children}
+      </ChartContainer>
+    </div>
   );
 }
 
@@ -514,17 +567,26 @@ export function ApplicationsOverviewDashboard({
   const looseCount = stats?.pendingApplicationsCount ?? 0;
   const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
-  const evolution = evolutionQuery.data?.evolution ?? [];
+  const evolution = useMemo(
+    () =>
+      DEV_MOCK_EVOLUTION
+        ? getDevMockEvolution(resolvedEvolutionGranularity)
+        : (evolutionQuery.data?.evolution ?? []),
+    [evolutionQuery.data?.evolution, resolvedEvolutionGranularity]
+  );
   const chartData = useMemo(() => {
     return evolution
+      .filter((item) => typeof item.date === 'string' && item.date.length >= 10)
       .map((item) => ({
         name: item.date,
         value: Number(item.applicationsCount || 0),
-      }))
-      .filter(
-        (item) => typeof item.name === 'string' && item.name.length === 10
-      ) as Array<{ name: string; value: number }>;
+      }));
   }, [evolution]);
+  const isSingleBucket = chartData.length === 1;
+  const evolutionRenderBranch =
+    chartData.length === 0 ? 'empty' : chartData.length === 1 ? 'single-bar' : 'multi-line';
+  const evolutionIsPending = DEV_MOCK_EVOLUTION ? false : evolutionQuery.isPending;
+  const evolutionIsError = DEV_MOCK_EVOLUTION ? false : evolutionQuery.isError;
 
   const productData = useMemo(() => {
     return [...(stats?.typeOfProducts || [])]
@@ -668,6 +730,13 @@ export function ApplicationsOverviewDashboard({
     }
     return base;
   }, [allPilots, filters.pilotId, pilotChipLabel]);
+
+  console.log('[EvolutionChart]', {
+    resolvedEvolutionGranularity,
+    chartDataLength: chartData.length,
+    chartData,
+    renderBranch: evolutionRenderBranch,
+  });
 
   return (
     <div className='space-y-5'>
@@ -955,9 +1024,9 @@ export function ApplicationsOverviewDashboard({
           </div>
         </CardHeader>
         <CardContent className='min-w-0 overflow-hidden pt-1'>
-          {evolutionQuery.isPending ? (
+          {evolutionIsPending ? (
             <Skeleton className='w-full rounded-md' style={{ height: CHART_EVOLUTION_H }} />
-          ) : evolutionQuery.isError ? (
+          ) : evolutionIsError ? (
             <SectionError
               compact
               title='Evolução indisponível'
@@ -974,11 +1043,10 @@ export function ApplicationsOverviewDashboard({
                 hint={emptyChartHint}
               />
             </ChartPlotShell>
-          ) : chartData.length === 1 ? (
-            <OverviewChartPlot
-              heightPx={CHART_EVOLUTION_H}
+          ) : isSingleBucket ? (
+            <EvolutionChartPlot
               chartId='overview-evolution-single-bar'
-              config={{ value: { label: 'Aplicações', color: 'var(--chart-1)' } }}
+              config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
             >
               <BarChart data={chartData} margin={{ left: 4, right: 8, top: 8, bottom: 8 }}>
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
@@ -1007,12 +1075,24 @@ export function ApplicationsOverviewDashboard({
                     />
                   }
                 />
-                <Bar dataKey='value' fill='var(--color-value)' radius={[4, 4, 0, 0]} maxBarSize={56} />
+                <Bar
+                  dataKey='value'
+                  fill='var(--color-applications)'
+                  radius={[4, 4, 0, 0]}
+                  minPointSize={24}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey='value'
+                    position='top'
+                    formatter={(value: number) => Number(value ?? 0).toLocaleString('pt-BR')}
+                    className='fill-foreground text-[11px]'
+                  />
+                </Bar>
               </BarChart>
-            </OverviewChartPlot>
+            </EvolutionChartPlot>
           ) : (
-            <OverviewChartPlot
-              heightPx={CHART_EVOLUTION_H}
+            <EvolutionChartPlot
               chartId='overview-evolution-line'
               config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
             >
@@ -1043,6 +1123,7 @@ export function ApplicationsOverviewDashboard({
                 <YAxis
                   allowDecimals={false}
                   width={36}
+                  domain={[0, 'dataMax + 1']}
                   tickFormatter={(value) => formatCompact(Number(value))}
                 />
                 <ChartTooltip
@@ -1064,13 +1145,13 @@ export function ApplicationsOverviewDashboard({
                   name='Aplicações'
                   stroke='var(--color-applications)'
                   strokeWidth={2}
-                  dot={{ r: 2 }}
-                  activeDot={{ r: 4 }}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                   connectNulls={false}
                   isAnimationActive={false}
                 />
               </LineChart>
-            </OverviewChartPlot>
+            </EvolutionChartPlot>
           )}
         </CardContent>
       </Card>
