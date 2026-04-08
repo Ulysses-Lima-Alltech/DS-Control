@@ -138,23 +138,40 @@ function resolveEvolutionGranularity(
 }
 
 function formatEvolutionAxisTick(period: string, g: EvolutionGranularity): string {
-  if (g === 'day' && period.length >= 10) {
-    return format(parseISO(period), 'dd/MM', { locale: ptBR });
+  if (g === 'day') {
+    // day bucket: YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+      return format(parseISO(period), 'dd/MM', { locale: ptBR });
+    }
+    return period;
   }
-  if (g === 'month' && period.length >= 7) {
-    return format(parseISO(`${period}-01`), 'MMM/yyyy', { locale: ptBR });
+  if (g === 'month') {
+    // month bucket: YYYY-MM
+    if (/^\d{4}-\d{2}$/.test(period)) {
+      const [year, month] = period.split('-');
+      return format(new Date(Number(year), Number(month) - 1, 1), 'MMM/yyyy', { locale: ptBR });
+    }
+    return period;
   }
+  // year bucket: YYYY (no date parsing)
   return period;
 }
 
 function formatEvolutionTooltipPeriod(period: string, g: EvolutionGranularity): string {
-  if (g === 'day' && period.length >= 10) {
-    return format(parseISO(period), 'dd/MM/yyyy', { locale: ptBR });
+  if (g === 'day') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+      return format(parseISO(period), 'dd/MM/yyyy', { locale: ptBR });
+    }
+    return period;
   }
-  if (g === 'month' && period.length >= 7) {
-    return format(parseISO(`${period}-01`), 'MMMM yyyy', { locale: ptBR });
+  if (g === 'month') {
+    if (/^\d{4}-\d{2}$/.test(period)) {
+      const [year, month] = period.split('-');
+      return format(new Date(Number(year), Number(month) - 1, 1), 'MMMM yyyy', { locale: ptBR });
+    }
+    return period;
   }
-  return `Ano ${period}`;
+  return period;
 }
 
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
@@ -526,8 +543,8 @@ export function ApplicationsOverviewDashboard({
     return (evolutionQuery.data?.evolution || [])
       .filter((item) => typeof item?.yearMonth === 'string' && item.yearMonth.length >= 4)
       .map((item) => ({
-        period: item.yearMonth,
-        applications: Math.max(0, Number(item.applicationsCount) || 0),
+        name: item.yearMonth,
+        value: Math.max(0, Number(item.applicationsCount) || 0),
       }));
   }, [evolutionQuery.data?.evolution]);
 
@@ -996,7 +1013,7 @@ export function ApplicationsOverviewDashboard({
               >
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
                 <XAxis
-                  dataKey='period'
+                  dataKey='name'
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
@@ -1027,7 +1044,7 @@ export function ApplicationsOverviewDashboard({
                 />
                 <Line
                   type='monotone'
-                  dataKey='applications'
+                  dataKey='value'
                   name='Aplicações'
                   stroke='var(--color-applications)'
                   strokeWidth={2}
