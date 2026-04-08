@@ -177,8 +177,8 @@ describe("ApplicationService.getApplicationsEvolution", () => {
 
   it("granularity month retorna buckets YYYY-MM em ordem ASC", async () => {
     chain.limit.mockResolvedValue([
-      { year: 2024, month: 3, applicationsCount: "1" },
-      { year: 2024, month: 1, applicationsCount: "2" },
+      { date: "2024-03-01", applicationsCount: "1" },
+      { date: "2024-01-01", applicationsCount: "2" },
     ]);
 
     const rows = await service.getApplicationsEvolution({
@@ -186,15 +186,15 @@ describe("ApplicationService.getApplicationsEvolution", () => {
       months: 6,
     } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
 
-    expect(rows.map((r) => r.yearMonth)).toEqual(["2024-01", "2024-03"]);
+    expect(rows.map((r) => r.date)).toEqual(["2024-01-01", "2024-03-01"]);
     expect(rows[0]!.applicationsCount).toBe(2);
     expect(rows[1]!.applicationsCount).toBe(1);
   });
 
   it("granularity year retorna buckets YYYY em ordem ASC", async () => {
     chain.limit.mockResolvedValue([
-      { year: 2026, applicationsCount: "10" },
-      { year: 2025, applicationsCount: "8" },
+      { date: "2026-01-01", applicationsCount: "10" },
+      { date: "2025-01-01", applicationsCount: "8" },
     ]);
 
     const rows = await service.getApplicationsEvolution({
@@ -202,7 +202,7 @@ describe("ApplicationService.getApplicationsEvolution", () => {
       months: 40,
     } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
 
-    expect(rows.map((r) => r.yearMonth)).toEqual(["2025", "2026"]);
+    expect(rows.map((r) => r.date)).toEqual(["2025-01-01", "2026-01-01"]);
     expect(rows[0]!.applicationsCount).toBe(8);
     expect(rows[1]!.applicationsCount).toBe(10);
   });
@@ -225,8 +225,8 @@ describe("ApplicationService.getApplicationsEvolution", () => {
 
   it("granularity day continua retornando formato YYYY-MM-DD", async () => {
     chain.limit.mockResolvedValue([
-      { yearMonth: "2026-04-07", applicationsCount: "3" },
-      { yearMonth: "2026-04-06", applicationsCount: "11" },
+      { date: "2026-04-07", applicationsCount: "3" },
+      { date: "2026-04-06", applicationsCount: "11" },
     ]);
 
     const rows = await service.getApplicationsEvolution({
@@ -236,7 +236,7 @@ describe("ApplicationService.getApplicationsEvolution", () => {
       productId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
 
-    expect(rows.map((r) => r.yearMonth)).toEqual(["2026-04-06", "2026-04-07"]);
+    expect(rows.map((r) => r.date)).toEqual(["2026-04-06", "2026-04-07"]);
     expect(rows[0]!.applicationsCount).toBe(11);
     expect(rows[1]!.applicationsCount).toBe(3);
   });

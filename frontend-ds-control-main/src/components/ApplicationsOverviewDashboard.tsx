@@ -93,7 +93,7 @@ const formatCompact = (value: number) =>
   value.toLocaleString('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
 
 /** Alturas em px — base real para o ResponsiveContainer (evita %/aspect instável). */
-const CHART_EVOLUTION_H = 220;
+const CHART_EVOLUTION_H = 260;
 const CHART_BAR_H = 200;
 const CHART_BAR_ROW_H = 34;
 const CHART_BAR_MIN_H = 196;
@@ -137,41 +137,15 @@ function resolveEvolutionGranularity(
   return 'year';
 }
 
-function formatEvolutionAxisTick(period: string, g: EvolutionGranularity): string {
+function formatByGranularity(dateValue: string, g: EvolutionGranularity, forTooltip = false): string {
+  const parsed = parseISO(dateValue);
   if (g === 'day') {
-    // day bucket: YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
-      return format(parseISO(period), 'dd/MM', { locale: ptBR });
-    }
-    return period;
+    return format(parsed, forTooltip ? 'dd/MM/yyyy' : 'dd/MM', { locale: ptBR });
   }
   if (g === 'month') {
-    // month bucket: YYYY-MM
-    if (/^\d{4}-\d{2}$/.test(period)) {
-      const [year, month] = period.split('-');
-      return format(new Date(Number(year), Number(month) - 1, 1), 'MMM/yyyy', { locale: ptBR });
-    }
-    return period;
+    return format(parsed, forTooltip ? 'MMMM yyyy' : 'MMM/yyyy', { locale: ptBR });
   }
-  // year bucket: YYYY (no date parsing)
-  return period;
-}
-
-function formatEvolutionTooltipPeriod(period: string, g: EvolutionGranularity): string {
-  if (g === 'day') {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
-      return format(parseISO(period), 'dd/MM/yyyy', { locale: ptBR });
-    }
-    return period;
-  }
-  if (g === 'month') {
-    if (/^\d{4}-\d{2}$/.test(period)) {
-      const [year, month] = period.split('-');
-      return format(new Date(Number(year), Number(month) - 1, 1), 'MMMM yyyy', { locale: ptBR });
-    }
-    return period;
-  }
-  return period;
+  return format(parsed, 'yyyy', { locale: ptBR });
 }
 
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
@@ -246,6 +220,8 @@ function ChartPlotShell({ heightPx, children }: { heightPx: number; children: Re
  */
 const OVERVIEW_CHART_CONTAINER_CLASS =
   'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:h-full [&_.recharts-responsive-container]:w-full [&_.recharts-responsive-container]:max-h-full';
+const EVOLUTION_CHART_CONTAINER_CLASS =
+  'w-full min-h-[260px] !aspect-auto overflow-hidden [&_.recharts-responsive-container]:w-full [&_.recharts-responsive-container]:h-full';
 
 /**
  * Ponto único de montagem de gráfico nesta tela: shell com altura + ChartContainer seguro.
@@ -539,14 +515,15 @@ export function ApplicationsOverviewDashboard({
   const looseCount = stats?.pendingApplicationsCount ?? 0;
   const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
-  const evolutionData = useMemo(() => {
+  const chartData = useMemo(() => {
     return (evolutionQuery.data?.evolution || [])
-      .filter((item) => typeof item?.yearMonth === 'string' && item.yearMonth.length >= 4)
+      .filter((item) => typeof item?.date === 'string' && item.date.length === 10)
       .map((item) => ({
-        name: item.yearMonth,
+        name: item.date,
         value: Math.max(0, Number(item.applicationsCount) || 0),
       }));
   }, [evolutionQuery.data?.evolution]);
+  console.log('EVOLUTION_DATA', chartData);
 
   const productData = useMemo(() => {
     return [...(stats?.typeOfProducts || [])]
@@ -989,7 +966,7 @@ export function ApplicationsOverviewDashboard({
               }
               onRetry={() => evolutionQuery.refetch()}
             />
-          ) : evolutionData.length === 0 ? (
+          ) : chartData.length === 0 ? (
             <ChartPlotShell heightPx={CHART_EVOLUTION_H}>
               <ChartEmptyState
                 title='Sem dados de evolução para exibir.'
@@ -997,64 +974,68 @@ export function ApplicationsOverviewDashboard({
               />
             </ChartPlotShell>
           ) : (
-            <OverviewChartPlot
-              heightPx={CHART_EVOLUTION_H}
-              chartId='overview-evolution-line'
-              config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
-            >
-              <LineChart
-                data={evolutionData}
-                margin={{
-                  left: 4,
-                  right: 8,
-                  top: 8,
-                  bottom: resolvedEvolutionGranularity === 'day' ? 28 : 8,
-                }}
+            <div style={{ height: 260, width: '100%' }} className='min-h-[260px] overflow-hidden rounded-md'>
+              <ChartContainer
+                id='overview-evolution-line'
+                className={EVOLUTION_CHART_CONTAINER_CLASS}
+                config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
               >
-                <CartesianGrid vertical={false} strokeDasharray='3 3' />
-                <XAxis
-                  dataKey='name'
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  minTickGap={resolvedEvolutionGranularity === 'day' ? 4 : 8}
-                  angle={resolvedEvolutionGranularity === 'day' ? -30 : 0}
-                  textAnchor={resolvedEvolutionGranularity === 'day' ? 'end' : 'middle'}
-                  height={resolvedEvolutionGranularity === 'day' ? 48 : undefined}
-                  tickFormatter={(v) => formatEvolutionAxisTick(String(v), resolvedEvolutionGranularity)}
-                  interval='preserveStartEnd'
-                />
-                <YAxis
-                  allowDecimals={false}
-                  width={36}
-                  tickFormatter={(value) => formatCompact(Number(value))}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) =>
-                        formatEvolutionTooltipPeriod(String(label), resolvedEvolutionGranularity)
-                      }
-                      formatter={(value) => [
-                        `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
-                        '',
-                      ]}
-                    />
-                  }
-                />
-                <Line
-                  type='monotone'
-                  dataKey='value'
-                  name='Aplicações'
-                  stroke='var(--color-applications)'
-                  strokeWidth={2}
-                  dot={{ r: 2 }}
-                  activeDot={{ r: 4 }}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </OverviewChartPlot>
+                <LineChart
+                  data={chartData}
+                  margin={{
+                    left: 4,
+                    right: 8,
+                    top: 8,
+                    bottom: resolvedEvolutionGranularity === 'day' ? 28 : 8,
+                  }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray='3 3' />
+                  <XAxis
+                    dataKey='name'
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={resolvedEvolutionGranularity === 'day' ? 4 : 8}
+                    angle={resolvedEvolutionGranularity === 'day' ? -30 : 0}
+                    textAnchor={resolvedEvolutionGranularity === 'day' ? 'end' : 'middle'}
+                    height={resolvedEvolutionGranularity === 'day' ? 48 : undefined}
+                    tickFormatter={(v) =>
+                      formatByGranularity(String(v), resolvedEvolutionGranularity, false)
+                    }
+                    interval='preserveStartEnd'
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    width={36}
+                    tickFormatter={(value) => formatCompact(Number(value))}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(label) =>
+                        formatByGranularity(String(label), resolvedEvolutionGranularity, true)
+                        }
+                        formatter={(value) => [
+                          `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
+                          '',
+                        ]}
+                      />
+                    }
+                  />
+                  <Line
+                    type='monotone'
+                    dataKey='value'
+                    name='Aplicações'
+                    stroke='var(--color-applications)'
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
+                    connectNulls={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ChartContainer>
+            </div>
           )}
         </CardContent>
       </Card>

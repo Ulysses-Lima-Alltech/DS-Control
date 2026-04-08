@@ -314,7 +314,7 @@ export type GetTopFarmsApplicationsResponse = {
 };
 
 export type ApplicationsEvolutionItem = {
-  yearMonth: string;
+  date: string;
   applicationsCount: number;
 };
 

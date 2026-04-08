@@ -67,8 +67,8 @@ describe("ApplicationController — contrato de resposta dos endpoints de estat�
 
   it("getApplicationsEvolution envia 200 com message e evolution conforme serviço", async () => {
     const payload = [
-      { yearMonth: "2024-02", applicationsCount: 5 },
-      { yearMonth: "2024-03", applicationsCount: 7 },
+      { date: "2024-02-01", applicationsCount: 5 },
+      { date: "2024-03-01", applicationsCount: 7 },
     ];
     mockEvolution.mockResolvedValue(payload);
 

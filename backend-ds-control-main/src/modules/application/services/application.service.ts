@@ -702,7 +702,7 @@ export class ApplicationService {
   }
 
   public async getApplicationsEvolution(filters?: ApplicationEvolutionQueryString): Promise<Array<{
-    yearMonth: string;
+    date: string;
     applicationsCount: number;
   }>> {
     const { whereClause } = this.buildApplicationWhereConditions(filters);
@@ -715,64 +715,17 @@ export class ApplicationService {
         : granularity === "day"
           ? Math.min(Math.max(requested, 1), 90)
           : Math.min(Math.max(requested, 1), 40);
-    if (granularity === "day") {
-      const dayBucketSql = sql<string>`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD')`;
-      const results = await db
-        .select({
-          yearMonth: dayBucketSql,
-          applicationsCount: countDistinct(applications.id),
-        })
-        .from(applications)
-        .leftJoin(users, eq(applications.pilotId, users.id))
-        .leftJoin(plots, eq(applications.plotId, plots.id))
-        .leftJoin(farms, eq(applications.farmId, farms.id))
-        .leftJoin(customers, eq(farms.customerId, customers.id))
-        .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
-        .where(whereClause)
-        .groupBy(dayBucketSql)
-        .orderBy(sql`${dayBucketSql} DESC`)
-        .limit(limitBuckets);
+    const bucketDateSql =
+      granularity === "day"
+        ? sql`DATE(${applications.date})`
+        : granularity === "month"
+          ? sql`DATE_TRUNC('month', ${applications.date})::date`
+          : sql`DATE_TRUNC('year', ${applications.date})::date`;
+    const bucketStringSql = sql<string>`TO_CHAR(${bucketDateSql}, 'YYYY-MM-DD')`;
 
-      return results
-        .map((item) => ({
-          yearMonth: item.yearMonth,
-          applicationsCount: Number(item.applicationsCount || 0),
-        }))
-        .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
-    }
-
-    if (granularity === "month") {
-      const yearSql = sql<number>`EXTRACT(YEAR FROM ${applications.date})::int`;
-      const monthSql = sql<number>`EXTRACT(MONTH FROM ${applications.date})::int`;
-      const results = await db
-        .select({
-          year: yearSql,
-          month: monthSql,
-          applicationsCount: countDistinct(applications.id),
-        })
-        .from(applications)
-        .leftJoin(users, eq(applications.pilotId, users.id))
-        .leftJoin(plots, eq(applications.plotId, plots.id))
-        .leftJoin(farms, eq(applications.farmId, farms.id))
-        .leftJoin(customers, eq(farms.customerId, customers.id))
-        .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
-        .where(whereClause)
-        .groupBy(yearSql, monthSql)
-        .orderBy(sql`${yearSql} DESC`, sql`${monthSql} DESC`)
-        .limit(limitBuckets);
-
-      return results
-        .map((item) => ({
-          yearMonth: `${String(item.year).padStart(4, "0")}-${String(item.month).padStart(2, "0")}`,
-          applicationsCount: Number(item.applicationsCount || 0),
-        }))
-        .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
-    }
-
-    const yearSql = sql<number>`EXTRACT(YEAR FROM ${applications.date})::int`;
     const results = await db
       .select({
-        year: yearSql,
+        date: bucketStringSql,
         applicationsCount: countDistinct(applications.id),
       })
       .from(applications)
@@ -782,16 +735,16 @@ export class ApplicationService {
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause)
-      .groupBy(yearSql)
-      .orderBy(sql`${yearSql} DESC`)
+      .groupBy(bucketDateSql)
+      .orderBy(sql`${bucketDateSql} DESC`)
       .limit(limitBuckets);
 
     return results
       .map((item) => ({
-        yearMonth: String(item.year).padStart(4, "0"),
+        date: item.date,
         applicationsCount: Number(item.applicationsCount || 0),
       }))
-      .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 
   /**

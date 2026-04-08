@@ -134,15 +134,15 @@ describe("Schemas de resposta (contrato JSON)", () => {
 
   it("ApplicationEvolutionItemSchema valida item de série temporal", () => {
     const item = ApplicationEvolutionItemSchema.parse({
-      yearMonth: "2024-08",
+      date: "2024-08-01",
       applicationsCount: 42,
     });
-    expect(item.yearMonth).toBe("2024-08");
+    expect(item.date).toBe("2024-08-01");
     expect(item.applicationsCount).toBe(42);
     const dayBucket = ApplicationEvolutionItemSchema.parse({
-      yearMonth: "2026-04-07",
+      date: "2026-04-07",
       applicationsCount: 1,
     });
-    expect(dayBucket.yearMonth).toBe("2026-04-07");
+    expect(dayBucket.date).toBe("2026-04-07");
   });
 });

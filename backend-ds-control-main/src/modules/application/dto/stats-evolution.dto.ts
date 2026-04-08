@@ -16,8 +16,8 @@ export const ApplicationEvolutionQueryStringSchema = ApplicationStatsQueryString
 
 export type ApplicationEvolutionQueryString = z.infer<typeof ApplicationEvolutionQueryStringSchema>;
 
-/** `yearMonth` mantém o nome por compatibilidade; valor = bucket YYYY-MM-DD | YYYY-MM | YYYY. */
+/** Bucket temporal padronizado para contrato único: sempre YYYY-MM-DD. */
 export const ApplicationEvolutionItemSchema = z.object({
-  yearMonth: z.string(),
+  date: z.string(),
   applicationsCount: z.number(),
 });
