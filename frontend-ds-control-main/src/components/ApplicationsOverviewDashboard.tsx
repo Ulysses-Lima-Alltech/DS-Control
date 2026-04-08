@@ -87,11 +87,21 @@ const formatCompact = (value: number) =>
 /** Alturas em px — base real para o ResponsiveContainer (evita %/aspect instável). */
 const CHART_EVOLUTION_H = 220;
 const CHART_BAR_H = 200;
+const CHART_BAR_ROW_H = 34;
+const CHART_BAR_MIN_H = 196;
+const CHART_BAR_MAX_H = 280;
+const CHART_Y_AXIS_W = 140;
+const CHART_CATEGORY_LABEL_MAX = 20;
 
 function truncateAxisLabel(value: unknown, maxLen = 22): string {
   const s = String(value ?? '').trim();
   if (s.length <= maxLen) return s;
   return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
+function getHorizontalBarChartHeight(itemsCount: number): number {
+  const computed = itemsCount * CHART_BAR_ROW_H + 36;
+  return Math.max(CHART_BAR_MIN_H, Math.min(CHART_BAR_MAX_H, computed));
 }
 
 /** Modo Auto: ≤45 dias → dia; &gt;45 e ≤730 dias (~24 meses) → mês; senão → ano. */
@@ -104,9 +114,12 @@ type EvolutionMode = 'auto' | EvolutionGranularity;
 
 function resolveEvolutionGranularity(
   mode: EvolutionMode,
-  startDateStr: string,
-  endDateStr: string
+  startDateStr?: string,
+  endDateStr?: string
 ): EvolutionGranularity {
+  if (!startDateStr || !endDateStr) {
+    return mode === 'auto' ? 'month' : mode;
+  }
   if (mode !== 'auto') return mode;
   const start = parseISO(startDateStr);
   const end = parseISO(endDateStr);
@@ -316,10 +329,12 @@ export function ApplicationsOverviewDashboard({
     },
     [filters.productId, onProductFilterChange]
   );
+  const hasExplicitDateRange = Boolean(filters.startDate && filters.endDate);
   const effectiveDateRange = useMemo(() => {
-    const endDate = filters.endDate || format(new Date(), 'yyyy-MM-dd');
-    const startDate = filters.startDate || format(subDays(new Date(), 90), 'yyyy-MM-dd');
-    return { startDate, endDate };
+    if (filters.startDate && filters.endDate) {
+      return { startDate: filters.startDate, endDate: filters.endDate };
+    }
+    return undefined;
   }, [filters.endDate, filters.startDate]);
 
   const [evolutionMode, setEvolutionMode] = useState<EvolutionMode>('auto');
@@ -328,13 +343,21 @@ export function ApplicationsOverviewDashboard({
     () =>
       resolveEvolutionGranularity(
         evolutionMode,
-        effectiveDateRange.startDate,
-        effectiveDateRange.endDate
+        effectiveDateRange?.startDate,
+        effectiveDateRange?.endDate
       ),
-    [evolutionMode, effectiveDateRange.startDate, effectiveDateRange.endDate]
+    [evolutionMode, effectiveDateRange?.endDate, effectiveDateRange?.startDate]
   );
 
   const evolutionApiRange = useMemo(() => {
+    if (!effectiveDateRange) {
+      return {
+        startDate: undefined,
+        endDate: undefined,
+        dayRangeCapped: false,
+      };
+    }
+
     const start = parseISO(effectiveDateRange.startDate);
     const end = parseISO(effectiveDateRange.endDate);
     const spanDays = differenceInCalendarDays(end, start) + 1;
@@ -351,8 +374,7 @@ export function ApplicationsOverviewDashboard({
       dayRangeCapped,
     };
   }, [
-    effectiveDateRange.startDate,
-    effectiveDateRange.endDate,
+    effectiveDateRange,
     resolvedEvolutionGranularity,
   ]);
 
@@ -365,13 +387,14 @@ export function ApplicationsOverviewDashboard({
   const evolutionQueryParams = useMemo(
     () => ({
       ...filters,
-      startDate: evolutionApiRange.startDate,
-      endDate: evolutionApiRange.endDate,
+      startDate: hasExplicitDateRange ? evolutionApiRange.startDate : undefined,
+      endDate: hasExplicitDateRange ? evolutionApiRange.endDate : undefined,
       months: evolutionMonthsParam,
       granularity: resolvedEvolutionGranularity,
     }),
     [
       filters,
+      hasExplicitDateRange,
       evolutionApiRange.startDate,
       evolutionApiRange.endDate,
       evolutionMonthsParam,
@@ -441,6 +464,15 @@ export function ApplicationsOverviewDashboard({
         hectares: Math.max(0, Number(farm.totalAreaHectares) || 0),
       }));
   }, [topFarmsQuery.data?.topFarms]);
+
+  const productChartHeight = useMemo(
+    () => getHorizontalBarChartHeight(productData.length || 5),
+    [productData.length]
+  );
+  const topFarmsChartHeight = useMemo(
+    () => getHorizontalBarChartHeight(topFarms.length || 5),
+    [topFarms.length]
+  );
 
   const hasNoAlerts =
     (stats?.pendingApplicationsCount || 0) === 0 &&
@@ -753,7 +785,7 @@ export function ApplicationsOverviewDashboard({
           </CardHeader>
           <CardContent className='min-w-0 overflow-hidden pt-1'>
             {statsQuery.isPending ? (
-              <Skeleton className='w-full rounded-md' style={{ height: CHART_BAR_H }} />
+              <Skeleton className='w-full rounded-md' style={{ height: productChartHeight }} />
             ) : statsQuery.isError ? (
               <SectionError
                 compact
@@ -765,7 +797,7 @@ export function ApplicationsOverviewDashboard({
                 onRetry={() => statsQuery.refetch()}
               />
             ) : productData.length === 0 ? (
-              <ChartPlotShell heightPx={CHART_BAR_H}>
+              <ChartPlotShell heightPx={productChartHeight}>
                 <ChartEmptyState
                   title='Sem dados de produto para o período.'
                   hint={emptyChartHint}
@@ -773,14 +805,14 @@ export function ApplicationsOverviewDashboard({
               </ChartPlotShell>
             ) : (
               <OverviewChartPlot
-                heightPx={CHART_BAR_H}
+                heightPx={productChartHeight}
                 chartId='overview-products-bar'
                 config={{ productBar: { label: 'Hectares', color: 'var(--chart-2)' } }}
               >
                 <BarChart
                   data={productData}
                   layout='vertical'
-                  margin={{ left: 4, right: 10, top: 4, bottom: 4 }}
+                  margin={{ left: 8, right: 14, top: 6, bottom: 6 }}
                   barCategoryGap='12%'
                 >
                   <CartesianGrid horizontal={false} />
@@ -792,8 +824,8 @@ export function ApplicationsOverviewDashboard({
                   <YAxis
                     dataKey='name'
                     type='category'
-                    width={108}
-                    tickFormatter={truncateAxisLabel}
+                    width={CHART_Y_AXIS_W}
+                    tickFormatter={(value) => truncateAxisLabel(value, CHART_CATEGORY_LABEL_MAX)}
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
@@ -856,7 +888,7 @@ export function ApplicationsOverviewDashboard({
           </CardHeader>
           <CardContent className='min-w-0 overflow-hidden pt-1'>
             {topFarmsQuery.isPending ? (
-              <Skeleton className='w-full rounded-md' style={{ height: CHART_BAR_H }} />
+              <Skeleton className='w-full rounded-md' style={{ height: topFarmsChartHeight }} />
             ) : topFarmsQuery.isError ? (
               <SectionError
                 compact
@@ -868,7 +900,7 @@ export function ApplicationsOverviewDashboard({
                 onRetry={() => topFarmsQuery.refetch()}
               />
             ) : topFarms.length === 0 ? (
-              <ChartPlotShell heightPx={CHART_BAR_H}>
+              <ChartPlotShell heightPx={topFarmsChartHeight}>
                 <ChartEmptyState
                   title='Sem dados de fazendas para exibir.'
                   hint={emptyChartHint}
@@ -876,14 +908,14 @@ export function ApplicationsOverviewDashboard({
               </ChartPlotShell>
             ) : (
               <OverviewChartPlot
-                heightPx={CHART_BAR_H}
+                heightPx={topFarmsChartHeight}
                 chartId='overview-farms-bar'
                 config={{ farmBar: { label: 'Hectares', color: 'var(--chart-3)' } }}
               >
                 <BarChart
                   data={topFarms}
                   layout='vertical'
-                  margin={{ left: 4, right: 10, top: 4, bottom: 4 }}
+                  margin={{ left: 8, right: 14, top: 6, bottom: 6 }}
                   barCategoryGap='12%'
                 >
                   <CartesianGrid horizontal={false} />
@@ -895,8 +927,8 @@ export function ApplicationsOverviewDashboard({
                   <YAxis
                     dataKey='name'
                     type='category'
-                    width={108}
-                    tickFormatter={truncateAxisLabel}
+                    width={CHART_Y_AXIS_W}
+                    tickFormatter={(value) => truncateAxisLabel(value, CHART_CATEGORY_LABEL_MAX)}
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
