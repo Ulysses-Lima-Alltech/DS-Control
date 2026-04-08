@@ -1,6 +1,6 @@
 "use client"
 
-import { format } from "date-fns"
+import { format, isValid, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
@@ -16,17 +16,28 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-interface DateParams {
+export interface DateParams {
     startDate: string
     endDate: string
 }
 
 interface DateRangePickerParams {
-    onChange: (dateParams: DateParams) => void,
+    onChange: (dateParams: DateParams | undefined) => void,
     initialValue?: DateParams
     className?: string
     placeholder?: string
 
+}
+
+function parseDateInput(value?: string): Date | undefined {
+  if (!value) return undefined
+  const parsed = parseISO(value)
+  return isValid(parsed) ? parsed : undefined
+}
+
+function safeFormatDate(date: Date | undefined, dateFormat: string) {
+  if (!date || !isValid(date)) return ""
+  return format(date, dateFormat, { locale: ptBR })
 }
 
 export default function DateRangePicker({
@@ -34,9 +45,14 @@ export default function DateRangePicker({
 }: DateRangePickerParams) {
   const [date, setDate] = React.useState<DateRange | undefined>(() => {
       if (initialValue) {
+              const from = parseDateInput(initialValue.startDate)
+              const to = parseDateInput(initialValue.endDate)
+              if (!from || !to) {
+                return undefined
+              }
               return {
-                  from: new Date(initialValue.startDate),
-                  to: new Date(initialValue.endDate)
+                  from,
+                  to
               }
           }
           return undefined
@@ -52,12 +68,14 @@ export default function DateRangePicker({
 }
 
   useEffect(() => {
-    if(date?.from && date?.to){
+    if(date?.from && date?.to && isValid(date.from) && isValid(date.to)){
         onChange({
             startDate: format(date?.from, 'yyyy-MM-dd'),
             endDate: format(date?.to, 'yyyy-MM-dd')
         })
+        return
     }
+    onChange(undefined)
   }, [date, onChange])
 
   return (
@@ -77,11 +95,11 @@ export default function DateRangePicker({
             {date?.from ? (
               date.to ? (
                 <>
-                  {format(date.from, "LLL dd, y", {locale: ptBR})} -{" "}
-                  {format(date.to, "LLL dd, y", {locale: ptBR})}
+                  {safeFormatDate(date.from, "LLL dd, y")} -{" "}
+                  {safeFormatDate(date.to, "LLL dd, y")}
                 </>
               ) : (
-                format(date.from, "LLL dd, y", {locale: ptBR})
+                safeFormatDate(date.from, "LLL dd, y")
               )
             ) : (
               <span>{placeholder}</span>

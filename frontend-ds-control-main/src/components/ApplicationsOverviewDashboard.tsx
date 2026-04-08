@@ -394,6 +394,12 @@ export function ApplicationsOverviewDashboard({
     },
     [filters.productId, onProductFilterChange]
   );
+  const handleOverviewDateRangeChange = useCallback(
+    (range: { startDate: string; endDate: string } | undefined) => {
+      onDateRangeChange?.(range);
+    },
+    [onDateRangeChange]
+  );
   const hasExplicitDateRange = Boolean(filters.startDate && filters.endDate);
   const effectiveDateRange = useMemo(() => {
     if (filters.startDate && filters.endDate) {
@@ -682,7 +688,7 @@ export function ApplicationsOverviewDashboard({
                     ? { startDate: filters.startDate, endDate: filters.endDate }
                     : undefined
                 }
-                onChange={(range) => onDateRangeChange?.(range)}
+                onChange={handleOverviewDateRangeChange}
               />
               <SearchableSelectQuery
                 options={farmOptions}
