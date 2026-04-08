@@ -47,12 +47,20 @@ import { Separator } from '@/components/ui/separator';
 import { useDeleteApplicationById } from '@/mutations/application.mutation';
 import { useGetAllApplications } from '@/queries/application.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
-import { useGetAllFarmsInfinite } from '@/queries/farm.query';
+import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
+import { useGetAllProductsInfinite, useGetProductById } from '@/queries/product.query';
 import { useGetAllServiceOrdersInfinite } from '@/queries/service-order.query';
 import { useGetAllUsersInfinite } from '@/queries/user.query';
-import { Application, ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
+import {
+  APPLICATION_ISSUE_LABELS,
+  Application,
+  ApplicationIssueFilter,
+  ApplicationOrderBy,
+  ApplicationOrderType,
+} from '@/types/applications.type';
 import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
+import { Product } from '@/types/product.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
@@ -69,10 +77,12 @@ interface TableApplicationsProps {
   search?: string;
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
+  productId?: string;
   pilotId?: string;
   customerIdFilter?: string;
   serviceOrderIdFilter?: string;
   invalidApplication?: boolean;
+  applicationIssue?: ApplicationIssueFilter;
   startDate?: string;
   endDate?: string;
   // Filter change callbacks
@@ -80,10 +90,12 @@ interface TableApplicationsProps {
     setSearch: (value: string) => void;
     setServiceOrderStatus: (value: ServiceOrderStatus | undefined) => void;
     setFarmId: (value: string | undefined) => void;
+    setProductId?: (value: string | undefined) => void;
     setPilotId: (value: string | undefined) => void;
     setCustomerId: (value: string | undefined) => void;
     setServiceOrderId: (value: string | undefined) => void;
     setInvalidApplication: (value: boolean | undefined) => void;
+    setApplicationIssue?: (value: ApplicationIssueFilter | undefined) => void;
     setStartDate: (value: string | undefined) => void;
     setEndDate: (value: string | undefined) => void;
   };
@@ -101,10 +113,12 @@ export const TableApplications = ({
   search: propSearch,
   serviceOrderStatus: propServiceOrderStatus,
   farmId: propFarmId,
+  productId: propProductId,
   pilotId: propPilotId,
   customerIdFilter: propCustomerIdFilter,
   serviceOrderIdFilter: propServiceOrderIdFilter,
   invalidApplication: propInvalidApplication,
+  applicationIssue: propApplicationIssue,
   startDate: propStartDate,
   endDate: propEndDate,
   // Filter change callbacks
@@ -119,12 +133,14 @@ export const TableApplications = ({
   const [debouncedSearchValue, setDebouncedSearchValue] = React.useState(propSearch || '');
   const [customerSearchValue, setCustomerSearchValue] = React.useState('');
   const [farmSearchValue, setFarmSearchValue] = React.useState('');
+  const [productSearchValue, setProductSearchValue] = React.useState('');
   const [pilotSearchValue, setPilotSearchValue] = React.useState('');
   const [serviceOrderSearchValue, setServiceOrderSearchValue] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<ServiceOrderStatus | undefined>(
     propServiceOrderStatus || defaultStatus
   );
   const [farmFilter, setFarmFilter] = React.useState<string | undefined>(propFarmId);
+  const [productFilter, setProductFilter] = React.useState<string | undefined>(propProductId);
   const [pilotFilter, setPilotFilter] = React.useState<string | undefined>(propPilotId);
   const [customerFilter, setCustomerFilter] = React.useState<string | undefined>(propCustomerId);
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
@@ -169,10 +185,17 @@ export const TableApplications = ({
     search: propSearch || debouncedSearchValue || undefined,
     serviceOrderStatus: propServiceOrderStatus || statusFilter,
     farmId: propFarmId || farmFilter,
+    productId: propProductId || productFilter,
     pilotId: propPilotId || pilotFilter,
     customerId: propCustomerIdFilter || customerFilter,
     serviceOrderId: propServiceOrderIdFilter || serviceOrderFilter,
-    invalidApplication: propInvalidApplication !== undefined ? propInvalidApplication.toString() : invalidApplicationFilter,
+    invalidApplication:
+      propApplicationIssue !== undefined
+        ? undefined
+        : propInvalidApplication !== undefined
+          ? propInvalidApplication.toString()
+          : invalidApplicationFilter,
+    applicationIssue: propApplicationIssue,
     startDate: propStartDate || dateFilter?.startDate,
     endDate: propEndDate || dateFilter?.endDate,
     orderBy,
@@ -242,6 +265,22 @@ export const TableApplications = ({
       (page) => page.data
     ) || [];
 
+  const {
+    data: productsData,
+    fetchNextPage: fetchNextPageProducts,
+    hasNextPage: hasNextPageProducts,
+    isFetchingNextPage: isFetchingNextPageProducts,
+    isLoading: isLoadingProducts,
+  } = useGetAllProductsInfinite({
+    limit: '10',
+    search: productSearchValue || undefined,
+  });
+
+  const allProducts =
+    (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+
   const { mutate: deleteApplicationById, isPending: isDeletingApplication } =
     useDeleteApplicationById({
       onSuccess: () => {
@@ -296,6 +335,10 @@ export const TableApplications = ({
   }, [propFarmId]);
 
   useEffect(() => {
+    setProductFilter(propProductId);
+  }, [propProductId]);
+
+  useEffect(() => {
     setPilotFilter(propPilotId);
   }, [propPilotId]);
 
@@ -313,6 +356,12 @@ export const TableApplications = ({
     }
     setInvalidApplicationFilter(propInvalidApplication ? 'true' : 'false');
   }, [propInvalidApplication]);
+
+  useEffect(() => {
+    if (propApplicationIssue !== undefined) {
+      setInvalidApplicationFilter('false');
+    }
+  }, [propApplicationIssue]);
 
   useEffect(() => {
     if (propStartDate && propEndDate) {
@@ -337,10 +386,13 @@ export const TableApplications = ({
     debouncedSearchValue,
     statusFilter,
     farmFilter,
+    productFilter,
     pilotFilter,
     customerFilter,
     serviceOrderFilter,
     invalidApplicationFilter,
+    propApplicationIssue,
+    propProductId,
   ]);
 
   const handleSearchChange = useCallback(
@@ -375,6 +427,15 @@ export const TableApplications = ({
     onFilterChange?.setFarmId(farmId);
   }, [onFilterChange]);
 
+  const handleProductChange = useCallback(
+    (productIdValue: string | undefined) => {
+      setProductFilter(productIdValue);
+      setCurrentPage(1);
+      onFilterChange?.setProductId?.(productIdValue);
+    },
+    [onFilterChange]
+  );
+
   const handlePilotChange = useCallback((pilotId: string | undefined) => {
     setPilotFilter(pilotId);
     setCurrentPage(1);
@@ -392,11 +453,22 @@ export const TableApplications = ({
     [propServiceOrderId, onFilterChange]
   );
 
-  const handleInvalidApplicationChange = useCallback((value: string) => {
-    const boolValue = value === 'true';
-    setInvalidApplicationFilter(value);
+  const handleInvalidApplicationChange = useCallback(
+    (value: string) => {
+      const boolValue = value === 'true';
+      setInvalidApplicationFilter(value);
+      setCurrentPage(1);
+      if (boolValue) {
+        onFilterChange?.setApplicationIssue?.(undefined);
+      }
+      onFilterChange?.setInvalidApplication(boolValue);
+    },
+    [onFilterChange]
+  );
+
+  const handleApplicationIssueChipRemove = useCallback(() => {
     setCurrentPage(1);
-    onFilterChange?.setInvalidApplication(boolValue);
+    onFilterChange?.setApplicationIssue?.(undefined);
   }, [onFilterChange]);
 
   const handleOrderByChange = (orderBy: ApplicationOrderBy | undefined) => {
@@ -416,6 +488,7 @@ export const TableApplications = ({
     setDebouncedSearchValue('');
     setStatusFilter(undefined);
     setFarmFilter(undefined);
+    setProductFilter(undefined);
     setPilotFilter(undefined);
     setCustomerFilter(undefined);
     setServiceOrderFilter(undefined);
@@ -427,10 +500,12 @@ export const TableApplications = ({
     onFilterChange?.setSearch('');
     onFilterChange?.setServiceOrderStatus(undefined);
     onFilterChange?.setFarmId(undefined);
+    onFilterChange?.setProductId?.(undefined);
     onFilterChange?.setPilotId(undefined);
     onFilterChange?.setCustomerId(undefined);
     onFilterChange?.setServiceOrderId(undefined);
     onFilterChange?.setInvalidApplication(undefined);
+    onFilterChange?.setApplicationIssue?.(undefined);
     onFilterChange?.setStartDate(undefined);
     onFilterChange?.setEndDate(undefined);
   }, [onFilterChange]);
@@ -677,7 +752,24 @@ export const TableApplications = ({
 
   const customers = allCustomers;
   const farms = allFarms;
+  const products = allProducts;
   const pilots = allPilots;
+
+  const overviewFarmId = propFarmId || farmFilter;
+  const { data: overviewFarmDetail } = useGetFarmById(overviewFarmId ?? null);
+  const farmChipName =
+    overviewFarmId &&
+    (farms.find((farm) => farm.id === overviewFarmId)?.name ??
+      overviewFarmDetail?.farm?.name);
+
+  const overviewProductId = propProductId || productFilter;
+  const { data: overviewProductDetail } = useGetProductById(overviewProductId ?? '', {
+    enabled: !!overviewProductId,
+  });
+  const productChipName =
+    overviewProductId &&
+    (products.find((p) => p.id === overviewProductId)?.name ??
+      overviewProductDetail?.product?.name);
   const serviceOrders = allServiceOrders;
 
   const selectedServiceOrder = serviceOrders.find((so) => so.id === serviceOrderFilter);
@@ -704,11 +796,18 @@ export const TableApplications = ({
           onRemove: () => handleCustomerChange(undefined),
         }
       : null,
-    farmFilter
+    overviewFarmId
       ? {
           key: 'farm',
-          label: `Fazenda: ${farms.find((f) => f.id === farmFilter)?.name || 'Selecionada'}`,
+          label: `Fazenda: ${farmChipName || 'Selecionada'}`,
           onRemove: () => handleFarmChange(undefined),
+        }
+      : null,
+    overviewProductId
+      ? {
+          key: 'product',
+          label: `Produto: ${productChipName || 'Selecionado'}`,
+          onRemove: () => handleProductChange(undefined),
         }
       : null,
     pilotFilter
@@ -725,13 +824,19 @@ export const TableApplications = ({
           onRemove: () => handleServiceOrderChange(undefined),
         }
       : null,
-    invalidApplicationFilter === 'true'
+    propApplicationIssue
       ? {
-          key: 'invalid',
-          label: 'Somente inválidas',
-          onRemove: () => handleInvalidApplicationChange('false'),
+          key: 'applicationIssue',
+          label: `Inconsistência: ${APPLICATION_ISSUE_LABELS[propApplicationIssue]}`,
+          onRemove: handleApplicationIssueChipRemove,
         }
-      : null,
+      : invalidApplicationFilter === 'true'
+        ? {
+            key: 'invalid',
+            label: 'Somente inválidas',
+            onRemove: () => handleInvalidApplicationChange('false'),
+          }
+        : null,
     orderBy
       ? {
           key: 'orderBy',
@@ -850,6 +955,24 @@ export const TableApplications = ({
                       hasNextPage={hasNextPageFarms}
                       isFetchingNextPage={isFetchingNextPageFarms}
                       isLoading={isLoadingFarms}
+                    />
+                    <SearchableSelectQuery
+                      options={products.map((product: Product) => ({
+                        value: product.id,
+                        label: product.name,
+                      }))}
+                      value={productFilter}
+                      onValueChange={(value) => handleProductChange(value as string | undefined)}
+                      placeholder='Produto'
+                      searchPlaceholder='Buscar produto...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setProductSearchValue}
+                      onScrollEnd={fetchNextPageProducts}
+                      hasNextPage={hasNextPageProducts}
+                      isFetchingNextPage={isFetchingNextPageProducts}
+                      isLoading={isLoadingProducts}
                     />
                     <SearchableSelectQuery
                       options={pilots.map((pilot: User) => ({

@@ -1,23 +1,56 @@
 'use client';
 
-import { format, subDays } from 'date-fns';
-import { AlertCircle, AlertTriangle, Info, Leaf, Map, RefreshCw, SprayCan, TrendingUp } from 'lucide-react';
+import { differenceInCalendarDays, format, max as maxDate, parseISO, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ChevronRight,
+  Info,
+  Leaf,
+  Map,
+  RefreshCw,
+  SprayCan,
+  TrendingUp,
+  X,
+} from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useMemo } from 'react';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { useCallback, useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { ChartConfig } from '@/components/ui/chart';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import {
   useGetApplicationsEvolution,
   useGetApplicationsTopFarms,
   useGetStatsApplications,
 } from '@/queries/application.query';
+import { useGetFarmById } from '@/queries/farm.query';
+import { useGetProductById } from '@/queries/product.query';
 import { ServiceOrderStatus } from '@/types/service-order.type';
+import type { EvolutionGranularity } from '@/services/application.service';
+import {
+  APPLICATION_ISSUE_LABELS,
+  type ApplicationIssueFilter,
+} from '@/types/applications.type';
 
 /**
  * Gráficos — Visão Geral (Aplicações)
@@ -36,6 +69,7 @@ type OverviewFilters = {
   search?: string;
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
+  productId?: string;
   pilotId?: string;
   customerId?: string;
   serviceOrderId?: string;
@@ -60,12 +94,55 @@ function truncateAxisLabel(value: unknown, maxLen = 22): string {
   return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
+/** Modo Auto: ≤45 dias → dia; &gt;45 e ≤730 dias (~24 meses) → mês; senão → ano. */
+const EVOLUTION_AUTO_DAY_MAX = 45;
+const EVOLUTION_AUTO_MONTH_MAX_DAYS = 730;
+/** Modo dia manual: período &gt;90 dias usa só os últimos 90 dias (API + aviso na UI). */
+const EVOLUTION_DAY_CLIP_DAYS = 90;
+
+type EvolutionMode = 'auto' | EvolutionGranularity;
+
+function resolveEvolutionGranularity(
+  mode: EvolutionMode,
+  startDateStr: string,
+  endDateStr: string
+): EvolutionGranularity {
+  if (mode !== 'auto') return mode;
+  const start = parseISO(startDateStr);
+  const end = parseISO(endDateStr);
+  const days = differenceInCalendarDays(end, start) + 1;
+  if (days <= EVOLUTION_AUTO_DAY_MAX) return 'day';
+  if (days <= EVOLUTION_AUTO_MONTH_MAX_DAYS) return 'month';
+  return 'year';
+}
+
+function formatEvolutionAxisTick(period: string, g: EvolutionGranularity): string {
+  if (g === 'day' && period.length >= 10) {
+    return format(parseISO(period), 'dd/MM', { locale: ptBR });
+  }
+  if (g === 'month' && period.length >= 7) {
+    return format(parseISO(`${period}-01`), 'MMM/yyyy', { locale: ptBR });
+  }
+  return period;
+}
+
+function formatEvolutionTooltipPeriod(period: string, g: EvolutionGranularity): string {
+  if (g === 'day' && period.length >= 10) {
+    return format(parseISO(period), 'dd/MM/yyyy', { locale: ptBR });
+  }
+  if (g === 'month' && period.length >= 7) {
+    return format(parseISO(`${period}-01`), 'MMMM yyyy', { locale: ptBR });
+  }
+  return `Ano ${period}`;
+}
+
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
   return Boolean(
     (f.search && f.search.trim().length > 0) ||
       f.startDate ||
       f.endDate ||
       f.farmId ||
+      f.productId ||
       f.pilotId ||
       f.customerId ||
       f.serviceOrderId ||
@@ -201,17 +278,130 @@ function AlertsSkeleton() {
   );
 }
 
-export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
+type ApplicationsOverviewDashboardProps = OverviewFilters & {
+  onNavigateRecordsWithIssue?: (issue: ApplicationIssueFilter) => void;
+  onFarmFilterChange?: (farmId: string | undefined) => void;
+  onProductFilterChange?: (productId: string | undefined) => void;
+  onClearCrossFilters?: () => void;
+};
+
+const BAR_SELECTED = 'hsl(var(--primary))';
+
+export function ApplicationsOverviewDashboard({
+  onNavigateRecordsWithIssue,
+  onFarmFilterChange,
+  onProductFilterChange,
+  onClearCrossFilters,
+  ...filters
+}: ApplicationsOverviewDashboardProps) {
+  const [inconsistencySheetOpen, setInconsistencySheetOpen] = useState(false);
+
+  const farmLabelQuery = useGetFarmById(filters.farmId ?? null);
+  const productLabelQuery = useGetProductById(filters.productId ?? '', {
+    enabled: Boolean(filters.productId),
+  });
+
+  const handleFarmBarClick = useCallback(
+    (row: { farmId: string | null; name: string }) => {
+      if (!onFarmFilterChange || !row.farmId) return;
+      onFarmFilterChange(filters.farmId === row.farmId ? undefined : row.farmId);
+    },
+    [filters.farmId, onFarmFilterChange]
+  );
+
+  const handleProductBarClick = useCallback(
+    (row: { productId?: string; name: string }) => {
+      if (!onProductFilterChange || !row.productId) return;
+      onProductFilterChange(filters.productId === row.productId ? undefined : row.productId);
+    },
+    [filters.productId, onProductFilterChange]
+  );
   const effectiveDateRange = useMemo(() => {
     const endDate = filters.endDate || format(new Date(), 'yyyy-MM-dd');
     const startDate = filters.startDate || format(subDays(new Date(), 90), 'yyyy-MM-dd');
     return { startDate, endDate };
   }, [filters.endDate, filters.startDate]);
 
+  const [evolutionMode, setEvolutionMode] = useState<EvolutionMode>('auto');
+
+  const resolvedEvolutionGranularity = useMemo(
+    () =>
+      resolveEvolutionGranularity(
+        evolutionMode,
+        effectiveDateRange.startDate,
+        effectiveDateRange.endDate
+      ),
+    [evolutionMode, effectiveDateRange.startDate, effectiveDateRange.endDate]
+  );
+
+  const evolutionApiRange = useMemo(() => {
+    const start = parseISO(effectiveDateRange.startDate);
+    const end = parseISO(effectiveDateRange.endDate);
+    const spanDays = differenceInCalendarDays(end, start) + 1;
+    let rangeStart = start;
+    let rangeEnd = end;
+    let dayRangeCapped = false;
+    if (resolvedEvolutionGranularity === 'day' && spanDays > EVOLUTION_DAY_CLIP_DAYS) {
+      rangeStart = maxDate([start, subDays(end, EVOLUTION_DAY_CLIP_DAYS - 1)]);
+      dayRangeCapped = true;
+    }
+    return {
+      startDate: format(rangeStart, 'yyyy-MM-dd'),
+      endDate: format(rangeEnd, 'yyyy-MM-dd'),
+      dayRangeCapped,
+    };
+  }, [
+    effectiveDateRange.startDate,
+    effectiveDateRange.endDate,
+    resolvedEvolutionGranularity,
+  ]);
+
+  const evolutionMonthsParam = useMemo(() => {
+    if (resolvedEvolutionGranularity === 'day') return EVOLUTION_DAY_CLIP_DAYS;
+    if (resolvedEvolutionGranularity === 'year') return 40;
+    return 24;
+  }, [resolvedEvolutionGranularity]);
+
+  const evolutionQueryParams = useMemo(
+    () => ({
+      ...filters,
+      startDate: evolutionApiRange.startDate,
+      endDate: evolutionApiRange.endDate,
+      months: evolutionMonthsParam,
+      granularity: resolvedEvolutionGranularity,
+    }),
+    [
+      filters,
+      evolutionApiRange.startDate,
+      evolutionApiRange.endDate,
+      evolutionMonthsParam,
+      resolvedEvolutionGranularity,
+    ]
+  );
+
+  const evolutionCardSubtitle = useMemo(() => {
+    const segment =
+      resolvedEvolutionGranularity === 'day'
+        ? 'Últimos dias no período selecionado'
+        : resolvedEvolutionGranularity === 'month'
+          ? 'Últimos meses no período selecionado'
+          : 'Últimos anos no período selecionado';
+    if (evolutionMode === 'auto') {
+      return `${segment} · granularidade automática`;
+    }
+    const gLabel =
+      resolvedEvolutionGranularity === 'day'
+        ? 'dia'
+        : resolvedEvolutionGranularity === 'month'
+          ? 'mês'
+          : 'ano';
+    return `${segment} · agregação por ${gLabel}`;
+  }, [evolutionMode, resolvedEvolutionGranularity]);
+
   const filtersActive = useMemo(() => hasActiveOverviewFilters(filters), [filters]);
 
   const statsQuery = useGetStatsApplications(filters);
-  const evolutionQuery = useGetApplicationsEvolution({ ...filters, ...effectiveDateRange, months: 6 });
+  const evolutionQuery = useGetApplicationsEvolution(evolutionQueryParams);
   const topFarmsQuery = useGetApplicationsTopFarms({ ...filters, limit: 5 });
 
   const stats = statsQuery.data?.stats;
@@ -223,9 +413,9 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
 
   const evolutionData = useMemo(() => {
     return (evolutionQuery.data?.evolution || [])
-      .filter((item) => typeof item?.yearMonth === 'string' && item.yearMonth.length >= 7)
+      .filter((item) => typeof item?.yearMonth === 'string' && item.yearMonth.length >= 4)
       .map((item) => ({
-        month: item.yearMonth.slice(5),
+        period: item.yearMonth,
         applications: Math.max(0, Number(item.applicationsCount) || 0),
       }));
   }, [evolutionQuery.data?.evolution]);
@@ -237,6 +427,7 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
       .slice(0, 5)
       .map((item) => ({
         name: String(item.product),
+        productId: item.productId,
         hectares: Math.max(0, Number(item.hectares) || 0),
       }));
   }, [stats?.typeOfProducts]);
@@ -246,6 +437,7 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
       .filter((farm) => farm?.farmName != null)
       .map((farm) => ({
         name: String(farm.farmName),
+        farmId: farm.farmId,
         hectares: Math.max(0, Number(farm.totalAreaHectares) || 0),
       }));
   }, [topFarmsQuery.data?.topFarms]);
@@ -255,14 +447,123 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
     (stats?.pendingApplicationsTotalArea || 0) === 0 &&
     (stats?.pendingFarmsCount || 0) === 0 &&
     (stats?.pendingPlotsCount || 0) === 0 &&
-    (stats?.invalidApplication || 0) === 0;
+    (stats?.invalidApplication || 0) === 0 &&
+    (stats?.pendingApplicationsMissingFarmCount ?? 0) === 0;
+
+  /** Total distinto alinhado ao critério de pendência estrutural (mesmo universo que “avulsas” no KPI). */
+  const operationalInconsistencyTotal = stats?.pendingApplicationsCount ?? 0;
+
+  const inconsistencyCompositionRows = useMemo(() => {
+    if (!stats) return [] as { issue: ApplicationIssueFilter; count: number }[];
+    const p = stats.pendingApplicationsCount ?? 0;
+    const inv = stats.invalidApplication ?? 0;
+    const other =
+      stats.pendingApplicationsOtherThanInvalidOpenCount ?? Math.max(0, p - inv);
+    const rows: { issue: ApplicationIssueFilter; count: number }[] = [];
+    if (inv > 0) rows.push({ issue: 'invalid_open_os', count: inv });
+    if (other > 0) rows.push({ issue: 'structural_pending_other', count: other });
+    return rows;
+  }, [stats]);
+
+  const inconsistencySubsetRows = useMemo(() => {
+    if (!stats) return [] as { issue: ApplicationIssueFilter; count: number }[];
+    const missingFarm = stats.pendingApplicationsMissingFarmCount ?? 0;
+    const rows: { issue: ApplicationIssueFilter; count: number }[] = [];
+    if ((stats.pendingPlotsCount || 0) > 0) {
+      rows.push({ issue: 'structural_missing_plot', count: stats.pendingPlotsCount });
+    }
+    if (missingFarm > 0) {
+      rows.push({ issue: 'structural_missing_farm', count: missingFarm });
+    }
+    return rows;
+  }, [stats]);
+
+  const inconsistencyCompositionAddsUp =
+    stats != null &&
+    (stats.invalidApplication ?? 0) +
+      (stats.pendingApplicationsOtherThanInvalidOpenCount ??
+        Math.max(
+          0,
+          (stats.pendingApplicationsCount ?? 0) - (stats.invalidApplication ?? 0)
+        )) ===
+      (stats.pendingApplicationsCount ?? 0);
+
+  const handleInconsistencyViewRecords = (issue: ApplicationIssueFilter) => {
+    onNavigateRecordsWithIssue?.(issue);
+    setInconsistencySheetOpen(false);
+  };
 
   const emptyChartHint = filtersActive
     ? 'Com os filtros atuais não há pontos neste gráfico. Amplie o período ou revise os filtros na aba Registros.'
     : 'Não há registros no período considerado para montar este gráfico.';
 
+  const crossFilterActive = Boolean(filters.farmId || filters.productId);
+  const farmChipLabel = filters.farmId
+    ? farmLabelQuery.data?.farm?.name ?? `Fazenda ${filters.farmId.slice(0, 8)}…`
+    : '';
+  const productChipLabel = filters.productId
+    ? productLabelQuery.data?.product?.name ?? `Produto ${filters.productId.slice(0, 8)}…`
+    : '';
+
   return (
     <div className='space-y-5'>
+      <div className='rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5'>
+        <div className='flex flex-wrap items-start justify-between gap-2'>
+          <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
+            {filters.farmId ? (
+              <Badge
+                variant='secondary'
+                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+              >
+                <span className='max-w-[220px] truncate'>Fazenda: {farmChipLabel}</span>
+                <button
+                  type='button'
+                  className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                  aria-label='Remover filtro de fazenda'
+                  onClick={() => onFarmFilterChange?.(undefined)}
+                >
+                  <X className='h-3.5 w-3.5' />
+                </button>
+              </Badge>
+            ) : null}
+            {filters.productId ? (
+              <Badge
+                variant='secondary'
+                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+              >
+                <span className='max-w-[220px] truncate'>Produto: {productChipLabel}</span>
+                <button
+                  type='button'
+                  className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                  aria-label='Remover filtro de produto'
+                  onClick={() => onProductFilterChange?.(undefined)}
+                >
+                  <X className='h-3.5 w-3.5' />
+                </button>
+              </Badge>
+            ) : null}
+            {!crossFilterActive ? (
+              <span className='text-xs text-muted-foreground'>
+                Filtros cruzados: clique numa barra em <strong className='font-medium'>Top fazendas</strong>{' '}
+                ou <strong className='font-medium'>Distribuição por produto</strong> para refinar o painel e
+                a aba Registros.
+              </span>
+            ) : null}
+          </div>
+          {crossFilterActive ? (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='shrink-0'
+              onClick={() => onClearCrossFilters?.()}
+            >
+              Limpar filtros
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
       {/* KPIs */}
       {statsQuery.isPending ? (
         <KpiSkeletonGrid />
@@ -328,8 +629,35 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
       {/* Evolução */}
       <Card className='min-w-0 overflow-hidden'>
         <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>Evolução temporal de aplicações</CardTitle>
-          <CardDescription>Últimos meses com consolidação mensal (quantidade)</CardDescription>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
+            <div className='min-w-0 space-y-1 pr-0 sm:pr-2'>
+              <CardTitle className='text-base'>Evolução temporal de aplicações</CardTitle>
+              <CardDescription>{evolutionCardSubtitle}</CardDescription>
+              {evolutionApiRange.dayRangeCapped ? (
+                <p className='text-xs text-amber-800 dark:text-amber-400/90 leading-relaxed'>
+                  Visualização diária limitada aos últimos {EVOLUTION_DAY_CLIP_DAYS} dias do período
+                  selecionado para manter o gráfico legível. Reduza o intervalo nas datas ou use Mês/Ano.
+                </p>
+              ) : null}
+            </div>
+            <Select
+              value={evolutionMode}
+              onValueChange={(v) => setEvolutionMode(v as EvolutionMode)}
+            >
+              <SelectTrigger
+                aria-label='Granularidade da evolução temporal'
+                className='h-9 w-full sm:w-[168px] shrink-0 text-xs'
+              >
+                <SelectValue placeholder='Granularidade' />
+              </SelectTrigger>
+              <SelectContent align='end'>
+                <SelectItem value='auto'>Auto</SelectItem>
+                <SelectItem value='day'>Dia</SelectItem>
+                <SelectItem value='month'>Mês</SelectItem>
+                <SelectItem value='year'>Ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent className='min-w-0 overflow-hidden pt-1'>
           {evolutionQuery.isPending ? (
@@ -359,10 +687,26 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
             >
               <LineChart
                 data={evolutionData}
-                margin={{ left: 4, right: 8, top: 8, bottom: 4 }}
+                margin={{
+                  left: 4,
+                  right: 8,
+                  top: 8,
+                  bottom: resolvedEvolutionGranularity === 'day' ? 28 : 8,
+                }}
               >
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
-                <XAxis dataKey='month' tickLine={false} axisLine={false} tickMargin={8} />
+                <XAxis
+                  dataKey='period'
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={resolvedEvolutionGranularity === 'day' ? 4 : 8}
+                  angle={resolvedEvolutionGranularity === 'day' ? -30 : 0}
+                  textAnchor={resolvedEvolutionGranularity === 'day' ? 'end' : 'middle'}
+                  height={resolvedEvolutionGranularity === 'day' ? 48 : undefined}
+                  tickFormatter={(v) => formatEvolutionAxisTick(String(v), resolvedEvolutionGranularity)}
+                  interval='preserveStartEnd'
+                />
                 <YAxis
                   allowDecimals={false}
                   width={36}
@@ -371,6 +715,9 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
+                      labelFormatter={(label) =>
+                        formatEvolutionTooltipPeriod(String(label), resolvedEvolutionGranularity)
+                      }
                       formatter={(value) => [
                         `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
                         '',
@@ -400,7 +747,9 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
         <Card className='min-w-0 overflow-hidden'>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>Distribuição por produto</CardTitle>
-            <CardDescription>Comparativo de área aplicada (top 5)</CardDescription>
+            <CardDescription>
+              Comparativo de área aplicada (top 5). Clique numa barra para filtrar por produto.
+            </CardDescription>
           </CardHeader>
           <CardContent className='min-w-0 overflow-hidden pt-1'>
             {statsQuery.isPending ? (
@@ -466,11 +815,31 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                   />
                   <Bar
                     dataKey='hectares'
-                    fill='var(--color-productBar)'
                     radius={[0, 4, 4, 0]}
                     maxBarSize={32}
                     isAnimationActive={false}
-                  />
+                    cursor={onProductFilterChange ? 'pointer' : 'default'}
+                    onClick={(data: unknown) => {
+                      if (!data || typeof data !== 'object') return;
+                      handleProductBarClick(data as { productId?: string; name: string });
+                    }}
+                  >
+                    {productData.map((entry, index) => (
+                      <Cell
+                        key={entry.productId ?? `product-${index}`}
+                        fill={
+                          entry.productId && filters.productId === entry.productId
+                            ? BAR_SELECTED
+                            : 'var(--color-productBar)'
+                        }
+                        className={
+                          onProductFilterChange && entry.productId
+                            ? 'outline-none transition-opacity hover:opacity-90 focus-visible:opacity-100'
+                            : 'opacity-95'
+                        }
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </OverviewChartPlot>
             )}
@@ -481,7 +850,9 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
         <Card className='min-w-0 overflow-hidden'>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>Top 5 fazendas por área</CardTitle>
-            <CardDescription>Ranking operacional de aplicação no período</CardDescription>
+            <CardDescription>
+              Ranking operacional no período. Clique numa barra para filtrar por fazenda.
+            </CardDescription>
           </CardHeader>
           <CardContent className='min-w-0 overflow-hidden pt-1'>
             {topFarmsQuery.isPending ? (
@@ -547,11 +918,31 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
                   />
                   <Bar
                     dataKey='hectares'
-                    fill='var(--color-farmBar)'
                     radius={[0, 4, 4, 0]}
                     maxBarSize={32}
                     isAnimationActive={false}
-                  />
+                    cursor={onFarmFilterChange ? 'pointer' : 'default'}
+                    onClick={(data: unknown) => {
+                      if (!data || typeof data !== 'object') return;
+                      handleFarmBarClick(data as { farmId: string | null; name: string });
+                    }}
+                  >
+                    {topFarms.map((entry, index) => (
+                      <Cell
+                        key={entry.farmId ?? `farm-${index}`}
+                        fill={
+                          entry.farmId && filters.farmId === entry.farmId
+                            ? BAR_SELECTED
+                            : 'var(--color-farmBar)'
+                        }
+                        className={
+                          onFarmFilterChange && entry.farmId
+                            ? 'outline-none transition-opacity hover:opacity-90 focus-visible:opacity-100'
+                            : 'opacity-95'
+                        }
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </OverviewChartPlot>
             )}
@@ -573,48 +964,158 @@ export function ApplicationsOverviewDashboard(filters: OverviewFilters) {
           </CardContent>
         </Card>
       ) : stats ? (
-        <Card>
-          <CardHeader className='pb-2'>
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <CardTitle className='text-base'>Alertas e atenção operacional</CardTitle>
-                <CardDescription>Pendências e inconsistências para ação rápida</CardDescription>
+        <>
+          <Card>
+            <CardHeader className='pb-2'>
+              <div className='flex items-center justify-between gap-2'>
+                <div>
+                  <CardTitle className='text-base'>Alertas e atenção operacional</CardTitle>
+                  <CardDescription>Pendências e inconsistências para ação rápida</CardDescription>
+                </div>
+                <Badge variant={hasNoAlerts ? 'secondary' : 'destructive'}>
+                  {hasNoAlerts ? 'Sem alertas críticos' : 'Acompanhar'}
+                </Badge>
               </div>
-              <Badge variant={hasNoAlerts ? 'secondary' : 'destructive'}>
-                {hasNoAlerts ? 'Sem alertas críticos' : 'Acompanhar'}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className='pt-1'>
-            <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2'>
-              <AlertRow
-                label='Aplicações avulsas'
-                value={formatNumber(stats.pendingApplicationsCount)}
-                tone={(stats.pendingApplicationsCount || 0) > 0 ? 'warning' : 'neutral'}
-              />
-              <AlertRow
-                label='Área avulsa'
-                value={formatNumber(stats.pendingApplicationsTotalArea, ' ha')}
-                tone={(stats.pendingApplicationsTotalArea || 0) > 0 ? 'warning' : 'neutral'}
-              />
-              <AlertRow
-                label='Sem fazenda'
-                value={formatNumber(stats.pendingFarmsCount)}
-                tone={(stats.pendingFarmsCount || 0) > 0 ? 'warning' : 'neutral'}
-              />
-              <AlertRow
-                label='Sem talhão'
-                value={formatNumber(stats.pendingPlotsCount)}
-                tone={(stats.pendingPlotsCount || 0) > 0 ? 'warning' : 'neutral'}
-              />
-              <AlertRow
-                label='Inconsistências'
-                value={formatNumber(stats.invalidApplication)}
-                tone={(stats.invalidApplication || 0) > 0 ? 'danger' : 'neutral'}
-              />
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className='pt-1'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2'>
+                <AlertRow
+                  label='Aplicações avulsas'
+                  value={formatNumber(stats.pendingApplicationsCount)}
+                  tone={(stats.pendingApplicationsCount || 0) > 0 ? 'warning' : 'neutral'}
+                />
+                <AlertRow
+                  label='Área avulsa'
+                  value={formatNumber(stats.pendingApplicationsTotalArea, ' ha')}
+                  tone={(stats.pendingApplicationsTotalArea || 0) > 0 ? 'warning' : 'neutral'}
+                />
+                <AlertRow
+                  label='Sem fazenda'
+                  value={formatNumber(stats.pendingFarmsCount)}
+                  tone={(stats.pendingFarmsCount || 0) > 0 ? 'warning' : 'neutral'}
+                />
+                <AlertRow
+                  label='Sem talhão'
+                  value={formatNumber(stats.pendingPlotsCount)}
+                  tone={(stats.pendingPlotsCount || 0) > 0 ? 'warning' : 'neutral'}
+                />
+                <InconsistenciesAlertCard
+                  title='Inconsistências operacionais'
+                  caption='Pendências e registros que exigem revisão'
+                  value={formatNumber(operationalInconsistencyTotal)}
+                  tone={operationalInconsistencyTotal > 0 ? 'danger' : 'neutral'}
+                  onOpen={() => setInconsistencySheetOpen(true)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Sheet open={inconsistencySheetOpen} onOpenChange={setInconsistencySheetOpen}>
+            <SheetContent side='right' className='flex w-[92vw] flex-col sm:max-w-md'>
+              <SheetHeader className='text-left'>
+                <SheetTitle>Detalhes das inconsistências</SheetTitle>
+                <SheetDescription>
+                  O total abaixo é o número de aplicações distintas com pendência de vínculo ou estrutura
+                  (OS, fazenda ou talhão), nos mesmos filtros da visão geral.
+                </SheetDescription>
+              </SheetHeader>
+              <div className='mt-5 flex-1 space-y-6 overflow-y-auto px-1 pb-4'>
+                <div className='rounded-lg border border-border bg-muted/40 p-4'>
+                  <p className='text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>
+                    Total no recorte
+                  </p>
+                  <p className='mt-1 text-3xl font-semibold tabular-nums text-foreground'>
+                    {formatNumber(operationalInconsistencyTotal)}
+                  </p>
+                  <p className='mt-2 text-xs text-muted-foreground leading-relaxed'>
+                    As categorias em &quot;Composição do total&quot; são exclusivas entre si e somam este
+                    número. Os recortes adicionais são subconjuntos (podem sobrepor o mesmo registro).
+                  </p>
+                </div>
+
+                {!inconsistencyCompositionAddsUp && operationalInconsistencyTotal > 0 ? (
+                  <p className='text-xs text-amber-800 dark:text-amber-400/90 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-3 py-2'>
+                    A soma das categorias exclusivas não bate com o total retornado pela API. Atualize a
+                    página ou verifique os dados.
+                  </p>
+                ) : null}
+
+                <div className='space-y-3'>
+                  <p className='text-xs font-semibold text-foreground'>Composição do total</p>
+                  {operationalInconsistencyTotal === 0 && inconsistencySubsetRows.length === 0 ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Nenhuma inconsistência operacional neste recorte.
+                    </p>
+                  ) : inconsistencyCompositionRows.length === 0 ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Não há categorias exclusivas para exibir; o total ainda pode ser consultado nos
+                      indicadores gerais.
+                    </p>
+                  ) : (
+                    inconsistencyCompositionRows.map(({ issue, count }) => (
+                      <div
+                        key={issue}
+                        className='flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between'
+                      >
+                        <div className='min-w-0 space-y-1'>
+                          <p className='text-sm font-medium text-foreground'>
+                            {APPLICATION_ISSUE_LABELS[issue]}
+                          </p>
+                          <p className='text-2xl font-semibold tabular-nums'>{formatNumber(count)}</p>
+                        </div>
+                        <Button
+                          type='button'
+                          variant='secondary'
+                          size='sm'
+                          className='shrink-0'
+                          disabled={!onNavigateRecordsWithIssue}
+                          onClick={() => handleInconsistencyViewRecords(issue)}
+                        >
+                          Ver registros
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {inconsistencySubsetRows.length > 0 ? (
+                  <div className='space-y-3 border-t border-border pt-4'>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-semibold text-foreground'>Recortes adicionais</p>
+                      <p className='text-xs text-muted-foreground leading-relaxed'>
+                        Úteis para priorizar talhão ou fazenda; não some ao total (um mesmo registro pode
+                        aparecer em mais de um recorte).
+                      </p>
+                    </div>
+                    {inconsistencySubsetRows.map(({ issue, count }) => (
+                      <div
+                        key={issue}
+                        className='flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between'
+                      >
+                        <div className='min-w-0 space-y-1'>
+                          <p className='text-sm font-medium text-foreground'>
+                            {APPLICATION_ISSUE_LABELS[issue]}
+                          </p>
+                          <p className='text-2xl font-semibold tabular-nums'>{formatNumber(count)}</p>
+                        </div>
+                        <Button
+                          type='button'
+                          variant='secondary'
+                          size='sm'
+                          className='shrink-0'
+                          disabled={!onNavigateRecordsWithIssue}
+                          onClick={() => handleInconsistencyViewRecords(issue)}
+                        >
+                          Ver registros
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
       ) : null}
     </div>
   );
@@ -657,6 +1158,52 @@ function KpiCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function InconsistenciesAlertCard({
+  title,
+  caption,
+  value,
+  tone = 'neutral',
+  onOpen,
+}: {
+  title: string;
+  caption: string;
+  value: string;
+  tone?: 'neutral' | 'warning' | 'danger';
+  onOpen: () => void;
+}) {
+  const toneClasses =
+    tone === 'danger'
+      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100/80 focus-visible:ring-red-300'
+      : tone === 'warning'
+        ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100/80 focus-visible:ring-amber-300'
+        : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 focus-visible:ring-ring';
+
+  return (
+    <button
+      type='button'
+      onClick={onOpen}
+      className={`group relative w-full rounded-md border p-3 text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${toneClasses}`}
+      aria-label={`${title}: ${value}. ${caption}. Abrir detalhes.`}
+    >
+      <div className='flex items-start justify-between gap-2'>
+        <div className='flex items-center gap-2 min-w-0'>
+          <Map className='h-3.5 w-3.5 shrink-0' aria-hidden />
+          <span className='text-xs font-medium leading-tight'>{title}</span>
+        </div>
+        <ChevronRight
+          className='h-4 w-4 shrink-0 opacity-60 transition-opacity group-hover:opacity-100'
+          aria-hidden
+        />
+      </div>
+      <div className='mt-2 text-xl font-semibold leading-none tabular-nums'>{value}</div>
+      <p className='mt-1.5 text-[11px] text-muted-foreground leading-snug'>{caption}</p>
+      <p className='mt-2 text-[10px] font-medium uppercase tracking-wide opacity-80'>
+        Clique para explorar
+      </p>
+    </button>
   );
 }
 

@@ -5,6 +5,7 @@ import type { ApplicationEvolutionQueryString } from "./dto/stats-evolution.dto"
 import type { TopFarmsStatsQueryString } from "./dto/stats-top-farms.dto";
 import type { UpdateApplicationDTO } from "./dto/update-application.dto";
 import type { DashboardMetricsQueryString } from "./dto/dashboard-metrics.dto";
+import type { ApplicationIssueFilter } from "./dto/get-all-application.dto";
 
 import AppError from "@common/handlers/app-error";
 import type { PaginatedRequestQueryString } from "@common/types/paginated-request.types";
@@ -54,11 +55,13 @@ export class ApplicationController {
         serviceOrderStatus?: "open" | "completed" | "cancelled";
         farmId?: string;
         pilotId?: string;
+        productId?: string;
         customerId?: string;
         serviceOrderId?: string;
         invalidApplication?: boolean;
+        applicationIssue?: ApplicationIssueFilter;
         startDate?: string;
-        endDate: string;
+        endDate?: string;
         orderBy?: ApplicationOrderBy;
         orderType?: ApplicationOrderType;
       };
@@ -74,9 +77,11 @@ export class ApplicationController {
         serviceOrderStatus: request.query.serviceOrderStatus,
         farmId: request.query.farmId,
         pilotId: request.query.pilotId,
+        productId: request.query.productId,
         customerId: request.query.customerId,
         serviceOrderId: request.query.serviceOrderId,
         invalidApplication: request.query.invalidApplication,
+        applicationIssue: request.query.applicationIssue,
         startDate: request.query.startDate ? new Date(request.query.startDate) : undefined,
         endDate: request.query.endDate ? new Date(request.query.endDate) : undefined,
       };

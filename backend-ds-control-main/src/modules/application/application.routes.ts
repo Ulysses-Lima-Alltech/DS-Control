@@ -283,6 +283,7 @@ export function ApplicationV1Routes(
             averageApplicationArea: z.number(),
             typeOfProducts: z.array(
               z.object({
+                productId: z.string().uuid(),
                 product: z.string(),
                 hectares: z.number(),
               })
@@ -301,6 +302,8 @@ export function ApplicationV1Routes(
             pendingApplicationsTotalArea: z.number(),
             pendingFarmsCount: z.number(),
             pendingPlotsCount: z.number(),
+            pendingApplicationsMissingFarmCount: z.number(),
+            pendingApplicationsOtherThanInvalidOpenCount: z.number(),
           }),
         }),
       },
@@ -314,7 +317,8 @@ export function ApplicationV1Routes(
     url: "/stats/evolution",
     schema: {
       querystring: ApplicationEvolutionQueryStringSchema,
-      description: "Retrieve monthly evolution of applications with same stats filters",
+      description:
+        "Evolution of application counts over time with shared stats filters. Query: granularity=day|month|year, months=max buckets (capped per granularity in service).",
       summary: "Get applications evolution",
       tags: ["applications"],
       response: {

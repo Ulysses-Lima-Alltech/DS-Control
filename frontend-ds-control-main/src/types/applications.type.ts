@@ -36,12 +36,29 @@ export type Application = {
   farm: Farm;
 };
 
+/** Filtro de listagem alinhado às métricas de inconsistência no backend. */
+export type ApplicationIssueFilter =
+  | 'invalid_open_os'
+  | 'structural_pending'
+  | 'structural_pending_other'
+  | 'structural_missing_plot'
+  | 'structural_missing_farm';
+
+export const APPLICATION_ISSUE_LABELS: Record<ApplicationIssueFilter, string> = {
+  invalid_open_os: 'Sem talhão (OS aberta)',
+  structural_pending: 'Todas as pendências de vínculo',
+  structural_pending_other: 'Outras pendências de vínculo/estrutura',
+  structural_missing_plot: 'Sem talhão (pendências)',
+  structural_missing_farm: 'Sem fazenda (pendências)',
+};
+
 export type ApplicationStats = {
   applicationCount: number;
   applicationCountByMonth: number;
   totalAreaHectares: number;
   averageApplicationArea: number;
   typeOfProducts: {
+    productId?: string;
     product: string;
     hectares: number;
   }[];
@@ -59,6 +76,12 @@ export type ApplicationStats = {
   pendingApplicationsTotalArea: number;
   pendingFarmsCount: number;
   pendingPlotsCount: number;
+  /** Enviado pela API a partir do detalhamento de pendências; ausente em respostas antigas em cache. */
+  pendingApplicationsMissingFarmCount?: number;
+  /**
+   * Pendências estruturais fora do recorte invalidApplication; com invalidApplication soma ao total de pendências.
+   */
+  pendingApplicationsOtherThanInvalidOpenCount?: number;
 };
 
 export enum ApplicationOrderBy {

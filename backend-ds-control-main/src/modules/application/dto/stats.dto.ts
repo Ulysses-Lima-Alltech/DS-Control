@@ -5,7 +5,7 @@ export interface ApplicationStatsDTO {
     applicationCountByMonth: number;
     totalAreaHectares: number;
     averageApplicationArea: number;
-    typeOfProducts: {product: string, hectares: number}[];
+    typeOfProducts: { productId: string; product: string; hectares: number }[];
     pilotsCount: number;
     dronesCount: number;
     culturesCount: number;
@@ -20,6 +20,13 @@ export interface ApplicationStatsDTO {
     pendingApplicationsTotalArea: number;
     pendingFarmsCount: number;
     pendingPlotsCount: number;
+    /** Pendências estruturais com fazenda não informada (farmId nulo). */
+    pendingApplicationsMissingFarmCount: number;
+    /**
+     * Pendências estruturais que não entram no recorte invalidApplication (OS aberta sem talhão).
+     * Com invalidApplication: soma = pendingApplicationsCount (partição disjunta por aplicação).
+     */
+    pendingApplicationsOtherThanInvalidOpenCount: number;
 }
 
 // Query string schema for filtered statistics
@@ -42,6 +49,11 @@ export const ApplicationStatsQueryStringSchema = z.object({
     .uuid()
     .optional()
     .describe("Filter by pilot ID"),
+  productId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe("Filter by product ID"),
   customerId: z
     .string()
     .uuid()

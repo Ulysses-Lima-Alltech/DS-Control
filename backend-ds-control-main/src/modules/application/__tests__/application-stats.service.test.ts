@@ -153,6 +153,22 @@ describe("ApplicationService.getApplicationsEvolution", () => {
     expect(chain.limit).toHaveBeenCalledWith(12);
   });
 
+  it("com granularity day limita buckets a no máximo 90", async () => {
+    await service.getApplicationsEvolution({
+      granularity: "day",
+      months: 90,
+    } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
+    expect(chain.limit).toHaveBeenCalledWith(90);
+  });
+
+  it("com granularity year limita buckets a no máximo 40", async () => {
+    await service.getApplicationsEvolution({
+      granularity: "year",
+      months: 100,
+    } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
+    expect(chain.limit).toHaveBeenCalledWith(40);
+  });
+
   it("retorna array vazio quando não há linhas agregadas", async () => {
     chain.limit.mockResolvedValue([]);
     const rows = await service.getApplicationsEvolution({});

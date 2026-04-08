@@ -84,9 +84,16 @@ describe("ApplicationEvolutionQueryStringSchema — GET /stats/evolution", () =>
     expect(ApplicationEvolutionQueryStringSchema.parse({ months: 1 }).months).toBe(1);
   });
 
-  it("rejeita months fora de 1–24", () => {
+  it("rejeita months fora de 1–90", () => {
     expect(() => ApplicationEvolutionQueryStringSchema.parse({ months: 0 })).toThrow();
-    expect(() => ApplicationEvolutionQueryStringSchema.parse({ months: 25 })).toThrow();
+    expect(() => ApplicationEvolutionQueryStringSchema.parse({ months: 91 })).toThrow();
+  });
+
+  it("aceita granularity e default month", () => {
+    const empty = ApplicationEvolutionQueryStringSchema.parse({});
+    expect(empty.granularity).toBe("month");
+    const day = ApplicationEvolutionQueryStringSchema.parse({ granularity: "day" });
+    expect(day.granularity).toBe("day");
   });
 
   it("combina months com os mesmos filtros do dashboard", () => {
@@ -132,5 +139,10 @@ describe("Schemas de resposta (contrato JSON)", () => {
     });
     expect(item.yearMonth).toBe("2024-08");
     expect(item.applicationsCount).toBe(42);
+    const dayBucket = ApplicationEvolutionItemSchema.parse({
+      yearMonth: "2026-04-07",
+      applicationsCount: 1,
+    });
+    expect(dayBucket.yearMonth).toBe("2026-04-07");
   });
 });

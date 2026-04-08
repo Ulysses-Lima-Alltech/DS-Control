@@ -3,7 +3,7 @@ import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import type { PaginatedRequest } from "@common/types/paginated-request.types";
 import { db } from "@infra/database";
 import { applications, assistants, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
-import { and, avg, count, countDistinct, eq, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
+import { and, avg, count, countDistinct, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
 
 import { ApplicationVM, type ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
 import { app } from "@modules/app/app.module";
@@ -15,6 +15,7 @@ import { PlotRepository } from "@repositories/plots/plot.repository";
 import { ServiceOrderRepository } from "@repositories/service-order/service-order.repository";
 import { UserRepository } from "@repositories/users/user.repository";
 import type { CreateApplicationDTO } from "../dto/create-application.dto";
+import type { ApplicationIssueFilter } from "../dto/get-all-application.dto";
 import { PilotPerformanceDTO } from "../dto/stats-performance.dto";
 import { ApplicationSummaryStatsDTO } from "../dto/stats-summary.dto";
 import type { ApplicationEvolutionQueryString } from "../dto/stats-evolution.dto";
@@ -129,6 +130,10 @@ export class ApplicationService {
       whereConditions.push(eq(applications.pilotId, filters.pilotId));
     }
 
+    if (filters.productId) {
+      whereConditions.push(eq(applications.productId, filters.productId));
+    }
+
     if (filters.customerId) {
       whereConditions.push(eq(customers.id, filters.customerId));
       needsJoins = true;
@@ -203,10 +208,12 @@ export class ApplicationService {
       serviceOrderStatus?: "open" | "completed" | "cancelled";
       farmId?: string;
       pilotId?: string;
+      productId?: string;
       customerId?: string;
       serviceOrderId?: string;
       invalidApplication?: boolean;
-      starDate?:  Date;
+      applicationIssue?: ApplicationIssueFilter;
+      startDate?: Date;
       endDate?: Date;
     },
     orderBy?: ApplicationOrderBy,
@@ -598,6 +605,8 @@ export class ApplicationService {
       pendingApplicationsTotalArea,
       pendingFarmsCount,
       pendingPlotsCount,
+      pendingApplicationsMissingFarmCount,
+      pendingApplicationsOtherThanInvalidOpenCount,
     ] = await Promise.all([
       this.getApplicationCount(filters),
       this.getApplicationCountByMonth(), // Keep this unfiltered as per requirement
@@ -617,6 +626,8 @@ export class ApplicationService {
       this.getPendingApplicationsTotalArea(filters),
       this.getPendingFarmsCount(filters),
       this.getPendingPlotsCount(filters),
+      this.getPendingApplicationsMissingFarmCount(filters),
+      this.getPendingApplicationsOtherThanInvalidOpen(filters),
     ]);
 
     // Calculate days elapsed for total hectares
@@ -649,6 +660,8 @@ export class ApplicationService {
       pendingApplicationsTotalArea,
       pendingFarmsCount,
       pendingPlotsCount,
+      pendingApplicationsMissingFarmCount,
+      pendingApplicationsOtherThanInvalidOpenCount,
     }
   }
 
@@ -692,11 +705,40 @@ export class ApplicationService {
     applicationsCount: number;
   }>> {
     const { whereClause } = this.buildApplicationWhereConditions(filters);
-    const months = filters?.months ?? 6;
+    const granularity = filters?.granularity ?? "month";
+    const requested = filters?.months ?? 6;
+
+    const limitBuckets =
+      granularity === "month"
+        ? Math.min(Math.max(requested, 1), 24)
+        : granularity === "day"
+          ? Math.min(Math.max(requested, 1), 90)
+          : Math.min(Math.max(requested, 1), 40);
+
+    const periodSql =
+      granularity === "day"
+        ? sql<string>`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD')`
+        : granularity === "year"
+          ? sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY')`
+          : sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`;
+
+    const groupOrderSql =
+      granularity === "day"
+        ? sql`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD')`
+        : granularity === "year"
+          ? sql`TO_CHAR(${applications.date}::timestamp, 'YYYY')`
+          : sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`;
+
+    const orderByDesc =
+      granularity === "day"
+        ? sql`TO_CHAR(${applications.date}::date, 'YYYY-MM-DD') DESC`
+        : granularity === "year"
+          ? sql`TO_CHAR(${applications.date}::timestamp, 'YYYY') DESC`
+          : sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM') DESC`;
 
     const results = await db
       .select({
-        yearMonth: sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`,
+        yearMonth: periodSql,
         applicationsCount: countDistinct(applications.id),
       })
       .from(applications)
@@ -706,9 +748,9 @@ export class ApplicationService {
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause)
-      .groupBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM')`)
-      .orderBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM') DESC`)
-      .limit(months);
+      .groupBy(groupOrderSql)
+      .orderBy(orderByDesc)
+      .limit(limitBuckets);
 
     return results
       .map((item) => ({
@@ -740,6 +782,7 @@ export class ApplicationService {
         serviceOrderStatus: filters.serviceOrderStatus,
         farmId: filters.farmId,
         pilotId: filters.pilotId,
+        productId: filters.productId,
         customerId: filters.customerId,
         serviceOrderId: filters.serviceOrderId,
         invalidApplication: filters.invalidApplication,
@@ -1021,6 +1064,10 @@ export class ApplicationService {
       whereConditions.push(eq(applications.pilotId, filters.pilotId));
     }
 
+    if (filters?.productId) {
+      whereConditions.push(eq(applications.productId, filters.productId));
+    }
+
     if (filters?.customerId) {
       whereConditions.push(eq(customers.id, filters.customerId));
       needsJoins = true;
@@ -1155,7 +1202,6 @@ export class ApplicationService {
         .from(applications)
         .where(and(whereClause, sql`${applications.plotId} IS NULL`));
 
-      console.log('result', result);
       return Number(result[0]?.count || 0);
     }
 
@@ -1170,7 +1216,84 @@ export class ApplicationService {
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(and(whereClause, sql`${applications.plotId} IS NULL`));
 
-    console.log('result', result);
+    return Number(result[0]?.count || 0);
+  }
+
+  /**
+   * Pendências estruturais com farmId nulo (sem fazenda vinculada).
+   */
+  private async getPendingApplicationsMissingFarmCount(filters?: ApplicationStatsQueryString): Promise<number> {
+    const { whereClause, needsJoins } = this.buildPendingApplicationsWhereConditions(filters);
+    const combined = and(whereClause, isNull(applications.farmId))!;
+
+    if (!needsJoins) {
+      const result = await db
+        .select({ count: count() })
+        .from(applications)
+        .where(combined);
+
+      return Number(result[0]?.count || 0);
+    }
+
+    const result = await db
+      .select({ count: count() })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(combined);
+
+    return Number(result[0]?.count || 0);
+  }
+
+  /**
+   * Pendências estruturais (mesmo critério de pendingApplicationsCount) exceto o recorte
+   * contado em invalidApplication (sem talhão + OS aberta + fora das OS especiais).
+   * Garante partição disjunta: invalid + este = pending (por linha de aplicação).
+   */
+  private async getPendingApplicationsOtherThanInvalidOpen(
+    filters?: ApplicationStatsQueryString,
+  ): Promise<number> {
+    const { whereClause, needsJoins } = this.buildPendingApplicationsWhereConditions(filters);
+
+    const invalidOpenSlice = and(
+      isNull(applications.plotId),
+      exists(
+        db
+          .select({ id: serviceOrders.id })
+          .from(serviceOrders)
+          .where(
+            and(
+              eq(serviceOrders.id, applications.serviceOrderId),
+              eq(serviceOrders.status, "open"),
+            )!,
+          ),
+      ),
+      not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+    )!;
+
+    const combined = and(whereClause, not(invalidOpenSlice))!;
+
+    if (!needsJoins) {
+      const result = await db
+        .select({ count: count() })
+        .from(applications)
+        .where(combined);
+
+      return Number(result[0]?.count || 0);
+    }
+
+    const result = await db
+      .select({ count: count() })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(combined);
 
     return Number(result[0]?.count || 0);
   }
@@ -1178,28 +1301,34 @@ export class ApplicationService {
   /**
    * Get type of Products with total hectares.
    * @param {ApplicationStatsQueryString} filters - Optional filters to apply
-   * @returns {Promise<{product: string, hectares: number}[]>} hectares by product.
+   * @returns {Promise<{productId: string, product: string, hectares: number}[]>} hectares by product.
    */
-  private async getTypeOfProducts(filters?: ApplicationStatsQueryString): Promise<{product: string, hectares: number}[]> {
+  private async getTypeOfProducts(filters?: ApplicationStatsQueryString): Promise<{ productId: string; product: string; hectares: number }[]> {
     const { whereClause, needsJoins } = this.buildApplicationWhereConditions(filters);
 
     if (!needsJoins) {
       const results = await db
         .select({
+          productId: products.id,
           product: products.name,
           hectares: sum(applications.hectares)
         })
         .from(applications)
         .innerJoin(products, eq(applications.productId, products.id))
         .where(whereClause)
-        .groupBy(products.name);
+        .groupBy(products.id, products.name);
 
-      return results.map(r => ({ product: r.product, hectares: Number(r.hectares || 0) }));
+      return results.map(r => ({
+        productId: r.productId,
+        product: r.product,
+        hectares: Number(r.hectares || 0),
+      }));
     }
 
     // With joins
     const results = await db
       .select({
+        productId: products.id,
         product: products.name,
         hectares: sum(applications.hectares)
       })
@@ -1211,9 +1340,13 @@ export class ApplicationService {
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause)
-      .groupBy(products.name);
+      .groupBy(products.id, products.name);
 
-    return results.map(r => ({ product: r.product, hectares: Number(r.hectares || 0) }));
+    return results.map(r => ({
+      productId: r.productId,
+      product: r.product,
+      hectares: Number(r.hectares || 0),
+    }));
   }
 
   /**

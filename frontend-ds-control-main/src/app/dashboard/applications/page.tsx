@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ApplicationsOverviewDashboard } from '@/components/ApplicationsOverviewDashboard';
 import DialogForm from '@/components/DialogForm';
@@ -10,19 +10,26 @@ import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { ApplicationIssueFilter } from '@/types/applications.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 
 export default function AgriculturalApplicationsPage() {
+  const [activeTab, setActiveTab] = useState('overview');
+
   // Filter state - lifted from TableApplications
   const [search, setSearch] = useState('');
   const [serviceOrderStatus, setServiceOrderStatus] = useState<ServiceOrderStatus | undefined>(
     undefined
   );
   const [farmId, setFarmId] = useState<string | undefined>(undefined);
+  const [productId, setProductId] = useState<string | undefined>(undefined);
   const [pilotId, setPilotId] = useState<string | undefined>(undefined);
   const [customerId, setCustomerId] = useState<string | undefined>(undefined);
   const [serviceOrderId, setServiceOrderId] = useState<string | undefined>(undefined);
   const [invalidApplication, setInvalidApplication] = useState<boolean | undefined>(undefined);
+  const [applicationIssue, setApplicationIssue] = useState<ApplicationIssueFilter | undefined>(
+    undefined
+  );
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
 
@@ -30,6 +37,7 @@ export default function AgriculturalApplicationsPage() {
     search,
     serviceOrderStatus,
     farmId,
+    productId,
     pilotId,
     customerId,
     serviceOrderId,
@@ -43,15 +51,31 @@ export default function AgriculturalApplicationsPage() {
       setSearch,
       setServiceOrderStatus,
       setFarmId,
+      setProductId,
       setPilotId,
       setCustomerId,
       setServiceOrderId,
       setInvalidApplication,
+      setApplicationIssue,
       setStartDate,
       setEndDate,
     }),
     []
   );
+
+  const handleNavigateRecordsWithIssue = useCallback((issue: ApplicationIssueFilter) => {
+    setApplicationIssue(issue);
+    setInvalidApplication(undefined);
+    if (issue === 'invalid_open_os') {
+      setServiceOrderStatus('open');
+    }
+    setActiveTab('records');
+  }, []);
+
+  const clearCrossFilters = useCallback(() => {
+    setFarmId(undefined);
+    setProductId(undefined);
+  }, []);
 
   return (
     <div className='p-6 space-y-6 min-h-full max-w-screen'>
@@ -72,14 +96,20 @@ export default function AgriculturalApplicationsPage() {
         />
       </div>
 
-      <Tabs defaultValue='overview' className='space-y-4'>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className='space-y-4'>
         <TabsList>
           <TabsTrigger value='overview'>Visão Geral</TabsTrigger>
           <TabsTrigger value='records'>Registros</TabsTrigger>
         </TabsList>
 
         <TabsContent value='overview' className='space-y-4'>
-          <ApplicationsOverviewDashboard {...filterProps} />
+          <ApplicationsOverviewDashboard
+            {...filterProps}
+            onNavigateRecordsWithIssue={handleNavigateRecordsWithIssue}
+            onFarmFilterChange={setFarmId}
+            onProductFilterChange={setProductId}
+            onClearCrossFilters={clearCrossFilters}
+          />
         </TabsContent>
 
         <TabsContent value='records' className='space-y-4'>
@@ -89,10 +119,12 @@ export default function AgriculturalApplicationsPage() {
                 search={search}
                 serviceOrderStatus={serviceOrderStatus}
                 farmId={farmId}
+                productId={productId}
                 pilotId={pilotId}
                 customerIdFilter={customerId}
                 serviceOrderIdFilter={serviceOrderId}
                 invalidApplication={invalidApplication}
+                applicationIssue={applicationIssue}
                 startDate={startDate}
                 endDate={endDate}
                 onFilterChange={filterChangeHandlers}

@@ -6,6 +6,7 @@ import {
 } from '@/schemas/application.schema';
 import {
   Application,
+  ApplicationIssueFilter,
   ApplicationOrderBy,
   ApplicationOrderType,
   ApplicationStats,
@@ -29,9 +30,11 @@ export type GetAllApplicationsParams = {
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
   pilotId?: string;
+  productId?: string;
   customerId?: string;
   serviceOrderId?: string;
   invalidApplication?: string;
+  applicationIssue?: ApplicationIssueFilter;
   startDate?: string;
   endDate?: string;
   orderBy?: ApplicationOrderBy;
@@ -49,10 +52,13 @@ export async function getAllApplications(
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication)
     searchParams.append('invalidApplication', params.invalidApplication);
+  if (params?.applicationIssue)
+    searchParams.append('applicationIssue', params.applicationIssue);
   if (params?.startDate) searchParams.append('startDate', params.startDate);
   if (params?.endDate) searchParams.append('endDate', params.endDate);
   if (params?.orderBy) searchParams.append('orderBy', params.orderBy);
@@ -277,6 +283,7 @@ export type GetStatsApplicationsParams = {
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
   pilotId?: string;
+  productId?: string;
   customerId?: string;
   serviceOrderId?: string;
   invalidApplication?: boolean;
@@ -310,8 +317,11 @@ export type ApplicationsEvolutionItem = {
   applicationsCount: number;
 };
 
+export type EvolutionGranularity = 'day' | 'month' | 'year';
+
 export type GetApplicationsEvolutionParams = GetStatsApplicationsParams & {
   months?: number;
+  granularity?: EvolutionGranularity;
 };
 
 export type GetApplicationsEvolutionResponse = {
@@ -328,6 +338,7 @@ export async function getStatsApplications(
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -360,6 +371,7 @@ export async function getTopFarmsApplications(
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -393,6 +405,7 @@ export async function getApplicationsEvolution(
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -400,6 +413,7 @@ export async function getApplicationsEvolution(
   if (params?.startDate) searchParams.append('startDate', params.startDate);
   if (params?.endDate) searchParams.append('endDate', params.endDate);
   if (params?.months) searchParams.append('months', params.months.toString());
+  if (params?.granularity) searchParams.append('granularity', params.granularity);
 
   const url = `/applications/stats/evolution${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 

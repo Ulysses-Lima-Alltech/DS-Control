@@ -2,6 +2,18 @@ import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-reque
 import { ApplicationOrderBy, ApplicationOrderType } from "@repositories/applications/application.types";
 import z from "zod";
 
+/** Alinhado às métricas de stats (pendências / OS aberta sem talhão). */
+export const ApplicationIssueFilterSchema = z.enum([
+  "invalid_open_os",
+  "structural_pending",
+  /** Pendência estrutural exceto o recorte sem talhão em OS aberta (composição disjunta com invalid_open_os). */
+  "structural_pending_other",
+  "structural_missing_plot",
+  "structural_missing_farm",
+]);
+
+export type ApplicationIssueFilter = z.infer<typeof ApplicationIssueFilterSchema>;
+
 export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema.extend({
   search: z
     .string()
@@ -21,6 +33,11 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
     .uuid()
     .optional()
     .describe("Filter by pilot ID"),
+  productId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe("Filter by product ID"),
   customerId: z
     .string()
     .uuid()
@@ -36,6 +53,9 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
     .optional()
     .transform((val) => val === "true")
     .describe("Filter to invalid applications"),
+  applicationIssue: ApplicationIssueFilterSchema.optional().describe(
+    "Filter by inconsistency category (matches application stats); takes precedence over invalidApplication",
+  ),
   startDate: z
     .string()
     .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), {message: "Data Inicial no formato incorreto. Use YYYY-MM-DD. \n"} )

@@ -1,6 +1,8 @@
 import { db } from "@infra/database";
 import { applications, customers, farms, plots, products, serviceOrderPlots, serviceOrders, users } from "@infra/database/schema";
+import type { ApplicationIssueFilter } from "@modules/application/dto/get-all-application.dto";
 import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { DateTime } from 'luxon';
 import { Application, ApplicationOrderBy, ApplicationOrderType, ApplicationWithRelations, CreateApplication, DrizzleApplicationQueryResult, UpdateApplication } from "./application.types";
 
@@ -166,6 +168,182 @@ export class ApplicationRepository {
     return this.formatApplicationWithRelations(application);
   }
 
+  private buildApplicationsListConditions(
+    search: string | undefined,
+    filters:
+      | {
+          serviceOrderStatus?: "open" | "completed" | "cancelled";
+          farmId?: string;
+          pilotId?: string;
+          productId?: string;
+          customerId?: string;
+          serviceOrderId?: string;
+          invalidApplication?: boolean;
+          applicationIssue?: ApplicationIssueFilter;
+          startDate?: Date;
+          endDate?: Date;
+        }
+      | undefined,
+  ): SQL[] {
+    const whereConditions: SQL[] = [];
+
+    whereConditions.push(isNull(applications.deletedAt));
+
+    if (filters?.applicationIssue) {
+      switch (filters.applicationIssue) {
+        case "invalid_open_os":
+          whereConditions.push(isNull(applications.plotId));
+          whereConditions.push(
+            exists(
+              db
+                .select({ id: serviceOrders.id })
+                .from(serviceOrders)
+                .where(
+                  and(
+                    eq(serviceOrders.id, applications.serviceOrderId),
+                    eq(serviceOrders.status, "open"),
+                  )!,
+                ),
+            ),
+          );
+          whereConditions.push(not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)));
+          break;
+        case "structural_pending":
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              isNull(applications.farmId),
+              isNull(applications.plotId),
+            )!,
+          );
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+            )!,
+          );
+          break;
+        case "structural_pending_other":
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              isNull(applications.farmId),
+              isNull(applications.plotId),
+            )!,
+          );
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+            )!,
+          );
+          whereConditions.push(
+            not(
+              and(
+                isNull(applications.plotId),
+                exists(
+                  db
+                    .select({ id: serviceOrders.id })
+                    .from(serviceOrders)
+                    .where(
+                      and(
+                        eq(serviceOrders.id, applications.serviceOrderId),
+                        eq(serviceOrders.status, "open"),
+                      )!,
+                    ),
+                ),
+                not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+              )!,
+            ),
+          );
+          break;
+        case "structural_missing_plot":
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              isNull(applications.farmId),
+              isNull(applications.plotId),
+            )!,
+          );
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+            )!,
+          );
+          whereConditions.push(isNull(applications.plotId));
+          break;
+        case "structural_missing_farm":
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              isNull(applications.farmId),
+              isNull(applications.plotId),
+            )!,
+          );
+          whereConditions.push(
+            or(
+              isNull(applications.serviceOrderId),
+              not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+            )!,
+          );
+          whereConditions.push(isNull(applications.farmId));
+          break;
+        default:
+          break;
+      }
+    } else if (filters?.invalidApplication) {
+      whereConditions.push(isNull(applications.plotId));
+      whereConditions.push(not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)));
+    }
+
+    if (search) {
+      whereConditions.push(
+        or(
+          ilike(applications.observations, `%${search}%`),
+          ilike(users.name, `%${search}%`),
+          ilike(customers.name, `%${search}%`),
+          ilike(farms.name, `%${search}%`),
+        )!,
+      );
+    }
+
+    if (filters?.serviceOrderStatus) {
+      whereConditions.push(eq(serviceOrders.status, filters.serviceOrderStatus));
+    }
+
+    if (filters?.farmId) {
+      whereConditions.push(eq(farms.id, filters.farmId));
+    }
+
+    if (filters?.pilotId) {
+      whereConditions.push(eq(applications.pilotId, filters.pilotId));
+    }
+
+    if (filters?.productId) {
+      whereConditions.push(eq(applications.productId, filters.productId));
+    }
+
+    if (filters?.customerId) {
+      whereConditions.push(eq(customers.id, filters.customerId));
+    }
+
+    if (filters?.serviceOrderId) {
+      whereConditions.push(eq(applications.serviceOrderId, filters.serviceOrderId));
+    }
+
+    if (filters?.startDate && filters?.endDate) {
+      const adjustEndDate = new Date(filters.endDate);
+      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+
+      whereConditions.push(
+        and(gte(applications.date, filters.startDate), lt(applications.date, adjustEndDate))!,
+      );
+    }
+
+    return whereConditions;
+  }
+
   /**
    * @description Get all applications with pagination, optional search and filters
    * @param {number} page - The page number
@@ -182,69 +360,18 @@ export class ApplicationRepository {
       serviceOrderStatus?: "open" | "completed" | "cancelled";
       farmId?: string;
       pilotId?: string;
+      productId?: string;
       customerId?: string;
       serviceOrderId?: string;
       invalidApplication?: boolean;
+      applicationIssue?: ApplicationIssueFilter;
       startDate?: Date;
       endDate?: Date;
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
   ): Promise<ApplicationWithRelations[]> {
-    // Build where conditions
-    const whereConditions = [];
-
-    // filter deletedAt 
-    whereConditions.push(isNull(applications.deletedAt));
-    
-    if(filters?.invalidApplication) {
-      // filter Invalid Applications
-      whereConditions.push(isNull(applications.plotId));
-      whereConditions.push(not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)));
-    }
-    // Search conditions
-    if (search) {
-      whereConditions.push(
-        or(
-          ilike(applications.observations, `%${search}%`),
-          ilike(users.name, `%${search}%`), // pilot name
-          ilike(customers.name, `%${search}%`), // customer name
-          ilike(farms.name, `%${search}%`) // farm name (from both plot and direct relationship)
-        )
-      );
-    }
-
-    // Filter conditions
-    if (filters?.serviceOrderStatus) {
-      whereConditions.push(eq(serviceOrders.status, filters.serviceOrderStatus));
-    }
-
-    if (filters?.farmId) {
-      whereConditions.push(eq(farms.id, filters.farmId));
-    }
-
-    if (filters?.pilotId) {
-      whereConditions.push(eq(applications.pilotId, filters.pilotId));
-    }
-
-    if (filters?.customerId) {
-      whereConditions.push(eq(customers.id, filters.customerId));
-    }
-
-    if (filters?.serviceOrderId) {
-      whereConditions.push(eq(applications.serviceOrderId, filters.serviceOrderId));
-    }
-
-    if(filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-
-      whereConditions.push(and(
-        gte(applications.date, filters.startDate),
-        lt(applications.date, adjustEndDate)
-      ));
-    }
-
+    const whereConditions = this.buildApplicationsListConditions(search, filters);
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
     let orderByExpression;
@@ -795,14 +922,31 @@ export class ApplicationRepository {
       serviceOrderStatus?: "open" | "completed" | "cancelled";
       farmId?: string;
       pilotId?: string;
+      productId?: string;
       customerId?: string;
       serviceOrderId?: string;
       invalidApplication?: boolean;
+      applicationIssue?: ApplicationIssueFilter;
       startDate?: Date;
       endDate?: Date;
     }
   ): Promise<number> {
-    if (!search && !filters) {
+    const hasListFilters =
+      Boolean(search) ||
+      Boolean(
+        filters &&
+          (filters.serviceOrderStatus ||
+            filters.farmId ||
+            filters.pilotId ||
+            filters.productId ||
+            filters.customerId ||
+            filters.serviceOrderId ||
+            filters.invalidApplication ||
+            filters.applicationIssue ||
+            (filters.startDate && filters.endDate)),
+      );
+
+    if (!hasListFilters) {
       const [result] = await db
         .select({ count: count() })
         .from(applications)
@@ -810,59 +954,7 @@ export class ApplicationRepository {
       return result.count;
     }
 
-    // Build where conditions
-    const whereConditions = [];
-
-    // Search conditions
-    if (search) {
-      whereConditions.push(
-        or(
-          ilike(applications.observations, `%${search}%`),
-          ilike(users.name, `%${search}%`), // pilot name
-          ilike(customers.name, `%${search}%`), // customer name
-          ilike(farms.name, `%${search}%`) // farm name (from both plot and direct relationship)
-        )
-      );
-    }
-
-    // Filter conditions
-    if (filters?.serviceOrderStatus) {
-      whereConditions.push(eq(serviceOrders.status, filters.serviceOrderStatus));
-    }
-
-    if (filters?.farmId) {
-      whereConditions.push(eq(farms.id, filters.farmId));
-    }
-
-    if (filters?.pilotId) {
-      whereConditions.push(eq(applications.pilotId, filters.pilotId));
-    }
-
-    if (filters?.customerId) {
-      whereConditions.push(eq(customers.id, filters.customerId));
-    }
-
-    if (filters?.serviceOrderId) {
-      whereConditions.push(eq(applications.serviceOrderId, filters.serviceOrderId));
-    }
-
-    if (filters?.invalidApplication) {
-      whereConditions.push(isNull(applications.plotId));
-      // Exclude applications from special "avulso" service orders
-      whereConditions.push(
-        not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS))
-      );
-    }
-
-    if(filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-      whereConditions.push(and(
-        gte(applications.date, filters.startDate),
-        lt(applications.date, adjustEndDate)
-      ));
-    }
-
+    const whereConditions = this.buildApplicationsListConditions(search, filters);
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
     const [result] = await db
@@ -873,7 +965,7 @@ export class ApplicationRepository {
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
-      .where(and(whereClause, isNull(applications.deletedAt)));
+      .where(whereClause);
 
     return result.count;
   }
