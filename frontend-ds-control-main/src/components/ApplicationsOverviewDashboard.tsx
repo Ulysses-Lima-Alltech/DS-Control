@@ -515,15 +515,18 @@ export function ApplicationsOverviewDashboard({
   const looseCount = stats?.pendingApplicationsCount ?? 0;
   const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
+  const evolution = evolutionQuery.data?.evolution ?? [];
   const chartData = useMemo(() => {
-    return (evolutionQuery.data?.evolution || [])
+    return evolution
       .filter((item) => typeof item?.date === 'string' && item.date.length === 10)
       .map((item) => ({
         name: item.date,
-        value: Math.max(0, Number(item.applicationsCount) || 0),
+        value: Number(item.applicationsCount || 0),
       }));
-  }, [evolutionQuery.data?.evolution]);
-  console.log('EVOLUTION_DATA', chartData);
+  }, [evolution]);
+  console.log('RAW_EVOLUTION_QUERY', evolutionQuery.data);
+  console.log('EVOLUTION_ARRAY', evolution);
+  console.log('EVOLUTION_CHART_DATA', chartData);
 
   const productData = useMemo(() => {
     return [...(stats?.typeOfProducts || [])]
