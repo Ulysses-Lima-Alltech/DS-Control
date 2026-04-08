@@ -72,9 +72,13 @@ export default function AgriculturalApplicationsPage() {
     setActiveTab('records');
   }, []);
 
-  const clearCrossFilters = useCallback(() => {
+  const clearOverviewFilters = useCallback(() => {
+    setServiceOrderStatus(undefined);
     setFarmId(undefined);
     setProductId(undefined);
+    setPilotId(undefined);
+    setStartDate(undefined);
+    setEndDate(undefined);
   }, []);
 
   return (
@@ -108,7 +112,13 @@ export default function AgriculturalApplicationsPage() {
             onNavigateRecordsWithIssue={handleNavigateRecordsWithIssue}
             onFarmFilterChange={setFarmId}
             onProductFilterChange={setProductId}
-            onClearCrossFilters={clearCrossFilters}
+            onPilotFilterChange={setPilotId}
+            onServiceOrderStatusChange={setServiceOrderStatus}
+            onDateRangeChange={(range) => {
+              setStartDate(range?.startDate);
+              setEndDate(range?.endDate);
+            }}
+            onClearOverviewFilters={clearOverviewFilters}
           />
         </TabsContent>
 

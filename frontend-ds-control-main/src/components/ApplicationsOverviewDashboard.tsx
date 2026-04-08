@@ -1,5 +1,6 @@
 'use client';
 
+import type { InfiniteData } from '@tanstack/react-query';
 import { differenceInCalendarDays, format, max as maxDate, parseISO, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -21,6 +22,8 @@ import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } fro
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import DateRangePicker from '@/components/DateRangePicker';
+import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import {
   Select,
   SelectContent,
@@ -44,8 +47,13 @@ import {
   useGetStatsApplications,
 } from '@/queries/application.query';
 import { useGetFarmById } from '@/queries/farm.query';
-import { useGetProductById } from '@/queries/product.query';
+import { useGetAllFarmsInfinite } from '@/queries/farm.query';
+import { useGetAllProductsInfinite, useGetProductById } from '@/queries/product.query';
+import { useGetAllUsersInfinite, useGetUserById } from '@/queries/user.query';
+import type { Farm } from '@/types/farm.type';
+import type { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
+import type { User } from '@/types/user.type';
 import type { EvolutionGranularity } from '@/services/application.service';
 import {
   APPLICATION_ISSUE_LABELS,
@@ -295,7 +303,10 @@ type ApplicationsOverviewDashboardProps = OverviewFilters & {
   onNavigateRecordsWithIssue?: (issue: ApplicationIssueFilter) => void;
   onFarmFilterChange?: (farmId: string | undefined) => void;
   onProductFilterChange?: (productId: string | undefined) => void;
-  onClearCrossFilters?: () => void;
+  onPilotFilterChange?: (pilotId: string | undefined) => void;
+  onServiceOrderStatusChange?: (status: ServiceOrderStatus | undefined) => void;
+  onDateRangeChange?: (range: { startDate: string; endDate: string } | undefined) => void;
+  onClearOverviewFilters?: () => void;
 };
 
 const BAR_SELECTED = 'hsl(var(--primary))';
@@ -304,14 +315,68 @@ export function ApplicationsOverviewDashboard({
   onNavigateRecordsWithIssue,
   onFarmFilterChange,
   onProductFilterChange,
-  onClearCrossFilters,
+  onPilotFilterChange,
+  onServiceOrderStatusChange,
+  onDateRangeChange,
+  onClearOverviewFilters,
   ...filters
 }: ApplicationsOverviewDashboardProps) {
   const [inconsistencySheetOpen, setInconsistencySheetOpen] = useState(false);
+  const [farmSearchValue, setFarmSearchValue] = useState('');
+  const [productSearchValue, setProductSearchValue] = useState('');
+  const [pilotSearchValue, setPilotSearchValue] = useState('');
+
+  const {
+    data: farmsData,
+    fetchNextPage: fetchNextPageFarms,
+    hasNextPage: hasNextPageFarms,
+    isFetchingNextPage: isFetchingNextPageFarms,
+    isLoading: isLoadingFarms,
+  } = useGetAllFarmsInfinite(filters.customerId, {
+    limit: '10',
+    search: farmSearchValue || undefined,
+  });
+  const allFarms =
+    (farmsData as unknown as InfiniteData<{ data: Farm[] }>)?.pages?.flatMap((page) => page.data) ||
+    [];
+
+  const {
+    data: productsData,
+    fetchNextPage: fetchNextPageProducts,
+    hasNextPage: hasNextPageProducts,
+    isFetchingNextPage: isFetchingNextPageProducts,
+    isLoading: isLoadingProducts,
+  } = useGetAllProductsInfinite({
+    limit: '10',
+    search: productSearchValue || undefined,
+  });
+  const allProducts =
+    (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+
+  const {
+    data: pilotsData,
+    fetchNextPage: fetchNextPagePilots,
+    hasNextPage: hasNextPagePilots,
+    isFetchingNextPage: isFetchingNextPagePilots,
+    isLoading: isLoadingPilots,
+  } = useGetAllUsersInfinite({
+    type: 'pilot',
+    limit: '10',
+    search: pilotSearchValue || undefined,
+  });
+  const allPilots =
+    (pilotsData as unknown as InfiniteData<{ data: User[] }>)?.pages?.flatMap((page) => page.data) ||
+    [];
 
   const farmLabelQuery = useGetFarmById(filters.farmId ?? null);
   const productLabelQuery = useGetProductById(filters.productId ?? '', {
     enabled: Boolean(filters.productId),
+  });
+  const pilotLabelQuery = useGetUserById(filters.pilotId ?? '', {
+    queryKey: ['users', 'overview-pilot', filters.pilotId],
+    enabled: Boolean(filters.pilotId),
   });
 
   const handleFarmBarClick = useCallback(
@@ -422,6 +487,22 @@ export function ApplicationsOverviewDashboard({
   }, [evolutionMode, resolvedEvolutionGranularity]);
 
   const filtersActive = useMemo(() => hasActiveOverviewFilters(filters), [filters]);
+  const statusOptions = useMemo(
+    () => [
+      { value: 'open', label: 'Aberto' },
+      { value: 'completed', label: 'Concluído' },
+      { value: 'cancelled', label: 'Cancelado' },
+    ],
+    []
+  );
+  const statusLabelMap = useMemo(
+    () => ({
+      open: 'Aberto',
+      completed: 'Concluído',
+      cancelled: 'Cancelado',
+    }),
+    []
+  );
 
   const statsQuery = useGetStatsApplications(filters);
   const globalStatsQuery = useGetStatsApplications({ ignoreFilters: true });
@@ -533,19 +614,162 @@ export function ApplicationsOverviewDashboard({
     : 'Não há registros no período considerado para montar este gráfico.';
 
   const crossFilterActive = Boolean(filters.farmId || filters.productId);
+  const quickFilterActive = Boolean(
+    filters.startDate ||
+      filters.endDate ||
+      filters.farmId ||
+      filters.productId ||
+      filters.pilotId ||
+      filters.serviceOrderStatus
+  );
   const farmChipLabel = filters.farmId
     ? farmLabelQuery.data?.farm?.name ?? `Fazenda ${filters.farmId.slice(0, 8)}…`
     : '';
   const productChipLabel = filters.productId
     ? productLabelQuery.data?.product?.name ?? `Produto ${filters.productId.slice(0, 8)}…`
     : '';
+  const pilotChipLabel = filters.pilotId
+    ? pilotLabelQuery.data?.name ?? `Piloto ${filters.pilotId.slice(0, 8)}…`
+    : '';
+
+  const farmOptions = useMemo(() => {
+    const base = allFarms.map((farm) => ({ value: farm.id, label: farm.name }));
+    if (
+      filters.farmId &&
+      farmChipLabel &&
+      !base.some((option) => option.value === filters.farmId)
+    ) {
+      return [{ value: filters.farmId, label: farmChipLabel }, ...base];
+    }
+    return base;
+  }, [allFarms, farmChipLabel, filters.farmId]);
+
+  const productOptions = useMemo(() => {
+    const base = allProducts.map((product) => ({ value: product.id, label: product.name }));
+    if (
+      filters.productId &&
+      productChipLabel &&
+      !base.some((option) => option.value === filters.productId)
+    ) {
+      return [{ value: filters.productId, label: productChipLabel }, ...base];
+    }
+    return base;
+  }, [allProducts, filters.productId, productChipLabel]);
+
+  const pilotOptions = useMemo(() => {
+    const base = allPilots.map((pilot) => ({ value: pilot.id, label: pilot.name }));
+    if (
+      filters.pilotId &&
+      pilotChipLabel &&
+      !base.some((option) => option.value === filters.pilotId)
+    ) {
+      return [{ value: filters.pilotId, label: pilotChipLabel }, ...base];
+    }
+    return base;
+  }, [allPilots, filters.pilotId, pilotChipLabel]);
 
   return (
     <div className='space-y-5'>
       <div className='rounded-lg border border-border/70 bg-muted/25 px-3 py-2.5'>
         <div className='flex flex-wrap items-start justify-between gap-2'>
-          <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
-            {filters.farmId ? (
+          <div className='flex min-w-0 flex-1 flex-col gap-2'>
+            <div className='flex w-full flex-wrap items-center gap-2'>
+              <DateRangePicker
+                key={`${filters.startDate ?? 'none'}-${filters.endDate ?? 'none'}`}
+                className='w-full min-w-[220px] sm:w-[280px]'
+                initialValue={
+                  filters.startDate && filters.endDate
+                    ? { startDate: filters.startDate, endDate: filters.endDate }
+                    : undefined
+                }
+                onChange={(range) => onDateRangeChange?.(range)}
+              />
+              <SearchableSelectQuery
+                options={farmOptions}
+                value={filters.farmId}
+                onValueChange={(value) => onFarmFilterChange?.(value as string | undefined)}
+                placeholder='Fazenda'
+                searchPlaceholder='Buscar fazenda...'
+                className='w-full sm:w-[210px]'
+                clearable
+                onSearchChange={setFarmSearchValue}
+                onScrollEnd={fetchNextPageFarms}
+                hasNextPage={hasNextPageFarms}
+                isFetchingNextPage={isFetchingNextPageFarms}
+                isLoading={isLoadingFarms}
+              />
+              <SearchableSelectQuery
+                options={productOptions}
+                value={filters.productId}
+                onValueChange={(value) => onProductFilterChange?.(value as string | undefined)}
+                placeholder='Produto'
+                searchPlaceholder='Buscar produto...'
+                className='w-full sm:w-[210px]'
+                clearable
+                onSearchChange={setProductSearchValue}
+                onScrollEnd={fetchNextPageProducts}
+                hasNextPage={hasNextPageProducts}
+                isFetchingNextPage={isFetchingNextPageProducts}
+                isLoading={isLoadingProducts}
+              />
+              <SearchableSelectQuery
+                options={pilotOptions}
+                value={filters.pilotId}
+                onValueChange={(value) => onPilotFilterChange?.(value as string | undefined)}
+                placeholder='Piloto'
+                searchPlaceholder='Buscar piloto...'
+                className='w-full sm:w-[210px]'
+                clearable
+                onSearchChange={setPilotSearchValue}
+                onScrollEnd={fetchNextPagePilots}
+                hasNextPage={hasNextPagePilots}
+                isFetchingNextPage={isFetchingNextPagePilots}
+                isLoading={isLoadingPilots}
+              />
+              <SearchableSelectQuery
+                options={statusOptions}
+                value={filters.serviceOrderStatus}
+                onValueChange={(value) =>
+                  onServiceOrderStatusChange?.(value as ServiceOrderStatus | undefined)
+                }
+                placeholder='Status da OS'
+                searchPlaceholder='Buscar status...'
+                className='w-full sm:w-[180px]'
+                clearable
+              />
+              {quickFilterActive ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='shrink-0'
+                  onClick={() => onClearOverviewFilters?.()}
+                >
+                  Limpar filtros
+                </Button>
+              ) : null}
+            </div>
+
+            <div className='flex min-w-0 flex-wrap items-center gap-2'>
+              {filters.startDate && filters.endDate ? (
+                <Badge
+                  variant='secondary'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                >
+                  <span className='max-w-[280px] truncate'>
+                    Período: {filters.startDate} até {filters.endDate}
+                  </span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de período'
+                    onClick={() => onDateRangeChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
+              ) : null}
+              {filters.farmId ? (
               <Badge
                 variant='secondary'
                 className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
@@ -560,8 +784,8 @@ export function ApplicationsOverviewDashboard({
                   <X className='h-3.5 w-3.5' />
                 </button>
               </Badge>
-            ) : null}
-            {filters.productId ? (
+              ) : null}
+              {filters.productId ? (
               <Badge
                 variant='secondary'
                 className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
@@ -576,22 +800,57 @@ export function ApplicationsOverviewDashboard({
                   <X className='h-3.5 w-3.5' />
                 </button>
               </Badge>
-            ) : null}
-            {!crossFilterActive ? (
-              <span className='text-xs text-muted-foreground'>
+              ) : null}
+              {filters.pilotId ? (
+                <Badge
+                  variant='secondary'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                >
+                  <span className='max-w-[220px] truncate'>Piloto: {pilotChipLabel}</span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de piloto'
+                    onClick={() => onPilotFilterChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
+              ) : null}
+              {filters.serviceOrderStatus ? (
+                <Badge
+                  variant='secondary'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                >
+                  <span className='max-w-[220px] truncate'>
+                    Status OS: {statusLabelMap[filters.serviceOrderStatus]}
+                  </span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de status da OS'
+                    onClick={() => onServiceOrderStatusChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
+              ) : null}
+              {!quickFilterActive && !crossFilterActive ? (
+                <span className='text-xs text-muted-foreground'>
                 Filtros cruzados: clique numa barra em <strong className='font-medium'>Top fazendas</strong>{' '}
                 ou <strong className='font-medium'>Distribuição por produto</strong> para refinar o painel e
                 a aba Registros.
-              </span>
-            ) : null}
+                </span>
+              ) : null}
+            </div>
           </div>
-          {crossFilterActive ? (
+          {quickFilterActive || crossFilterActive ? (
             <Button
               type='button'
               variant='outline'
               size='sm'
               className='shrink-0'
-              onClick={() => onClearCrossFilters?.()}
+              onClick={() => onClearOverviewFilters?.()}
             >
               Limpar filtros
             </Button>
