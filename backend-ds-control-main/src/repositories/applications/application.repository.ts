@@ -379,19 +379,24 @@ export class ApplicationRepository {
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
     let orderByExpression;
+    let orderByTieBreaker = desc(applications.id);
 
     switch (orderBy) {
       case ApplicationOrderBy.DATE:
         orderByExpression = orderType === ApplicationOrderType.ASC ? asc(applications.date) : desc(applications.date);
+        orderByTieBreaker = orderType === ApplicationOrderType.ASC ? asc(applications.id) : desc(applications.id);
         break;
       case ApplicationOrderBy.PILOT:
         orderByExpression = orderType === ApplicationOrderType.ASC ? asc(users.name) : desc(users.name);
+        orderByTieBreaker = orderType === ApplicationOrderType.ASC ? asc(applications.id) : desc(applications.id);
         break;
       case ApplicationOrderBy.PRODUCT:
         orderByExpression = orderType === ApplicationOrderType.ASC ? asc(products.name) : desc(products.name);
+        orderByTieBreaker = orderType === ApplicationOrderType.ASC ? asc(applications.id) : desc(applications.id);
         break;
       default:
         orderByExpression = desc(applications.date);
+        orderByTieBreaker = desc(applications.id);
     }
 
     // Complex query with all needed joins for search and filters
@@ -414,12 +419,12 @@ export class ApplicationRepository {
       .where(whereClause)
       .offset((page - 1) * limit)
       .limit(limit)
-      .orderBy(orderByExpression);
+      .orderBy(orderByExpression, orderByTieBreaker);
 
     const results = await baseQuery;
 
     // For each result, get full application with relations
-    const applicationIds = results.map(r => r.application.id);
+    const applicationIds = Array.from(new Set(results.map(r => r.application.id)));
     if (applicationIds.length === 0) return [];
 
     const applicationsWithFullRelations = await Promise.all(

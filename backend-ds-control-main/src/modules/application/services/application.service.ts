@@ -725,7 +725,7 @@ export class ApplicationService {
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
-      .where(whereClause)
+      .where(and(whereClause, isNull(users.deletedAt)))
       .groupBy(users.id, users.name)
       .orderBy(sql`COALESCE(SUM(${applications.hectares}), 0) DESC`)
       .limit(limit);
@@ -1411,12 +1411,14 @@ export class ApplicationService {
    */
   private async getPilotsCount(filters?: ApplicationStatsQueryString): Promise<number> {
     const { whereClause, needsJoins } = this.buildApplicationWhereConditions(filters);
+    const activePilotWhereClause = and(whereClause, isNull(users.deletedAt));
 
     if (!needsJoins) {
       const result = await db
         .selectDistinct({ count: sql<number>`COUNT(DISTINCT ${applications.pilotId})` })
         .from(applications)
-        .where(whereClause);
+        .leftJoin(users, eq(applications.pilotId, users.id))
+        .where(activePilotWhereClause);
 
       return Number(result[0]?.count || 0);
     }
@@ -1430,7 +1432,7 @@ export class ApplicationService {
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
-      .where(whereClause);
+      .where(activePilotWhereClause);
 
     return Number(result[0]?.count || 0);
   }

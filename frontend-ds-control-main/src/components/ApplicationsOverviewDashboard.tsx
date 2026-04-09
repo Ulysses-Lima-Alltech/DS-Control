@@ -529,6 +529,7 @@ export function ApplicationsOverviewDashboard({
     isLoading: isLoadingPilots,
   } = useGetAllUsersInfinite({
     type: 'pilot',
+    status: 'active',
     limit: '10',
     search: pilotSearchValue || undefined,
   });
