@@ -1,6 +1,7 @@
 'use client';
 
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
+import { format, subDays } from 'date-fns';
 import { debounce } from 'lodash';
 import { Edit, Filter, SearchX, Trash, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -64,6 +65,11 @@ import { Product } from '@/types/product.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
+
+const getYesterdayDateFilter = () => {
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  return { startDate: yesterday, endDate: yesterday };
+};
 
 interface TableApplicationsProps {
   customerId?: string;
@@ -478,13 +484,15 @@ export const TableApplications = ({
     }
 
   const handleDateChange = useCallback((dateRange: {startDate: string, endDate: string} | undefined) => {
-    setDateFilter(dateRange);
+    const nextDateRange = dateRange ?? getYesterdayDateFilter();
+    setDateFilter(nextDateRange);
     setCurrentPage(1);
-    onFilterChange?.setStartDate(dateRange?.startDate);
-    onFilterChange?.setEndDate(dateRange?.endDate);
+    onFilterChange?.setStartDate(nextDateRange.startDate);
+    onFilterChange?.setEndDate(nextDateRange.endDate);
   }, [onFilterChange]);
 
   const clearAllFilters = useCallback(() => {
+    const yesterdayDateFilter = getYesterdayDateFilter();
     setInputSearchValue('');
     setDebouncedSearchValue('');
     setStatusFilter(undefined);
@@ -494,7 +502,7 @@ export const TableApplications = ({
     setCustomerFilter(undefined);
     setServiceOrderFilter(undefined);
     setInvalidApplicationFilter('false');
-    setDateFilter(undefined);
+    setDateFilter(yesterdayDateFilter);
     setOrderBy(undefined);
     setOrderType(undefined);
     setCurrentPage(1);
@@ -507,8 +515,8 @@ export const TableApplications = ({
     onFilterChange?.setServiceOrderId(undefined);
     onFilterChange?.setInvalidApplication(undefined);
     onFilterChange?.setApplicationIssue?.(undefined);
-    onFilterChange?.setStartDate(undefined);
-    onFilterChange?.setEndDate(undefined);
+    onFilterChange?.setStartDate(yesterdayDateFilter.startDate);
+    onFilterChange?.setEndDate(yesterdayDateFilter.endDate);
   }, [onFilterChange]);
 
     const handleOrderTypeChange = (orderType: ApplicationOrderType | undefined) => {

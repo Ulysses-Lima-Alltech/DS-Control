@@ -399,15 +399,14 @@ export class ApplicationRepository {
         orderByTieBreaker = desc(applications.id);
     }
 
-    // Complex query with all needed joins for search and filters
-    const baseQuery = db
+    // Paginate over unique application IDs first, then hydrate relations.
+    // This prevents 1:N join expansions from leaking duplicated rows into pagination.
+    const paginatedIds = await db
       .select({
-        application: applications,
-        pilot: users,
-        customer: customers,
-        farm: farms,
-        serviceOrder: serviceOrders,
-        products: products
+        id: applications.id,
+        dateOrder: applications.date,
+        pilotOrder: users.name,
+        productOrder: products.name,
       })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
@@ -417,23 +416,27 @@ export class ApplicationRepository {
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .leftJoin(products, eq(applications.productId, products.id))
       .where(whereClause)
+      .groupBy(applications.id, applications.date, users.name, products.name)
+      .orderBy(orderByExpression, orderByTieBreaker)
       .offset((page - 1) * limit)
-      .limit(limit)
-      .orderBy(orderByExpression, orderByTieBreaker);
+      .limit(limit);
 
-    const results = await baseQuery;
-
-    // For each result, get full application with relations
-    const applicationIds = Array.from(new Set(results.map(r => r.application.id)));
+    const applicationIds = paginatedIds.map((row) => row.id);
     if (applicationIds.length === 0) return [];
 
     const applicationsWithFullRelations = await Promise.all(
-      applicationIds.map(async (id) => {
-        return await this.getApplicationWithRelationsById(id);
-      })
+      applicationIds.map(async (id) => this.getApplicationWithRelationsById(id))
     );
 
-    return applicationsWithFullRelations.filter(Boolean) as ApplicationWithRelations[];
+    const byId = new Map(
+      applicationsWithFullRelations
+        .filter(Boolean)
+        .map((application) => [application!.id, application as ApplicationWithRelations])
+    );
+
+    return applicationIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as ApplicationWithRelations[];
   }
 
   /**

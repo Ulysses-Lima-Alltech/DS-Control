@@ -1,6 +1,8 @@
 'use client';
 
+import { format, subDays } from 'date-fns';
 import { Plus } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ApplicationsOverviewDashboard } from '@/components/ApplicationsOverviewDashboard';
@@ -13,7 +15,38 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ApplicationIssueFilter } from '@/types/applications.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 
+const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const getYesterdayDateString = () => format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+const resolveInitialDateRange = (
+  urlStartDate: string | null,
+  urlEndDate: string | null
+): { startDate: string; endDate: string } => {
+  const hasValidStart = !!urlStartDate && DATE_PARAM_REGEX.test(urlStartDate);
+  const hasValidEnd = !!urlEndDate && DATE_PARAM_REGEX.test(urlEndDate);
+
+  if (hasValidStart && hasValidEnd) {
+    return {
+      startDate: urlStartDate,
+      endDate: urlEndDate,
+    };
+  }
+
+  const yesterday = getYesterdayDateString();
+  return {
+    startDate: yesterday,
+    endDate: yesterday,
+  };
+};
+
 export default function AgriculturalApplicationsPage() {
+  const searchParams = useSearchParams();
+  const initialDateRange = useMemo(
+    () => resolveInitialDateRange(searchParams.get('startDate'), searchParams.get('endDate')),
+    [searchParams]
+  );
+
   const [activeTab, setActiveTab] = useState('overview');
 
   // Filter state - lifted from TableApplications
@@ -30,8 +63,8 @@ export default function AgriculturalApplicationsPage() {
   const [applicationIssue, setApplicationIssue] = useState<ApplicationIssueFilter | undefined>(
     undefined
   );
-  const [startDate, setStartDate] = useState<string | undefined>(undefined);
-  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+  const [startDate, setStartDate] = useState<string | undefined>(initialDateRange.startDate);
+  const [endDate, setEndDate] = useState<string | undefined>(initialDateRange.endDate);
 
   const filterProps = {
     search,
@@ -73,13 +106,14 @@ export default function AgriculturalApplicationsPage() {
   }, []);
 
   const clearOverviewFilters = useCallback(() => {
+    const yesterday = getYesterdayDateString();
     setServiceOrderStatus(undefined);
     setFarmId(undefined);
     setProductId(undefined);
     setPilotId(undefined);
     setCustomerId(undefined);
-    setStartDate(undefined);
-    setEndDate(undefined);
+    setStartDate(yesterday);
+    setEndDate(yesterday);
   }, []);
 
   return (
@@ -117,8 +151,14 @@ export default function AgriculturalApplicationsPage() {
             onPilotFilterChange={setPilotId}
             onServiceOrderStatusChange={setServiceOrderStatus}
             onDateRangeChange={(range) => {
-              setStartDate(range?.startDate);
-              setEndDate(range?.endDate);
+              if (!range) {
+                const yesterday = getYesterdayDateString();
+                setStartDate(yesterday);
+                setEndDate(yesterday);
+                return;
+              }
+              setStartDate(range.startDate);
+              setEndDate(range.endDate);
             }}
             onClearOverviewFilters={clearOverviewFilters}
           />
