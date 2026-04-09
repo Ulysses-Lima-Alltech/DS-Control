@@ -152,15 +152,16 @@ export class ApplicationService {
     }
 
     if (filters.startDate && filters.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-
-      whereConditions.push(
-        and(
-          gte(applications.date, new Date(filters.startDate)),
-          lt(applications.date, adjustEndDate)
-        )!
-      );
+      /**
+       * Filtro por dia civil (YYYY-MM-DD), alinhado ao GROUP BY em getApplicationsEvolution
+       * (`DATE(applications.date)` / `::date`). Comparar com `new Date('YYYY-MM-DD')` (UTC) + `lt`
+       * gerava recorte diferente do bucket diário em `timestamp without time zone`, e com
+       * `ORDER BY ... DESC LIMIT n` o gráfico podia mostrar 0 no dia do painel com contagem > 0 nos stats.
+       */
+      const startD = filters.startDate.slice(0, 10);
+      const endD = filters.endDate.slice(0, 10);
+      whereConditions.push(sql`(${applications.date})::date >= ${sql.raw(`'${startD}'`)}::date`);
+      whereConditions.push(sql`(${applications.date})::date <= ${sql.raw(`'${endD}'`)}::date`);
     }
 
     return {
@@ -707,25 +708,16 @@ export class ApplicationService {
   }>> {
     const { whereClause } = this.buildApplicationWhereConditions(filters);
     const granularity = filters?.granularity ?? "month";
-    const requested = filters?.months ?? 6;
-
-    const limitBuckets =
-      granularity === "month"
-        ? Math.min(Math.max(requested, 1), 24)
-        : granularity === "day"
-          ? Math.min(Math.max(requested, 1), 90)
-          : Math.min(Math.max(requested, 1), 40);
     const bucketDateSql =
       granularity === "day"
-        ? sql`DATE(${applications.date})`
+        ? sql`(${applications.date})::date`
         : granularity === "month"
           ? sql`DATE_TRUNC('month', ${applications.date})::date`
           : sql`DATE_TRUNC('year', ${applications.date})::date`;
-    const bucketStringSql = sql<string>`TO_CHAR(${bucketDateSql}, 'YYYY-MM-DD')`;
 
-    const results = await db
+    const rows = await db
       .select({
-        date: bucketStringSql,
+        date: sql<string>`TO_CHAR(${bucketDateSql}, 'YYYY-MM-DD')`,
         applicationsCount: countDistinct(applications.id),
       })
       .from(applications)
@@ -736,10 +728,10 @@ export class ApplicationService {
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause)
       .groupBy(bucketDateSql)
-      .orderBy(sql`${bucketDateSql} DESC`)
-      .limit(limitBuckets);
+      .orderBy(sql`${bucketDateSql} ASC`)
+      .limit(5000);
 
-    return results
+    return rows
       .map((item) => ({
         date: item.date,
         applicationsCount: Number(item.applicationsCount || 0),
@@ -773,8 +765,8 @@ export class ApplicationService {
         customerId: filters.customerId,
         serviceOrderId: filters.serviceOrderId,
         invalidApplication: filters.invalidApplication,
-        startDate: filters.startDate ? new Date(filters.startDate) : undefined,
-        endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
       }
     );
   }

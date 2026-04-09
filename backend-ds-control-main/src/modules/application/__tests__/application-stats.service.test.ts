@@ -143,30 +143,30 @@ describe("ApplicationService.getApplicationsEvolution", () => {
     service = new ApplicationService();
   });
 
-  it("usa months padrão 6", async () => {
+  it("aplica limite técnico fixo para evitar resposta não paginada gigante", async () => {
     await service.getApplicationsEvolution(undefined);
-    expect(chain.limit).toHaveBeenCalledWith(6);
+    expect(chain.limit).toHaveBeenCalledWith(5000);
   });
 
-  it("respeita months explícito (saneado pelo schema na rota; aqui valor numérico)", async () => {
+  it("ignora months explícito para manter série determinada só por período + granularidade", async () => {
     await service.getApplicationsEvolution({ months: 12 } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
-    expect(chain.limit).toHaveBeenCalledWith(12);
+    expect(chain.limit).toHaveBeenCalledWith(5000);
   });
 
-  it("com granularity day limita buckets a no máximo 90", async () => {
+  it("granularity day mantém o mesmo limite técnico fixo", async () => {
     await service.getApplicationsEvolution({
       granularity: "day",
       months: 90,
     } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
-    expect(chain.limit).toHaveBeenCalledWith(90);
+    expect(chain.limit).toHaveBeenCalledWith(5000);
   });
 
-  it("com granularity year limita buckets a no máximo 40", async () => {
+  it("granularity year mantém o mesmo limite técnico fixo", async () => {
     await service.getApplicationsEvolution({
       granularity: "year",
       months: 100,
     } as Parameters<ApplicationService["getApplicationsEvolution"]>[0]);
-    expect(chain.limit).toHaveBeenCalledWith(40);
+    expect(chain.limit).toHaveBeenCalledWith(5000);
   });
 
   it("retorna array vazio quando não há linhas agregadas", async () => {

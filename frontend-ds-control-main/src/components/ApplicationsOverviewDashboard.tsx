@@ -2,11 +2,17 @@
 
 import type { InfiniteData } from '@tanstack/react-query';
 import {
+  addDays,
   differenceInCalendarDays,
+  eachMonthOfInterval,
+  endOfMonth,
+  endOfYear,
   format,
+  getYear,
   isValid,
-  max as maxDate,
   parseISO,
+  startOfMonth,
+  startOfYear,
   subDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -16,7 +22,7 @@ import {
   ChevronRight,
   Info,
   Leaf,
-  Map,
+  Map as MapIcon,
   RefreshCw,
   SprayCan,
   TrendingUp,
@@ -24,7 +30,7 @@ import {
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -78,6 +84,7 @@ import {
  * `OVERVIEW_CHART_CONTAINER_CLASS` no `ChartContainer` com `!aspect-auto` (anula o 16:9),
  * `overflow-hidden` e encadeamento de altura até o ResponsiveContainer; (3) cards com
  * `min-w-0 overflow-hidden`. Gráficos devem passar por `OverviewChartPlot` para não reabrir regressão.
+ * A evolução temporal usa sempre `LineChart` dentro de `OverviewChartPlot` (todas as granularidades).
  */
 
 type OverviewFilters = {
@@ -119,41 +126,147 @@ function getHorizontalBarChartHeight(itemsCount: number): number {
   return Math.max(CHART_BAR_MIN_H, Math.min(CHART_BAR_MAX_H, computed));
 }
 
-/** Modo Auto: ≤45 dias → dia; &gt;45 e ≤730 dias (~24 meses) → mês; senão → ano. */
-const EVOLUTION_AUTO_DAY_MAX = 45;
-const EVOLUTION_AUTO_MONTH_MAX_DAYS = 730;
-/** Modo dia manual: período &gt;90 dias usa só os últimos 90 dias (API + aviso na UI). */
-const EVOLUTION_DAY_CLIP_DAYS = 90;
+const EVOLUTION_DAY_BUCKET_COUNT = 30;
+const EVOLUTION_YEAR_BUCKET_COUNT = 5;
 
-type EvolutionMode = 'auto' | EvolutionGranularity;
+function startOfDayLocal(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
 
-function resolveEvolutionGranularity(
-  mode: EvolutionMode,
-  startDateStr?: string,
-  endDateStr?: string
-): EvolutionGranularity {
-  if (!startDateStr || !endDateStr) {
-    return mode === 'auto' ? 'month' : mode;
+function parseCalendarDateStr(s: string): Date {
+  const part = s.slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(part);
+  if (!m) return parseISO(s);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function normalizeCalendarDateKey(raw: string): string {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (s.length < 10) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const parsed = parseISO(s);
+  if (!isValid(parsed)) return s.slice(0, 10);
+  return format(parsed, 'yyyy-MM-dd');
+}
+
+function getDefaultEvolutionWindow(granularity: EvolutionGranularity): { start: Date; end: Date } {
+  const today = startOfDayLocal(new Date());
+  if (granularity === 'day') {
+    const end = today;
+    const start = subDays(end, EVOLUTION_DAY_BUCKET_COUNT - 1);
+    return { start, end };
   }
-  if (mode !== 'auto') return mode;
-  const start = parseISO(startDateStr);
-  const end = parseISO(endDateStr);
-  const days = differenceInCalendarDays(end, start) + 1;
-  if (days <= EVOLUTION_AUTO_DAY_MAX) return 'day';
-  if (days <= EVOLUTION_AUTO_MONTH_MAX_DAYS) return 'month';
-  return 'year';
+  if (granularity === 'month') {
+    const start = startOfMonth(new Date(getYear(today), 0, 1));
+    return { start, end: today };
+  }
+  const endY = getYear(today);
+  const startY = endY - (EVOLUTION_YEAR_BUCKET_COUNT - 1);
+  const start = startOfDayLocal(new Date(startY, 0, 1));
+  return { start, end: today };
+}
+
+function getEffectiveEvolutionWindow(
+  startDateStr: string | undefined,
+  endDateStr: string | undefined,
+  granularity: EvolutionGranularity
+): { start: Date; end: Date } {
+  if (startDateStr && endDateStr) {
+    return {
+      start: startOfDayLocal(parseCalendarDateStr(startDateStr)),
+      end: startOfDayLocal(parseCalendarDateStr(endDateStr)),
+    };
+  }
+  return getDefaultEvolutionWindow(granularity);
+}
+
+function buildBucketKeysWithinWindow(
+  granularity: EvolutionGranularity,
+  window: { start: Date; end: Date }
+): string[] {
+  const start = startOfDayLocal(window.start);
+  const end = startOfDayLocal(window.end);
+  if (start > end) return [];
+
+  if (granularity === 'day') {
+    const keys: string[] = [];
+    const n = differenceInCalendarDays(end, start) + 1;
+    for (let i = 0; i < n; i++) {
+      keys.push(format(addDays(start, i), 'yyyy-MM-dd'));
+    }
+    return keys;
+  }
+  if (granularity === 'month') {
+    const rangeStart = startOfMonth(start);
+    const rangeEnd = startOfMonth(end);
+    return eachMonthOfInterval({ start: rangeStart, end: rangeEnd }).map((d) =>
+      format(d, 'yyyy-MM-dd')
+    );
+  }
+  const ys = getYear(start);
+  const ye = getYear(end);
+  const keys: string[] = [];
+  for (let y = ys; y <= ye; y++) {
+    keys.push(format(new Date(y, 0, 1), 'yyyy-MM-dd'));
+  }
+  return keys;
+}
+
+function mergeEvolutionSeriesWithZeros(
+  items: Array<{ date: string; applicationsCount: number }>,
+  bucketKeys: string[]
+): Array<{ name: string; value: number }> {
+  const byDate = new globalThis.Map<string, number>();
+  for (const item of items) {
+    if (typeof item.date !== 'string' || item.date.length < 10) continue;
+    const k = normalizeCalendarDateKey(item.date);
+    byDate.set(k, Number(item.applicationsCount || 0));
+  }
+  return bucketKeys.map((name) => ({
+    name,
+    value: byDate.get(name) ?? 0,
+  }));
 }
 
 function formatByGranularity(dateValue: string, g: EvolutionGranularity, forTooltip = false): string {
-  const parsed = parseISO(dateValue);
+  const parsed =
+    dateValue.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(dateValue)
+      ? parseCalendarDateStr(dateValue.slice(0, 10))
+      : parseISO(dateValue);
   if (!isValid(parsed)) return dateValue;
   if (g === 'day') {
     return format(parsed, forTooltip ? 'dd/MM/yyyy' : 'dd/MM', { locale: ptBR });
   }
   if (g === 'month') {
-    return format(parsed, forTooltip ? 'MMMM yyyy' : 'MMM/yyyy', { locale: ptBR });
+    return format(parsed, forTooltip ? 'MMMM yyyy' : 'MMM', { locale: ptBR });
   }
   return format(parsed, 'yyyy', { locale: ptBR });
+}
+
+/** Intervalo [startDate,endDate] em yyyy-MM-dd para o bucket clicado (ano = ano civil completo; mês = mês completo; dia = dia). */
+function bucketDateRangeFromEvolutionPoint(
+  pointName: string,
+  g: EvolutionGranularity
+): { startDate: string; endDate: string } | null {
+  const parsed =
+    pointName.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(pointName)
+      ? parseCalendarDateStr(pointName.slice(0, 10))
+      : parseISO(pointName);
+  if (!isValid(parsed)) return null;
+  if (g === 'day') {
+    const d = format(parsed, 'yyyy-MM-dd');
+    return { startDate: d, endDate: d };
+  }
+  if (g === 'month') {
+    return {
+      startDate: format(startOfMonth(parsed), 'yyyy-MM-dd'),
+      endDate: format(endOfMonth(parsed), 'yyyy-MM-dd'),
+    };
+  }
+  return {
+    startDate: format(startOfYear(parsed), 'yyyy-MM-dd'),
+    endDate: format(endOfYear(parsed), 'yyyy-MM-dd'),
+  };
 }
 
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
@@ -228,8 +341,6 @@ function ChartPlotShell({ heightPx, children }: { heightPx: number; children: Re
  */
 const OVERVIEW_CHART_CONTAINER_CLASS =
   'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:h-full [&_.recharts-responsive-container]:w-full [&_.recharts-responsive-container]:max-h-full';
-const EVOLUTION_CHART_CONTAINER_CLASS =
-  'h-full w-full min-h-0 min-w-0 !aspect-auto overflow-hidden [&_.recharts-responsive-container]:!h-full [&_.recharts-responsive-container]:!w-full [&_.recharts-wrapper]:!h-full [&_.recharts-wrapper]:!w-full';
 const DEV_MOCK_EVOLUTION =
   process.env.NEXT_PUBLIC_DEV_MOCK_EVOLUTION === 'true' && process.env.NODE_ENV === 'development';
 
@@ -276,27 +387,6 @@ function OverviewChartPlot({
         {children}
       </ChartContainer>
     </ChartPlotShell>
-  );
-}
-
-function EvolutionChartPlot({
-  chartId,
-  config,
-  children,
-}: {
-  chartId: string;
-  config: ChartConfig;
-  children: ReactElement;
-}) {
-  return (
-    <div
-      className='relative w-full min-h-0 min-w-0 overflow-hidden rounded-md'
-      style={{ height: CHART_EVOLUTION_H, minHeight: CHART_EVOLUTION_H }}
-    >
-      <ChartContainer id={chartId} className={EVOLUTION_CHART_CONTAINER_CLASS} config={config}>
-        {children}
-      </ChartContainer>
-    </div>
   );
 }
 
@@ -352,6 +442,13 @@ type ApplicationsOverviewDashboardProps = OverviewFilters & {
   onServiceOrderStatusChange?: (status: ServiceOrderStatus | undefined) => void;
   onDateRangeChange?: (range: { startDate: string; endDate: string } | undefined) => void;
   onClearOverviewFilters?: () => void;
+  /**
+   * DEV ONLY — usado pela rota `/debug/applications-overview`.
+   * Força dados mock na evolução temporal (mesmo contrato da API) para validar render sem auth.
+   */
+  __devEvolutionMock?: boolean;
+  /** DEV ONLY — força série vazia no gráfico de evolução (branch `empty`). */
+  __devEvolutionEmpty?: boolean;
 };
 
 const BAR_SELECTED = 'hsl(var(--primary))';
@@ -364,6 +461,8 @@ export function ApplicationsOverviewDashboard({
   onServiceOrderStatusChange,
   onDateRangeChange,
   onClearOverviewFilters,
+  __devEvolutionMock = false,
+  __devEvolutionEmpty = false,
   ...filters
 }: ApplicationsOverviewDashboardProps) {
   const [inconsistencySheetOpen, setInconsistencySheetOpen] = useState(false);
@@ -445,97 +544,75 @@ export function ApplicationsOverviewDashboard({
     },
     [onDateRangeChange]
   );
-  const hasExplicitDateRange = Boolean(filters.startDate && filters.endDate);
-  const effectiveDateRange = useMemo(() => {
-    if (filters.startDate && filters.endDate) {
-      return { startDate: filters.startDate, endDate: filters.endDate };
-    }
-    return undefined;
-  }, [filters.endDate, filters.startDate]);
+  const [evolutionMode, setEvolutionMode] = useState<EvolutionGranularity>('month');
 
-  const [evolutionMode, setEvolutionMode] = useState<EvolutionMode>('auto');
+  const hasManualPeriodFilter = Boolean(filters.startDate && filters.endDate);
 
-  const resolvedEvolutionGranularity = useMemo(
-    () =>
-      resolveEvolutionGranularity(
-        evolutionMode,
-        effectiveDateRange?.startDate,
-        effectiveDateRange?.endDate
-      ),
-    [evolutionMode, effectiveDateRange?.endDate, effectiveDateRange?.startDate]
+  const effectiveEvolutionWindow = useMemo(
+    () => getEffectiveEvolutionWindow(filters.startDate, filters.endDate, evolutionMode),
+    [filters.startDate, filters.endDate, evolutionMode]
   );
 
-  const evolutionApiRange = useMemo(() => {
-    if (!effectiveDateRange) {
-      return {
-        startDate: undefined,
-        endDate: undefined,
-        dayRangeCapped: false,
-      };
-    }
+  const evolutionBucketKeys = useMemo(
+    () => buildBucketKeysWithinWindow(evolutionMode, effectiveEvolutionWindow),
+    [evolutionMode, effectiveEvolutionWindow]
+  );
 
-    const start = parseISO(effectiveDateRange.startDate);
-    const end = parseISO(effectiveDateRange.endDate);
-    const spanDays = differenceInCalendarDays(end, start) + 1;
-    let rangeStart = start;
-    let rangeEnd = end;
-    let dayRangeCapped = false;
-    if (resolvedEvolutionGranularity === 'day' && spanDays > EVOLUTION_DAY_CLIP_DAYS) {
-      rangeStart = maxDate([start, subDays(end, EVOLUTION_DAY_CLIP_DAYS - 1)]);
-      dayRangeCapped = true;
-    }
+  const evolutionQueryParams = useMemo(() => {
+    const dateParams =
+      filters.startDate && filters.endDate
+        ? { startDate: filters.startDate, endDate: filters.endDate }
+        : {
+            startDate: format(effectiveEvolutionWindow.start, 'yyyy-MM-dd'),
+            endDate: format(effectiveEvolutionWindow.end, 'yyyy-MM-dd'),
+          };
     return {
-      startDate: format(rangeStart, 'yyyy-MM-dd'),
-      endDate: format(rangeEnd, 'yyyy-MM-dd'),
-      dayRangeCapped,
+      search: filters.search,
+      serviceOrderStatus: filters.serviceOrderStatus,
+      farmId: filters.farmId,
+      pilotId: filters.pilotId,
+      productId: filters.productId,
+      customerId: filters.customerId,
+      serviceOrderId: filters.serviceOrderId,
+      invalidApplication: filters.invalidApplication,
+      ...dateParams,
+      granularity: evolutionMode,
     };
   }, [
-    effectiveDateRange,
-    resolvedEvolutionGranularity,
+    effectiveEvolutionWindow.start.getTime(),
+    effectiveEvolutionWindow.end.getTime(),
+    evolutionMode,
+    filters.customerId,
+    filters.endDate,
+    filters.farmId,
+    filters.invalidApplication,
+    filters.pilotId,
+    filters.productId,
+    filters.search,
+    filters.serviceOrderId,
+    filters.serviceOrderStatus,
+    filters.startDate,
   ]);
 
-  const evolutionMonthsParam = useMemo(() => {
-    if (resolvedEvolutionGranularity === 'day') return EVOLUTION_DAY_CLIP_DAYS;
-    if (resolvedEvolutionGranularity === 'year') return 40;
-    return 24;
-  }, [resolvedEvolutionGranularity]);
-
-  const evolutionQueryParams = useMemo(
-    () => ({
-      ...filters,
-      startDate: hasExplicitDateRange ? evolutionApiRange.startDate : undefined,
-      endDate: hasExplicitDateRange ? evolutionApiRange.endDate : undefined,
-      months: evolutionMonthsParam,
-      granularity: resolvedEvolutionGranularity,
-    }),
-    [
-      filters,
-      hasExplicitDateRange,
-      evolutionApiRange.startDate,
-      evolutionApiRange.endDate,
-      evolutionMonthsParam,
-      resolvedEvolutionGranularity,
-    ]
-  );
-
   const evolutionCardSubtitle = useMemo(() => {
-    const segment =
-      resolvedEvolutionGranularity === 'day'
-        ? 'Últimos dias no período selecionado'
-        : resolvedEvolutionGranularity === 'month'
-          ? 'Últimos meses no período selecionado'
-          : 'Últimos anos no período selecionado';
-    if (evolutionMode === 'auto') {
-      return `${segment} · granularidade automática`;
-    }
     const gLabel =
-      resolvedEvolutionGranularity === 'day'
-        ? 'dia'
-        : resolvedEvolutionGranularity === 'month'
-          ? 'mês'
-          : 'ano';
+      evolutionMode === 'day' ? 'dia' : evolutionMode === 'month' ? 'mês' : 'ano';
+    if (hasManualPeriodFilter) {
+      return `Período do painel: ${filters.startDate} a ${filters.endDate} · agregação por ${gLabel}`;
+    }
+    const segment =
+      evolutionMode === 'day'
+        ? `Últimos ${EVOLUTION_DAY_BUCKET_COUNT} dias`
+        : evolutionMode === 'month'
+          ? 'Meses do ano atual até o momento'
+          : `Últimos ${EVOLUTION_YEAR_BUCKET_COUNT} anos`;
     return `${segment} · agregação por ${gLabel}`;
-  }, [evolutionMode, resolvedEvolutionGranularity]);
+  }, [
+    evolutionMode,
+    filters.endDate,
+    filters.startDate,
+    hasManualPeriodFilter,
+  ]);
 
   const filtersActive = useMemo(() => hasActiveOverviewFilters(filters), [filters]);
   const statusOptions = useMemo(
@@ -567,26 +644,70 @@ export function ApplicationsOverviewDashboard({
   const looseCount = stats?.pendingApplicationsCount ?? 0;
   const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
-  const evolution = useMemo(
-    () =>
-      DEV_MOCK_EVOLUTION
-        ? getDevMockEvolution(resolvedEvolutionGranularity)
-        : (evolutionQuery.data?.evolution ?? []),
-    [evolutionQuery.data?.evolution, resolvedEvolutionGranularity]
-  );
+  const evolutionMockActive =
+    DEV_MOCK_EVOLUTION ||
+    (process.env.NODE_ENV === 'development' && __devEvolutionMock);
+
+  const evolution = useMemo(() => {
+    if (process.env.NODE_ENV === 'development' && __devEvolutionEmpty) {
+      return [] as Array<{ date: string; applicationsCount: number }>;
+    }
+    if (evolutionMockActive) {
+      return getDevMockEvolution(evolutionMode);
+    }
+    return evolutionQuery.data?.evolution ?? [];
+  }, [
+    evolutionQuery.data?.evolution,
+    evolutionMode,
+    evolutionMockActive,
+    __devEvolutionEmpty,
+  ]);
   const chartData = useMemo(() => {
-    return evolution
-      .filter((item) => typeof item.date === 'string' && item.date.length >= 10)
-      .map((item) => ({
-        name: item.date,
-        value: Number(item.applicationsCount || 0),
-      }));
-  }, [evolution]);
+    if (process.env.NODE_ENV === 'development' && __devEvolutionEmpty) {
+      return [] as Array<{ name: string; value: number }>;
+    }
+    return mergeEvolutionSeriesWithZeros(evolution, evolutionBucketKeys);
+  }, [evolution, evolutionBucketKeys, __devEvolutionEmpty]);
+
   const isSingleBucket = chartData.length === 1;
-  const evolutionRenderBranch =
-    chartData.length === 0 ? 'empty' : chartData.length === 1 ? 'single-bar' : 'multi-line';
-  const evolutionIsPending = DEV_MOCK_EVOLUTION ? false : evolutionQuery.isPending;
-  const evolutionIsError = DEV_MOCK_EVOLUTION ? false : evolutionQuery.isError;
+
+  const evolutionSelectedBucketKey = useMemo(() => {
+    if (!filters.startDate || !filters.endDate || chartData.length === 0) return null;
+    for (const row of chartData) {
+      const r = bucketDateRangeFromEvolutionPoint(row.name, evolutionMode);
+      if (r && r.startDate === filters.startDate && r.endDate === filters.endDate) {
+        return row.name;
+      }
+    }
+    return null;
+  }, [chartData, filters.startDate, filters.endDate, evolutionMode]);
+
+  /**
+   * Drill-down temporal: Ano → aplica ano civil + passa a Mês; Mês → mês civil + passa a Dia;
+   * Dia → só aquele dia (permanece em Dia). O painel inteiro segue `onDateRangeChange`.
+   * Se o intervalo já for o mesmo, remove o período (comportamento de toggle).
+   */
+  const handleEvolutionBucketClick = useCallback(
+    (pointName: string) => {
+      if (!onDateRangeChange) return;
+      const range = bucketDateRangeFromEvolutionPoint(pointName, evolutionMode);
+      if (!range) return;
+      if (filters.startDate === range.startDate && filters.endDate === range.endDate) {
+        onDateRangeChange(undefined);
+        return;
+      }
+      onDateRangeChange(range);
+      if (evolutionMode === 'year') {
+        setEvolutionMode('month');
+      } else if (evolutionMode === 'month') {
+        setEvolutionMode('day');
+      }
+    },
+    [onDateRangeChange, evolutionMode, filters.startDate, filters.endDate]
+  );
+
+  const evolutionIsPending = evolutionMockActive ? false : evolutionQuery.isPending;
+  const evolutionIsError = evolutionMockActive ? false : evolutionQuery.isError;
 
   const productData = useMemo(() => {
     return [...(stats?.typeOfProducts || [])]
@@ -730,13 +851,6 @@ export function ApplicationsOverviewDashboard({
     }
     return base;
   }, [allPilots, filters.pilotId, pilotChipLabel]);
-
-  console.log('[EvolutionChart]', {
-    resolvedEvolutionGranularity,
-    chartDataLength: chartData.length,
-    chartData,
-    renderBranch: evolutionRenderBranch,
-  });
 
   return (
     <div className='space-y-5'>
@@ -996,17 +1110,19 @@ export function ApplicationsOverviewDashboard({
           <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
             <div className='min-w-0 space-y-1 pr-0 sm:pr-2'>
               <CardTitle className='text-base'>Evolução temporal de aplicações</CardTitle>
-              <CardDescription>{evolutionCardSubtitle}</CardDescription>
-              {evolutionApiRange.dayRangeCapped ? (
-                <p className='text-xs text-amber-800 dark:text-amber-400/90 leading-relaxed'>
-                  Visualização diária limitada aos últimos {EVOLUTION_DAY_CLIP_DAYS} dias do período
-                  selecionado para manter o gráfico legível. Reduza o intervalo nas datas ou use Mês/Ano.
-                </p>
-              ) : null}
+              <CardDescription>
+                {evolutionCardSubtitle}
+                {onDateRangeChange ? (
+                  <span className='mt-1 block text-xs text-muted-foreground'>
+                    Clique num ponto: em Ano desce para meses daquele ano; em Mês para dias daquele
+                    mês; em Dia filtra o dia. O painel e a aba Registros acompanham o período.
+                  </span>
+                ) : null}
+              </CardDescription>
             </div>
             <Select
               value={evolutionMode}
-              onValueChange={(v) => setEvolutionMode(v as EvolutionMode)}
+              onValueChange={(v) => setEvolutionMode(v as EvolutionGranularity)}
             >
               <SelectTrigger
                 aria-label='Granularidade da evolução temporal'
@@ -1015,7 +1131,6 @@ export function ApplicationsOverviewDashboard({
                 <SelectValue placeholder='Granularidade' />
               </SelectTrigger>
               <SelectContent align='end'>
-                <SelectItem value='auto'>Auto</SelectItem>
                 <SelectItem value='day'>Dia</SelectItem>
                 <SelectItem value='month'>Mês</SelectItem>
                 <SelectItem value='year'>Ano</SelectItem>
@@ -1043,57 +1158,10 @@ export function ApplicationsOverviewDashboard({
                 hint={emptyChartHint}
               />
             </ChartPlotShell>
-          ) : isSingleBucket ? (
-            <EvolutionChartPlot
-              chartId='overview-evolution-single-bar'
-              config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
-            >
-              <BarChart data={chartData} margin={{ left: 4, right: 8, top: 8, bottom: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray='3 3' />
-                <XAxis
-                  dataKey='name'
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(v) => formatByGranularity(String(v), resolvedEvolutionGranularity)}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  width={36}
-                  tickFormatter={(value) => formatCompact(Number(value))}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) =>
-                        formatByGranularity(String(label), resolvedEvolutionGranularity, true)
-                      }
-                      formatter={(value) => [
-                        `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
-                        '',
-                      ]}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey='value'
-                  fill='var(--color-applications)'
-                  radius={[4, 4, 0, 0]}
-                  minPointSize={24}
-                  isAnimationActive={false}
-                >
-                  <LabelList
-                    dataKey='value'
-                    position='top'
-                    formatter={(value: number) => Number(value ?? 0).toLocaleString('pt-BR')}
-                    className='fill-foreground text-[11px]'
-                  />
-                </Bar>
-              </BarChart>
-            </EvolutionChartPlot>
           ) : (
-            <EvolutionChartPlot
-              chartId='overview-evolution-line'
+            <OverviewChartPlot
+              heightPx={CHART_EVOLUTION_H}
+              chartId='overview-evolution-temporal'
               config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
             >
               <LineChart
@@ -1101,8 +1169,8 @@ export function ApplicationsOverviewDashboard({
                 margin={{
                   left: 4,
                   right: 8,
-                  top: 8,
-                  bottom: resolvedEvolutionGranularity === 'day' ? 28 : 8,
+                  top: isSingleBucket ? 16 : 8,
+                  bottom: evolutionMode === 'day' ? 28 : 12,
                 }}
               >
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
@@ -1111,18 +1179,18 @@ export function ApplicationsOverviewDashboard({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  minTickGap={resolvedEvolutionGranularity === 'day' ? 4 : 8}
-                  angle={resolvedEvolutionGranularity === 'day' ? -30 : 0}
-                  textAnchor={resolvedEvolutionGranularity === 'day' ? 'end' : 'middle'}
-                  height={resolvedEvolutionGranularity === 'day' ? 48 : undefined}
+                  minTickGap={evolutionMode === 'day' ? 4 : 8}
+                  angle={evolutionMode === 'day' ? -30 : 0}
+                  textAnchor={evolutionMode === 'day' ? 'end' : 'middle'}
+                  height={evolutionMode === 'day' ? 48 : 40}
                   tickFormatter={(v) =>
-                    formatByGranularity(String(v), resolvedEvolutionGranularity, false)
+                    formatByGranularity(String(v), evolutionMode, false)
                   }
                   interval='preserveStartEnd'
                 />
                 <YAxis
                   allowDecimals={false}
-                  width={36}
+                  width={40}
                   domain={[0, 'dataMax + 1']}
                   tickFormatter={(value) => formatCompact(Number(value))}
                 />
@@ -1130,7 +1198,7 @@ export function ApplicationsOverviewDashboard({
                   content={
                     <ChartTooltipContent
                       labelFormatter={(label) =>
-                        formatByGranularity(String(label), resolvedEvolutionGranularity, true)
+                        formatByGranularity(String(label), evolutionMode, true)
                       }
                       formatter={(value) => [
                         `${Number(value ?? 0).toLocaleString('pt-BR')} aplicações`,
@@ -1140,18 +1208,70 @@ export function ApplicationsOverviewDashboard({
                   }
                 />
                 <Line
-                  type='monotone'
+                  type='linear'
                   dataKey='value'
                   name='Aplicações'
                   stroke='var(--color-applications)'
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  strokeWidth={2.5}
+                  strokeOpacity={1}
+                  dot={(dotProps: { cx?: number; cy?: number; payload?: { name: string; value: number } }) => {
+                    const { cx, cy, payload } = dotProps;
+                    if (cx == null || cy == null || !payload) return <g />;
+                    const selected = evolutionSelectedBucketKey === payload.name;
+                    const baseR = isSingleBucket ? 7 : 4;
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={selected ? baseR + 2.5 : baseR}
+                        fill='var(--color-applications)'
+                        stroke='var(--background)'
+                        strokeWidth={2}
+                        className={
+                          onDateRangeChange
+                            ? 'cursor-pointer outline-none transition-[r] duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring'
+                            : undefined
+                        }
+                        onClick={
+                          onDateRangeChange
+                            ? (e) => {
+                                e.stopPropagation();
+                                handleEvolutionBucketClick(payload.name);
+                              }
+                            : undefined
+                        }
+                      />
+                    );
+                  }}
+                  activeDot={(dotProps: { cx?: number; cy?: number; payload?: { name: string; value: number } }) => {
+                    const { cx, cy, payload } = dotProps;
+                    if (cx == null || cy == null || !payload) return <g />;
+                    const selected = evolutionSelectedBucketKey === payload.name;
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={selected ? 12 : 8}
+                        fill='var(--color-applications)'
+                        stroke='var(--background)'
+                        strokeWidth={2}
+                        className={onDateRangeChange ? 'cursor-pointer' : undefined}
+                        onClick={
+                          onDateRangeChange
+                            ? (e) => {
+                                e.stopPropagation();
+                                handleEvolutionBucketClick(payload.name);
+                              }
+                            : undefined
+                        }
+                      />
+                    );
+                  }}
                   connectNulls={false}
                   isAnimationActive={false}
                 />
               </LineChart>
-            </EvolutionChartPlot>
+            </OverviewChartPlot>
           )}
         </CardContent>
       </Card>
@@ -1614,7 +1734,7 @@ function InconsistenciesAlertCard({
     >
       <div className='flex items-start justify-between gap-2'>
         <div className='flex items-center gap-2 min-w-0'>
-          <Map className='h-3.5 w-3.5 shrink-0' aria-hidden />
+          <MapIcon className='h-3.5 w-3.5 shrink-0' aria-hidden />
           <span className='text-xs font-medium leading-tight'>{title}</span>
         </div>
         <ChevronRight
@@ -1650,7 +1770,7 @@ function AlertRow({
   return (
     <div className={`rounded-md border p-3 ${toneClasses}`}>
       <div className='flex items-center gap-2'>
-        <Map className='h-3.5 w-3.5' />
+        <MapIcon className='h-3.5 w-3.5' />
         <span className='text-xs font-medium'>{label}</span>
       </div>
       <div className='mt-2 text-xl font-semibold leading-none'>{value}</div>

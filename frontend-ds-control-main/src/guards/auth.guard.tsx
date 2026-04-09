@@ -11,8 +11,6 @@ interface AuthGuardProps {
 }
 
 const LOGIN_ROUTES = ['/auth'];
-const DEV_BYPASS_AUTH =
-  process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true' && process.env.NODE_ENV === 'development';
 
 export const AuthGuard = ({ children }: AuthGuardProps) => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -22,8 +20,6 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (DEV_BYPASS_AUTH) return;
-
     const isLoginRoute = LOGIN_ROUTES.includes('/' + path.split('/')[1]);
 
     if (!loading && isAuthenticated && !isLoginRoute && user?.type !== UserType.BACKOFFICE.value) {

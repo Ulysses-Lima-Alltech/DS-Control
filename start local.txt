@@ -1,0 +1,11 @@
+Back
+cd "C:\Users\ulyss\Desktop\DS Control\DS Control_Projeto\backend-ds-control-main"
+docker run -d -p 6379:6379 redis
+npm install
+npm run dev
+
+
+Front
+cd "C:\Users\ulyss\Desktop\DS Control\DS Control_Projeto\frontend-ds-control-main"
+npm install
+npm run dev

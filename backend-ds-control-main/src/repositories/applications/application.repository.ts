@@ -1,7 +1,7 @@
 import { db } from "@infra/database";
 import { applications, customers, farms, plots, products, serviceOrderPlots, serviceOrders, users } from "@infra/database/schema";
 import type { ApplicationIssueFilter } from "@modules/application/dto/get-all-application.dto";
-import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { DateTime } from 'luxon';
 import { Application, ApplicationOrderBy, ApplicationOrderType, ApplicationWithRelations, CreateApplication, DrizzleApplicationQueryResult, UpdateApplication } from "./application.types";
@@ -180,8 +180,8 @@ export class ApplicationRepository {
           serviceOrderId?: string;
           invalidApplication?: boolean;
           applicationIssue?: ApplicationIssueFilter;
-          startDate?: Date;
-          endDate?: Date;
+          startDate?: Date | string;
+          endDate?: Date | string;
         }
       | undefined,
   ): SQL[] {
@@ -333,12 +333,16 @@ export class ApplicationRepository {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-
-      whereConditions.push(
-        and(gte(applications.date, filters.startDate), lt(applications.date, adjustEndDate))!,
-      );
+      const startD =
+        typeof filters.startDate === "string"
+          ? filters.startDate.slice(0, 10)
+          : filters.startDate.toISOString().slice(0, 10);
+      const endD =
+        typeof filters.endDate === "string"
+          ? filters.endDate.slice(0, 10)
+          : filters.endDate.toISOString().slice(0, 10);
+      whereConditions.push(sql`(${applications.date})::date >= ${sql.raw(`'${startD}'`)}::date`);
+      whereConditions.push(sql`(${applications.date})::date <= ${sql.raw(`'${endD}'`)}::date`);
     }
 
     return whereConditions;
@@ -365,8 +369,8 @@ export class ApplicationRepository {
       serviceOrderId?: string;
       invalidApplication?: boolean;
       applicationIssue?: ApplicationIssueFilter;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: Date | string;
+      endDate?: Date | string;
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
@@ -927,8 +931,8 @@ export class ApplicationRepository {
       serviceOrderId?: string;
       invalidApplication?: boolean;
       applicationIssue?: ApplicationIssueFilter;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: Date | string;
+      endDate?: Date | string;
     }
   ): Promise<number> {
     const hasListFilters =
@@ -958,7 +962,7 @@ export class ApplicationRepository {
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
     const [result] = await db
-      .select({ count: count() })
+      .select({ count: countDistinct(applications.id) })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
       .leftJoin(plots, eq(applications.plotId, plots.id))
