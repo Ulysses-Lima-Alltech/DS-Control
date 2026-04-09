@@ -27,6 +27,12 @@ export interface ApplicationStatsDTO {
      * Com invalidApplication: soma = pendingApplicationsCount (partição disjunta por aplicação).
      */
     pendingApplicationsOtherThanInvalidOpenCount: number;
+    /** Média operacional baseada em hectares totais / dias do recorte atual. */
+    operationalAverageHectaresPerDay: number;
+    /** Média operacional baseada em hectares totais / drones distintos no recorte atual. */
+    operationalAverageHectaresPerDrone: number;
+    /** Média operacional baseada em hectares totais / pilotos distintos no recorte atual. */
+    operationalAverageHectaresPerPilot: number;
 }
 
 // Query string schema for filtered statistics

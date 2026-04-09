@@ -20,6 +20,7 @@ import { PilotPerformanceDTO } from "../dto/stats-performance.dto";
 import { ApplicationSummaryStatsDTO } from "../dto/stats-summary.dto";
 import type { ApplicationEvolutionQueryString } from "../dto/stats-evolution.dto";
 import type { TopFarmsStatsQueryString } from "../dto/stats-top-farms.dto";
+import type { ByPilotStatsQueryString } from "../dto/stats-by-pilot.dto";
 import type { UpdateApplicationDTO } from "../dto/update-application.dto";
 
 import type { DashboardMetricsDTO, DashboardMetricsQueryString, MonthlySprayedArea, YesterdayStats } from "../dto/dashboard-metrics.dto";
@@ -168,6 +169,31 @@ export class ApplicationService {
       whereClause: whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0],
       needsJoins
     };
+  }
+
+  private async getOperationalDayCount(filters?: ApplicationStatsQueryString): Promise<number> {
+    if (filters?.startDate && filters?.endDate) {
+      const startDate = new Date(`${filters.startDate}T00:00:00`);
+      const endDate = new Date(`${filters.endDate}T00:00:00`);
+      const diffInMs = endDate.getTime() - startDate.getTime();
+      const diffDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1;
+      return Math.max(1, diffDays);
+    }
+
+    const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const result = await db
+      .select({
+        days: sql<number>`COUNT(DISTINCT (${applications.date})::date)`,
+      })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(whereClause);
+
+    return Number(result[0]?.days || 0);
   }
 
   /**
@@ -609,6 +635,7 @@ export class ApplicationService {
       pendingPlotsCount,
       pendingApplicationsMissingFarmCount,
       pendingApplicationsOtherThanInvalidOpenCount,
+      operationalDayCount,
     ] = await Promise.all([
       this.getApplicationCount(effectiveFilters),
       this.getApplicationCountByMonth(), // Keep this unfiltered as per requirement
@@ -630,6 +657,7 @@ export class ApplicationService {
       this.getPendingPlotsCount(effectiveFilters),
       this.getPendingApplicationsMissingFarmCount(effectiveFilters),
       this.getPendingApplicationsOtherThanInvalidOpen(effectiveFilters),
+      this.getOperationalDayCount(effectiveFilters),
     ]);
 
     // Calculate days elapsed for total hectares
@@ -641,6 +669,10 @@ export class ApplicationService {
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const daysElapsedMonth = this.calculateDaysElapsed(firstDayOfMonth, today);
     const totalHectaresByMonthPerDay = daysElapsedMonth > 0 ? totalHectaresByMonth / daysElapsedMonth : 0;
+    const operationalAverageHectaresPerDay =
+      operationalDayCount > 0 ? totalAreaHectares / operationalDayCount : 0;
+    const operationalAverageHectaresPerDrone = dronesCount > 0 ? totalAreaHectares / dronesCount : 0;
+    const operationalAverageHectaresPerPilot = pilotsCount > 0 ? totalAreaHectares / pilotsCount : 0;
 
     return {
       applicationCount,
@@ -664,7 +696,51 @@ export class ApplicationService {
       pendingPlotsCount,
       pendingApplicationsMissingFarmCount,
       pendingApplicationsOtherThanInvalidOpenCount,
+      operationalAverageHectaresPerDay,
+      operationalAverageHectaresPerDrone,
+      operationalAverageHectaresPerPilot,
     }
+  }
+
+  public async getStatsByPilot(filters?: ByPilotStatsQueryString): Promise<Array<{
+    pilotId: string | null;
+    pilotName: string;
+    applicationsCount: number;
+    totalAreaHectares: number;
+    averageAreaPerApplication: number;
+  }>> {
+    const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const limit = filters?.limit ?? 10;
+
+    const result = await db
+      .select({
+        pilotId: users.id,
+        pilotName: sql<string>`COALESCE(${users.name}, 'Piloto não informado')`,
+        applicationsCount: countDistinct(applications.id),
+        totalAreaHectares: sum(applications.hectares),
+      })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(whereClause)
+      .groupBy(users.id, users.name)
+      .orderBy(sql`COALESCE(SUM(${applications.hectares}), 0) DESC`)
+      .limit(limit);
+
+    return result.map((row) => {
+      const totalArea = Number(row.totalAreaHectares || 0);
+      const applicationsCount = Number(row.applicationsCount || 0);
+      return {
+        pilotId: row.pilotId,
+        pilotName: row.pilotName,
+        applicationsCount,
+        totalAreaHectares: totalArea,
+        averageAreaPerApplication: applicationsCount > 0 ? totalArea / applicationsCount : 0,
+      };
+    });
   }
 
   public async getTopFarmsStats(filters?: TopFarmsStatsQueryString): Promise<Array<{

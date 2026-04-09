@@ -21,6 +21,7 @@ import {
 } from "./dto/stats-evolution.dto";
 import { ApplicationStatsQueryStringSchema } from "./dto/stats.dto";
 import { TopFarmStatsSchema, TopFarmsStatsQueryStringSchema } from "./dto/stats-top-farms.dto";
+import { ByPilotStatsItemSchema, ByPilotStatsQueryStringSchema } from "./dto/stats-by-pilot.dto";
 import { UpdateApplicationSchema } from "./dto/update-application.dto";
 
 export function ApplicationV1Routes(
@@ -45,6 +46,25 @@ export function ApplicationV1Routes(
     },
     preHandler: [AuthenticationJWT],
     handler: controller.listApplications,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/stats/by-pilot",
+    schema: {
+      querystring: ByPilotStatsQueryStringSchema,
+      description: "Retrieve pilot operational breakdown ranked by applied area",
+      summary: "Get applications stats by pilot",
+      tags: ["applications"],
+      response: {
+        200: z.object({
+          message: z.string(),
+          byPilot: z.array(ByPilotStatsItemSchema),
+        }),
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.getStatsByPilot,
   });
 
   // Create a new application
@@ -304,6 +324,9 @@ export function ApplicationV1Routes(
             pendingPlotsCount: z.number(),
             pendingApplicationsMissingFarmCount: z.number(),
             pendingApplicationsOtherThanInvalidOpenCount: z.number(),
+            operationalAverageHectaresPerDay: z.number(),
+            operationalAverageHectaresPerDrone: z.number(),
+            operationalAverageHectaresPerPilot: z.number(),
           }),
         }),
       },

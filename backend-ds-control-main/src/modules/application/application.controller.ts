@@ -3,6 +3,7 @@ import type { CreateApplicationDTO } from "./dto/create-application.dto";
 import type { ApplicationStatsQueryString } from "./dto/stats.dto";
 import type { ApplicationEvolutionQueryString } from "./dto/stats-evolution.dto";
 import type { TopFarmsStatsQueryString } from "./dto/stats-top-farms.dto";
+import type { ByPilotStatsQueryString } from "./dto/stats-by-pilot.dto";
 import type { UpdateApplicationDTO } from "./dto/update-application.dto";
 import type { DashboardMetricsQueryString } from "./dto/dashboard-metrics.dto";
 import type { ApplicationIssueFilter } from "./dto/get-all-application.dto";
@@ -530,6 +531,38 @@ export class ApplicationController {
 
       app.log.error(
         "[ApplicationController] - Unexpected error during applications evolution retrieval: %o",
+        { error },
+      );
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  }
+
+  public getStatsByPilot = async (
+    request: FastifyRequest<{ Querystring: ByPilotStatsQueryString }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[ApplicationController] - Fetching by-pilot operational stats");
+
+      const byPilot = await this.service.getStatsByPilot(request.query);
+
+      app.log.info("[ApplicationController] - Successfully retrieved by-pilot operational stats");
+      return reply.status(200).send({
+        message: "By-pilot operational stats retrieved successfully",
+        byPilot,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn(
+          "[ApplicationController] - Failed to retrieve by-pilot operational stats: %s",
+          error.message,
+        );
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error(
+        "[ApplicationController] - Unexpected error during by-pilot stats retrieval: %o",
         { error },
       );
       reply.status(500).send(new AppError("Internal server error", 500, error).throw());

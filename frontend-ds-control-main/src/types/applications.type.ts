@@ -82,6 +82,9 @@ export type ApplicationStats = {
    * Pendências estruturais fora do recorte invalidApplication; com invalidApplication soma ao total de pendências.
    */
   pendingApplicationsOtherThanInvalidOpenCount?: number;
+  operationalAverageHectaresPerDay: number;
+  operationalAverageHectaresPerDrone: number;
+  operationalAverageHectaresPerPilot: number;
 };
 
 export enum ApplicationOrderBy {

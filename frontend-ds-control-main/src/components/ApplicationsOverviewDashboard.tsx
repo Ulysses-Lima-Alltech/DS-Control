@@ -23,11 +23,12 @@ import {
   Info,
   Leaf,
   Map as MapIcon,
+  User as UserIcon,
   RefreshCw,
-  SprayCan,
   TrendingUp,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from 'recharts';
@@ -56,14 +57,17 @@ import {
 } from '@/components/ui/sheet';
 import {
   useGetApplicationsEvolution,
+  useGetApplicationsByPilotStats,
   useGetApplicationsTopFarms,
   useGetStatsApplications,
 } from '@/queries/application.query';
+import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetFarmById } from '@/queries/farm.query';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import { useGetAllProductsInfinite, useGetProductById } from '@/queries/product.query';
 import { useGetAllUsersInfinite, useGetUserById } from '@/queries/user.query';
 import type { Farm } from '@/types/farm.type';
+import type { Customer } from '@/types/customer.type';
 import type { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 import type { User } from '@/types/user.type';
@@ -437,6 +441,7 @@ function AlertsSkeleton() {
 type ApplicationsOverviewDashboardProps = OverviewFilters & {
   onNavigateRecordsWithIssue?: (issue: ApplicationIssueFilter) => void;
   onFarmFilterChange?: (farmId: string | undefined) => void;
+  onCustomerFilterChange?: (customerId: string | undefined) => void;
   onProductFilterChange?: (productId: string | undefined) => void;
   onPilotFilterChange?: (pilotId: string | undefined) => void;
   onServiceOrderStatusChange?: (status: ServiceOrderStatus | undefined) => void;
@@ -456,6 +461,7 @@ const BAR_SELECTED = 'hsl(var(--primary))';
 export function ApplicationsOverviewDashboard({
   onNavigateRecordsWithIssue,
   onFarmFilterChange,
+  onCustomerFilterChange,
   onProductFilterChange,
   onPilotFilterChange,
   onServiceOrderStatusChange,
@@ -466,9 +472,25 @@ export function ApplicationsOverviewDashboard({
   ...filters
 }: ApplicationsOverviewDashboardProps) {
   const [inconsistencySheetOpen, setInconsistencySheetOpen] = useState(false);
+  const [customerSearchValue, setCustomerSearchValue] = useState('');
   const [farmSearchValue, setFarmSearchValue] = useState('');
   const [productSearchValue, setProductSearchValue] = useState('');
   const [pilotSearchValue, setPilotSearchValue] = useState('');
+
+  const {
+    data: customersData,
+    fetchNextPage: fetchNextPageCustomers,
+    hasNextPage: hasNextPageCustomers,
+    isFetchingNextPage: isFetchingNextPageCustomers,
+    isLoading: isLoadingCustomers,
+  } = useGetAllCustomersInfinite({
+    limit: '10',
+    search: customerSearchValue || undefined,
+  });
+  const allCustomers =
+    (customersData as unknown as InfiniteData<{ data: Customer[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
 
   const {
     data: farmsData,
@@ -522,6 +544,9 @@ export function ApplicationsOverviewDashboard({
     queryKey: ['users', 'overview-pilot', filters.pilotId],
     enabled: Boolean(filters.pilotId),
   });
+  const customerLabel =
+    allCustomers.find((customer) => customer.id === filters.customerId)?.name ??
+    (filters.customerId ? `Cliente ${filters.customerId.slice(0, 8)}…` : '');
 
   const handleFarmBarClick = useCallback(
     (row: { farmId: string | null; name: string }) => {
@@ -636,13 +661,11 @@ export function ApplicationsOverviewDashboard({
   const globalStatsQuery = useGetStatsApplications({ ignoreFilters: true });
   const evolutionQuery = useGetApplicationsEvolution(evolutionQueryParams);
   const topFarmsQuery = useGetApplicationsTopFarms({ ...filters, limit: 5 });
+  const byPilotQuery = useGetApplicationsByPilotStats({ ...filters, limit: 10 });
 
   const stats = statsQuery.data?.stats;
   const totalApplications = stats?.applicationCount ?? 0;
   const totalAreaHectares = stats?.totalAreaHectares ?? 0;
-  const avgHectaresPerApplication = stats?.averageApplicationArea ?? 0;
-  const looseCount = stats?.pendingApplicationsCount ?? 0;
-  const loosePercent = totalApplications > 0 ? (looseCount / totalApplications) * 100 : 0;
 
   const evolutionMockActive =
     DEV_MOCK_EVOLUTION ||
@@ -801,6 +824,7 @@ export function ApplicationsOverviewDashboard({
   const quickFilterActive = Boolean(
     filters.startDate ||
       filters.endDate ||
+      filters.customerId ||
       filters.farmId ||
       filters.productId ||
       filters.pilotId ||
@@ -815,6 +839,18 @@ export function ApplicationsOverviewDashboard({
   const pilotChipLabel = filters.pilotId
     ? pilotLabelQuery.data?.name ?? `Piloto ${filters.pilotId.slice(0, 8)}…`
     : '';
+
+  const customerOptions = useMemo(() => {
+    const base = allCustomers.map((customer) => ({ value: customer.id, label: customer.name }));
+    if (
+      filters.customerId &&
+      customerLabel &&
+      !base.some((option) => option.value === filters.customerId)
+    ) {
+      return [{ value: filters.customerId, label: customerLabel }, ...base];
+    }
+    return base;
+  }, [allCustomers, customerLabel, filters.customerId]);
 
   const farmOptions = useMemo(() => {
     const base = allFarms.map((farm) => ({ value: farm.id, label: farm.name }));
@@ -867,6 +903,20 @@ export function ApplicationsOverviewDashboard({
                     : undefined
                 }
                 onChange={handleOverviewDateRangeChange}
+              />
+              <SearchableSelectQuery
+                options={customerOptions}
+                value={filters.customerId}
+                onValueChange={(value) => onCustomerFilterChange?.(value as string | undefined)}
+                placeholder='Cliente'
+                searchPlaceholder='Buscar cliente...'
+                className='w-full sm:w-[210px]'
+                clearable
+                onSearchChange={setCustomerSearchValue}
+                onScrollEnd={fetchNextPageCustomers}
+                hasNextPage={hasNextPageCustomers}
+                isFetchingNextPage={isFetchingNextPageCustomers}
+                isLoading={isLoadingCustomers}
               />
               <SearchableSelectQuery
                 options={farmOptions}
@@ -968,6 +1018,22 @@ export function ApplicationsOverviewDashboard({
                   <X className='h-3.5 w-3.5' />
                 </button>
               </Badge>
+              ) : null}
+              {filters.customerId ? (
+                <Badge
+                  variant='secondary'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                >
+                  <span className='max-w-[220px] truncate'>Cliente: {customerLabel}</span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de cliente'
+                    onClick={() => onCustomerFilterChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
               ) : null}
               {filters.productId ? (
               <Badge
@@ -1074,31 +1140,32 @@ export function ApplicationsOverviewDashboard({
 
           <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3'>
             <KpiCard
-              title='Total de aplicações'
-              value={formatNumber(totalApplications)}
-              subtitle='Registros no recorte atual'
-              icon={SprayCan}
-            />
-            <KpiCard
-              title='Área total aplicada'
+              title='Total de hectares no período'
               value={formatNumber(totalAreaHectares)}
               unit='ha'
-              subtitle='Soma de hectares aplicados'
+              subtitle='Soma de área aplicada no recorte'
               icon={Leaf}
             />
             <KpiCard
-              title='Média por aplicação'
-              value={formatNumber(avgHectaresPerApplication)}
-              unit='ha/aplic.'
-              subtitle='Eficiência média por registro'
+              title='Média por dia'
+              value={formatNumber(stats.operationalAverageHectaresPerDay)}
+              unit='ha/dia'
+              subtitle='Área total dividida pelos dias do recorte'
               icon={TrendingUp}
             />
             <KpiCard
-              title='Aplicações avulsas'
-              value={formatNumber(looseCount)}
-              subtitle={`${formatNumber(loosePercent, '%')} do total`}
-              icon={AlertTriangle}
-              tone='warning'
+              title='Média por drone'
+              value={formatNumber(stats.operationalAverageHectaresPerDrone)}
+              unit='ha/drone'
+              subtitle='Área total dividida por drones distintos'
+              icon={TrendingUp}
+            />
+            <KpiCard
+              title='Média por piloto'
+              value={formatNumber(stats.operationalAverageHectaresPerPilot)}
+              unit='ha/piloto'
+              subtitle='Área total dividida por pilotos distintos'
+              icon={UserIcon}
             />
           </div>
         </>
@@ -1484,6 +1551,73 @@ export function ApplicationsOverviewDashboard({
         </Card>
       </div>
 
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-base'>Cruzamento operacional por piloto</CardTitle>
+          <CardDescription>
+            Mostra quem aplicou, quanto aplicou e o rendimento médio por aplicação.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='pt-1'>
+          {byPilotQuery.isPending ? (
+            <div className='space-y-2'>
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <Skeleton key={idx} className='h-10 w-full rounded-md' />
+              ))}
+            </div>
+          ) : byPilotQuery.isError ? (
+            <SectionError
+              compact
+              title='Resumo por piloto indisponível'
+              description={
+                byPilotQuery.error?.message ||
+                'Não foi possível carregar o cruzamento operacional por piloto.'
+              }
+              onRetry={() => byPilotQuery.refetch()}
+            />
+          ) : (byPilotQuery.data?.byPilot?.length ?? 0) === 0 ? (
+            <ChartEmptyState
+              title='Sem dados de pilotos para este recorte.'
+              hint='Ajuste os filtros ou amplie o período para visualizar o detalhamento operacional.'
+            />
+          ) : (
+            <div className='overflow-x-auto rounded-md border'>
+              <table className='w-full text-sm'>
+                <thead className='bg-muted/40'>
+                  <tr>
+                    <th className='px-3 py-2 text-left font-medium'>Piloto</th>
+                    <th className='px-3 py-2 text-right font-medium'>Total (ha)</th>
+                    <th className='px-3 py-2 text-right font-medium'>Aplicações</th>
+                    <th className='px-3 py-2 text-right font-medium'>Média por aplicação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byPilotQuery.data?.byPilot.map((pilot) => (
+                    <tr key={pilot.pilotId ?? pilot.pilotName} className='border-t'>
+                      <td className='px-3 py-2'>{pilot.pilotName}</td>
+                      <td className='px-3 py-2 text-right tabular-nums'>
+                        {pilot.totalAreaHectares.toLocaleString('pt-BR', {
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className='px-3 py-2 text-right tabular-nums'>
+                        {pilot.applicationsCount.toLocaleString('pt-BR')}
+                      </td>
+                      <td className='px-3 py-2 text-right tabular-nums'>
+                        {pilot.averageAreaPerApplication.toLocaleString('pt-BR', {
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        ha/aplic.
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Alertas */}
       {statsQuery.isPending ? (
         <AlertsSkeleton />
@@ -1677,7 +1811,7 @@ function KpiCard({
   value: string;
   unit?: string;
   subtitle: string;
-  icon: typeof SprayCan;
+  icon: LucideIcon;
   tone?: 'default' | 'warning';
 }) {
   return (

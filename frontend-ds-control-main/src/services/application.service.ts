@@ -313,6 +313,23 @@ export type GetTopFarmsApplicationsResponse = {
   topFarms: TopFarmStat[];
 };
 
+export type ByPilotStat = {
+  pilotId: string | null;
+  pilotName: string;
+  applicationsCount: number;
+  totalAreaHectares: number;
+  averageAreaPerApplication: number;
+};
+
+export type GetByPilotApplicationsParams = GetStatsApplicationsParams & {
+  limit?: number;
+};
+
+export type GetByPilotApplicationsResponse = {
+  message: string;
+  byPilot: ByPilotStat[];
+};
+
 export type ApplicationsEvolutionItem = {
   date: string;
   applicationsCount: number;
@@ -393,6 +410,40 @@ export async function getTopFarmsApplications(
     const error = await response.json();
     throw new Error(
       `[Application Service] Erro ao buscar ranking de fazendas: ${error.message}`
+    );
+  }
+
+  return await response.json();
+}
+
+export async function getByPilotApplications(
+  params?: GetByPilotApplicationsParams
+): Promise<GetByPilotApplicationsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
+  if (params?.invalidApplication !== undefined)
+    searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.startDate) searchParams.append('startDate', params.startDate);
+  if (params?.endDate) searchParams.append('endDate', params.endDate);
+  if (params?.limit) searchParams.append('limit', params.limit.toString());
+
+  const url = `/applications/stats/by-pilot${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(
+      `[Application Service] Erro ao buscar estatísticas operacionais por piloto: ${error.message}`
     );
   }
 

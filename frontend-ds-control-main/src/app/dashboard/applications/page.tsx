@@ -77,6 +77,7 @@ export default function AgriculturalApplicationsPage() {
     setFarmId(undefined);
     setProductId(undefined);
     setPilotId(undefined);
+    setCustomerId(undefined);
     setStartDate(undefined);
     setEndDate(undefined);
   }, []);
@@ -111,6 +112,7 @@ export default function AgriculturalApplicationsPage() {
             {...filterProps}
             onNavigateRecordsWithIssue={handleNavigateRecordsWithIssue}
             onFarmFilterChange={setFarmId}
+            onCustomerFilterChange={setCustomerId}
             onProductFilterChange={setProductId}
             onPilotFilterChange={setPilotId}
             onServiceOrderStatusChange={setServiceOrderStatus}

@@ -134,6 +134,20 @@ export const useGetApplicationsTopFarms = (
   });
 };
 
+export const useGetApplicationsByPilotStats = (
+  params?: ApplicationService.GetByPilotApplicationsParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetByPilotApplicationsResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetByPilotApplicationsResponse, Error>({
+    queryKey: ['applications', 'stats', 'by-pilot', params],
+    queryFn: () => ApplicationService.getByPilotApplications(params),
+    ...options,
+  });
+};
+
 export const useGetApplicationsEvolution = (
   params?: ApplicationService.GetApplicationsEvolutionParams,
   options?: Omit<
