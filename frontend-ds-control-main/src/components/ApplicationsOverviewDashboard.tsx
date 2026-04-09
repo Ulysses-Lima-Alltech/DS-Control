@@ -457,6 +457,10 @@ type ApplicationsOverviewDashboardProps = OverviewFilters & {
 };
 
 const BAR_SELECTED = 'hsl(var(--primary))';
+const PRODUCT_BAR_DEFAULT = 'hsl(var(--chart-2) / 0.82)';
+const FARM_BAR_DEFAULT = 'hsl(var(--chart-3) / 0.82)';
+const LINE_COLOR = 'hsl(var(--chart-1))';
+const CHART_GRID_STROKE = 'hsl(var(--border) / 0.55)';
 
 export function ApplicationsOverviewDashboard({
   onNavigateRecordsWithIssue,
@@ -1230,7 +1234,7 @@ export function ApplicationsOverviewDashboard({
             <OverviewChartPlot
               heightPx={CHART_EVOLUTION_H}
               chartId='overview-evolution-temporal'
-              config={{ applications: { label: 'Aplicações', color: 'var(--chart-1)' } }}
+              config={{ applications: { label: 'Aplicações', color: 'hsl(var(--chart-1))' } }}
             >
               <LineChart
                 data={chartData}
@@ -1241,7 +1245,11 @@ export function ApplicationsOverviewDashboard({
                   bottom: evolutionMode === 'day' ? 28 : 12,
                 }}
               >
-                <CartesianGrid vertical={false} strokeDasharray='3 3' />
+                <CartesianGrid
+                  vertical={false}
+                  stroke={CHART_GRID_STROKE}
+                  strokeDasharray='3 3'
+                />
                 <XAxis
                   dataKey='name'
                   tickLine={false}
@@ -1279,8 +1287,8 @@ export function ApplicationsOverviewDashboard({
                   type='linear'
                   dataKey='value'
                   name='Aplicações'
-                  stroke='var(--color-applications)'
-                  strokeWidth={2.5}
+                  stroke={LINE_COLOR}
+                  strokeWidth={3}
                   strokeOpacity={1}
                   dot={(dotProps: { cx?: number; cy?: number; payload?: { name: string; value: number } }) => {
                     const { cx, cy, payload } = dotProps;
@@ -1292,7 +1300,7 @@ export function ApplicationsOverviewDashboard({
                         cx={cx}
                         cy={cy}
                         r={selected ? baseR + 2.5 : baseR}
-                        fill='var(--color-applications)'
+                        fill={LINE_COLOR}
                         stroke='var(--background)'
                         strokeWidth={2}
                         className={
@@ -1320,7 +1328,7 @@ export function ApplicationsOverviewDashboard({
                         cx={cx}
                         cy={cy}
                         r={selected ? 12 : 8}
-                        fill='var(--color-applications)'
+                        fill={LINE_COLOR}
                         stroke='var(--background)'
                         strokeWidth={2}
                         className={onDateRangeChange ? 'cursor-pointer' : undefined}
@@ -1377,7 +1385,7 @@ export function ApplicationsOverviewDashboard({
               <OverviewChartPlot
                 heightPx={productChartHeight}
                 chartId='overview-products-bar'
-                config={{ productBar: { label: 'Hectares', color: 'var(--chart-2)' } }}
+                config={{ productBar: { label: 'Hectares', color: 'hsl(var(--chart-2))' } }}
               >
                 <BarChart
                   data={productData}
@@ -1385,7 +1393,7 @@ export function ApplicationsOverviewDashboard({
                   margin={{ left: 8, right: 14, top: 6, bottom: 6 }}
                   barCategoryGap='12%'
                 >
-                  <CartesianGrid horizontal={false} />
+                  <CartesianGrid horizontal={false} stroke={CHART_GRID_STROKE} />
                   <XAxis
                     type='number'
                     tickFormatter={(value) => `${formatCompact(Number(value))} ha`}
@@ -1432,7 +1440,7 @@ export function ApplicationsOverviewDashboard({
                         fill={
                           entry.productId && filters.productId === entry.productId
                             ? BAR_SELECTED
-                            : 'var(--color-productBar)'
+                            : PRODUCT_BAR_DEFAULT
                         }
                         className={
                           onProductFilterChange && entry.productId
@@ -1480,7 +1488,7 @@ export function ApplicationsOverviewDashboard({
               <OverviewChartPlot
                 heightPx={topFarmsChartHeight}
                 chartId='overview-farms-bar'
-                config={{ farmBar: { label: 'Hectares', color: 'var(--chart-3)' } }}
+                config={{ farmBar: { label: 'Hectares', color: 'hsl(var(--chart-3))' } }}
               >
                 <BarChart
                   data={topFarms}
@@ -1488,7 +1496,7 @@ export function ApplicationsOverviewDashboard({
                   margin={{ left: 8, right: 14, top: 6, bottom: 6 }}
                   barCategoryGap='12%'
                 >
-                  <CartesianGrid horizontal={false} />
+                  <CartesianGrid horizontal={false} stroke={CHART_GRID_STROKE} />
                   <XAxis
                     type='number'
                     tickFormatter={(value) => `${formatCompact(Number(value))} ha`}
@@ -1535,7 +1543,7 @@ export function ApplicationsOverviewDashboard({
                         fill={
                           entry.farmId && filters.farmId === entry.farmId
                             ? BAR_SELECTED
-                            : 'var(--color-farmBar)'
+                            : FARM_BAR_DEFAULT
                         }
                         className={
                           onFarmFilterChange && entry.farmId

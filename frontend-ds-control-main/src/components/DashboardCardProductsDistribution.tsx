@@ -13,7 +13,15 @@ import { Customer } from '@/types/customer.type';
 
 import { Skeleton } from './ui/skeleton';
 
-export const DashboardCardProductsDistribution = () => {
+interface DashboardCardProductsDistributionProps {
+  startDate?: string;
+  endDate?: string;
+}
+
+export const DashboardCardProductsDistribution = ({
+  startDate,
+  endDate,
+}: DashboardCardProductsDistributionProps) => {
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [customerSearchValue, setCustomerSearchValue] = useState('');
@@ -40,6 +48,8 @@ export const DashboardCardProductsDistribution = () => {
     isError: isErrorOnStats,
   } = useGetStatsApplications({
     customerId: selectedCustomerId,
+    startDate,
+    endDate,
   });
 
   if (isLoadingStats) {
@@ -102,10 +112,13 @@ export const DashboardCardProductsDistribution = () => {
             <div className='space-y-3'>
               {displayedProducts.map((product, index) => {
                 const percentage = totalHectares > 0 ? (product.hectares / totalHectares) * 100 : 0;
-                const colors = ['text-emerald-500', 'text-blue-500', 'text-purple-500'];
+                const colors = ['text-emerald-600', 'text-sky-600', 'text-violet-600'];
 
                 return (
-                  <div key={index} className='space-y-1'>
+                  <div
+                    key={index}
+                    className='space-y-1 rounded-md border border-border/40 bg-muted/20 p-2.5'
+                  >
                     <div className='flex items-center justify-between gap-2 min-w-0'>
                       <div className='flex items-center gap-2 min-w-0'>
                         <Droplets
@@ -119,7 +132,7 @@ export const DashboardCardProductsDistribution = () => {
                         {product.hectares.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha
                       </span>
                     </div>
-                    <Progress value={percentage} className={`h-2`} />
+                    <Progress value={percentage} className='h-2 bg-muted/60' />
                     <div className='text-xs text-muted-foreground truncate'>
                       {percentage.toFixed(1)}% do total
                     </div>

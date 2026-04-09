@@ -3,17 +3,13 @@
 import { format, subDays } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { ApplicationsOverviewDashboard } from '@/components/ApplicationsOverviewDashboard';
 import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { ApplicationIssueFilter } from '@/types/applications.type';
-import { ServiceOrderStatus } from '@/types/service-order.type';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -47,74 +43,26 @@ export default function AgriculturalApplicationsPage() {
     [searchParams]
   );
 
-  const [activeTab, setActiveTab] = useState('overview');
-
-  // Filter state - lifted from TableApplications
   const [search, setSearch] = useState('');
-  const [serviceOrderStatus, setServiceOrderStatus] = useState<ServiceOrderStatus | undefined>(
-    undefined
-  );
-  const [farmId, setFarmId] = useState<string | undefined>(undefined);
-  const [productId, setProductId] = useState<string | undefined>(undefined);
-  const [pilotId, setPilotId] = useState<string | undefined>(undefined);
-  const [customerId, setCustomerId] = useState<string | undefined>(undefined);
-  const [serviceOrderId, setServiceOrderId] = useState<string | undefined>(undefined);
-  const [invalidApplication, setInvalidApplication] = useState<boolean | undefined>(undefined);
-  const [applicationIssue, setApplicationIssue] = useState<ApplicationIssueFilter | undefined>(
-    undefined
-  );
   const [startDate, setStartDate] = useState<string | undefined>(initialDateRange.startDate);
   const [endDate, setEndDate] = useState<string | undefined>(initialDateRange.endDate);
-
-  const filterProps = {
-    search,
-    serviceOrderStatus,
-    farmId,
-    productId,
-    pilotId,
-    customerId,
-    serviceOrderId,
-    invalidApplication,
-    startDate,
-    endDate,
-  };
 
   const filterChangeHandlers = useMemo(
     () => ({
       setSearch,
-      setServiceOrderStatus,
-      setFarmId,
-      setProductId,
-      setPilotId,
-      setCustomerId,
-      setServiceOrderId,
-      setInvalidApplication,
-      setApplicationIssue,
+      setServiceOrderStatus: (_value: unknown) => undefined,
+      setFarmId: (_value: unknown) => undefined,
+      setProductId: (_value: unknown) => undefined,
+      setPilotId: (_value: unknown) => undefined,
+      setCustomerId: (_value: unknown) => undefined,
+      setServiceOrderId: (_value: unknown) => undefined,
+      setInvalidApplication: (_value: unknown) => undefined,
+      setApplicationIssue: (_value: unknown) => undefined,
       setStartDate,
       setEndDate,
     }),
     []
   );
-
-  const handleNavigateRecordsWithIssue = useCallback((issue: ApplicationIssueFilter) => {
-    setApplicationIssue(issue);
-    setInvalidApplication(undefined);
-    if (issue === 'invalid_open_os') {
-      setServiceOrderStatus('open');
-    }
-    setActiveTab('records');
-  }, []);
-
-  const clearOverviewFilters = useCallback(() => {
-    const yesterday = getYesterdayDateString();
-    setServiceOrderStatus(undefined);
-    setFarmId(undefined);
-    setProductId(undefined);
-    setPilotId(undefined);
-    setCustomerId(undefined);
-    setStartDate(yesterday);
-    setEndDate(yesterday);
-  }, []);
 
   return (
     <div className='p-6 space-y-6 min-h-full max-w-screen'>
@@ -135,56 +83,17 @@ export default function AgriculturalApplicationsPage() {
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className='space-y-4'>
-        <TabsList>
-          <TabsTrigger value='overview'>Visão Geral</TabsTrigger>
-          <TabsTrigger value='records'>Registros</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='overview' className='space-y-4'>
-          <ApplicationsOverviewDashboard
-            {...filterProps}
-            onNavigateRecordsWithIssue={handleNavigateRecordsWithIssue}
-            onFarmFilterChange={setFarmId}
-            onCustomerFilterChange={setCustomerId}
-            onProductFilterChange={setProductId}
-            onPilotFilterChange={setPilotId}
-            onServiceOrderStatusChange={setServiceOrderStatus}
-            onDateRangeChange={(range) => {
-              if (!range) {
-                const yesterday = getYesterdayDateString();
-                setStartDate(yesterday);
-                setEndDate(yesterday);
-                return;
-              }
-              setStartDate(range.startDate);
-              setEndDate(range.endDate);
-            }}
-            onClearOverviewFilters={clearOverviewFilters}
+      <Card className='max-w-full overflow-auto p-0'>
+        <CardContent className='ph-6'>
+          <TableApplications
+            simpleMode
+            search={search}
+            startDate={startDate}
+            endDate={endDate}
+            onFilterChange={filterChangeHandlers}
           />
-        </TabsContent>
-
-        <TabsContent value='records' className='space-y-4'>
-          <Card className='max-w-full overflow-auto p-0'>
-            <CardContent className='ph-6'>
-              <TableApplications
-                search={search}
-                serviceOrderStatus={serviceOrderStatus}
-                farmId={farmId}
-                productId={productId}
-                pilotId={pilotId}
-                customerIdFilter={customerId}
-                serviceOrderIdFilter={serviceOrderId}
-                invalidApplication={invalidApplication}
-                applicationIssue={applicationIssue}
-                startDate={startDate}
-                endDate={endDate}
-                onFilterChange={filterChangeHandlers}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useQueries } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Calendar, Plane, SprayCan, TrendingUp } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -19,32 +19,19 @@ import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import * as FarmService from '@/services/farm.service';
 import { Farm } from '@/types/farm.type';
 
-const STORAGE_KEY = 'dashboard-metrics-start-date';
+interface DashboardCardGeneralMetricsProps {
+  startDate: string;
+  onStartDateChange: (startDate: string) => void;
+}
 
-const getDefaultStartDate = (): string => {
-  const now = new Date();
-  const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
-  return format(firstDayOfYear, 'yyyy-MM-dd');
-};
-
-const getInitialStartDate = (): string => {
-  if (typeof window === 'undefined') return getDefaultStartDate();
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) return saved;
-  return getDefaultStartDate();
-};
-
-export const DashboardCardGeneralMetrics = () => {
+export const DashboardCardGeneralMetrics = ({
+  startDate,
+  onStartDateChange,
+}: DashboardCardGeneralMetricsProps) => {
   const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [selectedFarmIds, setSelectedFarmIds] = useState<string[]>([]);
   const [farmSearch, setFarmSearch] = useState('');
-  const [startDate, setStartDate] = useState<string>(getInitialStartDate);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, startDate);
-  }, [startDate]);
-
   const { data: contractsData, isPending: isLoadingContracts } = useGetAllContracts({
     limit: '100',
   });
@@ -176,7 +163,7 @@ export const DashboardCardGeneralMetrics = () => {
         break;
     }
 
-    setStartDate(format(start, 'yyyy-MM-dd'));
+    onStartDateChange(format(start, 'yyyy-MM-dd'));
   };
 
   const {
@@ -285,7 +272,7 @@ export const DashboardCardGeneralMetrics = () => {
                 </div>
                 <DatePicker
                   value={startDate}
-                  onChange={setStartDate}
+                  onChange={onStartDateChange}
                   placeholder='Selecione a data inicial'
                   defaultMonth={startDate ? new Date(startDate) : undefined}
                   className='w-full'

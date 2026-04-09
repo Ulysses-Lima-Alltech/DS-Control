@@ -77,6 +77,7 @@ interface TableApplicationsProps {
   defaultStatus?: ServiceOrderStatus;
   disableStatusFilter?: boolean;
   disableCustomerFilter?: boolean;
+  simpleMode?: boolean;
   customerName?: string;
   statusLabel?: string;
   // Filter props
@@ -113,6 +114,7 @@ export const TableApplications = ({
   defaultStatus,
   disableStatusFilter = false,
   disableCustomerFilter = false,
+  simpleMode = false,
   customerName,
   statusLabel,
   // Filter props
@@ -791,42 +793,42 @@ export const TableApplications = ({
     propServiceOrderId && selectedServiceOrder ? `OS #${selectedServiceOrder.number}` : undefined;
 
   const activeFilters = [
-    statusFilter
+    !simpleMode && statusFilter
       ? {
           key: 'status',
           label: `Status: ${statusFilter}`,
           onRemove: () => handleStatusChange(undefined),
         }
       : null,
-    customerFilter
+    !simpleMode && customerFilter
       ? {
           key: 'customer',
           label: `Cliente: ${customers.find((c) => c.id === customerFilter)?.name || 'Selecionado'}`,
           onRemove: () => handleCustomerChange(undefined),
         }
       : null,
-    overviewFarmId
+    !simpleMode && overviewFarmId
       ? {
           key: 'farm',
           label: `Fazenda: ${farmChipName || 'Selecionada'}`,
           onRemove: () => handleFarmChange(undefined),
         }
       : null,
-    overviewProductId
+    !simpleMode && overviewProductId
       ? {
           key: 'product',
           label: `Produto: ${productChipName || 'Selecionado'}`,
           onRemove: () => handleProductChange(undefined),
         }
       : null,
-    pilotFilter
+    !simpleMode && pilotFilter
       ? {
           key: 'pilot',
           label: `Piloto: ${pilots.find((p) => p.id === pilotFilter)?.name || 'Selecionado'}`,
           onRemove: () => handlePilotChange(undefined),
         }
       : null,
-    serviceOrderFilter
+    !simpleMode && serviceOrderFilter
       ? {
           key: 'serviceOrder',
           label: `OS: #${serviceOrders.find((so) => so.id === serviceOrderFilter)?.number || 'Selecionada'}`,
@@ -892,19 +894,20 @@ export const TableApplications = ({
                 initialValue={dateFilter}
                 onChange={handleDateChange}
               />
-              <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-                <SheetTrigger asChild>
-                  <Button variant='outline' className='gap-2'>
-                    <Filter className='h-4 w-4' />
-                    Filtros
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side='right' className='w-[92vw] sm:max-w-md overflow-y-auto'>
-                  <SheetHeader>
-                    <SheetTitle>Filtros avançados</SheetTitle>
-                    <SheetDescription>Refine os registros de aplicações</SheetDescription>
-                  </SheetHeader>
-                  <div className='px-4 pb-4 space-y-4'>
+              {!simpleMode && (
+                <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant='outline' className='gap-2'>
+                      <Filter className='h-4 w-4' />
+                      Filtros
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side='right' className='w-[92vw] sm:max-w-md overflow-y-auto'>
+                    <SheetHeader>
+                      <SheetTitle>Filtros avançados</SheetTitle>
+                      <SheetDescription>Refine os registros de aplicações</SheetDescription>
+                    </SheetHeader>
+                    <div className='px-4 pb-4 space-y-4'>
                     <div className='space-y-2'>
                       <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
                         Situação geral
@@ -1074,9 +1077,10 @@ export const TableApplications = ({
                         </Button>
                       </>
                     )}
-                  </div>
-                </SheetContent>
-              </Sheet>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
               {activeFilters.length > 0 && (
                 <Button variant='ghost' className='text-sm' onClick={clearAllFilters}>
                   <X className='h-4 w-4 mr-1' />

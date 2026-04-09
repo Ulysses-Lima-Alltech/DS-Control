@@ -65,7 +65,7 @@ export default function ServiceOrdersPage() {
         />
       </div>
 
-      <div className='w-full lg:w-1/4 lg:min-w-[280px]'>
+      <div className='w-full max-w-none'>
         <DashboardCardServiceOrders
           stats={stats?.stats || null}
           isLoadingStats={isLoadingStats}
