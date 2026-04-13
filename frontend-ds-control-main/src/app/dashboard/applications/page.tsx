@@ -86,7 +86,6 @@ export default function AgriculturalApplicationsPage() {
       <Card className='max-w-full overflow-auto p-0'>
         <CardContent className='ph-6'>
           <TableApplications
-            simpleMode
             search={search}
             startDate={startDate}
             endDate={endDate}
