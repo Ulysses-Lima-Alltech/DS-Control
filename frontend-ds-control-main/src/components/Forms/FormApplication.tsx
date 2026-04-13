@@ -47,6 +47,18 @@ type FormApplicationProps = {
   onSuccess?: () => void;
 };
 
+function toLocalYMD(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeOperationalDateInput(value?: string | null): string {
+  if (!value) return toLocalYMD(new Date());
+  return value.slice(0, 10);
+}
+
 export default function FormApplication({
   initialValues,
   isEditMode = false,
@@ -83,9 +95,7 @@ export default function FormApplication({
       altitude: initialValues?.altitude ?? '',
       routeSpacing: initialValues?.routeSpacing ?? '',
       dropletSize: initialValues?.dropletSize ?? '',
-      date: initialValues?.date
-        ? new Date(initialValues?.date).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
+      date: normalizeOperationalDateInput(initialValues?.date),
       productId: initialValues?.productId ?? '',
       plotId: initialValues?.plotId ?? null,
       observations: initialValues?.observations ?? '',
@@ -380,7 +390,7 @@ export default function FormApplication({
             altitude: '',
             routeSpacing: '',
             dropletSize: '',
-            date: new Date().toISOString().split('T')[0],
+            date: toLocalYMD(new Date()),
             productId: '',
             plotId: undefined,
             observations: '',

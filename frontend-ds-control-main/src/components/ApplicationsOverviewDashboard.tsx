@@ -276,8 +276,6 @@ function bucketDateRangeFromEvolutionPoint(
 function hasActiveOverviewFilters(f: OverviewFilters): boolean {
   return Boolean(
     (f.search && f.search.trim().length > 0) ||
-      f.startDate ||
-      f.endDate ||
       f.farmId ||
       f.productId ||
       f.pilotId ||
@@ -286,6 +284,16 @@ function hasActiveOverviewFilters(f: OverviewFilters): boolean {
       f.serviceOrderStatus ||
       f.invalidApplication === true
   );
+}
+
+function getYesterdayDateString(): string {
+  return format(subDays(startOfDayLocal(new Date()), 1), 'yyyy-MM-dd');
+}
+
+function isYesterdayRange(startDate?: string, endDate?: string): boolean {
+  if (!startDate || !endDate) return false;
+  const yesterday = getYesterdayDateString();
+  return startDate === yesterday && endDate === yesterday;
 }
 
 function SectionError({
@@ -577,6 +585,7 @@ export function ApplicationsOverviewDashboard({
   const [evolutionMode, setEvolutionMode] = useState<EvolutionGranularity>('month');
 
   const hasManualPeriodFilter = Boolean(filters.startDate && filters.endDate);
+  const isDefaultYesterdayPeriod = isYesterdayRange(filters.startDate, filters.endDate);
 
   const effectiveEvolutionWindow = useMemo(
     () => getEffectiveEvolutionWindow(filters.startDate, filters.endDate, evolutionMode),
@@ -827,8 +836,7 @@ export function ApplicationsOverviewDashboard({
 
   const crossFilterActive = Boolean(filters.farmId || filters.productId);
   const quickFilterActive = Boolean(
-    filters.startDate ||
-      filters.endDate ||
+    (!isDefaultYesterdayPeriod && filters.startDate && filters.endDate) ||
       filters.customerId ||
       filters.farmId ||
       filters.productId ||
@@ -990,10 +998,10 @@ export function ApplicationsOverviewDashboard({
             </div>
 
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
-              {filters.startDate && filters.endDate ? (
+              {filters.startDate && filters.endDate && !isDefaultYesterdayPeriod ? (
                 <Badge
-                  variant='secondary'
-                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-primary/25 bg-primary/10 text-primary'
                 >
                   <span className='max-w-[280px] truncate'>
                     Período: {filters.startDate} até {filters.endDate}
@@ -1010,8 +1018,8 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {filters.farmId ? (
               <Badge
-                variant='secondary'
-                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                variant='outline'
+                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
               >
                 <span className='max-w-[220px] truncate'>Fazenda: {farmChipLabel}</span>
                 <button
@@ -1026,8 +1034,8 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {filters.customerId ? (
                 <Badge
-                  variant='secondary'
-                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
                 >
                   <span className='max-w-[220px] truncate'>Cliente: {customerLabel}</span>
                   <button
@@ -1042,8 +1050,8 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {filters.productId ? (
               <Badge
-                variant='secondary'
-                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                variant='outline'
+                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
               >
                 <span className='max-w-[220px] truncate'>Produto: {productChipLabel}</span>
                 <button
@@ -1058,8 +1066,8 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {filters.pilotId ? (
                 <Badge
-                  variant='secondary'
-                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
                 >
                   <span className='max-w-[220px] truncate'>Piloto: {pilotChipLabel}</span>
                   <button
@@ -1074,8 +1082,8 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {filters.serviceOrderStatus ? (
                 <Badge
-                  variant='secondary'
-                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal'
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
                 >
                   <span className='max-w-[220px] truncate'>
                     Status OS: {statusLabelMap[filters.serviceOrderStatus]}

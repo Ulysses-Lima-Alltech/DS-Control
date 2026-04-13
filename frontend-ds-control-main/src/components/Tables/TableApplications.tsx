@@ -22,6 +22,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
+import { Input } from '@/components/ui/input';
 import {
     Sheet,
     SheetContent,
@@ -46,8 +47,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useDeleteApplicationById } from '@/mutations/application.mutation';
+import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllApplications } from '@/queries/application.query';
+import { useGetAllCultureTypesInfinite } from '@/queries/culture-type.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
+import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
 import { useGetAllProductsInfinite, useGetProductById } from '@/queries/product.query';
 import { useGetAllServiceOrdersInfinite } from '@/queries/service-order.query';
@@ -59,7 +63,10 @@ import {
   ApplicationOrderBy,
   ApplicationOrderType,
 } from '@/types/applications.type';
+import { Assistant } from '@/types/assistant.type';
+import { CultureType } from '@/types/culture-types.type';
 import { Customer } from '@/types/customer.type';
+import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
 import { Product } from '@/types/product.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
@@ -143,6 +150,9 @@ export const TableApplications = ({
   const [farmSearchValue, setFarmSearchValue] = React.useState('');
   const [productSearchValue, setProductSearchValue] = React.useState('');
   const [pilotSearchValue, setPilotSearchValue] = React.useState('');
+  const [assistantSearchValue, setAssistantSearchValue] = React.useState('');
+  const [droneSearchValue, setDroneSearchValue] = React.useState('');
+  const [cultureSearchValue, setCultureSearchValue] = React.useState('');
   const [serviceOrderSearchValue, setServiceOrderSearchValue] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<ServiceOrderStatus | undefined>(
     propServiceOrderStatus || defaultStatus
@@ -154,6 +164,22 @@ export const TableApplications = ({
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
     propServiceOrderId
   );
+  const [assistantFilter, setAssistantFilter] = React.useState<string | undefined>(undefined);
+  const [droneFilter, setDroneFilter] = React.useState<string | undefined>(undefined);
+  const [cultureFilter, setCultureFilter] = React.useState<string | undefined>(undefined);
+  const [plotNameFilter, setPlotNameFilter] = React.useState('');
+  const [observationsFilter, setObservationsFilter] = React.useState('');
+  const [serviceOrderNumberFilter, setServiceOrderNumberFilter] = React.useState('');
+  const [hectaresMinFilter, setHectaresMinFilter] = React.useState('');
+  const [hectaresMaxFilter, setHectaresMaxFilter] = React.useState('');
+  const [flowRateMinFilter, setFlowRateMinFilter] = React.useState('');
+  const [flowRateMaxFilter, setFlowRateMaxFilter] = React.useState('');
+  const [altitudeMinFilter, setAltitudeMinFilter] = React.useState('');
+  const [altitudeMaxFilter, setAltitudeMaxFilter] = React.useState('');
+  const [routeSpacingMinFilter, setRouteSpacingMinFilter] = React.useState('');
+  const [routeSpacingMaxFilter, setRouteSpacingMaxFilter] = React.useState('');
+  const [dropletSizeMinFilter, setDropletSizeMinFilter] = React.useState('');
+  const [dropletSizeMaxFilter, setDropletSizeMaxFilter] = React.useState('');
   const [dateFilter, setDateFilter] = React.useState<{startDate: string, endDate:string} | undefined>(
     propStartDate && propEndDate ? { startDate: propStartDate, endDate: propEndDate } : undefined
   )
@@ -197,6 +223,22 @@ export const TableApplications = ({
     pilotId: propPilotId || pilotFilter,
     customerId: propCustomerIdFilter || customerFilter,
     serviceOrderId: propServiceOrderIdFilter || serviceOrderFilter,
+    assistantId: assistantFilter,
+    droneId: droneFilter,
+    cultureId: cultureFilter,
+    plotName: plotNameFilter || undefined,
+    observations: observationsFilter || undefined,
+    serviceOrderNumber: serviceOrderNumberFilter || undefined,
+    hectaresMin: hectaresMinFilter || undefined,
+    hectaresMax: hectaresMaxFilter || undefined,
+    flowRateMin: flowRateMinFilter || undefined,
+    flowRateMax: flowRateMaxFilter || undefined,
+    altitudeMin: altitudeMinFilter || undefined,
+    altitudeMax: altitudeMaxFilter || undefined,
+    routeSpacingMin: routeSpacingMinFilter || undefined,
+    routeSpacingMax: routeSpacingMaxFilter || undefined,
+    dropletSizeMin: dropletSizeMinFilter || undefined,
+    dropletSizeMax: dropletSizeMaxFilter || undefined,
     invalidApplication:
       propApplicationIssue !== undefined
         ? undefined
@@ -257,6 +299,53 @@ export const TableApplications = ({
   const allPilots =
     (usersData as unknown as InfiniteData<{ data: User[] }>)?.pages?.flatMap((page) => page.data) ||
     [];
+
+  const {
+    data: assistantsData,
+    fetchNextPage: fetchNextPageAssistants,
+    hasNextPage: hasNextPageAssistants,
+    isFetchingNextPage: isFetchingNextPageAssistants,
+    isLoading: isLoadingAssistants,
+  } = useGetAllAssistantsInfinite({
+    limit: '10',
+    search: assistantSearchValue || undefined,
+    status: 'active',
+  });
+  const allAssistants =
+    (assistantsData as unknown as InfiniteData<{ data: Assistant[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+
+  const {
+    data: dronesData,
+    fetchNextPage: fetchNextPageDrones,
+    hasNextPage: hasNextPageDrones,
+    isFetchingNextPage: isFetchingNextPageDrones,
+    isLoading: isLoadingDrones,
+  } = useGetAllDronesInfinite({
+    limit: '10',
+    search: droneSearchValue || undefined,
+    status: 'active',
+  });
+  const allDrones =
+    (dronesData as unknown as InfiniteData<{ data: Drone[] }>)?.pages?.flatMap((page) => page.data) ||
+    [];
+
+  const {
+    data: culturesData,
+    fetchNextPage: fetchNextPageCultures,
+    hasNextPage: hasNextPageCultures,
+    isFetchingNextPage: isFetchingNextPageCultures,
+    isLoading: isLoadingCultures,
+  } = useGetAllCultureTypesInfinite({
+    limit: '10',
+    search: cultureSearchValue || undefined,
+    status: 'active',
+  });
+  const allCultures =
+    (culturesData as unknown as InfiniteData<{ data: CultureType[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
 
   const {
     data: serviceOrdersData,
@@ -397,6 +486,22 @@ export const TableApplications = ({
     farmFilter,
     productFilter,
     pilotFilter,
+    assistantFilter,
+    droneFilter,
+    cultureFilter,
+    plotNameFilter,
+    observationsFilter,
+    serviceOrderNumberFilter,
+    hectaresMinFilter,
+    hectaresMaxFilter,
+    flowRateMinFilter,
+    flowRateMaxFilter,
+    altitudeMinFilter,
+    altitudeMaxFilter,
+    routeSpacingMinFilter,
+    routeSpacingMaxFilter,
+    dropletSizeMinFilter,
+    dropletSizeMaxFilter,
     customerFilter,
     serviceOrderFilter,
     invalidApplicationFilter,
@@ -501,6 +606,22 @@ export const TableApplications = ({
     setFarmFilter(undefined);
     setProductFilter(undefined);
     setPilotFilter(undefined);
+    setAssistantFilter(undefined);
+    setDroneFilter(undefined);
+    setCultureFilter(undefined);
+    setPlotNameFilter('');
+    setObservationsFilter('');
+    setServiceOrderNumberFilter('');
+    setHectaresMinFilter('');
+    setHectaresMaxFilter('');
+    setFlowRateMinFilter('');
+    setFlowRateMaxFilter('');
+    setAltitudeMinFilter('');
+    setAltitudeMaxFilter('');
+    setRouteSpacingMinFilter('');
+    setRouteSpacingMaxFilter('');
+    setDropletSizeMinFilter('');
+    setDropletSizeMaxFilter('');
     setCustomerFilter(undefined);
     setServiceOrderFilter(undefined);
     setInvalidApplicationFilter('false');
@@ -828,6 +949,48 @@ export const TableApplications = ({
           onRemove: () => handlePilotChange(undefined),
         }
       : null,
+    !simpleMode && assistantFilter
+      ? {
+          key: 'assistant',
+          label: `Ajudante: ${allAssistants.find((a) => a.id === assistantFilter)?.name || 'Selecionado'}`,
+          onRemove: () => setAssistantFilter(undefined),
+        }
+      : null,
+    !simpleMode && droneFilter
+      ? {
+          key: 'drone',
+          label: `Drone: ${allDrones.find((d) => d.id === droneFilter)?.name || 'Selecionado'}`,
+          onRemove: () => setDroneFilter(undefined),
+        }
+      : null,
+    !simpleMode && cultureFilter
+      ? {
+          key: 'culture',
+          label: `Cultura: ${allCultures.find((c) => c.id === cultureFilter)?.name || 'Selecionada'}`,
+          onRemove: () => setCultureFilter(undefined),
+        }
+      : null,
+    !simpleMode && plotNameFilter
+      ? {
+          key: 'plotName',
+          label: `Talhão: ${plotNameFilter}`,
+          onRemove: () => setPlotNameFilter(''),
+        }
+      : null,
+    !simpleMode && observationsFilter
+      ? {
+          key: 'observations',
+          label: `Observações: ${observationsFilter}`,
+          onRemove: () => setObservationsFilter(''),
+        }
+      : null,
+    !simpleMode && serviceOrderNumberFilter
+      ? {
+          key: 'serviceOrderNumber',
+          label: `OS Nº: ${serviceOrderNumberFilter}`,
+          onRemove: () => setServiceOrderNumberFilter(''),
+        }
+      : null,
     !simpleMode && serviceOrderFilter
       ? {
           key: 'serviceOrder',
@@ -860,6 +1023,76 @@ export const TableApplications = ({
           key: 'orderType',
           label: `Ordem: ${orderTypeOptions.find((o) => o.value === orderType)?.label}`,
           onRemove: () => handleOrderTypeChange(undefined),
+        }
+      : null,
+    hectaresMinFilter
+      ? {
+          key: 'hectaresMin',
+          label: `Hectares mín: ${hectaresMinFilter}`,
+          onRemove: () => setHectaresMinFilter(''),
+        }
+      : null,
+    hectaresMaxFilter
+      ? {
+          key: 'hectaresMax',
+          label: `Hectares máx: ${hectaresMaxFilter}`,
+          onRemove: () => setHectaresMaxFilter(''),
+        }
+      : null,
+    flowRateMinFilter
+      ? {
+          key: 'flowRateMin',
+          label: `Vazão mín: ${flowRateMinFilter}`,
+          onRemove: () => setFlowRateMinFilter(''),
+        }
+      : null,
+    flowRateMaxFilter
+      ? {
+          key: 'flowRateMax',
+          label: `Vazão máx: ${flowRateMaxFilter}`,
+          onRemove: () => setFlowRateMaxFilter(''),
+        }
+      : null,
+    altitudeMinFilter
+      ? {
+          key: 'altitudeMin',
+          label: `Altitude mín: ${altitudeMinFilter}`,
+          onRemove: () => setAltitudeMinFilter(''),
+        }
+      : null,
+    altitudeMaxFilter
+      ? {
+          key: 'altitudeMax',
+          label: `Altitude máx: ${altitudeMaxFilter}`,
+          onRemove: () => setAltitudeMaxFilter(''),
+        }
+      : null,
+    routeSpacingMinFilter
+      ? {
+          key: 'routeSpacingMin',
+          label: `Espaçamento mín: ${routeSpacingMinFilter}`,
+          onRemove: () => setRouteSpacingMinFilter(''),
+        }
+      : null,
+    routeSpacingMaxFilter
+      ? {
+          key: 'routeSpacingMax',
+          label: `Espaçamento máx: ${routeSpacingMaxFilter}`,
+          onRemove: () => setRouteSpacingMaxFilter(''),
+        }
+      : null,
+    dropletSizeMinFilter
+      ? {
+          key: 'dropletSizeMin',
+          label: `Gota mín: ${dropletSizeMinFilter}`,
+          onRemove: () => setDropletSizeMinFilter(''),
+        }
+      : null,
+    dropletSizeMaxFilter
+      ? {
+          key: 'dropletSizeMax',
+          label: `Gota máx: ${dropletSizeMaxFilter}`,
+          onRemove: () => setDropletSizeMaxFilter(''),
         }
       : null,
     dateFilter?.startDate && dateFilter?.endDate
@@ -1004,6 +1237,75 @@ export const TableApplications = ({
                       isFetchingNextPage={isFetchingNextPagePilots}
                       isLoading={isLoadingPilots}
                     />
+                    <SearchableSelectQuery
+                      options={allAssistants.map((assistant: Assistant) => ({
+                        value: assistant.id,
+                        label: assistant.name,
+                      }))}
+                      value={assistantFilter}
+                      onValueChange={(value) => setAssistantFilter(value as string | undefined)}
+                      placeholder='Ajudante'
+                      searchPlaceholder='Buscar ajudante...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setAssistantSearchValue}
+                      onScrollEnd={fetchNextPageAssistants}
+                      hasNextPage={hasNextPageAssistants}
+                      isFetchingNextPage={isFetchingNextPageAssistants}
+                      isLoading={isLoadingAssistants}
+                    />
+                    <SearchableSelectQuery
+                      options={allDrones.map((drone: Drone) => ({
+                        value: drone.id,
+                        label: drone.name,
+                      }))}
+                      value={droneFilter}
+                      onValueChange={(value) => setDroneFilter(value as string | undefined)}
+                      placeholder='Drone'
+                      searchPlaceholder='Buscar drone...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setDroneSearchValue}
+                      onScrollEnd={fetchNextPageDrones}
+                      hasNextPage={hasNextPageDrones}
+                      isFetchingNextPage={isFetchingNextPageDrones}
+                      isLoading={isLoadingDrones}
+                    />
+                    <SearchableSelectQuery
+                      options={allCultures.map((culture: CultureType) => ({
+                        value: culture.id,
+                        label: culture.name,
+                      }))}
+                      value={cultureFilter}
+                      onValueChange={(value) => setCultureFilter(value as string | undefined)}
+                      placeholder='Cultura'
+                      searchPlaceholder='Buscar cultura...'
+                      className='w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setCultureSearchValue}
+                      onScrollEnd={fetchNextPageCultures}
+                      hasNextPage={hasNextPageCultures}
+                      isFetchingNextPage={isFetchingNextPageCultures}
+                      isLoading={isLoadingCultures}
+                    />
+                    <Input
+                      value={plotNameFilter}
+                      onChange={(e) => setPlotNameFilter(e.target.value)}
+                      placeholder='Talhão (nome parcial)'
+                    />
+                    <Input
+                      value={serviceOrderNumberFilter}
+                      onChange={(e) => setServiceOrderNumberFilter(e.target.value)}
+                      placeholder='Número da OS (texto parcial)'
+                    />
+                    <Input
+                      value={observationsFilter}
+                      onChange={(e) => setObservationsFilter(e.target.value)}
+                      placeholder='Observações (texto parcial)'
+                    />
                     {!propServiceOrderId && (
                       <SearchableSelectQuery
                         options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
@@ -1066,6 +1368,68 @@ export const TableApplications = ({
                       className='w-full'
                       clearable
                     />
+                    <div className='grid grid-cols-2 gap-2'>
+                      <Input
+                        type='number'
+                        value={hectaresMinFilter}
+                        onChange={(e) => setHectaresMinFilter(e.target.value)}
+                        placeholder='Hectares mín'
+                      />
+                      <Input
+                        type='number'
+                        value={hectaresMaxFilter}
+                        onChange={(e) => setHectaresMaxFilter(e.target.value)}
+                        placeholder='Hectares máx'
+                      />
+                      <Input
+                        type='number'
+                        value={flowRateMinFilter}
+                        onChange={(e) => setFlowRateMinFilter(e.target.value)}
+                        placeholder='Vazão mín'
+                      />
+                      <Input
+                        type='number'
+                        value={flowRateMaxFilter}
+                        onChange={(e) => setFlowRateMaxFilter(e.target.value)}
+                        placeholder='Vazão máx'
+                      />
+                      <Input
+                        type='number'
+                        value={altitudeMinFilter}
+                        onChange={(e) => setAltitudeMinFilter(e.target.value)}
+                        placeholder='Altitude mín'
+                      />
+                      <Input
+                        type='number'
+                        value={altitudeMaxFilter}
+                        onChange={(e) => setAltitudeMaxFilter(e.target.value)}
+                        placeholder='Altitude máx'
+                      />
+                      <Input
+                        type='number'
+                        value={routeSpacingMinFilter}
+                        onChange={(e) => setRouteSpacingMinFilter(e.target.value)}
+                        placeholder='Espaçamento mín'
+                      />
+                      <Input
+                        type='number'
+                        value={routeSpacingMaxFilter}
+                        onChange={(e) => setRouteSpacingMaxFilter(e.target.value)}
+                        placeholder='Espaçamento máx'
+                      />
+                      <Input
+                        type='number'
+                        value={dropletSizeMinFilter}
+                        onChange={(e) => setDropletSizeMinFilter(e.target.value)}
+                        placeholder='Gota mín'
+                      />
+                      <Input
+                        type='number'
+                        value={dropletSizeMaxFilter}
+                        onChange={(e) => setDropletSizeMaxFilter(e.target.value)}
+                        placeholder='Gota máx'
+                      />
+                    </div>
                     </div>
 
                     {activeFilters.length > 0 && (

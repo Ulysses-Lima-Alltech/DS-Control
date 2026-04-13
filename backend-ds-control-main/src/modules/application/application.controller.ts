@@ -59,6 +59,30 @@ export class ApplicationController {
         productId?: string;
         customerId?: string;
         serviceOrderId?: string;
+        assistantId?: string;
+        droneId?: string;
+        cultureId?: string;
+        plotId?: string;
+        customerName?: string;
+        farmName?: string;
+        pilotName?: string;
+        assistantName?: string;
+        droneName?: string;
+        cultureName?: string;
+        plotName?: string;
+        productName?: string;
+        observations?: string;
+        serviceOrderNumber?: string;
+        hectaresMin?: number;
+        hectaresMax?: number;
+        flowRateMin?: number;
+        flowRateMax?: number;
+        altitudeMin?: number;
+        altitudeMax?: number;
+        routeSpacingMin?: number;
+        routeSpacingMax?: number;
+        dropletSizeMin?: number;
+        dropletSizeMax?: number;
         invalidApplication?: boolean;
         applicationIssue?: ApplicationIssueFilter;
         startDate?: string;
@@ -81,10 +105,34 @@ export class ApplicationController {
         productId: request.query.productId,
         customerId: request.query.customerId,
         serviceOrderId: request.query.serviceOrderId,
+        assistantId: request.query.assistantId,
+        droneId: request.query.droneId,
+        cultureId: request.query.cultureId,
+        plotId: request.query.plotId,
+        customerName: request.query.customerName,
+        farmName: request.query.farmName,
+        pilotName: request.query.pilotName,
+        assistantName: request.query.assistantName,
+        droneName: request.query.droneName,
+        cultureName: request.query.cultureName,
+        plotName: request.query.plotName,
+        productName: request.query.productName,
+        observations: request.query.observations,
+        serviceOrderNumber: request.query.serviceOrderNumber,
+        hectaresMin: request.query.hectaresMin,
+        hectaresMax: request.query.hectaresMax,
+        flowRateMin: request.query.flowRateMin,
+        flowRateMax: request.query.flowRateMax,
+        altitudeMin: request.query.altitudeMin,
+        altitudeMax: request.query.altitudeMax,
+        routeSpacingMin: request.query.routeSpacingMin,
+        routeSpacingMax: request.query.routeSpacingMax,
+        dropletSizeMin: request.query.dropletSizeMin,
+        dropletSizeMax: request.query.dropletSizeMax,
         invalidApplication: request.query.invalidApplication,
         applicationIssue: request.query.applicationIssue,
-        startDate: request.query.startDate ? new Date(request.query.startDate) : undefined,
-        endDate: request.query.endDate ? new Date(request.query.endDate) : undefined,
+        startDate: request.query.startDate,
+        endDate: request.query.endDate,
       };
       const orderBy = request.query.orderBy;
       const orderType = request.query.orderType;

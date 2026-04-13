@@ -1,5 +1,5 @@
 import { db } from "@infra/database";
-import { applications, customers, farms, plots, products, serviceOrderPlots, serviceOrders, users } from "@infra/database/schema";
+import { applications, assistants, cultureTypes, customers, drones, farms, plots, products, serviceOrderPlots, serviceOrders, users } from "@infra/database/schema";
 import type { ApplicationIssueFilter } from "@modules/application/dto/get-all-application.dto";
 import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -178,6 +178,30 @@ export class ApplicationRepository {
           productId?: string;
           customerId?: string;
           serviceOrderId?: string;
+          assistantId?: string;
+          droneId?: string;
+          cultureId?: string;
+          plotId?: string;
+          customerName?: string;
+          farmName?: string;
+          pilotName?: string;
+          assistantName?: string;
+          droneName?: string;
+          cultureName?: string;
+          plotName?: string;
+          productName?: string;
+          observations?: string;
+          serviceOrderNumber?: string;
+          hectaresMin?: number;
+          hectaresMax?: number;
+          flowRateMin?: number;
+          flowRateMax?: number;
+          altitudeMin?: number;
+          altitudeMax?: number;
+          routeSpacingMin?: number;
+          routeSpacingMax?: number;
+          dropletSizeMin?: number;
+          dropletSizeMax?: number;
           invalidApplication?: boolean;
           applicationIssue?: ApplicationIssueFilter;
           startDate?: Date | string;
@@ -302,6 +326,11 @@ export class ApplicationRepository {
         or(
           ilike(applications.observations, `%${search}%`),
           ilike(users.name, `%${search}%`),
+          ilike(assistants.name, `%${search}%`),
+          ilike(drones.name, `%${search}%`),
+          ilike(cultureTypes.name, `%${search}%`),
+          ilike(products.name, `%${search}%`),
+          ilike(plots.name, `%${search}%`),
           ilike(customers.name, `%${search}%`),
           ilike(farms.name, `%${search}%`),
         )!,
@@ -330,6 +359,54 @@ export class ApplicationRepository {
 
     if (filters?.serviceOrderId) {
       whereConditions.push(eq(applications.serviceOrderId, filters.serviceOrderId));
+    }
+    if (filters?.assistantId) whereConditions.push(eq(applications.assistantId, filters.assistantId));
+    if (filters?.droneId) whereConditions.push(eq(applications.droneId, filters.droneId));
+    if (filters?.cultureId) whereConditions.push(eq(applications.cultureId, filters.cultureId));
+    if (filters?.plotId) whereConditions.push(eq(applications.plotId, filters.plotId));
+
+    if (filters?.customerName) whereConditions.push(ilike(customers.name, `%${filters.customerName}%`));
+    if (filters?.farmName) whereConditions.push(ilike(farms.name, `%${filters.farmName}%`));
+    if (filters?.pilotName) whereConditions.push(ilike(users.name, `%${filters.pilotName}%`));
+    if (filters?.assistantName) whereConditions.push(ilike(assistants.name, `%${filters.assistantName}%`));
+    if (filters?.droneName) whereConditions.push(ilike(drones.name, `%${filters.droneName}%`));
+    if (filters?.cultureName) whereConditions.push(ilike(cultureTypes.name, `%${filters.cultureName}%`));
+    if (filters?.plotName) whereConditions.push(ilike(plots.name, `%${filters.plotName}%`));
+    if (filters?.productName) whereConditions.push(ilike(products.name, `%${filters.productName}%`));
+    if (filters?.observations) whereConditions.push(ilike(applications.observations, `%${filters.observations}%`));
+    if (filters?.serviceOrderNumber) {
+      whereConditions.push(ilike(sql`CAST(${serviceOrders.number} AS TEXT)`, `%${filters.serviceOrderNumber}%`));
+    }
+
+    if (filters?.hectaresMin !== undefined) {
+      whereConditions.push(sql`CAST(${applications.hectares} AS numeric) >= ${filters.hectaresMin}`);
+    }
+    if (filters?.hectaresMax !== undefined) {
+      whereConditions.push(sql`CAST(${applications.hectares} AS numeric) <= ${filters.hectaresMax}`);
+    }
+    if (filters?.flowRateMin !== undefined) {
+      whereConditions.push(sql`CAST(${applications.flowRate} AS numeric) >= ${filters.flowRateMin}`);
+    }
+    if (filters?.flowRateMax !== undefined) {
+      whereConditions.push(sql`CAST(${applications.flowRate} AS numeric) <= ${filters.flowRateMax}`);
+    }
+    if (filters?.altitudeMin !== undefined) {
+      whereConditions.push(sql`CAST(${applications.altitude} AS numeric) >= ${filters.altitudeMin}`);
+    }
+    if (filters?.altitudeMax !== undefined) {
+      whereConditions.push(sql`CAST(${applications.altitude} AS numeric) <= ${filters.altitudeMax}`);
+    }
+    if (filters?.routeSpacingMin !== undefined) {
+      whereConditions.push(sql`CAST(${applications.routeSpacing} AS numeric) >= ${filters.routeSpacingMin}`);
+    }
+    if (filters?.routeSpacingMax !== undefined) {
+      whereConditions.push(sql`CAST(${applications.routeSpacing} AS numeric) <= ${filters.routeSpacingMax}`);
+    }
+    if (filters?.dropletSizeMin !== undefined) {
+      whereConditions.push(sql`CAST(${applications.dropletSize} AS numeric) >= ${filters.dropletSizeMin}`);
+    }
+    if (filters?.dropletSizeMax !== undefined) {
+      whereConditions.push(sql`CAST(${applications.dropletSize} AS numeric) <= ${filters.dropletSizeMax}`);
     }
 
     if (filters?.startDate && filters?.endDate) {
@@ -367,6 +444,30 @@ export class ApplicationRepository {
       productId?: string;
       customerId?: string;
       serviceOrderId?: string;
+      assistantId?: string;
+      droneId?: string;
+      cultureId?: string;
+      plotId?: string;
+      customerName?: string;
+      farmName?: string;
+      pilotName?: string;
+      assistantName?: string;
+      droneName?: string;
+      cultureName?: string;
+      plotName?: string;
+      productName?: string;
+      observations?: string;
+      serviceOrderNumber?: string;
+      hectaresMin?: number;
+      hectaresMax?: number;
+      flowRateMin?: number;
+      flowRateMax?: number;
+      altitudeMin?: number;
+      altitudeMax?: number;
+      routeSpacingMin?: number;
+      routeSpacingMax?: number;
+      dropletSizeMin?: number;
+      dropletSizeMax?: number;
       invalidApplication?: boolean;
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
@@ -410,6 +511,9 @@ export class ApplicationRepository {
       })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(assistants, eq(applications.assistantId, assistants.id))
+      .leftJoin(drones, eq(applications.droneId, drones.id))
+      .leftJoin(cultureTypes, eq(applications.cultureId, cultureTypes.id))
       .leftJoin(plots, eq(applications.plotId, plots.id))
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
@@ -937,6 +1041,30 @@ export class ApplicationRepository {
       productId?: string;
       customerId?: string;
       serviceOrderId?: string;
+      assistantId?: string;
+      droneId?: string;
+      cultureId?: string;
+      plotId?: string;
+      customerName?: string;
+      farmName?: string;
+      pilotName?: string;
+      assistantName?: string;
+      droneName?: string;
+      cultureName?: string;
+      plotName?: string;
+      productName?: string;
+      observations?: string;
+      serviceOrderNumber?: string;
+      hectaresMin?: number;
+      hectaresMax?: number;
+      flowRateMin?: number;
+      flowRateMax?: number;
+      altitudeMin?: number;
+      altitudeMax?: number;
+      routeSpacingMin?: number;
+      routeSpacingMax?: number;
+      dropletSizeMin?: number;
+      dropletSizeMax?: number;
       invalidApplication?: boolean;
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
@@ -953,6 +1081,30 @@ export class ApplicationRepository {
             filters.productId ||
             filters.customerId ||
             filters.serviceOrderId ||
+            filters.assistantId ||
+            filters.droneId ||
+            filters.cultureId ||
+            filters.plotId ||
+            filters.customerName ||
+            filters.farmName ||
+            filters.pilotName ||
+            filters.assistantName ||
+            filters.droneName ||
+            filters.cultureName ||
+            filters.plotName ||
+            filters.productName ||
+            filters.observations ||
+            filters.serviceOrderNumber ||
+            filters.hectaresMin !== undefined ||
+            filters.hectaresMax !== undefined ||
+            filters.flowRateMin !== undefined ||
+            filters.flowRateMax !== undefined ||
+            filters.altitudeMin !== undefined ||
+            filters.altitudeMax !== undefined ||
+            filters.routeSpacingMin !== undefined ||
+            filters.routeSpacingMax !== undefined ||
+            filters.dropletSizeMin !== undefined ||
+            filters.dropletSizeMax !== undefined ||
             filters.invalidApplication ||
             filters.applicationIssue ||
             (filters.startDate && filters.endDate)),
@@ -973,6 +1125,9 @@ export class ApplicationRepository {
       .select({ count: countDistinct(applications.id) })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(assistants, eq(applications.assistantId, assistants.id))
+      .leftJoin(drones, eq(applications.droneId, drones.id))
+      .leftJoin(cultureTypes, eq(applications.cultureId, cultureTypes.id))
       .leftJoin(plots, eq(applications.plotId, plots.id))
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))

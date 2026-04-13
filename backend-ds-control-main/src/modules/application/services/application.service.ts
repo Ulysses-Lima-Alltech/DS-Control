@@ -238,10 +238,34 @@ export class ApplicationService {
       productId?: string;
       customerId?: string;
       serviceOrderId?: string;
+      assistantId?: string;
+      droneId?: string;
+      cultureId?: string;
+      plotId?: string;
+      customerName?: string;
+      farmName?: string;
+      pilotName?: string;
+      assistantName?: string;
+      droneName?: string;
+      cultureName?: string;
+      plotName?: string;
+      productName?: string;
+      observations?: string;
+      serviceOrderNumber?: string;
+      hectaresMin?: number;
+      hectaresMax?: number;
+      flowRateMin?: number;
+      flowRateMax?: number;
+      altitudeMin?: number;
+      altitudeMax?: number;
+      routeSpacingMin?: number;
+      routeSpacingMax?: number;
+      dropletSizeMin?: number;
+      dropletSizeMax?: number;
       invalidApplication?: boolean;
       applicationIssue?: ApplicationIssueFilter;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,

@@ -1,6 +1,6 @@
 "use client"
 
-import { format, isValid, parseISO } from "date-fns"
+import { format, isValid } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
@@ -31,8 +31,18 @@ interface DateRangePickerParams {
 
 function parseDateInput(value?: string): Date | undefined {
   if (!value) return undefined
-  const parsed = parseISO(value)
+  const datePart = value.includes("T") ? value.slice(0, 10) : value.slice(0, 10)
+  const [year, month, day] = datePart.split("-")
+  if (!year || !month || !day) return undefined
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day))
   return isValid(parsed) ? parsed : undefined
+}
+
+function toLocalYMD(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
 }
 
 function safeFormatDate(date: Date | undefined, dateFormat: string) {
@@ -70,8 +80,8 @@ export default function DateRangePicker({
   useEffect(() => {
     if(date?.from && date?.to && isValid(date.from) && isValid(date.to)){
         onChange({
-            startDate: format(date?.from, 'yyyy-MM-dd'),
-            endDate: format(date?.to, 'yyyy-MM-dd')
+            startDate: toLocalYMD(date.from),
+            endDate: toLocalYMD(date.to)
         })
         return
     }
