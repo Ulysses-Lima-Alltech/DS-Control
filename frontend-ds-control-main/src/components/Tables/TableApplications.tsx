@@ -1128,12 +1128,15 @@ export const TableApplications = ({
                       Filtros
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side='right' className='w-[92vw] sm:max-w-md overflow-y-auto'>
+                  <SheetContent side='right' className='w-[96vw] sm:max-w-xl overflow-y-auto'>
                     <SheetHeader>
                       <SheetTitle>Filtros avançados</SheetTitle>
                       <SheetDescription>Refine os registros de aplicações</SheetDescription>
                     </SheetHeader>
                     <div className='px-4 pb-4 space-y-4'>
+                    <p className='text-xs text-muted-foreground'>
+                      Use os filtros abaixo para refinar os registros. Todos são combináveis.
+                    </p>
                     <div className='space-y-2'>
                       <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
                         Situação geral
@@ -1156,169 +1159,202 @@ export const TableApplications = ({
                       </p>
 
                     {!propCustomerId && (
-                      <SearchableSelectQuery
-                        options={customers.map((customer: Customer) => ({
-                          value: customer.id,
-                          label: customer.name,
-                        }))}
-                        value={customerFilter}
-                        onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-                        placeholder={customerDisplayText || 'Cliente'}
-                        searchPlaceholder='Buscar cliente...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable={!disableCustomerFilter && !propCustomerId}
-                        disabled={!!propCustomerId || disableCustomerFilter}
-                        onSearchChange={setCustomerSearchValue}
-                        onScrollEnd={fetchNextPage}
-                        hasNextPage={hasNextPage}
-                        isFetchingNextPage={isFetchingNextPage}
-                        isLoading={isLoadingCustomers}
-                      />
+                      <div className='space-y-1'>
+                        <p className='text-xs font-medium text-muted-foreground'>Cliente</p>
+                        <SearchableSelectQuery
+                          options={customers.map((customer: Customer) => ({
+                            value: customer.id,
+                            label: customer.name,
+                          }))}
+                          value={customerFilter}
+                          onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                          placeholder={customerDisplayText || 'Selecionar cliente'}
+                          searchPlaceholder='Buscar cliente...'
+                          className='w-full'
+                          popoverClassName='w-[250px]'
+                          clearable={!disableCustomerFilter && !propCustomerId}
+                          disabled={!!propCustomerId || disableCustomerFilter}
+                          onSearchChange={setCustomerSearchValue}
+                          onScrollEnd={fetchNextPage}
+                          hasNextPage={hasNextPage}
+                          isFetchingNextPage={isFetchingNextPage}
+                          isLoading={isLoadingCustomers}
+                        />
+                      </div>
                     )}
-                    <SearchableSelectQuery
-                      options={farms.map((farm: Farm) => ({
-                        value: farm.id,
-                        label: farm.name,
-                      }))}
-                      value={farmFilter}
-                      onValueChange={(value) => handleFarmChange(value as string | undefined)}
-                      placeholder='Fazenda'
-                      searchPlaceholder='Buscar fazenda...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setFarmSearchValue}
-                      onScrollEnd={fetchNextPageFarms}
-                      hasNextPage={hasNextPageFarms}
-                      isFetchingNextPage={isFetchingNextPageFarms}
-                      isLoading={isLoadingFarms}
-                    />
-                    <SearchableSelectQuery
-                      options={products.map((product: Product) => ({
-                        value: product.id,
-                        label: product.name,
-                      }))}
-                      value={productFilter}
-                      onValueChange={(value) => handleProductChange(value as string | undefined)}
-                      placeholder='Produto'
-                      searchPlaceholder='Buscar produto...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setProductSearchValue}
-                      onScrollEnd={fetchNextPageProducts}
-                      hasNextPage={hasNextPageProducts}
-                      isFetchingNextPage={isFetchingNextPageProducts}
-                      isLoading={isLoadingProducts}
-                    />
-                    <SearchableSelectQuery
-                      options={pilots.map((pilot: User) => ({
-                        value: pilot.id,
-                        label: pilot.name,
-                      }))}
-                      value={pilotFilter}
-                      onValueChange={(value) => handlePilotChange(value as string | undefined)}
-                      placeholder='Piloto'
-                      searchPlaceholder='Buscar piloto...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setPilotSearchValue}
-                      onScrollEnd={fetchNextPagePilots}
-                      hasNextPage={hasNextPagePilots}
-                      isFetchingNextPage={isFetchingNextPagePilots}
-                      isLoading={isLoadingPilots}
-                    />
-                    <SearchableSelectQuery
-                      options={allAssistants.map((assistant: Assistant) => ({
-                        value: assistant.id,
-                        label: assistant.name,
-                      }))}
-                      value={assistantFilter}
-                      onValueChange={(value) => setAssistantFilter(value as string | undefined)}
-                      placeholder='Ajudante'
-                      searchPlaceholder='Buscar ajudante...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setAssistantSearchValue}
-                      onScrollEnd={fetchNextPageAssistants}
-                      hasNextPage={hasNextPageAssistants}
-                      isFetchingNextPage={isFetchingNextPageAssistants}
-                      isLoading={isLoadingAssistants}
-                    />
-                    <SearchableSelectQuery
-                      options={allDrones.map((drone: Drone) => ({
-                        value: drone.id,
-                        label: drone.name,
-                      }))}
-                      value={droneFilter}
-                      onValueChange={(value) => setDroneFilter(value as string | undefined)}
-                      placeholder='Drone'
-                      searchPlaceholder='Buscar drone...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setDroneSearchValue}
-                      onScrollEnd={fetchNextPageDrones}
-                      hasNextPage={hasNextPageDrones}
-                      isFetchingNextPage={isFetchingNextPageDrones}
-                      isLoading={isLoadingDrones}
-                    />
-                    <SearchableSelectQuery
-                      options={allCultures.map((culture: CultureType) => ({
-                        value: culture.id,
-                        label: culture.name,
-                      }))}
-                      value={cultureFilter}
-                      onValueChange={(value) => setCultureFilter(value as string | undefined)}
-                      placeholder='Cultura'
-                      searchPlaceholder='Buscar cultura...'
-                      className='w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setCultureSearchValue}
-                      onScrollEnd={fetchNextPageCultures}
-                      hasNextPage={hasNextPageCultures}
-                      isFetchingNextPage={isFetchingNextPageCultures}
-                      isLoading={isLoadingCultures}
-                    />
-                    <Input
-                      value={plotNameFilter}
-                      onChange={(e) => setPlotNameFilter(e.target.value)}
-                      placeholder='Talhão (nome parcial)'
-                    />
-                    <Input
-                      value={serviceOrderNumberFilter}
-                      onChange={(e) => setServiceOrderNumberFilter(e.target.value)}
-                      placeholder='Número da OS (texto parcial)'
-                    />
-                    <Input
-                      value={observationsFilter}
-                      onChange={(e) => setObservationsFilter(e.target.value)}
-                      placeholder='Observações (texto parcial)'
-                    />
-                    {!propServiceOrderId && (
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Fazenda</p>
                       <SearchableSelectQuery
-                        options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
-                          value: serviceOrder.id,
-                          label: `OS #${serviceOrder.number}`,
+                        options={farms.map((farm: Farm) => ({
+                          value: farm.id,
+                          label: farm.name,
                         }))}
-                        value={serviceOrderFilter}
-                        onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
-                        placeholder={serviceOrderDisplayText || 'Ordem de Serviço'}
-                        searchPlaceholder='Buscar OS...'
+                        value={farmFilter}
+                        onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                        placeholder='Selecionar fazenda'
+                        searchPlaceholder='Buscar fazenda...'
                         className='w-full'
                         popoverClassName='w-[250px]'
-                        clearable={!propServiceOrderId}
-                        disabled={!!propServiceOrderId}
-                        onSearchChange={setServiceOrderSearchValue}
-                        onScrollEnd={fetchNextPageServiceOrders}
-                        hasNextPage={hasNextPageServiceOrders}
-                        isFetchingNextPage={isFetchingNextPageServiceOrders}
-                        isLoading={isLoadingServiceOrders}
+                        clearable
+                        onSearchChange={setFarmSearchValue}
+                        onScrollEnd={fetchNextPageFarms}
+                        hasNextPage={hasNextPageFarms}
+                        isFetchingNextPage={isFetchingNextPageFarms}
+                        isLoading={isLoadingFarms}
                       />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Produto</p>
+                      <SearchableSelectQuery
+                        options={products.map((product: Product) => ({
+                          value: product.id,
+                          label: product.name,
+                        }))}
+                        value={productFilter}
+                        onValueChange={(value) => handleProductChange(value as string | undefined)}
+                        placeholder='Selecionar produto'
+                        searchPlaceholder='Buscar produto...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable
+                        onSearchChange={setProductSearchValue}
+                        onScrollEnd={fetchNextPageProducts}
+                        hasNextPage={hasNextPageProducts}
+                        isFetchingNextPage={isFetchingNextPageProducts}
+                        isLoading={isLoadingProducts}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Piloto</p>
+                      <SearchableSelectQuery
+                        options={pilots.map((pilot: User) => ({
+                          value: pilot.id,
+                          label: pilot.name,
+                        }))}
+                        value={pilotFilter}
+                        onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                        placeholder='Selecionar piloto'
+                        searchPlaceholder='Buscar piloto...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable
+                        onSearchChange={setPilotSearchValue}
+                        onScrollEnd={fetchNextPagePilots}
+                        hasNextPage={hasNextPagePilots}
+                        isFetchingNextPage={isFetchingNextPagePilots}
+                        isLoading={isLoadingPilots}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Ajudante</p>
+                      <SearchableSelectQuery
+                        options={allAssistants.map((assistant: Assistant) => ({
+                          value: assistant.id,
+                          label: assistant.name,
+                        }))}
+                        value={assistantFilter}
+                        onValueChange={(value) => setAssistantFilter(value as string | undefined)}
+                        placeholder='Selecionar ajudante'
+                        searchPlaceholder='Buscar ajudante...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable
+                        onSearchChange={setAssistantSearchValue}
+                        onScrollEnd={fetchNextPageAssistants}
+                        hasNextPage={hasNextPageAssistants}
+                        isFetchingNextPage={isFetchingNextPageAssistants}
+                        isLoading={isLoadingAssistants}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Drone</p>
+                      <SearchableSelectQuery
+                        options={allDrones.map((drone: Drone) => ({
+                          value: drone.id,
+                          label: drone.name,
+                        }))}
+                        value={droneFilter}
+                        onValueChange={(value) => setDroneFilter(value as string | undefined)}
+                        placeholder='Selecionar drone'
+                        searchPlaceholder='Buscar drone...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable
+                        onSearchChange={setDroneSearchValue}
+                        onScrollEnd={fetchNextPageDrones}
+                        hasNextPage={hasNextPageDrones}
+                        isFetchingNextPage={isFetchingNextPageDrones}
+                        isLoading={isLoadingDrones}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Cultura</p>
+                      <SearchableSelectQuery
+                        options={allCultures.map((culture: CultureType) => ({
+                          value: culture.id,
+                          label: culture.name,
+                        }))}
+                        value={cultureFilter}
+                        onValueChange={(value) => setCultureFilter(value as string | undefined)}
+                        placeholder='Selecionar cultura'
+                        searchPlaceholder='Buscar cultura...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable
+                        onSearchChange={setCultureSearchValue}
+                        onScrollEnd={fetchNextPageCultures}
+                        hasNextPage={hasNextPageCultures}
+                        isFetchingNextPage={isFetchingNextPageCultures}
+                        isLoading={isLoadingCultures}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Talhão (nome)</p>
+                      <Input
+                        value={plotNameFilter}
+                        onChange={(e) => setPlotNameFilter(e.target.value)}
+                        placeholder='Digite parte do nome do talhão'
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Número da OS (texto)</p>
+                      <Input
+                        value={serviceOrderNumberFilter}
+                        onChange={(e) => setServiceOrderNumberFilter(e.target.value)}
+                        placeholder='Ex.: 123'
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-xs font-medium text-muted-foreground'>Observações</p>
+                      <Input
+                        value={observationsFilter}
+                        onChange={(e) => setObservationsFilter(e.target.value)}
+                        placeholder='Buscar por texto nas observações'
+                      />
+                    </div>
+                    {!propServiceOrderId && (
+                      <div className='space-y-1'>
+                        <p className='text-xs font-medium text-muted-foreground'>OS</p>
+                        <SearchableSelectQuery
+                          options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
+                            value: serviceOrder.id,
+                            label: `OS #${serviceOrder.number}`,
+                          }))}
+                          value={serviceOrderFilter}
+                          onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
+                          placeholder={serviceOrderDisplayText || 'Selecionar ordem de serviço'}
+                          searchPlaceholder='Buscar OS...'
+                          className='w-full'
+                          popoverClassName='w-[250px]'
+                          clearable={!propServiceOrderId}
+                          disabled={!!propServiceOrderId}
+                          onSearchChange={setServiceOrderSearchValue}
+                          onScrollEnd={fetchNextPageServiceOrders}
+                          hasNextPage={hasNextPageServiceOrders}
+                          isFetchingNextPage={isFetchingNextPageServiceOrders}
+                          isLoading={isLoadingServiceOrders}
+                        />
+                      </div>
                     )}
                     </div>
 
@@ -1361,67 +1397,50 @@ export const TableApplications = ({
                       className='w-full'
                       clearable
                     />
-                    <div className='grid grid-cols-2 gap-2'>
-                      <Input
-                        type='number'
-                        value={hectaresMinFilter}
-                        onChange={(e) => setHectaresMinFilter(e.target.value)}
-                        placeholder='Hectares mín'
-                      />
-                      <Input
-                        type='number'
-                        value={hectaresMaxFilter}
-                        onChange={(e) => setHectaresMaxFilter(e.target.value)}
-                        placeholder='Hectares máx'
-                      />
-                      <Input
-                        type='number'
-                        value={flowRateMinFilter}
-                        onChange={(e) => setFlowRateMinFilter(e.target.value)}
-                        placeholder='Vazão mín'
-                      />
-                      <Input
-                        type='number'
-                        value={flowRateMaxFilter}
-                        onChange={(e) => setFlowRateMaxFilter(e.target.value)}
-                        placeholder='Vazão máx'
-                      />
-                      <Input
-                        type='number'
-                        value={altitudeMinFilter}
-                        onChange={(e) => setAltitudeMinFilter(e.target.value)}
-                        placeholder='Altitude mín'
-                      />
-                      <Input
-                        type='number'
-                        value={altitudeMaxFilter}
-                        onChange={(e) => setAltitudeMaxFilter(e.target.value)}
-                        placeholder='Altitude máx'
-                      />
-                      <Input
-                        type='number'
-                        value={routeSpacingMinFilter}
-                        onChange={(e) => setRouteSpacingMinFilter(e.target.value)}
-                        placeholder='Espaçamento mín'
-                      />
-                      <Input
-                        type='number'
-                        value={routeSpacingMaxFilter}
-                        onChange={(e) => setRouteSpacingMaxFilter(e.target.value)}
-                        placeholder='Espaçamento máx'
-                      />
-                      <Input
-                        type='number'
-                        value={dropletSizeMinFilter}
-                        onChange={(e) => setDropletSizeMinFilter(e.target.value)}
-                        placeholder='Gota mín'
-                      />
-                      <Input
-                        type='number'
-                        value={dropletSizeMaxFilter}
-                        onChange={(e) => setDropletSizeMaxFilter(e.target.value)}
-                        placeholder='Gota máx'
-                      />
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                      Faixas numéricas
+                    </p>
+                    <div className='grid grid-cols-2 gap-3'>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Hectares mín</p>
+                        <Input type='number' value={hectaresMinFilter} onChange={(e) => setHectaresMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Hectares máx</p>
+                        <Input type='number' value={hectaresMaxFilter} onChange={(e) => setHectaresMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Vazão mín</p>
+                        <Input type='number' value={flowRateMinFilter} onChange={(e) => setFlowRateMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Vazão máx</p>
+                        <Input type='number' value={flowRateMaxFilter} onChange={(e) => setFlowRateMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Altitude mín</p>
+                        <Input type='number' value={altitudeMinFilter} onChange={(e) => setAltitudeMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Altitude máx</p>
+                        <Input type='number' value={altitudeMaxFilter} onChange={(e) => setAltitudeMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Espaçamento mín</p>
+                        <Input type='number' value={routeSpacingMinFilter} onChange={(e) => setRouteSpacingMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Espaçamento máx</p>
+                        <Input type='number' value={routeSpacingMaxFilter} onChange={(e) => setRouteSpacingMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Gota mín</p>
+                        <Input type='number' value={dropletSizeMinFilter} onChange={(e) => setDropletSizeMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Gota máx</p>
+                        <Input type='number' value={dropletSizeMaxFilter} onChange={(e) => setDropletSizeMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
                     </div>
                     </div>
 
