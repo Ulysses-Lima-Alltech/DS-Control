@@ -6,6 +6,18 @@ import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 
+function toLocalYMD(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getApplicationCivilDateKey(value: string): string | null {
+  const datePart = value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : null;
+}
+
 interface StatsCustomerPerformanceProps {
   serviceOrders: ServiceOrder[];
   farms: Farm[];
@@ -55,9 +67,14 @@ export function StatsCustomerPerformance({
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const recentApplicationsCutoff = toLocalYMD(thirtyDaysAgo);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const recentApplications = applications.filter(
-    (app) => new Date(app.date) >= thirtyDaysAgo
+    (app) => {
+      const applicationCivilDate = getApplicationCivilDateKey(String(app.date));
+      if (!applicationCivilDate) return false;
+      return applicationCivilDate >= recentApplicationsCutoff;
+    }
   ).length;
 
   const totalFarms = farms.length;

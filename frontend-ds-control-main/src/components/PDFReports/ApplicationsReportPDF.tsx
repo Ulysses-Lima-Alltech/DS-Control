@@ -4,6 +4,7 @@ import React from 'react';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import { formatApplicationDate } from '@/utils/application-date-formatter';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
@@ -895,7 +896,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       color: '#6B7280',
                     }}
                   >
-                    {formatDate(application.date)}
+                    {formatApplicationDate(application.date)}
                   </Text>
                 </View>
 

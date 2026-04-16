@@ -12,7 +12,34 @@ function toLocalYMD(date: Date): string {
 export function formatApplicationDate(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return '-';
 
-  const rawValue = dateInput instanceof Date ? toLocalYMD(dateInput) : String(dateInput);
+  if (dateInput instanceof Date) {
+    const datePart = toLocalYMD(dateInput);
+    const [year, month, day] = datePart.split('-');
+    if (!year || !month || !day) return String(dateInput);
+    return `${day}/${month}/${year}`;
+  }
+
+  const rawValue = String(dateInput);
+  const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+
+  // Date-only payloads are already civil dates and must not be converted.
+  if (dateOnlyPattern.test(rawValue)) {
+    const [year, month, day] = rawValue.split('-');
+    if (!year || !month || !day) return rawValue;
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsed = new Date(rawValue);
+  if (!Number.isNaN(parsed.getTime())) {
+    // Datetime payloads are normalized to Brazil civil day for display consistency.
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(parsed);
+  }
+
   const datePart = normalizeOperationalDatePart(rawValue);
   const [year, month, day] = datePart.split('-');
 

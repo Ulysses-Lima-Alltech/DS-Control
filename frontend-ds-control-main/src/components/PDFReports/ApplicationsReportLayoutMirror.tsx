@@ -8,6 +8,7 @@
 
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
+import { formatApplicationDate } from '@/utils/application-date-formatter';
 
 interface ApplicationsReportLayoutMirrorProps {
   serviceOrder: ServiceOrder;
@@ -239,7 +240,7 @@ export function ApplicationsReportLayoutMirror({
               >
                 <div className='flex justify-between mb-2.5 pb-2 border-b border-[#E5E7EB]'>
                   <span className='text-xs font-bold text-[#EAAE07]'>{application.product?.name || 'N/A'}</span>
-                  <span className='text-[10px] text-[#6B7280]'>{formatDate(application.date)}</span>
+                  <span className='text-[10px] text-[#6B7280]'>{formatApplicationDate(application.date)}</span>
                 </div>
                 <div className='flex flex-wrap gap-x-4 gap-y-1'>
                   <div className='flex'>
