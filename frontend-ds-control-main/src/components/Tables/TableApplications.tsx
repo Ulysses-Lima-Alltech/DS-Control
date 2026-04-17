@@ -1090,6 +1090,39 @@ export const TableApplications = ({
       : null,
   ].filter(Boolean) as Array<{ key: string; label: string; onRemove: () => void }>;
 
+  const hasPeriodFilterActive = Boolean(dateFilter?.startDate && dateFilter?.endDate);
+  const hasAnyFilterActive =
+    Boolean((propSearch || debouncedSearchValue || '').trim()) ||
+    hasPeriodFilterActive ||
+    Boolean(
+      statusFilter ||
+        customerFilter ||
+        overviewFarmId ||
+        overviewProductId ||
+        pilotFilter ||
+        assistantFilter ||
+        droneFilter ||
+        cultureFilter ||
+        plotNameFilter ||
+        observationsFilter ||
+        serviceOrderNumberFilter ||
+        serviceOrderFilter ||
+        invalidApplicationFilter === 'true' ||
+        propApplicationIssue ||
+        orderBy ||
+        orderType ||
+        hectaresMinFilter ||
+        hectaresMaxFilter ||
+        flowRateMinFilter ||
+        flowRateMaxFilter ||
+        altitudeMinFilter ||
+        altitudeMaxFilter ||
+        routeSpacingMinFilter ||
+        routeSpacingMaxFilter ||
+        dropletSizeMinFilter ||
+        dropletSizeMaxFilter
+    );
+
   return (
     <>
       <DataTable
@@ -1106,7 +1139,7 @@ export const TableApplications = ({
           className: 'h-9 w-full max-w-none md:w-full',
         }}
         renderToolbar={({ searchInput, columnsControl }) => (
-          <div className='flex flex-col gap-3 w-full'>
+          <div className='mb-3 flex w-full flex-col gap-3 border-b border-border/70 pb-4'>
             <div className='flex w-full flex-wrap items-center gap-2 sm:gap-3'>
               <div className='w-full sm:min-w-[260px] sm:w-[280px] lg:w-[300px] xl:w-[320px]'>
                 {searchInput}
@@ -1329,7 +1362,7 @@ export const TableApplications = ({
                     </div>
                     </div>
 
-                    {activeFilters.length > 0 && (
+                    {hasAnyFilterActive && (
                       <>
                         <Separator />
                         <Button variant='outline' className='w-full' onClick={clearAllFilters}>
@@ -1342,7 +1375,7 @@ export const TableApplications = ({
                   </SheetContent>
                 </Sheet>
               )}
-              {activeFilters.length > 0 && (
+              {hasAnyFilterActive && (
                 <Button variant='ghost' className='h-9 px-3 text-sm' onClick={clearAllFilters}>
                   <X className='h-4 w-4 mr-1' />
                   Limpar filtros
@@ -1480,7 +1513,7 @@ export const TableApplications = ({
         initialColumnVisibility={initialColumnVisibility}
         renderEmptyState={() => (
           <div className='flex flex-col items-center justify-center gap-3 py-2 px-2 max-w-md mx-auto'>
-            {activeFilters.length > 0 ? (
+            {hasAnyFilterActive ? (
               <>
                 <div className='rounded-full bg-muted p-3'>
                   <SearchX className='h-6 w-6 text-muted-foreground' aria-hidden />
