@@ -1088,13 +1088,6 @@ export const TableApplications = ({
           onRemove: () => setDropletSizeMaxFilter(''),
         }
       : null,
-    dateFilter?.startDate && dateFilter?.endDate
-      ? {
-          key: 'period',
-          label: `Período: ${dateFilter.startDate} até ${dateFilter.endDate}`,
-          onRemove: () => handleDateChange(undefined),
-        }
-      : null,
   ].filter(Boolean) as Array<{ key: string; label: string; onRemove: () => void }>;
 
   return (
@@ -1113,17 +1106,17 @@ export const TableApplications = ({
         }}
         filters={
           <div className='flex flex-col gap-3 w-full'>
-            <div className='flex flex-wrap items-center gap-2 lg:gap-3'>
+            <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
               <DateRangePicker
                 key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
-                className='w-full min-w-[220px] sm:w-[280px]'
+                className='w-full min-w-[220px] sm:w-[280px] lg:w-[320px]'
                 initialValue={dateFilter}
                 onChange={handleDateChange}
               />
               {!simpleMode && (
                 <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
                   <SheetTrigger asChild>
-                    <Button variant='outline' className='gap-2'>
+                    <Button variant='outline' className='h-9 gap-2 px-3'>
                       <Filter className='h-4 w-4' />
                       Filtros avançados
                     </Button>
@@ -1271,201 +1264,201 @@ export const TableApplications = ({
                 </Sheet>
               )}
               {activeFilters.length > 0 && (
-                <Button variant='ghost' className='text-sm' onClick={clearAllFilters}>
+                <Button variant='ghost' className='h-9 px-3 text-sm' onClick={clearAllFilters}>
                   <X className='h-4 w-4 mr-1' />
                   Limpar filtros
                 </Button>
               )}
             </div>
             {!simpleMode && (
-              <div className='rounded-lg border border-border bg-muted/20 p-3 sm:p-4'>
-                <div className='space-y-3'>
-                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                    Filtros principais
-                  </p>
-                  <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-                    {!propCustomerId && (
-                      <div className='space-y-1'>
-                        <p className='text-xs font-medium text-muted-foreground'>Cliente</p>
-                        <SearchableSelectQuery
-                          options={customers.map((customer: Customer) => ({
-                            value: customer.id,
-                            label: customer.name,
-                          }))}
-                          value={customerFilter}
-                          onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-                          placeholder={customerDisplayText || 'Selecionar cliente'}
-                          searchPlaceholder='Buscar cliente...'
-                          className='w-full'
-                          popoverClassName='w-[250px]'
-                          clearable={!disableCustomerFilter && !propCustomerId}
-                          disabled={!!propCustomerId || disableCustomerFilter}
-                          onSearchChange={setCustomerSearchValue}
-                          onScrollEnd={fetchNextPage}
-                          hasNextPage={hasNextPage}
-                          isFetchingNextPage={isFetchingNextPage}
-                          isLoading={isLoadingCustomers}
-                        />
-                      </div>
-                    )}
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Fazenda</p>
+              <>
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                  {!propCustomerId && (
+                    <div className='space-y-1.5'>
+                      <p className='text-sm font-medium text-foreground/90'>Cliente</p>
                       <SearchableSelectQuery
-                        options={farms.map((farm: Farm) => ({
-                          value: farm.id,
-                          label: farm.name,
+                        options={customers.map((customer: Customer) => ({
+                          value: customer.id,
+                          label: customer.name,
                         }))}
-                        value={farmFilter}
-                        onValueChange={(value) => handleFarmChange(value as string | undefined)}
-                        placeholder='Selecionar fazenda'
-                        searchPlaceholder='Buscar fazenda...'
-                        className='w-full'
+                        value={customerFilter}
+                        onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                        placeholder={customerDisplayText || 'Selecionar cliente'}
+                        searchPlaceholder='Buscar cliente...'
+                        className='h-9 w-full'
                         popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setFarmSearchValue}
-                        onScrollEnd={fetchNextPageFarms}
-                        hasNextPage={hasNextPageFarms}
-                        isFetchingNextPage={isFetchingNextPageFarms}
-                        isLoading={isLoadingFarms}
+                        clearable={!disableCustomerFilter && !propCustomerId}
+                        disabled={!!propCustomerId || disableCustomerFilter}
+                        onSearchChange={setCustomerSearchValue}
+                        onScrollEnd={fetchNextPage}
+                        hasNextPage={hasNextPage}
+                        isFetchingNextPage={isFetchingNextPage}
+                        isLoading={isLoadingCustomers}
                       />
                     </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Produto</p>
-                      <SearchableSelectQuery
-                        options={products.map((product: Product) => ({
-                          value: product.id,
-                          label: product.name,
-                        }))}
-                        value={productFilter}
-                        onValueChange={(value) => handleProductChange(value as string | undefined)}
-                        placeholder='Selecionar produto'
-                        searchPlaceholder='Buscar produto...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setProductSearchValue}
-                        onScrollEnd={fetchNextPageProducts}
-                        hasNextPage={hasNextPageProducts}
-                        isFetchingNextPage={isFetchingNextPageProducts}
-                        isLoading={isLoadingProducts}
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Piloto</p>
-                      <SearchableSelectQuery
-                        options={pilots.map((pilot: User) => ({
-                          value: pilot.id,
-                          label: pilot.name,
-                        }))}
-                        value={pilotFilter}
-                        onValueChange={(value) => handlePilotChange(value as string | undefined)}
-                        placeholder='Selecionar piloto'
-                        searchPlaceholder='Buscar piloto...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setPilotSearchValue}
-                        onScrollEnd={fetchNextPagePilots}
-                        hasNextPage={hasNextPagePilots}
-                        isFetchingNextPage={isFetchingNextPagePilots}
-                        isLoading={isLoadingPilots}
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Ajudante</p>
-                      <SearchableSelectQuery
-                        options={allAssistants.map((assistant: Assistant) => ({
-                          value: assistant.id,
-                          label: assistant.name,
-                        }))}
-                        value={assistantFilter}
-                        onValueChange={(value) => setAssistantFilter(value as string | undefined)}
-                        placeholder='Selecionar ajudante'
-                        searchPlaceholder='Buscar ajudante...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setAssistantSearchValue}
-                        onScrollEnd={fetchNextPageAssistants}
-                        hasNextPage={hasNextPageAssistants}
-                        isFetchingNextPage={isFetchingNextPageAssistants}
-                        isLoading={isLoadingAssistants}
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Drone</p>
-                      <SearchableSelectQuery
-                        options={allDrones.map((drone: Drone) => ({
-                          value: drone.id,
-                          label: drone.name,
-                        }))}
-                        value={droneFilter}
-                        onValueChange={(value) => setDroneFilter(value as string | undefined)}
-                        placeholder='Selecionar drone'
-                        searchPlaceholder='Buscar drone...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setDroneSearchValue}
-                        onScrollEnd={fetchNextPageDrones}
-                        hasNextPage={hasNextPageDrones}
-                        isFetchingNextPage={isFetchingNextPageDrones}
-                        isLoading={isLoadingDrones}
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Cultura</p>
-                      <SearchableSelectQuery
-                        options={allCultures.map((culture: CultureType) => ({
-                          value: culture.id,
-                          label: culture.name,
-                        }))}
-                        value={cultureFilter}
-                        onValueChange={(value) => setCultureFilter(value as string | undefined)}
-                        placeholder='Selecionar cultura'
-                        searchPlaceholder='Buscar cultura...'
-                        className='w-full'
-                        popoverClassName='w-[250px]'
-                        clearable
-                        onSearchChange={setCultureSearchValue}
-                        onScrollEnd={fetchNextPageCultures}
-                        hasNextPage={hasNextPageCultures}
-                        isFetchingNextPage={isFetchingNextPageCultures}
-                        isLoading={isLoadingCultures}
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Talhão (nome)</p>
-                      <Input
-                        value={plotNameFilter}
-                        onChange={(e) => setPlotNameFilter(e.target.value)}
-                        placeholder='Digite parte do nome do talhão'
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <p className='text-xs font-medium text-muted-foreground'>Número da OS (texto)</p>
-                      <Input
-                        value={serviceOrderNumberFilter}
-                        onChange={(e) => setServiceOrderNumberFilter(e.target.value)}
-                        placeholder='Ex.: 123'
-                      />
-                    </div>
-                    <div className='space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-2'>
-                      <p className='text-xs font-medium text-muted-foreground'>Observações</p>
-                      <Input
-                        value={observationsFilter}
-                        onChange={(e) => setObservationsFilter(e.target.value)}
-                        placeholder='Buscar por texto nas observações'
-                      />
-                    </div>
+                  )}
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Fazenda</p>
+                    <SearchableSelectQuery
+                      options={farms.map((farm: Farm) => ({
+                        value: farm.id,
+                        label: farm.name,
+                      }))}
+                      value={farmFilter}
+                      onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                      placeholder='Selecionar fazenda'
+                      searchPlaceholder='Buscar fazenda...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setFarmSearchValue}
+                      onScrollEnd={fetchNextPageFarms}
+                      hasNextPage={hasNextPageFarms}
+                      isFetchingNextPage={isFetchingNextPageFarms}
+                      isLoading={isLoadingFarms}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Produto</p>
+                    <SearchableSelectQuery
+                      options={products.map((product: Product) => ({
+                        value: product.id,
+                        label: product.name,
+                      }))}
+                      value={productFilter}
+                      onValueChange={(value) => handleProductChange(value as string | undefined)}
+                      placeholder='Selecionar produto'
+                      searchPlaceholder='Buscar produto...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setProductSearchValue}
+                      onScrollEnd={fetchNextPageProducts}
+                      hasNextPage={hasNextPageProducts}
+                      isFetchingNextPage={isFetchingNextPageProducts}
+                      isLoading={isLoadingProducts}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Piloto</p>
+                    <SearchableSelectQuery
+                      options={pilots.map((pilot: User) => ({
+                        value: pilot.id,
+                        label: pilot.name,
+                      }))}
+                      value={pilotFilter}
+                      onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                      placeholder='Selecionar piloto'
+                      searchPlaceholder='Buscar piloto...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setPilotSearchValue}
+                      onScrollEnd={fetchNextPagePilots}
+                      hasNextPage={hasNextPagePilots}
+                      isFetchingNextPage={isFetchingNextPagePilots}
+                      isLoading={isLoadingPilots}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
+                    <SearchableSelectQuery
+                      options={allAssistants.map((assistant: Assistant) => ({
+                        value: assistant.id,
+                        label: assistant.name,
+                      }))}
+                      value={assistantFilter}
+                      onValueChange={(value) => setAssistantFilter(value as string | undefined)}
+                      placeholder='Selecionar ajudante'
+                      searchPlaceholder='Buscar ajudante...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setAssistantSearchValue}
+                      onScrollEnd={fetchNextPageAssistants}
+                      hasNextPage={hasNextPageAssistants}
+                      isFetchingNextPage={isFetchingNextPageAssistants}
+                      isLoading={isLoadingAssistants}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Drone</p>
+                    <SearchableSelectQuery
+                      options={allDrones.map((drone: Drone) => ({
+                        value: drone.id,
+                        label: drone.name,
+                      }))}
+                      value={droneFilter}
+                      onValueChange={(value) => setDroneFilter(value as string | undefined)}
+                      placeholder='Selecionar drone'
+                      searchPlaceholder='Buscar drone...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setDroneSearchValue}
+                      onScrollEnd={fetchNextPageDrones}
+                      hasNextPage={hasNextPageDrones}
+                      isFetchingNextPage={isFetchingNextPageDrones}
+                      isLoading={isLoadingDrones}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Cultura</p>
+                    <SearchableSelectQuery
+                      options={allCultures.map((culture: CultureType) => ({
+                        value: culture.id,
+                        label: culture.name,
+                      }))}
+                      value={cultureFilter}
+                      onValueChange={(value) => setCultureFilter(value as string | undefined)}
+                      placeholder='Selecionar cultura'
+                      searchPlaceholder='Buscar cultura...'
+                      className='h-9 w-full'
+                      popoverClassName='w-[250px]'
+                      clearable
+                      onSearchChange={setCultureSearchValue}
+                      onScrollEnd={fetchNextPageCultures}
+                      hasNextPage={hasNextPageCultures}
+                      isFetchingNextPage={isFetchingNextPageCultures}
+                      isLoading={isLoadingCultures}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Talhão</p>
+                    <Input
+                      className='h-9'
+                      value={plotNameFilter}
+                      onChange={(e) => setPlotNameFilter(e.target.value)}
+                      placeholder='Digite parte do nome do talhão'
+                    />
                   </div>
                 </div>
-              </div>
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Número da OS</p>
+                    <Input
+                      className='h-9'
+                      value={serviceOrderNumberFilter}
+                      onChange={(e) => setServiceOrderNumberFilter(e.target.value)}
+                      placeholder='Ex.: 123'
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <p className='text-sm font-medium text-foreground/90'>Observações</p>
+                    <Input
+                      className='h-9'
+                      value={observationsFilter}
+                      onChange={(e) => setObservationsFilter(e.target.value)}
+                      placeholder='Buscar por texto nas observações'
+                    />
+                  </div>
+                </div>
+              </>
             )}
             {activeFilters.length > 0 && (
               <div className='flex flex-wrap items-center gap-2'>
                 {activeFilters.map((filter) => (
-                  <Badge key={filter.key} variant='secondary' className='gap-1.5 pr-1'>
+                  <Badge key={filter.key} variant='outline' className='gap-1.5 bg-muted/30 pr-1'>
                     <span>{filter.label}</span>
                     <button
                       type='button'
