@@ -1,7 +1,6 @@
 'use client';
 
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
-import { format, subDays } from 'date-fns';
 import { debounce } from 'lodash';
 import { Edit, Filter, SearchX, Trash, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -1123,14 +1122,54 @@ export const TableApplications = ({
         dropletSizeMaxFilter
     );
 
+  const showOverviewCards = !simpleMode && !propCustomerId && !propServiceOrderId;
+  // TODO(applications-metrics): conectar estes cards a uma fonte agregada (não paginada),
+  // reaproveitando exatamente os mesmos filtros aplicados na listagem.
+  const overviewMetricsPlaceholder = {
+    totalFilteredArea: '-- ha',
+    yesterdayArea: '-- ha',
+    standaloneCount: '--',
+    standaloneArea: '-- ha',
+  };
+
   return (
     <>
-      <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
-        <div className='mb-4 space-y-1'>
-          <h2 className='text-base font-semibold text-foreground'>Filtros</h2>
-          <p className='text-sm text-muted-foreground'>Refine os registros de aplicações</p>
+      {showOverviewCards && (
+        <div className='mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3'>
+          <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+            <p className='text-sm text-muted-foreground'>Total filtrado</p>
+            <p className='mt-8 text-4xl font-semibold text-emerald-500'>
+              {overviewMetricsPlaceholder.totalFilteredArea}
+            </p>
+          </div>
+          <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+            <p className='text-sm text-muted-foreground'>Total aplicações de ontem</p>
+            <p className='mt-8 text-4xl font-semibold text-amber-400'>
+              {overviewMetricsPlaceholder.yesterdayArea}
+            </p>
+          </div>
+          <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+            <p className='text-sm text-muted-foreground'>Aplicações avulsas</p>
+            <div className='mt-6 space-y-4'>
+              <div>
+                <p className='text-3xl font-semibold text-orange-500'>
+                  {overviewMetricsPlaceholder.standaloneCount}
+                </p>
+                <p className='text-xs font-semibold tracking-wide text-orange-500'>APLICAÇÕES</p>
+              </div>
+              <div>
+                <p className='text-3xl font-semibold text-red-500'>
+                  {overviewMetricsPlaceholder.standaloneArea}
+                </p>
+                <p className='text-xs font-semibold tracking-wide text-red-500'>ÁREA TOTAL</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className='flex w-full flex-col gap-y-6'>
+      )}
+
+      <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+        <div className='flex w-full flex-col gap-4'>
           <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
@@ -1379,7 +1418,7 @@ export const TableApplications = ({
             </div>
           </div>
           {!simpleMode && (
-            <div className='mt-4 border-t border-border pt-4'>
+            <div className='mt-2'>
               <div className='grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-7'>
               <div className='space-y-1.5'>
                 <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
@@ -1503,10 +1542,7 @@ export const TableApplications = ({
         error={error}
         onRetry={() => void refetch()}
         renderToolbar={({ columnsControl }) => (
-          <div className='mb-6 flex items-center justify-between border-b border-border pb-4'>
-            <h2 className='text-base font-semibold text-foreground'>Resultados</h2>
-            {columnsControl}
-          </div>
+          <div className='mb-3 flex justify-end'>{columnsControl}</div>
         )}
         pagination={{
           manual: true,
