@@ -1140,14 +1140,15 @@ export const TableApplications = ({
         }}
         renderToolbar={({ searchInput, columnsControl }) => (
           <div className='mb-3 flex w-full flex-col gap-3 border-b border-border/70 pb-4'>
-            <div className='grid w-full grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(20rem,1.4fr)_minmax(17rem,1.2fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
-              <div className='min-w-[280px] sm:col-span-2 lg:col-span-2 xl:col-span-1 xl:min-w-[320px]'>
+            <div className='grid w-full grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start'>
+              <div className='grid w-full grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]'>
+              <div className='min-w-0 sm:col-span-2 lg:col-span-1'>
                 {searchInput}
               </div>
-              <div className='min-w-[240px] sm:col-span-2 lg:col-span-2 xl:col-span-1 xl:min-w-[280px]'>
+              <div className='min-w-0 sm:col-span-2 lg:col-span-1'>
                 <DateRangePicker
                   key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
-                  className='h-9 w-full min-w-[240px]'
+                  className='h-9 w-full min-w-0'
                   initialValue={dateFilter}
                   onChange={handleDateChange}
                 />
@@ -1206,7 +1207,8 @@ export const TableApplications = ({
                 isFetchingNextPage={isFetchingNextPagePilots}
                 isLoading={isLoadingPilots}
               />
-              <div className='flex items-center gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-1 xl:justify-self-end'>
+              </div>
+              <div className='flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end'>
                 {!simpleMode && (
                   <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
                     <SheetTrigger asChild>
