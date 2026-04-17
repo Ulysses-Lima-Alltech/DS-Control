@@ -1,5 +1,3 @@
-import { pdf } from '@react-pdf/renderer';
-
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
@@ -99,6 +97,7 @@ export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
 }: GeneratePDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
   const prefetchedMapImageDataUrls = await prefetchReportMapImagesByPlotId(applications);
 
   const element = ApplicationsReportPDF({
