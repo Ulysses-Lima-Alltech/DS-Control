@@ -1125,9 +1125,9 @@ export const TableApplications = ({
 
   return (
     <>
-      <div className='mb-4 rounded-lg border border-border bg-background p-3 sm:p-4'>
-        <div className='flex w-full flex-col gap-3'>
-          <div className='grid w-full grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
+      <div className='mb-5 rounded-lg border border-border bg-background p-4 sm:p-5'>
+        <div className='flex w-full flex-col gap-5'>
+          <div className='grid w-full grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
@@ -1375,7 +1375,7 @@ export const TableApplications = ({
             </div>
           </div>
           {!simpleMode && (
-            <div className='grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-7'>
+            <div className='grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7'>
               <div className='space-y-1.5'>
                 <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
                 <SearchableSelectQuery
