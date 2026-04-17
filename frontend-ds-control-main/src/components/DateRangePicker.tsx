@@ -1,6 +1,6 @@
 "use client"
 
-import { format, isValid } from "date-fns"
+import { format, isSameDay, isValid } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
@@ -69,19 +69,55 @@ export default function DateRangePicker({
           return undefined
       }
   )
+  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(date)
+  const skipNextSelectRef = React.useRef(false)
 
   const handleSelect = (newDate: DateRange | undefined) => {
-    if (newDate?.from && !newDate?.to) {
-      // Primeiro clique: mantém aberto e guarda apenas a data inicial.
-      setDate({ from: newDate.from, to: undefined })
-      setOpen(true)
-    } else {
-      setDate(newDate)
-      // Fecha apenas quando o intervalo estiver completo (inclui 1 dia: from === to).
-      if (newDate?.from && newDate?.to) {
-        setOpen(false)
-      }
+    if (skipNextSelectRef.current) {
+      skipNextSelectRef.current = false
+      return
     }
+
+    if (newDate?.from && !newDate?.to) {
+      // First click: keep popover open and store only temporary draft range.
+      setDraftRange({ from: newDate.from, to: undefined })
+      setOpen(true)
+      return
+    }
+
+    setDraftRange(newDate)
+    setDate(newDate)
+
+    // Close only when the range is complete.
+    if (newDate?.from && newDate?.to) {
+      setOpen(false)
+    }
+  }
+
+  const handleDayClick = (day: Date) => {
+    // Double click on same day: complete as one-day range and close.
+    if (draftRange?.from && !draftRange?.to && isSameDay(day, draftRange.from)) {
+      const singleDayRange: DateRange = { from: day, to: day }
+      skipNextSelectRef.current = true
+      setDraftRange(singleDayRange)
+      setDate(singleDayRange)
+      setOpen(false)
+    }
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    const hasPartialSelection = Boolean(draftRange?.from && !draftRange?.to)
+
+    // Prevent auto-close when selection is partial.
+    if (!nextOpen && hasPartialSelection) {
+      return
+    }
+
+    if (nextOpen) {
+      setDraftRange(date)
+    }
+
+    setOpen(nextOpen)
   }
 
   useEffect(() => {
@@ -92,7 +128,7 @@ export default function DateRangePicker({
         })
         return
     }
-    // Seleção parcial não altera filtros externos.
+    // Partial selection does not update external filters.
     if (!date?.from && !date?.to) {
       onChange(undefined)
     }
@@ -101,25 +137,25 @@ export default function DateRangePicker({
   return (
 
     <div className={cn("grid gap-2", className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             id="date"
             variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
-              !date && "text-muted-foreground"
+              !draftRange && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
+            {draftRange?.from ? (
+              draftRange.to ? (
                 <>
-                  {safeFormatDate(date.from, "LLL dd, y")} -{" "}
-                  {safeFormatDate(date.to, "LLL dd, y")}
+                  {safeFormatDate(draftRange.from, "LLL dd, y")} -{" "}
+                  {safeFormatDate(draftRange.to, "LLL dd, y")}
                 </>
               ) : (
-                safeFormatDate(date.from, "LLL dd, y")
+                safeFormatDate(draftRange.from, "LLL dd, y")
               )
             ) : (
               <span>{placeholder}</span>
@@ -130,9 +166,10 @@ export default function DateRangePicker({
           <Calendar
             autoFocus
             mode="range"
-            defaultMonth={date?.from}
-            selected={date}
+            defaultMonth={draftRange?.from}
+            selected={draftRange}
             onSelect={handleSelect}
+            onDayClick={handleDayClick}
             numberOfMonths={2}
             locale={ptBR}
           />
