@@ -74,6 +74,11 @@ interface DataTableProps<TData, TValue> {
     className?: string;
   };
   filters?: React.ReactNode;
+  renderToolbar?: (elements: {
+    searchInput: React.ReactNode;
+    filters: React.ReactNode;
+    columnsControl: React.ReactNode;
+  }) => React.ReactNode;
   isLoading?: boolean;
   isError?: boolean;
   error?: Error | null;
@@ -95,6 +100,7 @@ export function DataTable<TData, TValue>({
   pagination,
   searchConfig,
   filters,
+  renderToolbar,
   isLoading = false,
   isError = false,
   error,
@@ -190,58 +196,74 @@ export function DataTable<TData, TValue>({
     }
   };
 
-  const toolbar = (
+  const searchInput = (
+    <Input
+      placeholder={searchConfig?.placeholder || 'Buscar...'}
+      value={searchValue}
+      onChange={(event) => handleSearchChange(event.target.value)}
+      className={`max-w-sm min-w-[150px] w-full md:w-[18rem] text-ellipsis ${searchConfig?.className || ''}`}
+    />
+  );
+
+  const columnsControl = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant='outline' className='ml-auto'>
+          Colunas <ChevronDown className='ml-2 h-4 w-4' />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {table
+          .getAllColumns()
+          .filter((column) => column.getCanHide())
+          .map((column) => {
+            const columnDef = column.columnDef as ColumnDef<TData, TValue> & {
+              label?: string;
+            };
+            const isDataColumn = column.id !== 'actions' && column.id !== 'expand';
+            const isVisible = column.getIsVisible();
+
+            const visibleDataColumns = table
+              .getAllColumns()
+              .filter((col) => col.getIsVisible() && col.id !== 'actions' && col.id !== 'expand');
+
+            const wouldBeLastDataColumn =
+              isDataColumn && isVisible && visibleDataColumns.length === 1;
+            const isDisabled = wouldBeLastDataColumn;
+
+            return (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                className='capitalize'
+                checked={isVisible}
+                onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                disabled={isDisabled}
+              >
+                {columnDef.label || column.id}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const defaultToolbar = (
     <div className='flex flex-col items-center gap-4 py-4 w-auto md:flex-row'>
       <div className='flex flex-row justify-between w-full overflow-x-scroll scrollbar-hide space-x-2 p-2 px-0'>
-        <Input
-          placeholder={searchConfig?.placeholder || 'Buscar...'}
-          value={searchValue}
-          onChange={(event) => handleSearchChange(event.target.value)}
-          className={`max-w-sm min-w-[150px] w-full md:w-[18rem] text-ellipsis ${searchConfig?.className || ''}`}
-        />
+        {searchInput}
         {filters && <div className='flex items-center gap-2 w-fit'>{filters}</div>}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='outline' className='ml-auto'>
-              Colunas <ChevronDown className='ml-2 h-4 w-4' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                const columnDef = column.columnDef as ColumnDef<TData, TValue> & {
-                  label?: string;
-                };
-                const isDataColumn = column.id !== 'actions' && column.id !== 'expand';
-                const isVisible = column.getIsVisible();
-
-                const visibleDataColumns = table
-                  .getAllColumns()
-                  .filter((col) => col.getIsVisible() && col.id !== 'actions' && col.id !== 'expand');
-
-                const wouldBeLastDataColumn =
-                  isDataColumn && isVisible && visibleDataColumns.length === 1;
-                const isDisabled = wouldBeLastDataColumn;
-
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className='capitalize'
-                    checked={isVisible}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                    disabled={isDisabled}
-                  >
-                    {columnDef.label || column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {columnsControl}
       </div>
     </div>
   );
+
+  const toolbar = renderToolbar
+    ? renderToolbar({
+        searchInput,
+        filters,
+        columnsControl,
+      })
+    : defaultToolbar;
 
   const errorPanel = (
     <div className='rounded-md border border-destructive/20 bg-destructive/5'>

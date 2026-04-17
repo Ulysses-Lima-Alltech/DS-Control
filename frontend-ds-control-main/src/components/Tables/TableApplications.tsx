@@ -1103,10 +1103,14 @@ export const TableApplications = ({
           placeholder: 'Buscar aplicações...',
           searchValue: inputSearchValue,
           onSearchChange: handleSearchChange,
+          className: 'h-9 w-full max-w-none md:w-full',
         }}
-        filters={
+        renderToolbar={({ searchInput, columnsControl }) => (
           <div className='flex flex-col gap-3 w-full'>
             <div className='flex w-full flex-wrap items-center gap-2 sm:gap-3'>
+              <div className='w-full sm:min-w-[260px] sm:w-[280px] lg:w-[300px] xl:w-[320px]'>
+                {searchInput}
+              </div>
               <DateRangePicker
                 key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
                 className='h-9 w-full min-w-[220px] sm:w-[280px] lg:w-[300px]'
@@ -1344,6 +1348,7 @@ export const TableApplications = ({
                   Limpar filtros
                 </Button>
               )}
+              <div className='ml-auto'>{columnsControl}</div>
             </div>
             {!simpleMode && (
               <>
@@ -1459,7 +1464,7 @@ export const TableApplications = ({
               </div>
             )}
           </div>
-        }
+        )}
         pagination={{
           manual: true,
           currentPage,
