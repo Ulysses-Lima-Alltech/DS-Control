@@ -1140,16 +1140,18 @@ export const TableApplications = ({
         }}
         renderToolbar={({ searchInput, columnsControl }) => (
           <div className='mb-3 flex w-full flex-col gap-3 border-b border-border/70 pb-4'>
-            <div className='flex w-full flex-wrap items-center gap-2 sm:gap-3'>
-              <div className='w-full sm:min-w-[260px] sm:w-[280px] lg:w-[300px] xl:w-[320px]'>
+            <div className='grid w-full grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-[minmax(20rem,1.4fr)_minmax(17rem,1.2fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
+              <div className='min-w-[280px] sm:col-span-2 lg:col-span-2 xl:col-span-1 xl:min-w-[320px]'>
                 {searchInput}
               </div>
-              <DateRangePicker
-                key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
-                className='h-9 w-full min-w-[220px] sm:w-[280px] lg:w-[300px]'
-                initialValue={dateFilter}
-                onChange={handleDateChange}
-              />
+              <div className='min-w-[240px] sm:col-span-2 lg:col-span-2 xl:col-span-1 xl:min-w-[280px]'>
+                <DateRangePicker
+                  key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
+                  className='h-9 w-full min-w-[240px]'
+                  initialValue={dateFilter}
+                  onChange={handleDateChange}
+                />
+              </div>
               <SearchableSelectQuery
                 options={farms.map((farm: Farm) => ({
                   value: farm.id,
@@ -1159,7 +1161,7 @@ export const TableApplications = ({
                 onValueChange={(value) => handleFarmChange(value as string | undefined)}
                 placeholder='Fazenda'
                 searchPlaceholder='Buscar fazenda...'
-                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                className='h-9 w-full'
                 popoverClassName='w-[260px]'
                 clearable
                 onSearchChange={setFarmSearchValue}
@@ -1177,7 +1179,7 @@ export const TableApplications = ({
                 onValueChange={(value) => handleProductChange(value as string | undefined)}
                 placeholder='Produto'
                 searchPlaceholder='Buscar produto...'
-                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                className='h-9 w-full'
                 popoverClassName='w-[260px]'
                 clearable
                 onSearchChange={setProductSearchValue}
@@ -1195,7 +1197,7 @@ export const TableApplications = ({
                 onValueChange={(value) => handlePilotChange(value as string | undefined)}
                 placeholder='Piloto'
                 searchPlaceholder='Buscar piloto...'
-                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                className='h-9 w-full'
                 popoverClassName='w-[260px]'
                 clearable
                 onSearchChange={setPilotSearchValue}
@@ -1204,15 +1206,16 @@ export const TableApplications = ({
                 isFetchingNextPage={isFetchingNextPagePilots}
                 isLoading={isLoadingPilots}
               />
-              {!simpleMode && (
-                <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant='outline' className='h-9 gap-2 px-3'>
-                      <Filter className='h-4 w-4' />
-                      Mais filtros
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side='right' className='w-[96vw] sm:max-w-xl overflow-y-auto'>
+              <div className='flex items-center gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-1 xl:justify-self-end'>
+                {!simpleMode && (
+                  <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+                    <SheetTrigger asChild>
+                      <Button variant='outline' className='h-9 gap-2 px-3'>
+                        <Filter className='h-4 w-4' />
+                        Mais filtros
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side='right' className='w-[96vw] sm:max-w-xl overflow-y-auto'>
                     <SheetHeader>
                       <SheetTitle>Filtros avançados</SheetTitle>
                       <SheetDescription>Refine os registros de aplicações</SheetDescription>
@@ -1372,16 +1375,17 @@ export const TableApplications = ({
                       </>
                     )}
                     </div>
-                  </SheetContent>
-                </Sheet>
-              )}
-              {hasAnyFilterActive && (
-                <Button variant='ghost' className='h-9 px-3 text-sm' onClick={clearAllFilters}>
-                  <X className='h-4 w-4 mr-1' />
-                  Limpar filtros
-                </Button>
-              )}
-              <div className='ml-auto'>{columnsControl}</div>
+                    </SheetContent>
+                  </Sheet>
+                )}
+                {hasAnyFilterActive && (
+                  <Button variant='ghost' className='h-9 px-3 text-sm' onClick={clearAllFilters}>
+                    <X className='h-4 w-4 mr-1' />
+                    Limpar filtros
+                  </Button>
+                )}
+                {columnsControl}
+              </div>
             </div>
             {!simpleMode && (
               <>
