@@ -1125,9 +1125,13 @@ export const TableApplications = ({
 
   return (
     <>
-      <div className='mb-5 rounded-lg border border-border bg-background p-4 sm:p-5'>
-        <div className='flex w-full flex-col gap-5'>
-          <div className='grid w-full grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
+      <div className='mb-8 rounded-xl border border-border bg-muted/30 p-6 sm:p-8'>
+        <div className='mb-6 space-y-1'>
+          <h2 className='text-base font-semibold text-foreground'>Filtros</h2>
+          <p className='text-sm text-muted-foreground'>Refine os registros de aplicações</p>
+        </div>
+        <div className='flex w-full flex-col gap-y-6'>
+          <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
@@ -1375,7 +1379,8 @@ export const TableApplications = ({
             </div>
           </div>
           {!simpleMode && (
-            <div className='grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7'>
+            <div className='mt-6 border-t border-border pt-6'>
+              <div className='grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-7'>
               <div className='space-y-1.5'>
                 <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
                 <SearchableSelectQuery
@@ -1466,6 +1471,7 @@ export const TableApplications = ({
                   placeholder='Buscar por texto nas observações'
                 />
               </div>
+              </div>
             </div>
           )}
           {activeFilters.length > 0 && (
@@ -1488,7 +1494,7 @@ export const TableApplications = ({
         </div>
       </div>
 
-      <div className='rounded-lg border border-border bg-background p-3 sm:p-4'>
+      <div className='mt-10 rounded-xl border border-border bg-background p-6 sm:p-8'>
       <DataTable
         columns={columns}
         data={data?.data || []}
@@ -1497,7 +1503,10 @@ export const TableApplications = ({
         error={error}
         onRetry={() => void refetch()}
         renderToolbar={({ columnsControl }) => (
-          <div className='mb-2 flex justify-end'>{columnsControl}</div>
+          <div className='mb-6 flex items-center justify-between border-b border-border pb-4'>
+            <h2 className='text-base font-semibold text-foreground'>Resultados</h2>
+            {columnsControl}
+          </div>
         )}
         pagination={{
           manual: true,
