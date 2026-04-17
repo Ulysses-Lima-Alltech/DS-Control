@@ -53,6 +53,7 @@ function safeFormatDate(date: Date | undefined, dateFormat: string) {
 export default function DateRangePicker({
     onChange, initialValue, className, placeholder = "Selecione um intervalo de datas"
 }: DateRangePickerParams) {
+  const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<DateRange | undefined>(() => {
       if (initialValue) {
               const from = parseDateInput(initialValue.startDate)
@@ -71,11 +72,17 @@ export default function DateRangePicker({
 
   const handleSelect = (newDate: DateRange | undefined) => {
     if (newDate?.from && !newDate?.to) {
-        setDate({ from: newDate.from, to: undefined })
+      // Primeiro clique: mantém aberto e guarda apenas a data inicial.
+      setDate({ from: newDate.from, to: undefined })
+      setOpen(true)
     } else {
-        setDate(newDate)
+      setDate(newDate)
+      // Fecha apenas quando o intervalo estiver completo (inclui 1 dia: from === to).
+      if (newDate?.from && newDate?.to) {
+        setOpen(false)
+      }
     }
-}
+  }
 
   useEffect(() => {
     if(date?.from && date?.to && isValid(date.from) && isValid(date.to)){
@@ -85,13 +92,16 @@ export default function DateRangePicker({
         })
         return
     }
-    onChange(undefined)
+    // Seleção parcial não altera filtros externos.
+    if (!date?.from && !date?.to) {
+      onChange(undefined)
+    }
   }, [date, onChange])
 
   return (
 
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
