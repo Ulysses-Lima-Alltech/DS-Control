@@ -1125,7 +1125,7 @@ export const TableApplications = ({
                   <SheetTrigger asChild>
                     <Button variant='outline' className='gap-2'>
                       <Filter className='h-4 w-4' />
-                      Filtros
+                      Filtros avançados
                     </Button>
                   </SheetTrigger>
                   <SheetContent side='right' className='w-[96vw] sm:max-w-xl overflow-y-auto'>
@@ -1152,12 +1152,138 @@ export const TableApplications = ({
                     </Select>
                     </div>
                     <Separator />
-
+                    
                     <div className='space-y-3'>
                       <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                        Relacionamento e estrutura
+                        Operação
                       </p>
+                      {!propServiceOrderId && (
+                        <SearchableSelectQuery
+                          options={statusOptions}
+                          value={statusFilter}
+                          onValueChange={(value) => handleStatusChange(value as string | undefined)}
+                          placeholder={
+                            disableStatusFilter && statusDisplayText ? statusDisplayText : 'Status da OS'
+                          }
+                          searchPlaceholder='Buscar status...'
+                          className='w-full'
+                          clearable={!disableStatusFilter}
+                          disabled={disableStatusFilter}
+                        />
+                      )}
+                      {!propServiceOrderId && (
+                        <SearchableSelectQuery
+                          options={serviceOrders.map((so: ServiceOrder) => ({
+                            value: so.id,
+                            label: `#${so.number} - ${so.farms?.[0]?.name || 'Sem fazenda'}`,
+                          }))}
+                          value={serviceOrderFilter}
+                          onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
+                          placeholder={serviceOrderDisplayText || 'Selecionar OS'}
+                          searchPlaceholder='Buscar OS...'
+                          className='w-full'
+                          clearable
+                          onSearchChange={setServiceOrderSearchValue}
+                          onScrollEnd={fetchNextPageServiceOrders}
+                          hasNextPage={hasNextPageServiceOrders}
+                          isFetchingNextPage={isFetchingNextPageServiceOrders}
+                          isLoading={isLoadingServiceOrders}
+                        />
+                      )}
+                    <SearchableSelectQuery
+                      options={orderByOptions}
+                      value={orderBy}
+                      onValueChange={(value) => handleOrderByChange(value as ApplicationOrderBy | undefined)}
+                      placeholder='Ordenar por'
+                      searchPlaceholder='Buscar...'
+                      className='w-full'
+                      clearable
+                    />
+                    <SearchableSelectQuery
+                      options={orderTypeOptions}
+                      value={orderType}
+                      onValueChange={(value) =>
+                        handleOrderTypeChange(value as ApplicationOrderType | undefined)
+                      }
+                      placeholder='Ordenação'
+                      searchPlaceholder='Buscar...'
+                      className='w-full'
+                      clearable
+                    />
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                      Faixas numéricas
+                    </p>
+                    <div className='grid grid-cols-2 gap-3'>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Hectares mín</p>
+                        <Input type='number' value={hectaresMinFilter} onChange={(e) => setHectaresMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Hectares máx</p>
+                        <Input type='number' value={hectaresMaxFilter} onChange={(e) => setHectaresMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Vazão mín</p>
+                        <Input type='number' value={flowRateMinFilter} onChange={(e) => setFlowRateMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Vazão máx</p>
+                        <Input type='number' value={flowRateMaxFilter} onChange={(e) => setFlowRateMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Altitude mín</p>
+                        <Input type='number' value={altitudeMinFilter} onChange={(e) => setAltitudeMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Altitude máx</p>
+                        <Input type='number' value={altitudeMaxFilter} onChange={(e) => setAltitudeMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Espaçamento mín</p>
+                        <Input type='number' value={routeSpacingMinFilter} onChange={(e) => setRouteSpacingMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Espaçamento máx</p>
+                        <Input type='number' value={routeSpacingMaxFilter} onChange={(e) => setRouteSpacingMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Gota mín</p>
+                        <Input type='number' value={dropletSizeMinFilter} onChange={(e) => setDropletSizeMinFilter(e.target.value)} placeholder='0' />
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-muted-foreground'>Gota máx</p>
+                        <Input type='number' value={dropletSizeMaxFilter} onChange={(e) => setDropletSizeMaxFilter(e.target.value)} placeholder='9999' />
+                      </div>
+                    </div>
+                    </div>
 
+                    {activeFilters.length > 0 && (
+                      <>
+                        <Separator />
+                        <Button variant='outline' className='w-full' onClick={clearAllFilters}>
+                          <X className='h-4 w-4 mr-1' />
+                          Limpar todos os filtros
+                        </Button>
+                      </>
+                    )}
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
+              {activeFilters.length > 0 && (
+                <Button variant='ghost' className='text-sm' onClick={clearAllFilters}>
+                  <X className='h-4 w-4 mr-1' />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+            {!simpleMode && (
+              <div className='rounded-lg border border-border bg-muted/20 p-3 sm:p-4'>
+                <div className='space-y-3'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                    Filtros principais
+                  </p>
+                  <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
                     {!propCustomerId && (
                       <div className='space-y-1'>
                         <p className='text-xs font-medium text-muted-foreground'>Cliente</p>
@@ -1324,7 +1450,7 @@ export const TableApplications = ({
                         placeholder='Ex.: 123'
                       />
                     </div>
-                    <div className='space-y-1'>
+                    <div className='space-y-1 sm:col-span-2 lg:col-span-2 xl:col-span-2'>
                       <p className='text-xs font-medium text-muted-foreground'>Observações</p>
                       <Input
                         value={observationsFilter}
@@ -1332,138 +1458,10 @@ export const TableApplications = ({
                         placeholder='Buscar por texto nas observações'
                       />
                     </div>
-                    {!propServiceOrderId && (
-                      <div className='space-y-1'>
-                        <p className='text-xs font-medium text-muted-foreground'>OS</p>
-                        <SearchableSelectQuery
-                          options={serviceOrders.map((serviceOrder: ServiceOrder) => ({
-                            value: serviceOrder.id,
-                            label: `OS #${serviceOrder.number}`,
-                          }))}
-                          value={serviceOrderFilter}
-                          onValueChange={(value) => handleServiceOrderChange(value as string | undefined)}
-                          placeholder={serviceOrderDisplayText || 'Selecionar ordem de serviço'}
-                          searchPlaceholder='Buscar OS...'
-                          className='w-full'
-                          popoverClassName='w-[250px]'
-                          clearable={!propServiceOrderId}
-                          disabled={!!propServiceOrderId}
-                          onSearchChange={setServiceOrderSearchValue}
-                          onScrollEnd={fetchNextPageServiceOrders}
-                          hasNextPage={hasNextPageServiceOrders}
-                          isFetchingNextPage={isFetchingNextPageServiceOrders}
-                          isLoading={isLoadingServiceOrders}
-                        />
-                      </div>
-                    )}
-                    </div>
-
-                    <Separator />
-                    <div className='space-y-3'>
-                      <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                        Operação
-                      </p>
-                      {!propServiceOrderId && (
-                        <SearchableSelectQuery
-                          options={statusOptions}
-                          value={statusFilter}
-                          onValueChange={(value) => handleStatusChange(value as string | undefined)}
-                          placeholder={
-                            disableStatusFilter && statusDisplayText ? statusDisplayText : 'Status da OS'
-                          }
-                          searchPlaceholder='Buscar status...'
-                          className='w-full'
-                          clearable={!disableStatusFilter}
-                          disabled={disableStatusFilter}
-                        />
-                      )}
-                    <SearchableSelectQuery
-                      options={orderByOptions}
-                      value={orderBy}
-                      onValueChange={(value) => handleOrderByChange(value as ApplicationOrderBy | undefined)}
-                      placeholder='Ordenar por'
-                      searchPlaceholder='Buscar...'
-                      className='w-full'
-                      clearable
-                    />
-                    <SearchableSelectQuery
-                      options={orderTypeOptions}
-                      value={orderType}
-                      onValueChange={(value) =>
-                        handleOrderTypeChange(value as ApplicationOrderType | undefined)
-                      }
-                      placeholder='Ordenação'
-                      searchPlaceholder='Buscar...'
-                      className='w-full'
-                      clearable
-                    />
-                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                      Faixas numéricas
-                    </p>
-                    <div className='grid grid-cols-2 gap-3'>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Hectares mín</p>
-                        <Input type='number' value={hectaresMinFilter} onChange={(e) => setHectaresMinFilter(e.target.value)} placeholder='0' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Hectares máx</p>
-                        <Input type='number' value={hectaresMaxFilter} onChange={(e) => setHectaresMaxFilter(e.target.value)} placeholder='9999' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Vazão mín</p>
-                        <Input type='number' value={flowRateMinFilter} onChange={(e) => setFlowRateMinFilter(e.target.value)} placeholder='0' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Vazão máx</p>
-                        <Input type='number' value={flowRateMaxFilter} onChange={(e) => setFlowRateMaxFilter(e.target.value)} placeholder='9999' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Altitude mín</p>
-                        <Input type='number' value={altitudeMinFilter} onChange={(e) => setAltitudeMinFilter(e.target.value)} placeholder='0' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Altitude máx</p>
-                        <Input type='number' value={altitudeMaxFilter} onChange={(e) => setAltitudeMaxFilter(e.target.value)} placeholder='9999' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Espaçamento mín</p>
-                        <Input type='number' value={routeSpacingMinFilter} onChange={(e) => setRouteSpacingMinFilter(e.target.value)} placeholder='0' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Espaçamento máx</p>
-                        <Input type='number' value={routeSpacingMaxFilter} onChange={(e) => setRouteSpacingMaxFilter(e.target.value)} placeholder='9999' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Gota mín</p>
-                        <Input type='number' value={dropletSizeMinFilter} onChange={(e) => setDropletSizeMinFilter(e.target.value)} placeholder='0' />
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='text-xs text-muted-foreground'>Gota máx</p>
-                        <Input type='number' value={dropletSizeMaxFilter} onChange={(e) => setDropletSizeMaxFilter(e.target.value)} placeholder='9999' />
-                      </div>
-                    </div>
-                    </div>
-
-                    {activeFilters.length > 0 && (
-                      <>
-                        <Separator />
-                        <Button variant='outline' className='w-full' onClick={clearAllFilters}>
-                          <X className='h-4 w-4 mr-1' />
-                          Limpar todos os filtros
-                        </Button>
-                      </>
-                    )}
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              )}
-              {activeFilters.length > 0 && (
-                <Button variant='ghost' className='text-sm' onClick={clearAllFilters}>
-                  <X className='h-4 w-4 mr-1' />
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {activeFilters.length > 0 && (
               <div className='flex flex-wrap items-center gap-2'>
                 {activeFilters.map((filter) => (
