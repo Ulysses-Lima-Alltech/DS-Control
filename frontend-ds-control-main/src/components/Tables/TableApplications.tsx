@@ -1125,8 +1125,8 @@ export const TableApplications = ({
 
   return (
     <>
-      <div className='mb-8 rounded-xl border border-border bg-muted/30 p-6 sm:p-8'>
-        <div className='mb-6 space-y-1'>
+      <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+        <div className='mb-4 space-y-1'>
           <h2 className='text-base font-semibold text-foreground'>Filtros</h2>
           <p className='text-sm text-muted-foreground'>Refine os registros de aplicações</p>
         </div>
@@ -1379,7 +1379,7 @@ export const TableApplications = ({
             </div>
           </div>
           {!simpleMode && (
-            <div className='mt-6 border-t border-border pt-6'>
+            <div className='mt-4 border-t border-border pt-4'>
               <div className='grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-7'>
               <div className='space-y-1.5'>
                 <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
@@ -1494,7 +1494,7 @@ export const TableApplications = ({
         </div>
       </div>
 
-      <div className='mt-10 rounded-xl border border-border bg-background p-6 sm:p-8'>
+      <div className='mt-2 rounded-xl border border-border bg-background p-4 sm:p-5'>
       <DataTable
         columns={columns}
         data={data?.data || []}

@@ -9,7 +9,6 @@ import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -83,16 +82,14 @@ export default function AgriculturalApplicationsPage() {
         />
       </div>
 
-      <Card className='max-w-full overflow-auto p-0'>
-        <CardContent className='ph-6'>
-          <TableApplications
-            search={search}
-            startDate={startDate}
-            endDate={endDate}
-            onFilterChange={filterChangeHandlers}
-          />
-        </CardContent>
-      </Card>
+      <div className='max-w-full overflow-auto'>
+        <TableApplications
+          search={search}
+          startDate={startDate}
+          endDate={endDate}
+          onFilterChange={filterChangeHandlers}
+        />
+      </div>
     </div>
   );
 }
