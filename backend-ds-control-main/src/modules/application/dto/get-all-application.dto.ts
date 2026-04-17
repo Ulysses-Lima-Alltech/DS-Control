@@ -102,4 +102,12 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
         .describe("Order type (ascending or descending)"),
 });
 
+export const ApplicationListSummarySchema = z.object({
+  totalFilteredHectares: z.number(),
+  yesterdayHectares: z.number(),
+  standaloneCount: z.number(),
+  standaloneHectares: z.number(),
+});
+
+export type ApplicationListSummary = z.infer<typeof ApplicationListSummarySchema>;
 export type GetApplicationQueryString = z.infer<typeof GetApplicationQueryStringSchema>;

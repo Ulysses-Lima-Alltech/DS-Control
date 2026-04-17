@@ -1123,14 +1123,11 @@ export const TableApplications = ({
     );
 
   const showOverviewCards = !simpleMode && !propCustomerId && !propServiceOrderId;
-  // TODO(applications-metrics): conectar estes cards a uma fonte agregada (não paginada),
-  // reaproveitando exatamente os mesmos filtros aplicados na listagem.
-  const overviewMetricsPlaceholder = {
-    totalFilteredArea: '-- ha',
-    yesterdayArea: '-- ha',
-    standaloneCount: '--',
-    standaloneArea: '-- ha',
-  };
+  const overviewSummary = data?.summary;
+  const formatSummaryHectares = (value: number | undefined) =>
+    value === undefined ? '-- ha' : `${value.toFixed(2).replace('.', ',')} ha`;
+  const formatSummaryCount = (value: number | undefined) =>
+    value === undefined ? '--' : String(value);
 
   return (
     <>
@@ -1139,13 +1136,13 @@ export const TableApplications = ({
           <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
             <p className='text-sm text-muted-foreground'>Total filtrado</p>
             <p className='mt-8 text-4xl font-semibold text-emerald-500'>
-              {overviewMetricsPlaceholder.totalFilteredArea}
+              {formatSummaryHectares(overviewSummary?.totalFilteredHectares)}
             </p>
           </div>
           <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
             <p className='text-sm text-muted-foreground'>Total aplicações de ontem</p>
             <p className='mt-8 text-4xl font-semibold text-amber-400'>
-              {overviewMetricsPlaceholder.yesterdayArea}
+              {formatSummaryHectares(overviewSummary?.yesterdayHectares)}
             </p>
           </div>
           <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
@@ -1153,13 +1150,13 @@ export const TableApplications = ({
             <div className='mt-6 space-y-4'>
               <div>
                 <p className='text-3xl font-semibold text-orange-500'>
-                  {overviewMetricsPlaceholder.standaloneCount}
+                  {formatSummaryCount(overviewSummary?.standaloneCount)}
                 </p>
                 <p className='text-xs font-semibold tracking-wide text-orange-500'>APLICAÇÕES</p>
               </div>
               <div>
                 <p className='text-3xl font-semibold text-red-500'>
-                  {overviewMetricsPlaceholder.standaloneArea}
+                  {formatSummaryHectares(overviewSummary?.standaloneHectares)}
                 </p>
                 <p className='text-xs font-semibold tracking-wide text-red-500'>ÁREA TOTAL</p>
               </div>

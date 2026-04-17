@@ -543,6 +543,74 @@ export class ApplicationRepository {
       .filter(Boolean) as ApplicationWithRelations[];
   }
 
+  public async getApplicationsListSummary(
+    search?: string,
+    filters?: Parameters<ApplicationRepository["getAllApplications"]>[3],
+  ): Promise<{
+    totalFilteredHectares: number;
+    yesterdayHectares: number;
+    standaloneCount: number;
+    standaloneHectares: number;
+  }> {
+    const whereConditions = this.buildApplicationsListConditions(search, filters);
+    const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+    const yesterdayDate = DateTime.now().setZone("America/Sao_Paulo").minus({ days: 1 }).toISODate();
+
+    const [summary] = await db
+      .select({
+        totalFilteredHectares:
+          sql<number>`COALESCE(SUM(CAST(${applications.hectares} AS numeric)), 0)`,
+        yesterdayHectares: sql<number>`
+          COALESCE(
+            SUM(
+              CASE
+                WHEN (${applications.date})::date = CAST(${yesterdayDate} AS date)
+                THEN CAST(${applications.hectares} AS numeric)
+                ELSE 0
+              END
+            ),
+            0
+          )
+        `,
+        standaloneCount: sql<number>`
+          COALESCE(
+            COUNT(DISTINCT CASE WHEN ${applications.serviceOrderId} IS NULL THEN ${applications.id} END),
+            0
+          )
+        `,
+        standaloneHectares: sql<number>`
+          COALESCE(
+            SUM(
+              CASE
+                WHEN ${applications.serviceOrderId} IS NULL
+                THEN CAST(${applications.hectares} AS numeric)
+                ELSE 0
+              END
+            ),
+            0
+          )
+        `,
+      })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(assistants, eq(applications.assistantId, assistants.id))
+      .leftJoin(drones, eq(applications.droneId, drones.id))
+      .leftJoin(cultureTypes, eq(applications.cultureId, cultureTypes.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .leftJoin(products, eq(applications.productId, products.id))
+      .where(whereClause);
+
+    return {
+      totalFilteredHectares: Number(summary?.totalFilteredHectares || 0),
+      yesterdayHectares: Number(summary?.yesterdayHectares || 0),
+      standaloneCount: Number(summary?.standaloneCount || 0),
+      standaloneHectares: Number(summary?.standaloneHectares || 0),
+    };
+  }
+
   /**
    * @description Get applications by customer ID
    * @param {string} customerId - The customer's ID

@@ -41,6 +41,17 @@ const EXCLUDED_SERVICE_ORDER_IDS = [
   'badfb92b-4e41-4b6b-b7cf-a5985ae5f4a3',
 ];
 
+type ApplicationListSummary = {
+  totalFilteredHectares: number;
+  yesterdayHectares: number;
+  standaloneCount: number;
+  standaloneHectares: number;
+};
+
+type PaginatedApplicationsListResponse = PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema> & {
+  summary: ApplicationListSummary;
+};
+
 
 
 /**
@@ -269,11 +280,14 @@ export class ApplicationService {
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
-  ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
+  ): Promise<PaginatedApplicationsListResponse> {
     app.log.info("[ApplicationService] - Listing all applications");
 
-    const queryResult = await this.applicationRepository.getAllApplications(page, limit, search, filters, orderBy, orderType);
-    const totalCount = await this.applicationRepository.countApplications(search, filters);
+    const [queryResult, totalCount, summary] = await Promise.all([
+      this.applicationRepository.getAllApplications(page, limit, search, filters, orderBy, orderType),
+      this.applicationRepository.countApplications(search, filters),
+      this.applicationRepository.getApplicationsListSummary(search, filters),
+    ]);
 
     app.log.info("[ApplicationService] - Retrieved %d applications", totalCount);
 
@@ -283,6 +297,7 @@ export class ApplicationService {
       limit,
       totalPages: Math.ceil(totalCount / limit),
       totalCount,
+      summary,
     };
   }
 

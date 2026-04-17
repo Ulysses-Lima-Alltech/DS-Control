@@ -12,7 +12,7 @@ import { z } from "zod";
 import { ApplicationController } from "./application.controller";
 import { CreateApplicationSchema } from "./dto/create-application.dto";
 import { DashboardMetricsQueryStringSchema, DashboardMetricsResponseSchema } from "./dto/dashboard-metrics.dto";
-import { GetApplicationQueryStringSchema } from "./dto/get-all-application.dto";
+import { ApplicationListSummarySchema, GetApplicationQueryStringSchema } from "./dto/get-all-application.dto";
 import { PilotPerformanceSchema } from "./dto/stats-performance.dto";
 import { ApplicationSummaryStatsSchema } from "./dto/stats-summary.dto";
 import {
@@ -41,7 +41,9 @@ export function ApplicationV1Routes(
       tags: ["applications"],
       querystring: GetApplicationQueryStringSchema,
       response: { 
-        200: PaginatedRequestSchema(ApplicationWithRelationsViewModelSchema),
+        200: PaginatedRequestSchema(ApplicationWithRelationsViewModelSchema).extend({
+          summary: ApplicationListSummarySchema,
+        }),
       }
     },
     preHandler: [AuthenticationJWT],
