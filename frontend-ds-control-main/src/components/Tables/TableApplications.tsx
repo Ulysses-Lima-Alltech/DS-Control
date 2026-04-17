@@ -1106,19 +1106,73 @@ export const TableApplications = ({
         }}
         filters={
           <div className='flex flex-col gap-3 w-full'>
-            <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
+            <div className='flex w-full flex-wrap items-center gap-2 sm:gap-3'>
               <DateRangePicker
                 key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
-                className='w-full min-w-[220px] sm:w-[280px] lg:w-[320px]'
+                className='h-9 w-full min-w-[220px] sm:w-[280px] lg:w-[300px]'
                 initialValue={dateFilter}
                 onChange={handleDateChange}
+              />
+              <SearchableSelectQuery
+                options={farms.map((farm: Farm) => ({
+                  value: farm.id,
+                  label: farm.name,
+                }))}
+                value={farmFilter}
+                onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                placeholder='Fazenda'
+                searchPlaceholder='Buscar fazenda...'
+                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                popoverClassName='w-[260px]'
+                clearable
+                onSearchChange={setFarmSearchValue}
+                onScrollEnd={fetchNextPageFarms}
+                hasNextPage={hasNextPageFarms}
+                isFetchingNextPage={isFetchingNextPageFarms}
+                isLoading={isLoadingFarms}
+              />
+              <SearchableSelectQuery
+                options={products.map((product: Product) => ({
+                  value: product.id,
+                  label: product.name,
+                }))}
+                value={productFilter}
+                onValueChange={(value) => handleProductChange(value as string | undefined)}
+                placeholder='Produto'
+                searchPlaceholder='Buscar produto...'
+                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                popoverClassName='w-[260px]'
+                clearable
+                onSearchChange={setProductSearchValue}
+                onScrollEnd={fetchNextPageProducts}
+                hasNextPage={hasNextPageProducts}
+                isFetchingNextPage={isFetchingNextPageProducts}
+                isLoading={isLoadingProducts}
+              />
+              <SearchableSelectQuery
+                options={pilots.map((pilot: User) => ({
+                  value: pilot.id,
+                  label: pilot.name,
+                }))}
+                value={pilotFilter}
+                onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                placeholder='Piloto'
+                searchPlaceholder='Buscar piloto...'
+                className='h-9 w-full sm:min-w-[220px] sm:w-[220px] lg:min-w-[230px] lg:w-[230px]'
+                popoverClassName='w-[260px]'
+                clearable
+                onSearchChange={setPilotSearchValue}
+                onScrollEnd={fetchNextPagePilots}
+                hasNextPage={hasNextPagePilots}
+                isFetchingNextPage={isFetchingNextPagePilots}
+                isLoading={isLoadingPilots}
               />
               {!simpleMode && (
                 <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
                   <SheetTrigger asChild>
                     <Button variant='outline' className='h-9 gap-2 px-3'>
                       <Filter className='h-4 w-4' />
-                      Filtros avançados
+                      Mais filtros
                     </Button>
                   </SheetTrigger>
                   <SheetContent side='right' className='w-[96vw] sm:max-w-xl overflow-y-auto'>
@@ -1143,6 +1197,27 @@ export const TableApplications = ({
                         <SelectItem value='true'>Somente inválidas</SelectItem>
                       </SelectContent>
                     </Select>
+                    {!propCustomerId && (
+                      <SearchableSelectQuery
+                        options={customers.map((customer: Customer) => ({
+                          value: customer.id,
+                          label: customer.name,
+                        }))}
+                        value={customerFilter}
+                        onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                        placeholder={customerDisplayText || 'Cliente'}
+                        searchPlaceholder='Buscar cliente...'
+                        className='w-full'
+                        popoverClassName='w-[250px]'
+                        clearable={!disableCustomerFilter && !propCustomerId}
+                        disabled={!!propCustomerId || disableCustomerFilter}
+                        onSearchChange={setCustomerSearchValue}
+                        onScrollEnd={fetchNextPage}
+                        hasNextPage={hasNextPage}
+                        isFetchingNextPage={isFetchingNextPage}
+                        isLoading={isLoadingCustomers}
+                      />
+                    )}
                     </div>
                     <Separator />
                     
@@ -1272,94 +1347,7 @@ export const TableApplications = ({
             </div>
             {!simpleMode && (
               <>
-                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-                  {!propCustomerId && (
-                    <div className='space-y-1.5'>
-                      <p className='text-sm font-medium text-foreground/90'>Cliente</p>
-                      <SearchableSelectQuery
-                        options={customers.map((customer: Customer) => ({
-                          value: customer.id,
-                          label: customer.name,
-                        }))}
-                        value={customerFilter}
-                        onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-                        placeholder={customerDisplayText || 'Selecionar cliente'}
-                        searchPlaceholder='Buscar cliente...'
-                        className='h-9 w-full'
-                        popoverClassName='w-[250px]'
-                        clearable={!disableCustomerFilter && !propCustomerId}
-                        disabled={!!propCustomerId || disableCustomerFilter}
-                        onSearchChange={setCustomerSearchValue}
-                        onScrollEnd={fetchNextPage}
-                        hasNextPage={hasNextPage}
-                        isFetchingNextPage={isFetchingNextPage}
-                        isLoading={isLoadingCustomers}
-                      />
-                    </div>
-                  )}
-                  <div className='space-y-1.5'>
-                    <p className='text-sm font-medium text-foreground/90'>Fazenda</p>
-                    <SearchableSelectQuery
-                      options={farms.map((farm: Farm) => ({
-                        value: farm.id,
-                        label: farm.name,
-                      }))}
-                      value={farmFilter}
-                      onValueChange={(value) => handleFarmChange(value as string | undefined)}
-                      placeholder='Selecionar fazenda'
-                      searchPlaceholder='Buscar fazenda...'
-                      className='h-9 w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setFarmSearchValue}
-                      onScrollEnd={fetchNextPageFarms}
-                      hasNextPage={hasNextPageFarms}
-                      isFetchingNextPage={isFetchingNextPageFarms}
-                      isLoading={isLoadingFarms}
-                    />
-                  </div>
-                  <div className='space-y-1.5'>
-                    <p className='text-sm font-medium text-foreground/90'>Produto</p>
-                    <SearchableSelectQuery
-                      options={products.map((product: Product) => ({
-                        value: product.id,
-                        label: product.name,
-                      }))}
-                      value={productFilter}
-                      onValueChange={(value) => handleProductChange(value as string | undefined)}
-                      placeholder='Selecionar produto'
-                      searchPlaceholder='Buscar produto...'
-                      className='h-9 w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setProductSearchValue}
-                      onScrollEnd={fetchNextPageProducts}
-                      hasNextPage={hasNextPageProducts}
-                      isFetchingNextPage={isFetchingNextPageProducts}
-                      isLoading={isLoadingProducts}
-                    />
-                  </div>
-                  <div className='space-y-1.5'>
-                    <p className='text-sm font-medium text-foreground/90'>Piloto</p>
-                    <SearchableSelectQuery
-                      options={pilots.map((pilot: User) => ({
-                        value: pilot.id,
-                        label: pilot.name,
-                      }))}
-                      value={pilotFilter}
-                      onValueChange={(value) => handlePilotChange(value as string | undefined)}
-                      placeholder='Selecionar piloto'
-                      searchPlaceholder='Buscar piloto...'
-                      className='h-9 w-full'
-                      popoverClassName='w-[250px]'
-                      clearable
-                      onSearchChange={setPilotSearchValue}
-                      onScrollEnd={fetchNextPagePilots}
-                      hasNextPage={hasNextPagePilots}
-                      isFetchingNextPage={isFetchingNextPagePilots}
-                      isLoading={isLoadingPilots}
-                    />
-                  </div>
+                <div className='grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-7'>
                   <div className='space-y-1.5'>
                     <p className='text-sm font-medium text-foreground/90'>Ajudante</p>
                     <SearchableSelectQuery
@@ -1432,9 +1420,7 @@ export const TableApplications = ({
                       placeholder='Digite parte do nome do talhão'
                     />
                   </div>
-                </div>
-                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-                  <div className='space-y-1.5'>
+                  <div className='space-y-1.5 xl:col-span-1'>
                     <p className='text-sm font-medium text-foreground/90'>Número da OS</p>
                     <Input
                       className='h-9'
@@ -1443,7 +1429,7 @@ export const TableApplications = ({
                       placeholder='Ex.: 123'
                     />
                   </div>
-                  <div className='space-y-1.5'>
+                  <div className='space-y-1.5 xl:col-span-2'>
                     <p className='text-sm font-medium text-foreground/90'>Observações</p>
                     <Input
                       className='h-9'
