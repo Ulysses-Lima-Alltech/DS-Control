@@ -115,7 +115,14 @@ type DynamicXAxisConfig = {
   tickMargin: number;
   minTickGap: number;
   bottomMargin: number;
-  tickFormatter: (value?: string) => string;
+  lineChars: number;
+};
+type WrappedXAxisTickProps = {
+  x?: number;
+  y?: number;
+  payload?: {
+    value?: string | number;
+  };
 };
 
 function areDateRangesEqual(a: ComparableDateRange, b: ComparableDateRange) {
@@ -153,48 +160,84 @@ function formatInteger(value: number | undefined) {
   return Number(value || 0).toLocaleString('pt-BR');
 }
 
-function truncateAxisLabel(value?: string, maxChars = AXIS_TICK_MAX_CHARS) {
-  const label = String(value || '').trim();
-  if (label.length <= maxChars) return label;
-  const breakpoint = label.lastIndexOf(' ', maxChars - 1);
-  const cutIndex =
-    breakpoint > Math.floor(maxChars * 0.65) ? breakpoint : Math.max(maxChars - 3, 1);
-  return `${label.slice(0, cutIndex).trim()}...`;
+function buildTwoLineTickLabel(
+  value?: string | number,
+  maxCharsPerLine = AXIS_TICK_MAX_CHARS
+): [string, string?] {
+  const label = String(value ?? '').trim();
+  if (!label) return [''];
+  if (label.length <= maxCharsPerLine) return [label];
+
+  const firstCut = label.lastIndexOf(' ', maxCharsPerLine);
+  const firstBreak = firstCut > Math.floor(maxCharsPerLine * 0.6) ? firstCut : maxCharsPerLine;
+  const line1 = label.slice(0, firstBreak).trim();
+  const remaining = label.slice(firstBreak).trim();
+
+  if (!remaining) return [line1];
+  if (remaining.length <= maxCharsPerLine) return [line1, remaining];
+
+  const secondCut = remaining.lastIndexOf(' ', maxCharsPerLine);
+  const secondBreak = secondCut > Math.floor(maxCharsPerLine * 0.6) ? secondCut : maxCharsPerLine;
+  const line2Base = remaining.slice(0, secondBreak).trim() || remaining.slice(0, maxCharsPerLine).trim();
+  const overflow = remaining.slice(secondBreak).trim();
+  if (!overflow) return [line1, line2Base];
+
+  const ellipsed =
+    line2Base.length >= maxCharsPerLine - 3
+      ? `${line2Base.slice(0, Math.max(maxCharsPerLine - 3, 1)).trimEnd()}...`
+      : `${line2Base}...`;
+
+  return [line1, ellipsed];
+}
+
+function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number) {
+  const x = props.x ?? 0;
+  const y = props.y ?? 0;
+  const [line1, line2] = buildTwoLineTickLabel(props.payload?.value, lineChars);
+
+  return (
+    <text x={x} y={y + 8} fill='hsl(var(--muted-foreground))' textAnchor='middle' fontSize={11}>
+      <tspan x={x} dy='0.71em'>
+        {line1}
+      </tspan>
+      {line2 ? (
+        <tspan x={x} dy='1.1em'>
+          {line2}
+        </tspan>
+      ) : null}
+    </text>
+  );
 }
 
 function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   const count = labels.length;
   const maxLabelLength = labels.reduce((max, label) => Math.max(max, String(label || '').trim().length), 0);
-  const fullTickFormatter = (value?: string) => String(value || '');
 
   if (count <= 5) {
     return {
       interval: 0,
       angle: 0,
       textAnchor: 'middle',
-      height: 56,
+      height: 72,
       tickMargin: 10,
       minTickGap: 12,
-      bottomMargin: 10,
-      tickFormatter: fullTickFormatter,
+      bottomMargin: 18,
+      lineChars: 24,
     };
   }
 
-  const shouldRotate = count >= 8 || maxLabelLength >= 30;
-  const shouldTruncate = maxLabelLength > 22;
-  const truncateLimit = shouldRotate ? 22 : 28;
+  const hasManyItems = count >= 8;
+  const lineChars = hasManyItems ? 15 : maxLabelLength > 24 ? 18 : 20;
 
   return {
-    interval: shouldRotate ? 'preserveStartEnd' : 0,
-    angle: shouldRotate ? -32 : 0,
-    textAnchor: shouldRotate ? 'end' : 'middle',
-    height: shouldRotate ? 86 : 64,
-    tickMargin: shouldRotate ? 12 : 10,
-    minTickGap: shouldRotate ? 10 : 16,
-    bottomMargin: shouldRotate ? 20 : 12,
-    tickFormatter: shouldTruncate
-      ? (value?: string) => truncateAxisLabel(value, truncateLimit)
-      : fullTickFormatter,
+    interval: hasManyItems ? 'preserveStartEnd' : 0,
+    angle: 0,
+    textAnchor: 'middle',
+    height: hasManyItems ? 88 : 80,
+    tickMargin: hasManyItems ? 14 : 10,
+    minTickGap: hasManyItems ? 24 : 16,
+    bottomMargin: hasManyItems ? 30 : 22,
+    lineChars,
   };
 }
 
@@ -829,7 +872,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
                 <XAxis
                   dataKey='name'
-                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={(props) => renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars)}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                   interval={pilotXAxisConfig.interval}
@@ -838,7 +881,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   height={pilotXAxisConfig.height}
                   tickMargin={pilotXAxisConfig.tickMargin}
                   minTickGap={pilotXAxisConfig.minTickGap}
-                  tickFormatter={pilotXAxisConfig.tickFormatter}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
@@ -933,7 +975,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
                 <XAxis
                   dataKey='name'
-                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={(props) => renderWrappedXAxisTick(props, customerXAxisConfig.lineChars)}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                   interval={customerXAxisConfig.interval}
@@ -942,7 +984,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   height={customerXAxisConfig.height}
                   tickMargin={customerXAxisConfig.tickMargin}
                   minTickGap={customerXAxisConfig.minTickGap}
-                  tickFormatter={customerXAxisConfig.tickFormatter}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
