@@ -107,6 +107,16 @@ const CHART_TOOLTIP_ITEM_STYLE: CSSProperties = {
   color: 'hsl(var(--foreground))',
   fontSize: '12px',
 };
+type DynamicXAxisConfig = {
+  interval: number | 'preserveStartEnd';
+  angle: number;
+  textAnchor: 'middle' | 'end';
+  height: number;
+  tickMargin: number;
+  minTickGap: number;
+  bottomMargin: number;
+  tickFormatter: (value?: string) => string;
+};
 
 function areDateRangesEqual(a: ComparableDateRange, b: ComparableDateRange) {
   return a?.startDate === b?.startDate && a?.endDate === b?.endDate;
@@ -150,6 +160,42 @@ function truncateAxisLabel(value?: string, maxChars = AXIS_TICK_MAX_CHARS) {
   const cutIndex =
     breakpoint > Math.floor(maxChars * 0.65) ? breakpoint : Math.max(maxChars - 3, 1);
   return `${label.slice(0, cutIndex).trim()}...`;
+}
+
+function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
+  const count = labels.length;
+  const maxLabelLength = labels.reduce((max, label) => Math.max(max, String(label || '').trim().length), 0);
+  const fullTickFormatter = (value?: string) => String(value || '');
+
+  if (count <= 5) {
+    return {
+      interval: 0,
+      angle: 0,
+      textAnchor: 'middle',
+      height: 56,
+      tickMargin: 10,
+      minTickGap: 12,
+      bottomMargin: 10,
+      tickFormatter: fullTickFormatter,
+    };
+  }
+
+  const shouldRotate = count >= 8 || maxLabelLength >= 30;
+  const shouldTruncate = maxLabelLength > 22;
+  const truncateLimit = shouldRotate ? 22 : 28;
+
+  return {
+    interval: shouldRotate ? 'preserveStartEnd' : 0,
+    angle: shouldRotate ? -32 : 0,
+    textAnchor: shouldRotate ? 'end' : 'middle',
+    height: shouldRotate ? 86 : 64,
+    tickMargin: shouldRotate ? 12 : 10,
+    minTickGap: shouldRotate ? 10 : 16,
+    bottomMargin: shouldRotate ? 20 : 12,
+    tickFormatter: shouldTruncate
+      ? (value?: string) => truncateAxisLabel(value, truncateLimit)
+      : fullTickFormatter,
+  };
 }
 
 function getDominantMapCategory(applications: ApplicationService.GetApplicationsByServiceOrderIdResponse['data']) {
@@ -402,6 +448,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     }
     return base;
   }, [byPilotStats?.byPilot, pilotEntityMode]);
+  const pilotXAxisConfig = useMemo(
+    () => getDynamicXAxisConfig(pilotChartData.map((item) => item.name)),
+    [pilotChartData]
+  );
+  const customerXAxisConfig = useMemo(
+    () => getDynamicXAxisConfig(hectaresByCustomerData.map((item) => item.name)),
+    [hectaresByCustomerData]
+  );
 
   const pilotsActiveYesterdayCount = useMemo(() => {
     const applications = byPilotYesterdayStats?.data || [];
@@ -769,7 +823,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   top: 8,
                   right: 8,
                   left: -10,
-                  bottom: 20,
+                  bottom: pilotXAxisConfig.bottomMargin,
                 }}
               >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
@@ -778,13 +832,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
-                  interval='preserveStartEnd'
-                  angle={-38}
-                  textAnchor='end'
-                  height={88}
-                  tickMargin={12}
-                  minTickGap={10}
-                  tickFormatter={truncateAxisLabel}
+                  interval={pilotXAxisConfig.interval}
+                  angle={pilotXAxisConfig.angle}
+                  textAnchor={pilotXAxisConfig.textAnchor}
+                  height={pilotXAxisConfig.height}
+                  tickMargin={pilotXAxisConfig.tickMargin}
+                  minTickGap={pilotXAxisConfig.minTickGap}
+                  tickFormatter={pilotXAxisConfig.tickFormatter}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
@@ -873,7 +927,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   top: 8,
                   right: 8,
                   left: -10,
-                  bottom: 20,
+                  bottom: customerXAxisConfig.bottomMargin,
                 }}
               >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
@@ -882,13 +936,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
-                  interval='preserveStartEnd'
-                  angle={-38}
-                  textAnchor='end'
-                  height={88}
-                  tickMargin={12}
-                  minTickGap={10}
-                  tickFormatter={truncateAxisLabel}
+                  interval={customerXAxisConfig.interval}
+                  angle={customerXAxisConfig.angle}
+                  textAnchor={customerXAxisConfig.textAnchor}
+                  height={customerXAxisConfig.height}
+                  tickMargin={customerXAxisConfig.tickMargin}
+                  minTickGap={customerXAxisConfig.minTickGap}
+                  tickFormatter={customerXAxisConfig.tickFormatter}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
