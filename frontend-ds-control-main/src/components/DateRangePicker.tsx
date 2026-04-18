@@ -34,8 +34,23 @@ function parseDateInput(value?: string): Date | undefined {
   const datePart = value.includes("T") ? value.slice(0, 10) : value.slice(0, 10)
   const [year, month, day] = datePart.split("-")
   if (!year || !month || !day) return undefined
-  const parsed = new Date(Number(year), Number(month) - 1, Number(day))
-  return isValid(parsed) ? parsed : undefined
+  const yearNumber = Number(year)
+  const monthNumber = Number(month)
+  const dayNumber = Number(day)
+  if (!Number.isInteger(yearNumber) || !Number.isInteger(monthNumber) || !Number.isInteger(dayNumber)) {
+    return undefined
+  }
+  const parsed = new Date(yearNumber, monthNumber - 1, dayNumber)
+  if (!isValid(parsed)) return undefined
+  // Strict check: avoid JS date overflow coercion (e.g. 2026-02-31 -> 2026-03-03).
+  if (
+    parsed.getFullYear() !== yearNumber ||
+    parsed.getMonth() !== monthNumber - 1 ||
+    parsed.getDate() !== dayNumber
+  ) {
+    return undefined
+  }
+  return parsed
 }
 
 function toLocalYMD(date: Date): string {
@@ -54,6 +69,26 @@ function isValidDate(value: unknown): value is Date {
   return value instanceof Date && isValid(value)
 }
 
+function normalizeRange(range?: DateRange): DateRange | undefined {
+  if (!range) return undefined
+
+  const from = isValidDate(range.from) ? range.from : undefined
+  const to = isValidDate(range.to) ? range.to : undefined
+
+  if (!from) return undefined
+  if (!to) return { from, to: undefined }
+
+  return to.getTime() < from.getTime() ? { from: to, to: from } : { from, to }
+}
+
+function parseInitialRange(initialValue?: DateParams): DateRange | undefined {
+  if (!initialValue) return undefined
+  const from = parseDateInput(initialValue.startDate)
+  const to = parseDateInput(initialValue.endDate)
+  if (!from || !to) return undefined
+  return normalizeRange({ from, to })
+}
+
 function sameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -66,28 +101,18 @@ export default function DateRangePicker({
     onChange, initialValue, className, placeholder = "Selecione um intervalo de datas"
 }: DateRangePickerParams) {
   const [open, setOpen] = React.useState(false)
-  const [date, setDate] = React.useState<DateRange | undefined>(() => {
-      if (initialValue) {
-              const from = parseDateInput(initialValue.startDate)
-              const to = parseDateInput(initialValue.endDate)
-              if (!from || !to) {
-                return undefined
-              }
-              return {
-                  from,
-                  to
-              }
-          }
-          return undefined
-      }
-  )
-  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(date)
+  const [date, setDate] = React.useState<DateRange | undefined>(() => parseInitialRange(initialValue))
+  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(() => normalizeRange(date))
+
+  const safeDate = normalizeRange(date)
+  const safeDraftRange = normalizeRange(draftRange)
+  const safeDefaultMonth = safeDraftRange?.from ?? safeDate?.from ?? new Date()
 
   const handleDayClick: DayEventHandler<React.MouseEvent> = (day) => {
     if (!isValidDate(day)) return
 
-    const currentFrom = draftRange?.from
-    const currentTo = draftRange?.to
+    const currentFrom = safeDraftRange?.from
+    const currentTo = safeDraftRange?.to
 
     // First click: keep popover open with partial selection.
     if (!isValidDate(currentFrom) || currentTo) {
@@ -117,7 +142,7 @@ export default function DateRangePicker({
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
-    const hasPartialSelection = Boolean(draftRange?.from && !draftRange?.to)
+    const hasPartialSelection = Boolean(safeDraftRange?.from && !safeDraftRange?.to)
 
     // Prevent auto-close when selection is partial.
     if (!nextOpen && hasPartialSelection) {
@@ -125,39 +150,36 @@ export default function DateRangePicker({
     }
 
     if (nextOpen) {
-      setDraftRange(date)
+      setDraftRange(safeDate)
     }
 
     setOpen(nextOpen)
   }
 
   useEffect(() => {
-    if (!initialValue) return
-
-    const from = parseDateInput(initialValue.startDate)
-    const to = parseDateInput(initialValue.endDate)
-
-    if (!from || !to) return
-    if (date?.from && date?.to && sameDay(date.from, from) && sameDay(date.to, to)) return
-
-    const nextRange = { from, to }
+    const nextRange = parseInitialRange(initialValue)
+    if (!nextRange) return
+    const nextFrom = nextRange.from
+    const nextTo = nextRange.to
+    if (!nextFrom || !nextTo) return
+    if (safeDate?.from && safeDate?.to && sameDay(safeDate.from, nextFrom) && sameDay(safeDate.to, nextTo)) return
     setDate(nextRange)
     setDraftRange(nextRange)
   }, [initialValue?.startDate, initialValue?.endDate])
 
   useEffect(() => {
-    if(date?.from && date?.to && isValid(date.from) && isValid(date.to)){
+    if(safeDate?.from && safeDate?.to && isValid(safeDate.from) && isValid(safeDate.to)){
         onChange({
-            startDate: toLocalYMD(date.from),
-            endDate: toLocalYMD(date.to)
+            startDate: toLocalYMD(safeDate.from),
+            endDate: toLocalYMD(safeDate.to)
         })
         return
     }
     // Partial selection does not update external filters.
-    if (!date?.from && !date?.to) {
+    if (!safeDate?.from && !safeDate?.to) {
       onChange(undefined)
     }
-  }, [date, onChange])
+  }, [safeDate?.from?.getTime(), safeDate?.to?.getTime(), onChange])
 
   return (
 
@@ -169,18 +191,18 @@ export default function DateRangePicker({
             variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
-              !draftRange && "text-muted-foreground"
+              !safeDraftRange && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {draftRange?.from ? (
-              draftRange.to ? (
+            {safeDraftRange?.from ? (
+              safeDraftRange.to ? (
                 <>
-                  {safeFormatDate(draftRange.from, "LLL dd, y")} -{" "}
-                  {safeFormatDate(draftRange.to, "LLL dd, y")}
+                  {safeFormatDate(safeDraftRange.from, "LLL dd, y")} -{" "}
+                  {safeFormatDate(safeDraftRange.to, "LLL dd, y")}
                 </>
               ) : (
-                safeFormatDate(draftRange.from, "LLL dd, y")
+                safeFormatDate(safeDraftRange.from, "LLL dd, y")
               )
             ) : (
               <span>{placeholder}</span>
@@ -191,8 +213,8 @@ export default function DateRangePicker({
           <Calendar
             autoFocus
             mode="range"
-            defaultMonth={draftRange?.from}
-            selected={draftRange}
+            defaultMonth={safeDefaultMonth}
+            selected={safeDraftRange}
             onDayClick={handleDayClick}
             numberOfMonths={2}
             locale={ptBR}
