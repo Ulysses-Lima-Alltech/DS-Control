@@ -20,11 +20,11 @@ export function formatApplicationDate(dateInput: string | Date | null | undefine
   }
 
   const rawValue = String(dateInput);
-  const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+  const operationalDatePattern = /^\d{4}-\d{2}-\d{2}/;
 
-  // Date-only payloads are already civil dates and must not be converted.
-  if (dateOnlyPattern.test(rawValue)) {
-    const [year, month, day] = rawValue.split('-');
+  // Operational dates are civil dates and must not be shifted by timezone.
+  if (operationalDatePattern.test(rawValue)) {
+    const [year, month, day] = normalizeOperationalDatePart(rawValue).split('-');
     if (!year || !month || !day) return rawValue;
     return `${day}/${month}/${year}`;
   }
