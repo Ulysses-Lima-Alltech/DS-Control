@@ -5,7 +5,7 @@ import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
 import { useEffect } from "react"
-import { type DateRange } from "react-day-picker"
+import { type DateRange, type DayEventHandler } from "react-day-picker"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -50,6 +50,10 @@ function safeFormatDate(date: Date | undefined, dateFormat: string) {
   return format(date, dateFormat, { locale: ptBR })
 }
 
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && isValid(value)
+}
+
 export default function DateRangePicker({
     onChange, initialValue, className, placeholder = "Selecione um intervalo de datas"
 }: DateRangePickerParams) {
@@ -71,12 +75,14 @@ export default function DateRangePicker({
   )
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(date)
 
-  const handleDayClick = (day: Date) => {
+  const handleDayClick: DayEventHandler<React.MouseEvent> = (day) => {
+    if (!isValidDate(day)) return
+
     const currentFrom = draftRange?.from
     const currentTo = draftRange?.to
 
     // First click: keep popover open with partial selection.
-    if (!currentFrom || currentTo) {
+    if (!isValidDate(currentFrom) || currentTo) {
       setDraftRange({ from: day, to: undefined })
       setOpen(true)
       return
@@ -117,6 +123,20 @@ export default function DateRangePicker({
 
     setOpen(nextOpen)
   }
+
+  useEffect(() => {
+    if (!initialValue) return
+
+    const from = parseDateInput(initialValue.startDate)
+    const to = parseDateInput(initialValue.endDate)
+
+    if (!from || !to) return
+    if (date?.from && date?.to && isSameDay(date.from, from) && isSameDay(date.to, to)) return
+
+    const nextRange = { from, to }
+    setDate(nextRange)
+    setDraftRange(nextRange)
+  }, [initialValue?.startDate, initialValue?.endDate])
 
   useEffect(() => {
     if(date?.from && date?.to && isValid(date.from) && isValid(date.to)){
