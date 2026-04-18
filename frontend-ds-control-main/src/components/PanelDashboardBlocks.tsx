@@ -246,18 +246,6 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   };
 }
 
-function getDominantMapCategory(applications: ApplicationService.GetApplicationsByServiceOrderIdResponse['data']) {
-  const categoryCounts = new Map<string, number>();
-
-  for (const application of applications) {
-    const category = (application.product?.name || application.culture?.name || '').trim();
-    if (!category) continue;
-    categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
-  }
-
-  return [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-}
-
 function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: string, totalEndDate: string) {
   if (mode === 'total') {
     return { startDate: totalStartDate, endDate: totalEndDate };
@@ -1014,35 +1002,28 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               {openServiceOrders.map((serviceOrder, index) => {
                 const yesterdayStats = orderYesterdayStatsQueries[index]?.data?.stats;
                 const serviceOrderApplications = orderApplicationsQueries[index]?.data?.data || [];
-                const plannedArea = serviceOrder.plots.reduce(
-                  (sum, plot) => sum + Number(plot.hectare || 0),
+                const totalPlots = serviceOrder.plots?.length || 0;
+                const totalHectaresAllPlots = (serviceOrder.plots || []).reduce(
+                  (sum, plot) => sum + Number.parseFloat(plot.hectare || '0'),
                   0
                 );
-                const appliedArea = Number(periodStats?.totalAreaHectares || 0);
-                const progress = plannedArea > 0 ? Math.min((appliedArea / plannedArea) * 100, 100) : 0;
+                const totalHectaresApplied = serviceOrderApplications.reduce(
+                  (sum, application) => sum + Number.parseFloat(application.hectares || '0'),
+                  0
+                );
+                const uniquePlotIdsWithApplications = new Set(
+                  serviceOrderApplications
+                    .filter((application) => application.plotId !== null)
+                    .map((application) => application.plotId)
+                );
+                const plotsWithApplications = uniquePlotIdsWithApplications.size;
+                const rawProgress =
+                  totalHectaresAllPlots > 0 ? (totalHectaresApplied / totalHectaresAllPlots) * 100 : 0;
+                const progressValue = Math.min(rawProgress, 100);
                 const farmName =
                   serviceOrder.farms?.[0]?.name ||
                   serviceOrder.customer?.name ||
                   'Fazenda não informada';
-                const plannedMaps = serviceOrder.plots?.length ?? serviceOrder.plotsIds?.length;
-                const serviceOrderPlotIds = new Set(
-                  (serviceOrder.plotsIds || []).filter((plotId): plotId is string => Boolean(plotId))
-                );
-                const completedMapIds = new Set(
-                  serviceOrderApplications
-                    .map((application) => application.plotId)
-                    .filter(
-                      (plotId): plotId is string =>
-                        typeof plotId === 'string' &&
-                        plotId.length > 0 &&
-                        (serviceOrderPlotIds.size === 0 || serviceOrderPlotIds.has(plotId))
-                    )
-                );
-                const completedMaps = completedMapIds.size;
-                const remainingMaps =
-                  typeof plannedMaps === 'number' ? Math.max(plannedMaps - completedMaps, 0) : undefined;
-                const mapCategory = getDominantMapCategory(serviceOrderApplications);
-                const mapLabel = mapCategory ? `Mapas (${mapCategory})` : 'Mapas';
                 return (
                   <Card
                     key={serviceOrder.id}
@@ -1059,14 +1040,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <div className='flex items-center justify-between text-sm'>
                           <span>Progresso da OS</span>
                           <span className='font-medium text-foreground'>
-                            {formatHectares(appliedArea)} / {formatHectares(plannedArea)}
+                            {formatHectares(totalHectaresApplied)} / {formatHectares(totalHectaresAllPlots)}
                           </span>
                         </div>
                         <Progress
-                          value={progress}
+                          value={progressValue}
                           className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-emerald-500'
                         />
-                        <p className='text-xs text-muted-foreground'>{progress.toFixed(1)}% concluído</p>
+                        <p className='text-xs text-muted-foreground'>{rawProgress.toFixed(1)}% concluído</p>
                       </div>
                       <div className='grid grid-cols-2 gap-4 border-t border-border/70 pt-4 text-sm'>
                         <div>
@@ -1076,12 +1057,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                           </p>
                         </div>
                         <div>
-                          <p className='text-muted-foreground'>{mapLabel}</p>
+                          <p className='text-muted-foreground'>Mapas</p>
                           <p className='font-semibold flex items-center gap-1 text-cyan-700 dark:text-cyan-300'>
                             <MapIcon className='h-4 w-4 text-cyan-600 dark:text-cyan-300' />
-                            {typeof remainingMaps === 'number'
-                              ? `${completedMaps} feitos / ${remainingMaps} restam`
-                              : `${completedMaps} feitos`}
+                            {`${formatInteger(plotsWithApplications)} concluidos / ${formatInteger(totalPlots)} total`}
                           </p>
                         </div>
                       </div>
