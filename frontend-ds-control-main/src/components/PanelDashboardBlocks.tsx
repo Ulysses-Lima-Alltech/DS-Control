@@ -6,7 +6,7 @@ import {
   BarChart3,
   CalendarClock,
   ClipboardList,
-  Map,
+  Map as MapIcon,
   Search,
   Sprout,
   UserCheck,
@@ -951,7 +951,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     .map((application) => application.plotId)
                     .filter(
                       (plotId): plotId is string =>
-                        Boolean(plotId) &&
+                        typeof plotId === 'string' &&
+                        plotId.length > 0 &&
                         (serviceOrderPlotIds.size === 0 || serviceOrderPlotIds.has(plotId))
                     )
                 );
@@ -995,7 +996,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <div>
                           <p className='text-muted-foreground'>{mapLabel}</p>
                           <p className='font-semibold flex items-center gap-1 text-cyan-700'>
-                            <Map className='h-4 w-4 text-cyan-600' />
+                            <MapIcon className='h-4 w-4 text-cyan-600' />
                             {typeof remainingMaps === 'number'
                               ? `${completedMaps} feitos / ${remainingMaps} restam`
                               : `${completedMaps} feitos`}
