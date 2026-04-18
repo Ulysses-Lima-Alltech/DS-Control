@@ -1,6 +1,6 @@
 "use client"
 
-import { format, isSameDay, isValid } from "date-fns"
+import { format, isAfter, isBefore, isSameDay, isValid } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
@@ -70,39 +70,37 @@ export default function DateRangePicker({
       }
   )
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(date)
-  const skipNextSelectRef = React.useRef(false)
 
-  const handleSelect = (newDate: DateRange | undefined) => {
-    if (skipNextSelectRef.current) {
-      skipNextSelectRef.current = false
-      return
-    }
+  const handleDayClick = (day: Date) => {
+    const currentFrom = draftRange?.from
+    const currentTo = draftRange?.to
 
-    if (newDate?.from && !newDate?.to) {
-      // First click: keep popover open and store only temporary draft range.
-      setDraftRange({ from: newDate.from, to: undefined })
+    // First click: keep popover open with partial selection.
+    if (!currentFrom || currentTo) {
+      setDraftRange({ from: day, to: undefined })
       setOpen(true)
       return
     }
 
-    setDraftRange(newDate)
-    setDate(newDate)
-
-    // Close only when the range is complete.
-    if (newDate?.from && newDate?.to) {
-      setOpen(false)
-    }
-  }
-
-  const handleDayClick = (day: Date) => {
-    // Double click on same day: complete as one-day range and close.
-    if (draftRange?.from && !draftRange?.to && isSameDay(day, draftRange.from)) {
+    // Second click on same day: close with one-day range.
+    if (isSameDay(day, currentFrom)) {
       const singleDayRange: DateRange = { from: day, to: day }
-      skipNextSelectRef.current = true
       setDraftRange(singleDayRange)
       setDate(singleDayRange)
       setOpen(false)
+      return
     }
+
+    // Second click on another day: normalize order and close.
+    const completeRange: DateRange = isBefore(day, currentFrom)
+      ? { from: day, to: currentFrom }
+      : isAfter(day, currentFrom)
+        ? { from: currentFrom, to: day }
+        : { from: currentFrom, to: day }
+
+    setDraftRange(completeRange)
+    setDate(completeRange)
+    setOpen(false)
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -168,7 +166,6 @@ export default function DateRangePicker({
             mode="range"
             defaultMonth={draftRange?.from}
             selected={draftRange}
-            onSelect={handleSelect}
             onDayClick={handleDayClick}
             numberOfMonths={2}
             locale={ptBR}
