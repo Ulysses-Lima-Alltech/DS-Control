@@ -12,6 +12,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { CSSProperties, useCallback, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import {
   Bar,
   BarChart,
@@ -22,6 +23,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useTheme } from 'next-themes';
 
 import DateRangePicker from '@/components/DateRangePicker';
 import { Badge } from '@/components/ui/badge';
@@ -93,25 +95,10 @@ const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
   'text-foreground dark:text-slate-100 hover:bg-muted/70 dark:hover:bg-muted/60';
-const CHART_AXIS_STROKE = 'hsl(var(--border))';
-const CHART_TICK_FILL = 'hsl(var(--foreground))';
-const CHART_TOOLTIP_CONTENT_STYLE: CSSProperties = {
-  borderRadius: '0.5rem',
-  border: '1px solid hsl(var(--border))',
-  backgroundColor: 'hsl(var(--popover))',
-  color: 'hsl(var(--popover-foreground))',
-  boxShadow: '0 10px 25px rgba(2, 6, 23, 0.28)',
-  padding: '10px 12px',
-};
-const CHART_TOOLTIP_LABEL_STYLE: CSSProperties = {
-  color: 'hsl(var(--foreground))',
-  fontWeight: 600,
-  marginBottom: '2px',
-};
-const CHART_TOOLTIP_ITEM_STYLE: CSSProperties = {
-  color: 'hsl(var(--foreground))',
-  fontSize: '12px',
-};
+const DEFAULT_CHART_TEXT_COLOR = '#e5e7eb';
+const DEFAULT_CHART_AXIS_COLOR = 'rgba(148, 163, 184, 0.45)';
+const DEFAULT_CHART_TOOLTIP_BG = '#0f172a';
+const DEFAULT_CHART_TOOLTIP_FG = '#f8fafc';
 type DynamicXAxisConfig = {
   interval: number | 'preserveStartEnd';
   angle: number;
@@ -195,13 +182,13 @@ function buildTwoLineTickLabel(
   return [line1, ellipsed];
 }
 
-function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number) {
+function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number, fillColor: string) {
   const x = props.x ?? 0;
   const y = props.y ?? 0;
   const [line1, line2] = buildTwoLineTickLabel(props.payload?.value, lineChars);
 
   return (
-    <text x={x} y={y + 8} fill={CHART_TICK_FILL} textAnchor='middle' fontSize={11}>
+    <text x={x} y={y + 8} fill={fillColor} textAnchor='middle' fontSize={11}>
       <tspan x={x} dy='0.71em'>
         {line1}
       </tspan>
@@ -284,6 +271,7 @@ function getLaunchStatusBadgeClass(status?: string) {
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
+  const { resolvedTheme } = useTheme();
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
@@ -295,6 +283,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
+  const [chartTextColor, setChartTextColor] = useState(DEFAULT_CHART_TEXT_COLOR);
+  const [chartAxisColor, setChartAxisColor] = useState(DEFAULT_CHART_AXIS_COLOR);
+  const [chartTooltipBg, setChartTooltipBg] = useState(DEFAULT_CHART_TOOLTIP_BG);
+  const [chartTooltipFg, setChartTooltipFg] = useState(DEFAULT_CHART_TOOLTIP_FG);
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,
     pilot: true,
@@ -302,6 +294,47 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     hectares: true,
     status: true,
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const readHslVar = (name: string, fallback: string) => {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return value ? `hsl(${value})` : fallback;
+    };
+
+    setChartTextColor(readHslVar('--foreground', DEFAULT_CHART_TEXT_COLOR));
+    setChartAxisColor(readHslVar('--border', DEFAULT_CHART_AXIS_COLOR));
+    setChartTooltipBg(readHslVar('--popover', DEFAULT_CHART_TOOLTIP_BG));
+    setChartTooltipFg(readHslVar('--popover-foreground', DEFAULT_CHART_TOOLTIP_FG));
+  }, [resolvedTheme]);
+
+  const chartTooltipContentStyle = useMemo<CSSProperties>(
+    () => ({
+      borderRadius: '0.5rem',
+      border: `1px solid ${chartAxisColor}`,
+      backgroundColor: chartTooltipBg,
+      color: chartTooltipFg,
+      boxShadow: '0 10px 25px rgba(2, 6, 23, 0.28)',
+      padding: '10px 12px',
+    }),
+    [chartAxisColor, chartTooltipBg, chartTooltipFg]
+  );
+  const chartTooltipLabelStyle = useMemo<CSSProperties>(
+    () => ({
+      color: chartTooltipFg,
+      fontWeight: 600,
+      marginBottom: '2px',
+    }),
+    [chartTooltipFg]
+  );
+  const chartTooltipItemStyle = useMemo<CSSProperties>(
+    () => ({
+      color: chartTooltipFg,
+      fontSize: '12px',
+    }),
+    [chartTooltipFg]
+  );
 
   const effectiveStartDate = dateRange.startDate;
   const effectiveEndDate = dateRange.endDate;
@@ -845,12 +878,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   bottom: pilotXAxisConfig.bottomMargin,
                 }}
               >
-                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={CHART_AXIS_STROKE} />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={chartAxisColor} />
                 <XAxis
                   dataKey='name'
-                  tick={(props) => renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars)}
-                  axisLine={{ stroke: CHART_AXIS_STROKE }}
-                  tickLine={{ stroke: CHART_AXIS_STROKE }}
+                  tick={(props) => renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars, chartTextColor)}
+                  axisLine={{ stroke: chartAxisColor }}
+                  tickLine={{ stroke: chartAxisColor }}
                   interval={pilotXAxisConfig.interval}
                   angle={pilotXAxisConfig.angle}
                   textAnchor={pilotXAxisConfig.textAnchor}
@@ -859,17 +892,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={pilotXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: CHART_TICK_FILL }}
-                  axisLine={{ stroke: CHART_AXIS_STROKE }}
-                  tickLine={{ stroke: CHART_AXIS_STROKE }}
+                  tick={{ fontSize: 11, fill: chartTextColor }}
+                  axisLine={{ stroke: chartAxisColor }}
+                  tickLine={{ stroke: chartAxisColor }}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
                   labelFormatter={(label) => String(label || '')}
-                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
-                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                  contentStyle={chartTooltipContentStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  itemStyle={chartTooltipItemStyle}
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {pilotChartData.map((entry, index) => (
@@ -948,12 +981,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   bottom: customerXAxisConfig.bottomMargin,
                 }}
               >
-                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={CHART_AXIS_STROKE} />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={chartAxisColor} />
                 <XAxis
                   dataKey='name'
-                  tick={(props) => renderWrappedXAxisTick(props, customerXAxisConfig.lineChars)}
-                  axisLine={{ stroke: CHART_AXIS_STROKE }}
-                  tickLine={{ stroke: CHART_AXIS_STROKE }}
+                  tick={(props) => renderWrappedXAxisTick(props, customerXAxisConfig.lineChars, chartTextColor)}
+                  axisLine={{ stroke: chartAxisColor }}
+                  tickLine={{ stroke: chartAxisColor }}
                   interval={customerXAxisConfig.interval}
                   angle={customerXAxisConfig.angle}
                   textAnchor={customerXAxisConfig.textAnchor}
@@ -962,17 +995,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={customerXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: CHART_TICK_FILL }}
-                  axisLine={{ stroke: CHART_AXIS_STROKE }}
-                  tickLine={{ stroke: CHART_AXIS_STROKE }}
+                  tick={{ fontSize: 11, fill: chartTextColor }}
+                  axisLine={{ stroke: chartAxisColor }}
+                  tickLine={{ stroke: chartAxisColor }}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
                   labelFormatter={(label) => String(label || '')}
-                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
-                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                  contentStyle={chartTooltipContentStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  itemStyle={chartTooltipItemStyle}
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {hectaresByCustomerData.map((entry, index) => (
