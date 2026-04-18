@@ -1,6 +1,6 @@
 "use client"
 
-import { format, isAfter, isBefore, isSameDay, isValid } from "date-fns"
+import { format, isValid } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import * as React from "react"
@@ -54,6 +54,14 @@ function isValidDate(value: unknown): value is Date {
   return value instanceof Date && isValid(value)
 }
 
+function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
 export default function DateRangePicker({
     onChange, initialValue, className, placeholder = "Selecione um intervalo de datas"
 }: DateRangePickerParams) {
@@ -89,7 +97,7 @@ export default function DateRangePicker({
     }
 
     // Second click on same day: close with one-day range.
-    if (isSameDay(day, currentFrom)) {
+    if (sameDay(day, currentFrom)) {
       const singleDayRange: DateRange = { from: day, to: day }
       setDraftRange(singleDayRange)
       setDate(singleDayRange)
@@ -98,11 +106,10 @@ export default function DateRangePicker({
     }
 
     // Second click on another day: normalize order and close.
-    const completeRange: DateRange = isBefore(day, currentFrom)
-      ? { from: day, to: currentFrom }
-      : isAfter(day, currentFrom)
-        ? { from: currentFrom, to: day }
-        : { from: currentFrom, to: day }
+    const dayTime = day.getTime()
+    const fromTime = currentFrom.getTime()
+    const completeRange: DateRange =
+      dayTime < fromTime ? { from: day, to: currentFrom } : { from: currentFrom, to: day }
 
     setDraftRange(completeRange)
     setDate(completeRange)
@@ -131,7 +138,7 @@ export default function DateRangePicker({
     const to = parseDateInput(initialValue.endDate)
 
     if (!from || !to) return
-    if (date?.from && date?.to && isSameDay(date.from, from) && isSameDay(date.to, to)) return
+    if (date?.from && date?.to && sameDay(date.from, from) && sameDay(date.to, to)) return
 
     const nextRange = { from, to }
     setDate(nextRange)
