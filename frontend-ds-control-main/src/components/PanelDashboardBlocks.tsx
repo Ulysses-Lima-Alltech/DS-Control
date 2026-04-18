@@ -16,6 +16,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -52,6 +53,42 @@ interface PanelDashboardBlocksProps {
 
 type RangeMode = 'total' | 'month' | 'day';
 
+const TOP_CARD_STYLES = [
+  {
+    card: 'border-t-4 border-t-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20',
+    iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40',
+    icon: 'text-emerald-600 dark:text-emerald-300',
+  },
+  {
+    card: 'border-t-4 border-t-amber-500 bg-amber-50/40 dark:bg-amber-950/20',
+    iconWrap: 'bg-amber-100 dark:bg-amber-900/40',
+    icon: 'text-amber-600 dark:text-amber-300',
+  },
+  {
+    card: 'border-t-4 border-t-orange-500 bg-orange-50/40 dark:bg-orange-950/20',
+    iconWrap: 'bg-orange-100 dark:bg-orange-900/40',
+    icon: 'text-orange-600 dark:text-orange-300',
+  },
+  {
+    card: 'border-t-4 border-t-violet-500 bg-violet-50/40 dark:bg-violet-950/20',
+    iconWrap: 'bg-violet-100 dark:bg-violet-900/40',
+    icon: 'text-violet-600 dark:text-violet-300',
+  },
+  {
+    card: 'border-t-4 border-t-sky-500 bg-sky-50/40 dark:bg-sky-950/20',
+    iconWrap: 'bg-sky-100 dark:bg-sky-900/40',
+    icon: 'text-sky-600 dark:text-sky-300',
+  },
+  {
+    card: 'border-t-4 border-t-fuchsia-500 bg-fuchsia-50/40 dark:bg-fuchsia-950/20',
+    iconWrap: 'bg-fuchsia-100 dark:bg-fuchsia-900/40',
+    icon: 'text-fuchsia-600 dark:text-fuchsia-300',
+  },
+];
+
+const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
+const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
+
 function formatHectares(value: number | undefined) {
   return `${Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
 }
@@ -82,6 +119,13 @@ function mapStatusLabel(status?: string) {
   if (status === 'open') return 'Em aberto';
   if (status === 'cancelled') return 'Cancelado';
   return 'Sem OS';
+}
+
+function getLaunchStatusBadgeClass(status?: string) {
+  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (status === 'open') return 'border-sky-200 bg-sky-50 text-sky-700';
+  if (status === 'cancelled') return 'border-rose-200 bg-rose-50 text-rose-700';
+  return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
@@ -349,10 +393,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   return (
     <div className='space-y-6'>
       <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-        {topCards.map((card) => {
+        {topCards.map((card, index) => {
           const Icon = card.icon;
+          const style = TOP_CARD_STYLES[index];
           return (
-            <Card key={card.title}>
+            <Card key={card.title} className={style.card}>
               <CardContent className='p-4'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='space-y-1 min-w-0'>
@@ -361,8 +406,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
-                  <div className='rounded-md bg-muted p-2'>
-                    <Icon className='h-4 w-4 text-muted-foreground' />
+                  <div className={`rounded-md p-2 ${style.iconWrap}`}>
+                    <Icon className={`h-4 w-4 ${style.icon}`} />
                   </div>
                 </div>
               </CardContent>
@@ -520,7 +565,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                       )}
                       {visibleColumns.status && (
                         <td className='px-3 py-2'>
-                          <Badge variant='outline'>{mapStatusLabel(launch.serviceOrder?.status)}</Badge>
+                          <Badge
+                            variant='outline'
+                            className={getLaunchStatusBadgeClass(launch.serviceOrder?.status)}
+                          >
+                            {mapStatusLabel(launch.serviceOrder?.status)}
+                          </Badge>
                         </td>
                       )}
                     </tr>
@@ -542,6 +592,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   type='button'
                   size='sm'
                   variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
+                  className={
+                    pilotEntityMode === 'pilots'
+                      ? 'bg-blue-600 text-white hover:bg-blue-600/90'
+                      : 'text-blue-700 hover:bg-blue-50'
+                  }
                   onClick={() => setPilotEntityMode('pilots')}
                 >
                   Pilotos
@@ -550,6 +605,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   type='button'
                   size='sm'
                   variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
+                  className={
+                    pilotEntityMode === 'assistants'
+                      ? 'bg-violet-600 text-white hover:bg-violet-600/90'
+                      : 'text-violet-700 hover:bg-violet-50'
+                  }
                   onClick={() => setPilotEntityMode('assistants')}
                 >
                   Ajudantes
@@ -560,6 +620,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   type='button'
                   size='sm'
                   variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'total'
+                      ? 'bg-blue-600 text-white hover:bg-blue-600/90'
+                      : 'text-blue-700 hover:bg-blue-50'
+                  }
                   onClick={() => setPilotPeriodMode('total')}
                 >
                   Total Geral
@@ -568,6 +633,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   type='button'
                   size='sm'
                   variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'month'
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
+                      : 'text-indigo-700 hover:bg-indigo-50'
+                  }
                   onClick={() => setPilotPeriodMode('month')}
                 >
                   Mês
@@ -576,6 +646,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   type='button'
                   size='sm'
                   variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'day'
+                      ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
+                      : 'text-cyan-700 hover:bg-cyan-50'
+                  }
                   onClick={() => setPilotPeriodMode('day')}
                 >
                   Dia
@@ -597,13 +672,37 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ) : (
             <ResponsiveContainer width='100%' height='100%'>
               <BarChart data={pilotChartData}>
-                <CartesianGrid strokeDasharray='3 3' vertical={false} />
-                <XAxis dataKey='name' tick={{ fontSize: 11 }} interval={0} angle={-20} height={52} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
+                <XAxis
+                  dataKey='name'
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  interval={0}
+                  angle={-20}
+                  height={52}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                />
                 <Tooltip
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
+                  contentStyle={{
+                    borderRadius: '0.5rem',
+                    borderColor: 'hsl(var(--border))',
+                    backgroundColor: 'hsl(var(--background))',
+                  }}
                 />
-                <Bar dataKey='hectares' fill='hsl(var(--chart-1))' radius={[4, 4, 0, 0]} />
+                <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
+                  {pilotChartData.map((entry, index) => (
+                    <Cell
+                      key={`${entry.name}-${index}`}
+                      fill={PILOT_BAR_COLORS[index % PILOT_BAR_COLORS.length]}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -619,6 +718,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 size='sm'
                 variant={customerPeriodMode === 'total' ? 'default' : 'ghost'}
+                className={
+                  customerPeriodMode === 'total'
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
+                    : 'text-indigo-700 hover:bg-indigo-50'
+                }
                 onClick={() => setCustomerPeriodMode('total')}
               >
                 Total Geral
@@ -627,6 +731,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 size='sm'
                 variant={customerPeriodMode === 'month' ? 'default' : 'ghost'}
+                className={
+                  customerPeriodMode === 'month'
+                    ? 'bg-teal-600 text-white hover:bg-teal-600/90'
+                    : 'text-teal-700 hover:bg-teal-50'
+                }
                 onClick={() => setCustomerPeriodMode('month')}
               >
                 Mês
@@ -635,6 +744,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 size='sm'
                 variant={customerPeriodMode === 'day' ? 'default' : 'ghost'}
+                className={
+                  customerPeriodMode === 'day'
+                    ? 'bg-orange-600 text-white hover:bg-orange-600/90'
+                    : 'text-orange-700 hover:bg-orange-50'
+                }
                 onClick={() => setCustomerPeriodMode('day')}
               >
                 Dia
@@ -650,13 +764,37 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ) : (
             <ResponsiveContainer width='100%' height='100%'>
               <BarChart data={hectaresByCustomerData}>
-                <CartesianGrid strokeDasharray='3 3' vertical={false} />
-                <XAxis dataKey='name' tick={{ fontSize: 11 }} interval={0} angle={-20} height={52} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
+                <XAxis
+                  dataKey='name'
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  interval={0}
+                  angle={-20}
+                  height={52}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                />
                 <Tooltip
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
+                  contentStyle={{
+                    borderRadius: '0.5rem',
+                    borderColor: 'hsl(var(--border))',
+                    backgroundColor: 'hsl(var(--background))',
+                  }}
                 />
-                <Bar dataKey='hectares' fill='hsl(var(--chart-2))' radius={[4, 4, 0, 0]} />
+                <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
+                  {hectaresByCustomerData.map((entry, index) => (
+                    <Cell
+                      key={`${entry.name}-${index}`}
+                      fill={CUSTOMER_BAR_COLORS[index % CUSTOMER_BAR_COLORS.length]}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -689,30 +827,35 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   'Fazenda não informada';
 
                 return (
-                  <Card key={serviceOrder.id} className='border-border/70'>
+                  <Card key={serviceOrder.id} className='border-sky-200/70 bg-sky-50/20 dark:bg-sky-950/10'>
                     <CardContent className='p-4 space-y-3'>
                       <div className='flex items-center justify-between gap-2'>
                         <p className='font-medium truncate'>{farmName}</p>
-                        <Badge variant='secondary'>OS #{serviceOrder.number}</Badge>
+                        <Badge className='bg-sky-100 text-sky-700 hover:bg-sky-100 border border-sky-200'>
+                          OS #{serviceOrder.number}
+                        </Badge>
                       </div>
                       <div className='space-y-1'>
                         <div className='flex items-center justify-between text-sm'>
                           <span>Progresso da OS</span>
-                          <span>{progress.toFixed(1)}%</span>
+                          <span className='text-sky-700 font-medium'>{progress.toFixed(1)}%</span>
                         </div>
-                        <Progress value={progress} />
+                        <Progress
+                          value={progress}
+                          className='bg-sky-100 [&>[data-slot=progress-indicator]]:bg-sky-500'
+                        />
                       </div>
                       <div className='grid grid-cols-2 gap-3 text-sm'>
                         <div>
                           <p className='text-muted-foreground'>Aplicação ontem</p>
-                          <p className='font-semibold'>
+                          <p className='font-semibold text-emerald-700'>
                             {formatHectares(yesterdayStats?.totalAreaHectares)}
                           </p>
                         </div>
                         <div>
                           <p className='text-muted-foreground'>Mapas</p>
-                          <p className='font-semibold flex items-center gap-1'>
-                            <Map className='h-4 w-4' />
+                          <p className='font-semibold flex items-center gap-1 text-violet-700'>
+                            <Map className='h-4 w-4 text-violet-500' />
                             {serviceOrder.plots.length}
                           </p>
                         </div>
@@ -728,4 +871,3 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     </div>
   );
 }
-
