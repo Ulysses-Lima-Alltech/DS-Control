@@ -88,7 +88,7 @@ const TOP_CARD_STYLES = [
   },
 ];
 
-const NEON_RETRO_BAR_COLORS = [
+const PILOT_NEON_RETRO_BAR_COLORS = [
   '#00E5FF',
   '#FF4FD8',
   '#FFD400',
@@ -96,6 +96,16 @@ const NEON_RETRO_BAR_COLORS = [
   '#A3FF12',
   '#FF8A00',
   '#00F5A0',
+  '#FF5C8A',
+];
+const CUSTOMER_NEON_RETRO_BAR_COLORS = [
+  '#7C4DFF',
+  '#FF8A00',
+  '#00E5FF',
+  '#FF4FD8',
+  '#00F5A0',
+  '#FFD400',
+  '#A3FF12',
   '#FF5C8A',
 ];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -911,7 +921,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   {pilotChartData.map((entry, index) => (
                       <Cell
                         key={`${entry.name}-${index}`}
-                        fill={NEON_RETRO_BAR_COLORS[index % NEON_RETRO_BAR_COLORS.length]}
+                        fill={
+                          PILOT_NEON_RETRO_BAR_COLORS[index % PILOT_NEON_RETRO_BAR_COLORS.length]
+                        }
                       />
                   ))}
                 </Bar>
@@ -1016,7 +1028,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   {hectaresByCustomerData.map((entry, index) => (
                       <Cell
                         key={`${entry.name}-${index}`}
-                        fill={NEON_RETRO_BAR_COLORS[index % NEON_RETRO_BAR_COLORS.length]}
+                        fill={
+                          CUSTOMER_NEON_RETRO_BAR_COLORS[index % CUSTOMER_NEON_RETRO_BAR_COLORS.length]
+                        }
                       />
                   ))}
                 </Bar>
