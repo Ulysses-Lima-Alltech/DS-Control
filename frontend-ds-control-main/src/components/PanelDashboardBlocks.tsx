@@ -88,8 +88,16 @@ const TOP_CARD_STYLES = [
   },
 ];
 
-const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
-const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
+const NEON_RETRO_BAR_COLORS = [
+  '#00E5FF',
+  '#A3FF12',
+  '#FF4FD8',
+  '#FF8A00',
+  '#7C4DFF',
+  '#00F5A0',
+  '#FFD400',
+  '#FF5C8A',
+];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
@@ -901,10 +909,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {pilotChartData.map((entry, index) => (
-                    <Cell
-                      key={`${entry.name}-${index}`}
-                      fill={PILOT_BAR_COLORS[index % PILOT_BAR_COLORS.length]}
-                    />
+                      <Cell
+                        key={`${entry.name}-${index}`}
+                        fill={NEON_RETRO_BAR_COLORS[index % NEON_RETRO_BAR_COLORS.length]}
+                      />
                   ))}
                 </Bar>
               </BarChart>
@@ -1006,10 +1014,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {hectaresByCustomerData.map((entry, index) => (
-                    <Cell
-                      key={`${entry.name}-${index}`}
-                      fill={CUSTOMER_BAR_COLORS[index % CUSTOMER_BAR_COLORS.length]}
-                    />
+                      <Cell
+                        key={`${entry.name}-${index}`}
+                        fill={NEON_RETRO_BAR_COLORS[index % NEON_RETRO_BAR_COLORS.length]}
+                      />
                   ))}
                 </Bar>
               </BarChart>
