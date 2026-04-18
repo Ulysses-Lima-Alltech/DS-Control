@@ -94,7 +94,7 @@ const AXIS_TICK_MAX_CHARS = 24;
 const CHART_TOOLTIP_CONTENT_STYLE: CSSProperties = {
   borderRadius: '0.5rem',
   border: '1px solid hsl(var(--border))',
-  backgroundColor: 'hsl(var(--card))',
+  backgroundColor: 'rgba(255, 255, 255, 0.92)',
   boxShadow: '0 10px 25px rgba(2, 6, 23, 0.18)',
   padding: '10px 12px',
 };
