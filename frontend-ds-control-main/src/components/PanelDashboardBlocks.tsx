@@ -90,12 +90,12 @@ const TOP_CARD_STYLES = [
 
 const NEON_RETRO_BAR_COLORS = [
   '#00E5FF',
-  '#A3FF12',
   '#FF4FD8',
-  '#FF8A00',
-  '#7C4DFF',
-  '#00F5A0',
   '#FFD400',
+  '#7C4DFF',
+  '#A3FF12',
+  '#FF8A00',
+  '#00F5A0',
   '#FF5C8A',
 ];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
