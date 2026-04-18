@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueries } from '@tanstack/react-query';
-import { format, startOfMonth } from 'date-fns';
+import { format, isValid, startOfMonth } from 'date-fns';
 import {
   BarChart3,
   CalendarClock,
@@ -11,7 +11,7 @@ import {
   Sprout,
   UserCheck,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -52,6 +52,7 @@ interface PanelDashboardBlocksProps {
 }
 
 type RangeMode = 'total' | 'month' | 'day';
+type ComparableDateRange = { startDate?: string; endDate?: string } | undefined;
 
 const TOP_CARD_STYLES = [
   {
@@ -88,6 +89,34 @@ const TOP_CARD_STYLES = [
 
 const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
+const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function areDateRangesEqual(a: ComparableDateRange, b: ComparableDateRange) {
+  return a?.startDate === b?.startDate && a?.endDate === b?.endDate;
+}
+
+function parseDateParam(value: string): Date | undefined {
+  if (!DATE_PARAM_REGEX.test(value)) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return undefined;
+  const parsed = new Date(year, month - 1, day);
+  if (!isValid(parsed)) return undefined;
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function formatLaunchDate(dateValue?: string): string {
+  if (!dateValue) return '-';
+  const parsed = new Date(dateValue);
+  if (!isValid(parsed)) return '-';
+  return format(parsed, 'dd/MM/yyyy');
+}
 
 function formatHectares(value: number | undefined) {
   return `${Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
@@ -102,7 +131,10 @@ function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: st
     return { startDate: totalStartDate, endDate: totalEndDate };
   }
   if (mode === 'month') {
-    const end = new Date(baseEndDate);
+    const end = parseDateParam(baseEndDate);
+    if (!end) {
+      return { startDate: totalStartDate, endDate: totalEndDate };
+    }
     return {
       startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
       endDate: totalEndDate,
@@ -388,6 +420,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     setSelectedPilotId(undefined);
     setDateRange({ startDate, endDate });
   };
+  const handleDateRangeChange = useCallback(
+    (range: { startDate?: string; endDate?: string } | undefined) => {
+      const nextRange =
+        range?.startDate && range?.endDate
+          ? { startDate: range.startDate, endDate: range.endDate }
+          : { startDate, endDate };
+
+      setDateRange((prev) => {
+        if (areDateRangesEqual(prev, nextRange)) {
+          return prev;
+        }
+        return nextRange;
+      });
+    },
+    [startDate, endDate]
+  );
 
   const launches = pilotLaunchesData?.data || [];
   const isLoadingAnyCustomerArea =
@@ -437,10 +485,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </div>
             <DateRangePicker
               initialValue={{ startDate: effectiveStartDate, endDate: effectiveEndDate }}
-              onChange={(range) => {
-                if (!range) return;
-                setDateRange(range);
-              }}
+              onChange={handleDateRangeChange}
               placeholder='Período'
             />
             <SearchableSelectQuery
@@ -558,7 +603,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   {launches.map((launch) => (
                     <tr key={launch.id} className='border-t'>
                       {visibleColumns.date && (
-                        <td className='px-3 py-2'>{format(new Date(launch.date), 'dd/MM/yyyy')}</td>
+                        <td className='px-3 py-2'>{formatLaunchDate(launch.date)}</td>
                       )}
                       {visibleColumns.pilot && <td className='px-3 py-2'>{launch.pilot?.name || 'N/A'}</td>}
                       {visibleColumns.farm && <td className='px-3 py-2'>{launch.farm?.name || 'N/A'}</td>}

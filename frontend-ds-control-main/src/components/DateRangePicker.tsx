@@ -103,10 +103,15 @@ export default function DateRangePicker({
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<DateRange | undefined>(() => parseInitialRange(initialValue))
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(() => normalizeRange(date))
+  const onChangeRef = React.useRef(onChange)
 
   const safeDate = normalizeRange(date)
   const safeDraftRange = normalizeRange(draftRange)
   const safeDefaultMonth = safeDraftRange?.from ?? safeDate?.from ?? new Date()
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   const handleDayClick: DayEventHandler<React.MouseEvent> = (day) => {
     if (!isValidDate(day)) return
@@ -169,7 +174,7 @@ export default function DateRangePicker({
 
   useEffect(() => {
     if(safeDate?.from && safeDate?.to && isValid(safeDate.from) && isValid(safeDate.to)){
-        onChange({
+        onChangeRef.current({
             startDate: toLocalYMD(safeDate.from),
             endDate: toLocalYMD(safeDate.to)
         })
@@ -177,9 +182,9 @@ export default function DateRangePicker({
     }
     // Partial selection does not update external filters.
     if (!safeDate?.from && !safeDate?.to) {
-      onChange(undefined)
+      onChangeRef.current(undefined)
     }
-  }, [safeDate?.from?.getTime(), safeDate?.to?.getTime(), onChange])
+  }, [safeDate?.from?.getTime(), safeDate?.to?.getTime()])
 
   return (
 

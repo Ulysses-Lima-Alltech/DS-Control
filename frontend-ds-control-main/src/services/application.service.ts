@@ -670,10 +670,26 @@ export async function getDashboardMetrics(
   params: GetDashboardMetricsParams
 ): Promise<GetDashboardMetricsResponse> {
   const searchParams = new URLSearchParams();
+  const dateParamRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateParamRegex.test(params.startDate)) {
+    throw new Error(
+      `[Application Service] Erro ao buscar métricas do dashboard: startDate inválida (${params.startDate})`
+    );
+  }
 
-  const startDateObj = new Date(params.startDate + 'T00:00:00');
+  const [year, month, day] = params.startDate.split('-').map(Number);
+  const startDateObj = new Date(year, month - 1, day);
+  const isStrictValid =
+    startDateObj.getFullYear() === year &&
+    startDateObj.getMonth() === month - 1 &&
+    startDateObj.getDate() === day;
+  if (!isStrictValid) {
+    throw new Error(
+      `[Application Service] Erro ao buscar métricas do dashboard: startDate inválida (${params.startDate})`
+    );
+  }
   startDateObj.setDate(startDateObj.getDate() - 1);
-  const adjustedStartDate = startDateObj.toISOString().split('T')[0];
+  const adjustedStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, '0')}-${String(startDateObj.getDate()).padStart(2, '0')}`;
 
   searchParams.append('startDate', adjustedStartDate);
 

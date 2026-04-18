@@ -10,12 +10,22 @@ const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const getYesterdayDateString = () => format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
+const isValidDateParam = (value: string | null): value is string => {
+  if (!value || !DATE_PARAM_REGEX.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  const parsed = new Date(year, month - 1, day);
+  return (
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day
+  );
+};
+
 const resolveInitialDateRange = (
   urlStartDate: string | null,
   urlEndDate: string | null
 ): { startDate: string; endDate: string } => {
-  const hasValidStart = !!urlStartDate && DATE_PARAM_REGEX.test(urlStartDate);
-  const hasValidEnd = !!urlEndDate && DATE_PARAM_REGEX.test(urlEndDate);
+  const hasValidStart = isValidDateParam(urlStartDate);
+  const hasValidEnd = isValidDateParam(urlEndDate);
   if (hasValidStart && hasValidEnd) {
     return { startDate: urlStartDate, endDate: urlEndDate };
   }
@@ -46,4 +56,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
