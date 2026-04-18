@@ -11,7 +11,7 @@ import {
   Sprout,
   UserCheck,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -40,7 +40,7 @@ import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import { useGetAllApplications, useGetApplicationsByPilotStats, useGetDashboardMetrics, useGetStatsApplications } from '@/queries/application.query';
 import { useGetAllCustomers } from '@/queries/customer.query';
 import { useGetAllFarms } from '@/queries/farm.query';
-import { useGetStatsServiceorders, useGetAllServiceOrders } from '@/queries/service-order.query';
+import { useGetAllServiceOrders } from '@/queries/service-order.query';
 import { useGetAllUsers } from '@/queries/user.query';
 import * as ApplicationService from '@/services/application.service';
 import { ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
@@ -90,6 +90,23 @@ const TOP_CARD_STYLES = [
 const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const AXIS_TICK_MAX_CHARS = 16;
+const CHART_TOOLTIP_CONTENT_STYLE: CSSProperties = {
+  borderRadius: '0.5rem',
+  border: '1px solid hsl(var(--border))',
+  backgroundColor: 'hsl(var(--card))',
+  boxShadow: '0 10px 25px rgba(2, 6, 23, 0.18)',
+  padding: '10px 12px',
+};
+const CHART_TOOLTIP_LABEL_STYLE: CSSProperties = {
+  color: 'hsl(var(--foreground))',
+  fontWeight: 600,
+  marginBottom: '2px',
+};
+const CHART_TOOLTIP_ITEM_STYLE: CSSProperties = {
+  color: 'hsl(var(--foreground))',
+  fontSize: '12px',
+};
 
 function areDateRangesEqual(a: ComparableDateRange, b: ComparableDateRange) {
   return a?.startDate === b?.startDate && a?.endDate === b?.endDate;
@@ -124,6 +141,12 @@ function formatHectares(value: number | undefined) {
 
 function formatInteger(value: number | undefined) {
   return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function truncateAxisLabel(value?: string, maxChars = AXIS_TICK_MAX_CHARS) {
+  const label = String(value || '').trim();
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, Math.max(maxChars - 3, 1))}...`;
 }
 
 function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: string, totalEndDate: string) {
@@ -205,13 +228,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
     startDate: effectiveStartDate,
-  });
-  const { data: serviceOrdersStats, isPending: isLoadingServiceOrdersStats } = useGetStatsServiceorders({
-    customerId: selectedCustomerId,
-    farmId: selectedFarmId,
-    pilotId: selectedPilotId,
-    startDate: effectiveStartDate,
-    endDate: effectiveEndDate,
   });
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
@@ -446,23 +462,23 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     orderYesterdayStatsQueries.some((query) => query.isPending);
 
   return (
-    <div className='space-y-6'>
-      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+    <div className='space-y-5'>
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6'>
         {topCards.map((card, index) => {
           const Icon = card.icon;
           const style = TOP_CARD_STYLES[index];
           return (
-            <Card key={card.title} className={style.card}>
-              <CardContent className='p-4'>
+            <Card key={card.title} className={`${style.card} min-h-[96px]`}>
+              <CardContent className='p-3 sm:p-4'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='space-y-1 min-w-0'>
-                    <p className='text-sm text-muted-foreground'>{card.title}</p>
-                    <p className='text-2xl font-semibold truncate'>
+                    <p className='text-[13px] leading-tight text-muted-foreground'>{card.title}</p>
+                    <p className='text-xl sm:text-[22px] leading-tight font-semibold truncate'>
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
-                  <div className={`rounded-md p-2 ${style.iconWrap}`}>
-                    <Icon className={`h-4 w-4 ${style.icon}`} />
+                  <div className={`rounded-md p-1.5 ${style.iconWrap}`}>
+                    <Icon className={`h-3.5 w-3.5 ${style.icon}`} />
                   </div>
                 </div>
               </CardContent>
@@ -471,9 +487,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         })}
       </div>
 
-      <Card>
+      <Card className='border-border/70'>
         <CardContent className='p-4'>
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]'>
+          <div className='grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))_auto_auto]'>
             <div className='relative'>
               <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
               <Input
@@ -572,7 +588,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className='border-border/70'>
         <CardHeader className='pb-2'>
           <CardTitle>Lançamentos dos Pilotos</CardTitle>
         </CardHeader>
@@ -634,12 +650,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className='pb-2'>
+      <Card className='border-border/70'>
+        <CardHeader className='pb-3'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <CardTitle>Hectares por Piloto/Ajudante</CardTitle>
             <div className='flex flex-wrap items-center gap-2'>
-              <div className='flex gap-1 rounded-md border p-1'>
+              <div className='flex gap-1 rounded-md border border-border/70 p-1'>
                 <Button
                   type='button'
                   size='sm'
@@ -667,7 +683,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   Ajudantes
                 </Button>
               </div>
-              <div className='flex gap-1 rounded-md border p-1'>
+              <div className='flex gap-1 rounded-md border border-border/70 p-1'>
                 <Button
                   type='button'
                   size='sm'
@@ -716,14 +732,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </CardDescription>
           ) : null}
         </CardHeader>
-        <CardContent className='h-[300px]'>
+        <CardContent className='h-[320px] pt-0'>
           {isLoadingByPilotStats ? (
             <p className='text-sm text-muted-foreground'>Carregando gráfico...</p>
           ) : pilotChartData.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Sem dados para exibir.</p>
           ) : (
             <ResponsiveContainer width='100%' height='100%'>
-              <BarChart data={pilotChartData}>
+              <BarChart
+                data={pilotChartData}
+                margin={{
+                  top: 8,
+                  right: 8,
+                  left: -10,
+                  bottom: 10,
+                }}
+              >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
                 <XAxis
                   dataKey='name'
@@ -731,8 +755,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                   interval={0}
-                  angle={-20}
-                  height={52}
+                  angle={-32}
+                  textAnchor='end'
+                  height={68}
+                  tickMargin={10}
+                  tickFormatter={truncateAxisLabel}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
@@ -740,12 +767,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
-                  contentStyle={{
-                    borderRadius: '0.5rem',
-                    borderColor: 'hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--background))',
-                  }}
+                  labelFormatter={(label) => String(label || '')}
+                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {pilotChartData.map((entry, index) => (
@@ -761,11 +788,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className='pb-2'>
+      <Card className='border-border/70'>
+        <CardHeader className='pb-3'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <CardTitle>Hectares por Cliente</CardTitle>
-            <div className='flex gap-1 rounded-md border p-1'>
+            <div className='flex gap-1 rounded-md border border-border/70 p-1'>
               <Button
                 type='button'
                 size='sm'
@@ -808,14 +835,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </div>
           </div>
         </CardHeader>
-        <CardContent className='h-[300px]'>
+        <CardContent className='h-[320px] pt-0'>
           {isLoadingAnyCustomerArea ? (
             <p className='text-sm text-muted-foreground'>Carregando gráfico...</p>
           ) : hectaresByCustomerData.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Sem dados para exibir.</p>
           ) : (
             <ResponsiveContainer width='100%' height='100%'>
-              <BarChart data={hectaresByCustomerData}>
+              <BarChart
+                data={hectaresByCustomerData}
+                margin={{
+                  top: 8,
+                  right: 8,
+                  left: -10,
+                  bottom: 10,
+                }}
+              >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
                 <XAxis
                   dataKey='name'
@@ -823,8 +858,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                   interval={0}
-                  angle={-20}
-                  height={52}
+                  angle={-32}
+                  textAnchor='end'
+                  height={68}
+                  tickMargin={10}
+                  tickFormatter={truncateAxisLabel}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
@@ -832,12 +870,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
                   formatter={(value) => [`${Number(value).toLocaleString('pt-BR')} ha`, 'Hectares']}
-                  contentStyle={{
-                    borderRadius: '0.5rem',
-                    borderColor: 'hsl(var(--border))',
-                    backgroundColor: 'hsl(var(--background))',
-                  }}
+                  labelFormatter={(label) => String(label || '')}
+                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 />
                 <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
                   {hectaresByCustomerData.map((entry, index) => (
@@ -853,7 +891,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className='border-border/70'>
         <CardHeader className='pb-2'>
           <CardTitle>Ordens de Serviços em aberto</CardTitle>
         </CardHeader>
@@ -863,7 +901,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ) : openServiceOrders.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Nenhuma OS em aberto encontrada para o recorte.</p>
           ) : (
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
               {openServiceOrders.map((serviceOrder, index) => {
                 const periodStats = orderPeriodStatsQueries[index]?.data?.stats;
                 const yesterdayStats = orderYesterdayStatsQueries[index]?.data?.stats;
@@ -879,25 +917,31 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   'Fazenda não informada';
 
                 return (
-                  <Card key={serviceOrder.id} className='border-sky-200/70 bg-sky-50/20 dark:bg-sky-950/10'>
-                    <CardContent className='p-4 space-y-3'>
+                  <Card
+                    key={serviceOrder.id}
+                    className='border border-border/70 bg-card shadow-sm transition-transform duration-200 hover:-translate-y-0.5'
+                  >
+                    <CardContent className='space-y-4 p-5'>
                       <div className='flex items-center justify-between gap-2'>
-                        <p className='font-medium truncate'>{farmName}</p>
-                        <Badge className='bg-sky-100 text-sky-700 hover:bg-sky-100 border border-sky-200'>
+                        <p className='truncate text-[15px] font-medium'>{farmName}</p>
+                        <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10'>
                           OS #{serviceOrder.number}
                         </Badge>
                       </div>
-                      <div className='space-y-1'>
+                      <div className='space-y-2'>
                         <div className='flex items-center justify-between text-sm'>
                           <span>Progresso da OS</span>
-                          <span className='text-sky-700 font-medium'>{progress.toFixed(1)}%</span>
+                          <span className='font-medium text-foreground'>
+                            {formatHectares(appliedArea)} / {formatHectares(plannedArea)}
+                          </span>
                         </div>
                         <Progress
                           value={progress}
-                          className='bg-sky-100 [&>[data-slot=progress-indicator]]:bg-sky-500'
+                          className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-emerald-500'
                         />
+                        <p className='text-xs text-muted-foreground'>{progress.toFixed(1)}% concluído</p>
                       </div>
-                      <div className='grid grid-cols-2 gap-3 text-sm'>
+                      <div className='grid grid-cols-2 gap-4 border-t border-border/70 pt-4 text-sm'>
                         <div>
                           <p className='text-muted-foreground'>Aplicação ontem</p>
                           <p className='font-semibold text-emerald-700'>
@@ -906,8 +950,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         </div>
                         <div>
                           <p className='text-muted-foreground'>Mapas</p>
-                          <p className='font-semibold flex items-center gap-1 text-violet-700'>
-                            <Map className='h-4 w-4 text-violet-500' />
+                          <p className='font-semibold flex items-center gap-1 text-cyan-700'>
+                            <Map className='h-4 w-4 text-cyan-600' />
                             {serviceOrder.plots.length}
                           </p>
                         </div>
