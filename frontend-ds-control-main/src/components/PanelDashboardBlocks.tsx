@@ -191,13 +191,15 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: 10,
   });
   const { data: byPilotYesterdayStats, isPending: isLoadingByPilotYesterdayStats } =
-    useGetApplicationsByPilotStats({
+    useGetAllApplications({
+      page: '1',
+      limit: '1000',
+      search: search || undefined,
       customerId: selectedCustomerId,
       farmId: selectedFarmId,
       pilotId: selectedPilotId,
       startDate: yesterday,
       endDate: yesterday,
-      limit: 100,
     });
 
   const { data: customersData, isPending: isLoadingCustomers } = useGetAllCustomers({
@@ -231,13 +233,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
   const { data: openServiceOrdersData, isPending: isLoadingOpenServiceOrders } = useGetAllServiceOrders({
     page: '1',
-    limit: '6',
+    limit: '100',
     status: 'open',
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    startDate: effectiveStartDate,
-    endDate: effectiveEndDate,
     includePlots: 'true',
     includeFarms: 'true',
     includePilots: 'true',
@@ -332,8 +332,15 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     return base;
   }, [byPilotStats?.byPilot, pilotEntityMode]);
 
-  const pilotsActiveYesterdayCount =
-    byPilotYesterdayStats?.byPilot?.filter((pilot) => pilot.applicationsCount > 0).length || 0;
+  const pilotsActiveYesterdayCount = useMemo(() => {
+    const applications = byPilotYesterdayStats?.data || [];
+    const uniquePilotIds = new Set(
+      applications
+        .map((application) => application.pilotId)
+        .filter((pilotId): pilotId is string => Boolean(pilotId))
+    );
+    return uniquePilotIds.size;
+  }, [byPilotYesterdayStats?.data]);
 
   const topCards = [
     {
