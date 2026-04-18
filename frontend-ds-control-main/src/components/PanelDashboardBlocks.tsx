@@ -211,7 +211,7 @@ function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number,
   const [line1, line2] = buildTwoLineTickLabel(props.payload?.value, lineChars);
 
   return (
-    <text x={x} y={y + 8} fill={fillColor} textAnchor='middle' fontSize={11}>
+    <text x={x} y={y + 8} fill={fillColor} textAnchor='middle' fontSize={13} fontWeight={500}>
       <tspan x={x} dy='0.71em' fill={fillColor}>
         {line1}
       </tspan>
@@ -233,10 +233,10 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
       interval: 0,
       angle: 0,
       textAnchor: 'middle',
-      height: 72,
-      tickMargin: 10,
+      height: 80,
+      tickMargin: 12,
       minTickGap: 12,
-      bottomMargin: 18,
+      bottomMargin: 22,
       lineChars: 24,
     };
   }
@@ -248,10 +248,10 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
     interval: hasManyItems ? 'preserveStartEnd' : 0,
     angle: 0,
     textAnchor: 'middle',
-    height: hasManyItems ? 88 : 80,
-    tickMargin: hasManyItems ? 14 : 10,
+    height: hasManyItems ? 96 : 88,
+    tickMargin: hasManyItems ? 16 : 12,
     minTickGap: hasManyItems ? 24 : 16,
-    bottomMargin: hasManyItems ? 30 : 22,
+    bottomMargin: hasManyItems ? 34 : 26,
     lineChars,
   };
 }
@@ -337,6 +337,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     () => ({
       color: chartTooltipFg,
       fontWeight: 600,
+      fontSize: '14px',
       marginBottom: '2px',
     }),
     [chartTooltipFg]
@@ -344,7 +345,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const chartTooltipItemStyle = useMemo<CSSProperties>(
     () => ({
       color: chartTooltipFg,
-      fontSize: '12px',
+      fontSize: '13px',
+      fontWeight: 500,
     }),
     [chartTooltipFg]
   );
@@ -905,7 +907,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={pilotXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: chartTextColor }}
+                  tick={{ fontSize: 12, fill: chartTextColor }}
                   axisLine={{ stroke: chartAxisColor }}
                   tickLine={{ stroke: chartAxisColor }}
                 />
@@ -1012,7 +1014,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={customerXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: chartTextColor }}
+                  tick={{ fontSize: 12, fill: chartTextColor }}
                   axisLine={{ stroke: chartAxisColor }}
                   tickLine={{ stroke: chartAxisColor }}
                 />
