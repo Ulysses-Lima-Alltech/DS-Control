@@ -90,7 +90,7 @@ const TOP_CARD_STYLES = [
 const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const AXIS_TICK_MAX_CHARS = 16;
+const AXIS_TICK_MAX_CHARS = 24;
 const CHART_TOOLTIP_CONTENT_STYLE: CSSProperties = {
   borderRadius: '0.5rem',
   border: '1px solid hsl(var(--border))',
@@ -146,7 +146,22 @@ function formatInteger(value: number | undefined) {
 function truncateAxisLabel(value?: string, maxChars = AXIS_TICK_MAX_CHARS) {
   const label = String(value || '').trim();
   if (label.length <= maxChars) return label;
-  return `${label.slice(0, Math.max(maxChars - 3, 1))}...`;
+  const breakpoint = label.lastIndexOf(' ', maxChars - 1);
+  const cutIndex =
+    breakpoint > Math.floor(maxChars * 0.65) ? breakpoint : Math.max(maxChars - 3, 1);
+  return `${label.slice(0, cutIndex).trim()}...`;
+}
+
+function getDominantMapCategory(applications: ApplicationService.GetApplicationsByServiceOrderIdResponse['data']) {
+  const categoryCounts = new Map<string, number>();
+
+  for (const application of applications) {
+    const category = (application.product?.name || application.culture?.name || '').trim();
+    if (!category) continue;
+    categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+  }
+
+  return [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 }
 
 function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: string, totalEndDate: string) {
@@ -358,6 +373,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     })),
   });
 
+  const orderApplicationsQueries = useQueries({
+    queries: openServiceOrders.map((serviceOrder) => ({
+      queryKey: ['panel', 'order-applications', serviceOrder.id],
+      queryFn: () => ApplicationService.getApplicationsByServiceOrderId(serviceOrder.id),
+      staleTime: 1000 * 60 * 3,
+    })),
+  });
+
   const hectaresByCustomerData = useMemo(() => {
     return customers
       .map((customer, index) => ({
@@ -459,7 +482,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
     orderPeriodStatsQueries.some((query) => query.isPending) ||
-    orderYesterdayStatsQueries.some((query) => query.isPending);
+    orderYesterdayStatsQueries.some((query) => query.isPending) ||
+    orderApplicationsQueries.some((query) => query.isPending);
 
   return (
     <div className='space-y-5'>
@@ -745,7 +769,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   top: 8,
                   right: 8,
                   left: -10,
-                  bottom: 10,
+                  bottom: 20,
                 }}
               >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
@@ -754,11 +778,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
-                  interval={0}
-                  angle={-32}
+                  interval='preserveStartEnd'
+                  angle={-38}
                   textAnchor='end'
-                  height={68}
-                  tickMargin={10}
+                  height={88}
+                  tickMargin={12}
+                  minTickGap={10}
                   tickFormatter={truncateAxisLabel}
                 />
                 <YAxis
@@ -848,7 +873,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   top: 8,
                   right: 8,
                   left: -10,
-                  bottom: 10,
+                  bottom: 20,
                 }}
               >
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
@@ -857,11 +882,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
-                  interval={0}
-                  angle={-32}
+                  interval='preserveStartEnd'
+                  angle={-38}
                   textAnchor='end'
-                  height={68}
-                  tickMargin={10}
+                  height={88}
+                  tickMargin={12}
+                  minTickGap={10}
                   tickFormatter={truncateAxisLabel}
                 />
                 <YAxis
@@ -905,6 +931,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               {openServiceOrders.map((serviceOrder, index) => {
                 const periodStats = orderPeriodStatsQueries[index]?.data?.stats;
                 const yesterdayStats = orderYesterdayStatsQueries[index]?.data?.stats;
+                const serviceOrderApplications = orderApplicationsQueries[index]?.data?.data || [];
                 const plannedArea = serviceOrder.plots.reduce(
                   (sum, plot) => sum + Number(plot.hectare || 0),
                   0
@@ -915,7 +942,24 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   serviceOrder.farms?.[0]?.name ||
                   serviceOrder.customer?.name ||
                   'Fazenda não informada';
-
+                const plannedMaps = serviceOrder.plots?.length ?? serviceOrder.plotsIds?.length;
+                const serviceOrderPlotIds = new Set(
+                  (serviceOrder.plotsIds || []).filter((plotId): plotId is string => Boolean(plotId))
+                );
+                const completedMapIds = new Set(
+                  serviceOrderApplications
+                    .map((application) => application.plotId)
+                    .filter(
+                      (plotId): plotId is string =>
+                        Boolean(plotId) &&
+                        (serviceOrderPlotIds.size === 0 || serviceOrderPlotIds.has(plotId))
+                    )
+                );
+                const completedMaps = completedMapIds.size;
+                const remainingMaps =
+                  typeof plannedMaps === 'number' ? Math.max(plannedMaps - completedMaps, 0) : undefined;
+                const mapCategory = getDominantMapCategory(serviceOrderApplications);
+                const mapLabel = mapCategory ? `Mapas (${mapCategory})` : 'Mapas';
                 return (
                   <Card
                     key={serviceOrder.id}
@@ -949,10 +993,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                           </p>
                         </div>
                         <div>
-                          <p className='text-muted-foreground'>Mapas</p>
+                          <p className='text-muted-foreground'>{mapLabel}</p>
                           <p className='font-semibold flex items-center gap-1 text-cyan-700'>
                             <Map className='h-4 w-4 text-cyan-600' />
-                            {serviceOrder.plots.length}
+                            {typeof remainingMaps === 'number'
+                              ? `${completedMaps} feitos / ${remainingMaps} restam`
+                              : `${completedMaps} feitos`}
                           </p>
                         </div>
                       </div>
