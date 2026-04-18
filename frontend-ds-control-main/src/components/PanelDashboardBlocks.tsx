@@ -91,11 +91,16 @@ const PILOT_BAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
 const CUSTOMER_BAR_COLORS = ['#6366f1', '#06b6d4', '#84cc16', '#f97316', '#d946ef', '#0ea5e9'];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AXIS_TICK_MAX_CHARS = 24;
+const PANEL_TOGGLE_INACTIVE_CLASS =
+  'text-foreground dark:text-slate-100 hover:bg-muted/70 dark:hover:bg-muted/60';
+const CHART_AXIS_STROKE = 'hsl(var(--border))';
+const CHART_TICK_FILL = 'hsl(var(--foreground))';
 const CHART_TOOLTIP_CONTENT_STYLE: CSSProperties = {
   borderRadius: '0.5rem',
   border: '1px solid hsl(var(--border))',
-  backgroundColor: 'rgba(255, 255, 255, 0.92)',
-  boxShadow: '0 10px 25px rgba(2, 6, 23, 0.18)',
+  backgroundColor: 'hsl(var(--popover))',
+  color: 'hsl(var(--popover-foreground))',
+  boxShadow: '0 10px 25px rgba(2, 6, 23, 0.28)',
   padding: '10px 12px',
 };
 const CHART_TOOLTIP_LABEL_STYLE: CSSProperties = {
@@ -196,7 +201,7 @@ function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number)
   const [line1, line2] = buildTwoLineTickLabel(props.payload?.value, lineChars);
 
   return (
-    <text x={x} y={y + 8} fill='hsl(var(--muted-foreground))' textAnchor='middle' fontSize={11}>
+    <text x={x} y={y + 8} fill={CHART_TICK_FILL} textAnchor='middle' fontSize={11}>
       <tspan x={x} dy='0.71em'>
         {line1}
       </tspan>
@@ -281,10 +286,13 @@ function mapStatusLabel(status?: string) {
 }
 
 function getLaunchStatusBadgeClass(status?: string) {
-  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (status === 'open') return 'border-sky-200 bg-sky-50 text-sky-700';
-  if (status === 'cancelled') return 'border-rose-200 bg-rose-50 text-rose-700';
-  return 'border-slate-200 bg-slate-50 text-slate-700';
+  if (status === 'completed')
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200';
+  if (status === 'open')
+    return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-400/15 dark:text-sky-200';
+  if (status === 'cancelled')
+    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-400/15 dark:text-rose-200';
+  return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-400/10 dark:text-slate-200';
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
@@ -427,27 +435,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     })),
   });
 
-  const orderPeriodStatsQueries = useQueries({
-    queries: openServiceOrders.map((serviceOrder) => ({
-      queryKey: [
-        'panel',
-        'order-period',
-        serviceOrder.id,
-        effectiveStartDate,
-        effectiveEndDate,
-        search,
-      ],
-      queryFn: () =>
-        ApplicationService.getStatsApplications({
-          search: search || undefined,
-          serviceOrderId: serviceOrder.id,
-          startDate: effectiveStartDate,
-          endDate: effectiveEndDate,
-        }),
-      staleTime: 1000 * 60 * 3,
-    })),
-  });
-
   const orderYesterdayStatsQueries = useQueries({
     queries: openServiceOrders.map((serviceOrder) => ({
       queryKey: ['panel', 'order-yesterday', serviceOrder.id, yesterday, search],
@@ -578,7 +565,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
-    orderPeriodStatsQueries.some((query) => query.isPending) ||
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
     orderApplicationsQueries.some((query) => query.isPending);
 
@@ -593,8 +579,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               <CardContent className='p-3 sm:p-4'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='space-y-1 min-w-0'>
-                    <p className='text-[13px] leading-tight text-muted-foreground'>{card.title}</p>
-                    <p className='text-xl sm:text-[22px] leading-tight font-semibold truncate'>
+                    <p className='text-[13px] leading-tight text-muted-foreground dark:text-slate-300'>
+                      {card.title}
+                    </p>
+                    <p className='text-xl sm:text-[22px] leading-tight font-semibold truncate text-foreground dark:text-slate-50'>
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
@@ -780,12 +768,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                  variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
-                  className={
-                    pilotEntityMode === 'pilots'
-                      ? 'bg-blue-600 text-white hover:bg-blue-600/90'
-                      : 'text-blue-700 hover:bg-blue-50'
-                  }
+                    variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
+                    className={
+                      pilotEntityMode === 'pilots'
+                        ? 'bg-blue-600 text-white hover:bg-blue-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
                   onClick={() => setPilotEntityMode('pilots')}
                 >
                   Pilotos
@@ -793,12 +781,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                  variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
-                  className={
-                    pilotEntityMode === 'assistants'
-                      ? 'bg-violet-600 text-white hover:bg-violet-600/90'
-                      : 'text-violet-700 hover:bg-violet-50'
-                  }
+                    variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
+                    className={
+                      pilotEntityMode === 'assistants'
+                        ? 'bg-violet-600 text-white hover:bg-violet-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
                   onClick={() => setPilotEntityMode('assistants')}
                 >
                   Ajudantes
@@ -808,12 +796,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                  variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
-                  className={
-                    pilotPeriodMode === 'total'
-                      ? 'bg-blue-600 text-white hover:bg-blue-600/90'
-                      : 'text-blue-700 hover:bg-blue-50'
-                  }
+                    variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
+                    className={
+                      pilotPeriodMode === 'total'
+                        ? 'bg-blue-600 text-white hover:bg-blue-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
                   onClick={() => setPilotPeriodMode('total')}
                 >
                   Total Geral
@@ -821,12 +809,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                  variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
-                  className={
-                    pilotPeriodMode === 'month'
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
-                      : 'text-indigo-700 hover:bg-indigo-50'
-                  }
+                    variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
+                    className={
+                      pilotPeriodMode === 'month'
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
                   onClick={() => setPilotPeriodMode('month')}
                 >
                   Mês
@@ -834,12 +822,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                  variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
-                  className={
-                    pilotPeriodMode === 'day'
-                      ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
-                      : 'text-cyan-700 hover:bg-cyan-50'
-                  }
+                    variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
+                    className={
+                      pilotPeriodMode === 'day'
+                        ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
                   onClick={() => setPilotPeriodMode('day')}
                 >
                   Dia
@@ -869,12 +857,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   bottom: pilotXAxisConfig.bottomMargin,
                 }}
               >
-                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={CHART_AXIS_STROKE} />
                 <XAxis
                   dataKey='name'
                   tick={(props) => renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars)}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  axisLine={{ stroke: CHART_AXIS_STROKE }}
+                  tickLine={{ stroke: CHART_AXIS_STROKE }}
                   interval={pilotXAxisConfig.interval}
                   angle={pilotXAxisConfig.angle}
                   textAnchor={pilotXAxisConfig.textAnchor}
@@ -883,9 +871,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={pilotXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  tick={{ fontSize: 11, fill: CHART_TICK_FILL }}
+                  axisLine={{ stroke: CHART_AXIS_STROKE }}
+                  tickLine={{ stroke: CHART_AXIS_STROKE }}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
@@ -921,7 +909,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 className={
                   customerPeriodMode === 'total'
                     ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
-                    : 'text-indigo-700 hover:bg-indigo-50'
+                    : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={() => setCustomerPeriodMode('total')}
               >
@@ -934,7 +922,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 className={
                   customerPeriodMode === 'month'
                     ? 'bg-teal-600 text-white hover:bg-teal-600/90'
-                    : 'text-teal-700 hover:bg-teal-50'
+                    : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={() => setCustomerPeriodMode('month')}
               >
@@ -947,7 +935,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 className={
                   customerPeriodMode === 'day'
                     ? 'bg-orange-600 text-white hover:bg-orange-600/90'
-                    : 'text-orange-700 hover:bg-orange-50'
+                    : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={() => setCustomerPeriodMode('day')}
               >
@@ -972,12 +960,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   bottom: customerXAxisConfig.bottomMargin,
                 }}
               >
-                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='hsl(var(--border))' />
+                <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={CHART_AXIS_STROKE} />
                 <XAxis
                   dataKey='name'
                   tick={(props) => renderWrappedXAxisTick(props, customerXAxisConfig.lineChars)}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  axisLine={{ stroke: CHART_AXIS_STROKE }}
+                  tickLine={{ stroke: CHART_AXIS_STROKE }}
                   interval={customerXAxisConfig.interval}
                   angle={customerXAxisConfig.angle}
                   textAnchor={customerXAxisConfig.textAnchor}
@@ -986,9 +974,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   minTickGap={customerXAxisConfig.minTickGap}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                  tick={{ fontSize: 11, fill: CHART_TICK_FILL }}
+                  axisLine={{ stroke: CHART_AXIS_STROKE }}
+                  tickLine={{ stroke: CHART_AXIS_STROKE }}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(100, 116, 139, 0.12)' }}
@@ -1024,7 +1012,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ) : (
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
               {openServiceOrders.map((serviceOrder, index) => {
-                const periodStats = orderPeriodStatsQueries[index]?.data?.stats;
                 const yesterdayStats = orderYesterdayStatsQueries[index]?.data?.stats;
                 const serviceOrderApplications = orderApplicationsQueries[index]?.data?.data || [];
                 const plannedArea = serviceOrder.plots.reduce(
@@ -1064,7 +1051,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     <CardContent className='space-y-4 p-5'>
                       <div className='flex items-center justify-between gap-2'>
                         <p className='truncate text-[15px] font-medium'>{farmName}</p>
-                        <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10'>
+                        <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200'>
                           OS #{serviceOrder.number}
                         </Badge>
                       </div>
@@ -1084,14 +1071,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                       <div className='grid grid-cols-2 gap-4 border-t border-border/70 pt-4 text-sm'>
                         <div>
                           <p className='text-muted-foreground'>Aplicação ontem</p>
-                          <p className='font-semibold text-emerald-700'>
+                          <p className='font-semibold text-emerald-700 dark:text-emerald-300'>
                             {formatHectares(yesterdayStats?.totalAreaHectares)}
                           </p>
                         </div>
                         <div>
                           <p className='text-muted-foreground'>{mapLabel}</p>
-                          <p className='font-semibold flex items-center gap-1 text-cyan-700'>
-                            <MapIcon className='h-4 w-4 text-cyan-600' />
+                          <p className='font-semibold flex items-center gap-1 text-cyan-700 dark:text-cyan-300'>
+                            <MapIcon className='h-4 w-4 text-cyan-600 dark:text-cyan-300' />
                             {typeof remainingMaps === 'number'
                               ? `${completedMaps} feitos / ${remainingMaps} restam`
                               : `${completedMaps} feitos`}
