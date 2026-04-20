@@ -3,14 +3,15 @@ export const appVersion = '1.9.0';
 export default {
   expo: {
     name: 'DS Control',
-    slug: 'app-ds-control',
+    owner: 'dstechbrasil',
+    slug: 'dscontrol',
     version: appVersion,
     icon: './assets/images/icon.png',
     scheme: 'appdscontrol',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     updates: {
-      url: 'https://u.expo.dev/ad952367-086c-4ede-a821-81f59d74363d',
+      url: 'https://u.expo.dev/76717c73-949f-4266-8ad5-792c6d1fbd85',
     },
     runtimeVersion: {
       policy: 'appVersion',
@@ -96,7 +97,7 @@ export default {
     extra: {
       router: {},
       eas: {
-        projectId: 'ad952367-086c-4ede-a821-81f59d74363d',
+        projectId: '76717c73-949f-4266-8ad5-792c6d1fbd85',
       },
     },
   },
