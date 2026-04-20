@@ -1,0 +1,61 @@
+warning: in the working copy of 'frontend-ds-control-main/src/components/Tables/TableApplications.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/frontend-ds-control-main/src/components/Tables/TableApplications.tsx b/frontend-ds-control-main/src/components/Tables/TableApplications.tsx[m
+[1mindex ee2cd30..12bd69f 100644[m
+[1m--- a/frontend-ds-control-main/src/components/Tables/TableApplications.tsx[m
+[1m+++ b/frontend-ds-control-main/src/components/Tables/TableApplications.tsx[m
+[36m@@ -1125,9 +1125,13 @@[m [mexport const TableApplications = ({[m
+ [m
+   return ([m
+     <>[m
+[31m-      <div className='mb-5 rounded-lg border border-border bg-background p-4 sm:p-5'>[m
+[31m-        <div className='flex w-full flex-col gap-5'>[m
+[31m-          <div className='grid w-full grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>[m
+[32m+[m[32m      <div className='mb-8 rounded-xl border border-border bg-muted/30 p-6 sm:p-8'>[m
+[32m+[m[32m        <div className='mb-6 space-y-1'>[m
+[32m+[m[32m          <h2 className='text-base font-semibold text-foreground'>Filtros</h2>[m
+[32m+[m[32m          <p className='text-sm text-muted-foreground'>Refine os registros de aplicações</p>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m        <div className='flex w-full flex-col gap-y-6'>[m
+[32m+[m[32m          <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>[m
+             <Input[m
+               placeholder='Buscar aplicações...'[m
+               value={inputSearchValue}[m
+[36m@@ -1375,7 +1379,8 @@[m [mexport const TableApplications = ({[m
+             </div>[m
+           </div>[m
+           {!simpleMode && ([m
+[31m-            <div className='grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7'>[m
+[32m+[m[32m            <div className='mt-6 border-t border-border pt-6'>[m
+[32m+[m[32m              <div className='grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-7'>[m
+               <div className='space-y-1.5'>[m
+                 <p className='text-sm font-medium text-foreground/90'>Ajudante</p>[m
+                 <SearchableSelectQuery[m
+[36m@@ -1466,6 +1471,7 @@[m [mexport const TableApplications = ({[m
+                   placeholder='Buscar por texto nas observações'[m
+                 />[m
+               </div>[m
+[32m+[m[32m              </div>[m
+             </div>[m
+           )}[m
+           {activeFilters.length > 0 && ([m
+[36m@@ -1488,7 +1494,7 @@[m [mexport const TableApplications = ({[m
+         </div>[m
+       </div>[m
+ [m
+[31m-      <div className='rounded-lg border border-border bg-background p-3 sm:p-4'>[m
+[32m+[m[32m      <div className='mt-10 rounded-xl border border-border bg-background p-6 sm:p-8'>[m
+       <DataTable[m
+         columns={columns}[m
+         data={data?.data || []}[m
+[36m@@ -1497,7 +1503,10 @@[m [mexport const TableApplications = ({[m
+         error={error}[m
+         onRetry={() => void refetch()}[m
+         renderToolbar={({ columnsControl }) => ([m
+[31m-          <div className='mb-2 flex justify-end'>{columnsControl}</div>[m
+[32m+[m[32m          <div className='mb-6 flex items-center justify-between border-b border-border pb-4'>[m
+[32m+[m[32m            <h2 className='text-base font-semibold text-foreground'>Resultados</h2>[m
+[32m+[m[32m            {columnsControl}[m
+[32m+[m[32m          </div>[m
+         )}[m
+         pagination={{[m
+           manual: true,[m

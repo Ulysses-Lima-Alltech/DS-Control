@@ -341,6 +341,7 @@ export type GetStatsApplicationsParams = {
   customerId?: string;
   serviceOrderId?: string;
   invalidApplication?: boolean;
+  currentSeason?: boolean;
   startDate?: string;
   endDate?: string;
   ignoreFilters?: boolean;
@@ -415,6 +416,8 @@ export async function getStatsApplications(
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
     searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.currentSeason !== undefined)
+    searchParams.append('currentSeason', params.currentSeason.toString());
   if (params?.startDate) searchParams.append('startDate', params.startDate);
   if (params?.endDate) searchParams.append('endDate', params.endDate);
   if (params?.ignoreFilters !== undefined)
@@ -688,10 +691,7 @@ export async function getDashboardMetrics(
       `[Application Service] Erro ao buscar métricas do dashboard: startDate inválida (${params.startDate})`
     );
   }
-  startDateObj.setDate(startDateObj.getDate() - 1);
-  const adjustedStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, '0')}-${String(startDateObj.getDate()).padStart(2, '0')}`;
-
-  searchParams.append('startDate', adjustedStartDate);
+  searchParams.append('startDate', params.startDate);
 
   if (params.contractIds && params.contractIds.length > 0) {
     params.contractIds.forEach((id) => searchParams.append('contractIds', id));

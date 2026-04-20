@@ -51,9 +51,19 @@ interface PanelDashboardBlocksProps {
   endDate: string;
   yesterday: string;
 }
-
 type RangeMode = 'total' | 'month' | 'day';
 type ComparableDateRange = { startDate?: string; endDate?: string } | undefined;
+type PilotLaunchStatus = 'launched' | 'pending';
+type PilotLaunchRow = {
+  id: string;
+  date?: string;
+  pilotName: string;
+  customerName: string;
+  farmName: string;
+  hectares: number;
+  launchStatus: PilotLaunchStatus;
+  serviceOrderNumber: number;
+};
 
 const TOP_CARD_STYLES = [
   {
@@ -270,27 +280,27 @@ function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: st
       endDate: totalEndDate,
     };
   }
+  if (totalStartDate === totalEndDate) {
+    return {
+      startDate: totalEndDate,
+      endDate: totalEndDate,
+    };
+  }
   return {
-    startDate: totalEndDate,
+    startDate: totalStartDate,
     endDate: totalEndDate,
   };
 }
 
-function mapStatusLabel(status?: string) {
-  if (status === 'completed') return 'Concluído';
-  if (status === 'open') return 'Em aberto';
-  if (status === 'cancelled') return 'Cancelado';
-  return 'Sem OS';
+function mapLaunchStatusLabel(status: PilotLaunchStatus) {
+  if (status === 'launched') return 'Lançado';
+  return 'Pendente';
 }
 
-function getLaunchStatusBadgeClass(status?: string) {
-  if (status === 'completed')
+function getLaunchStatusBadgeClass(status: PilotLaunchStatus) {
+  if (status === 'launched')
     return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200';
-  if (status === 'open')
-    return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-400/15 dark:text-sky-200';
-  if (status === 'cancelled')
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-400/15 dark:text-rose-200';
-  return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-400/10 dark:text-slate-200';
+  return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-400/15 dark:text-amber-200';
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
@@ -366,16 +376,33 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     effectiveEndDate
   );
 
-  const { data: applicationsStats, isPending: isLoadingApplicationsStats } = useGetStatsApplications({
+  const todayDate = format(new Date(), 'yyyy-MM-dd');
+  const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const kpiBaseFilters = {
     search: search || undefined,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    startDate: effectiveStartDate,
-    endDate: effectiveEndDate,
+  };
+  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
+    useGetStatsApplications({
+      ...kpiBaseFilters,
+      currentSeason: true,
+    });
+  const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } = useGetStatsApplications({
+    ...kpiBaseFilters,
+    startDate: currentMonthStartDate,
+    endDate: todayDate,
+  });
+  const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } = useGetStatsApplications({
+    ...kpiBaseFilters,
+    startDate: yesterday,
+    endDate: yesterday,
   });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
     startDate: effectiveStartDate,
+    customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
+    farmIds: selectedFarmId ? [selectedFarmId] : undefined,
   });
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
@@ -416,7 +443,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
   const { data: pilotLaunchesData, isPending: isLoadingPilotLaunches } = useGetAllApplications({
     page: '1',
-    limit: '25',
+    limit: '1000',
     search: search || undefined,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
@@ -494,26 +521,40 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   });
 
   const hectaresByCustomerData = useMemo(() => {
-    return customers
+    const mapped = customers
       .map((customer, index) => ({
         name: customer.name,
         hectares: Number(customerAreaQueries[index]?.data?.stats?.totalAreaHectares || 0),
-      }))
-      .filter((item) => item.hectares > 0)
-      .sort((a, b) => b.hectares - a.hectares)
-      .slice(0, 6);
-  }, [customers, customerAreaQueries]);
+      }));
+    const withData = mapped.filter((item) => item.hectares > 0).sort((a, b) => b.hectares - a.hectares);
+    if (withData.length > 0) {
+      return withData.slice(0, 6);
+    }
+    if (customerPeriodMode === 'day') {
+      return mapped.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).slice(0, 6);
+    }
+    return [];
+  }, [customers, customerAreaQueries, customerPeriodMode]);
 
   const pilotChartData = useMemo(() => {
     const base = (byPilotStats?.byPilot || []).map((item) => ({
       name: item.pilotName,
       hectares: item.totalAreaHectares,
     }));
+    if (base.length === 0 && pilotPeriodMode === 'day') {
+      return pilots
+        .filter((pilot) => !selectedPilotId || pilot.id === selectedPilotId)
+        .map((pilot) => ({
+          name: pilot.name,
+          hectares: 0,
+        }))
+        .slice(0, 10);
+    }
     if (pilotEntityMode === 'assistants') {
       return base;
     }
     return base;
-  }, [byPilotStats?.byPilot, pilotEntityMode]);
+  }, [byPilotStats?.byPilot, pilotEntityMode, pilotPeriodMode, pilots, selectedPilotId]);
   const pilotXAxisConfig = useMemo(
     () => getDynamicXAxisConfig(pilotChartData.map((item) => item.name)),
     [pilotChartData]
@@ -536,21 +577,21 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const topCards = [
     {
       title: 'Área total aplicada',
-      value: formatHectares(applicationsStats?.stats?.totalAreaHectares),
+      value: formatHectares(totalSeasonStats?.stats?.totalAreaHectares),
       icon: Sprout,
-      isLoading: isLoadingApplicationsStats,
+      isLoading: isLoadingTotalSeasonStats,
     },
     {
       title: 'Este mês',
-      value: formatHectares(applicationsStats?.stats?.totalHectaresByMonth),
+      value: formatHectares(currentMonthStats?.stats?.totalAreaHectares),
       icon: CalendarClock,
-      isLoading: isLoadingApplicationsStats,
+      isLoading: isLoadingCurrentMonthStats,
     },
     {
       title: 'Aplicação de Ontem',
-      value: formatHectares(dashboardMetrics?.metrics?.yesterdayStats?.totalArea),
+      value: formatHectares(yesterdayAreaStats?.stats?.totalAreaHectares),
       icon: ClipboardList,
-      isLoading: isLoadingDashboardMetrics,
+      isLoading: isLoadingYesterdayAreaStats,
     },
     {
       title: 'Média Diária Safra',
@@ -597,8 +638,74 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   );
 
   const launches = pilotLaunchesData?.data || [];
+  const pilotLaunchRows = useMemo<PilotLaunchRow[]>(() => {
+    const applicationsByOrderPilot = new Map<string, typeof launches>();
+    for (const application of launches) {
+      if (!application.serviceOrderId || !application.pilotId) continue;
+      const key = `${application.serviceOrderId}:${application.pilotId}`;
+      const current = applicationsByOrderPilot.get(key) || [];
+      current.push(application);
+      applicationsByOrderPilot.set(key, current);
+    }
+
+    const rows: PilotLaunchRow[] = [];
+    for (const serviceOrder of openServiceOrders) {
+      const pilotsFromOrder = serviceOrder.pilots || [];
+      const farmsFromOrder = (serviceOrder.farms || [])
+        .map((farm) => farm.name)
+        .filter((name): name is string => Boolean(name));
+      const uniqueFarmNames = Array.from(new Set(farmsFromOrder));
+      const farmName = uniqueFarmNames.length > 0 ? uniqueFarmNames.join(', ') : 'N/A';
+      const customerName = serviceOrder.customer?.name || 'Cliente não informado';
+
+      for (const pilot of pilotsFromOrder) {
+        if (selectedPilotId && pilot.id !== selectedPilotId) continue;
+        const key = `${serviceOrder.id}:${pilot.id}`;
+        const pilotApplications = applicationsByOrderPilot.get(key) || [];
+        const hectares = pilotApplications.reduce(
+          (sum, application) => sum + Number(application.hectares || 0),
+          0
+        );
+        const latestDate = pilotApplications
+          .map((application) => application.date)
+          .filter((date): date is string => Boolean(date))
+          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
+        rows.push({
+          id: `${serviceOrder.id}:${pilot.id}`,
+          date: latestDate,
+          pilotName: pilot.name || 'N/A',
+          customerName,
+          farmName,
+          hectares,
+          launchStatus: pilotApplications.length > 0 ? 'launched' : 'pending',
+          serviceOrderNumber: serviceOrder.number,
+        });
+      }
+    }
+
+    const normalizedSearch = search.trim().toLowerCase();
+    const filteredRows = normalizedSearch
+      ? rows.filter((row) => {
+          return (
+            row.pilotName.toLowerCase().includes(normalizedSearch) ||
+            row.customerName.toLowerCase().includes(normalizedSearch) ||
+            row.farmName.toLowerCase().includes(normalizedSearch) ||
+            String(row.serviceOrderNumber).includes(normalizedSearch)
+          );
+        })
+      : rows;
+
+    return filteredRows.sort((a, b) => {
+      if (a.serviceOrderNumber !== b.serviceOrderNumber) {
+        return a.serviceOrderNumber - b.serviceOrderNumber;
+      }
+      return a.pilotName.localeCompare(b.pilotName, 'pt-BR');
+    });
+  }, [launches, openServiceOrders, search, selectedPilotId]);
   const isLoadingAnyCustomerArea =
     isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
+  const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
@@ -738,9 +845,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           <CardTitle>Lançamentos dos Pilotos</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoadingPilotLaunches ? (
+          {isLoadingPilotLaunchRows ? (
             <p className='text-sm text-muted-foreground'>Carregando lançamentos...</p>
-          ) : launches.length === 0 ? (
+          ) : pilotLaunchRows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Nenhum lançamento encontrado para o período.</p>
           ) : (
             <div className='overflow-x-auto rounded-md border'>
@@ -761,13 +868,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   </tr>
                 </thead>
                 <tbody>
-                  {launches.map((launch) => (
+                  {pilotLaunchRows.map((launch) => (
                     <tr key={launch.id} className='border-t'>
                       {visibleColumns.date && (
                         <td className='px-3 py-2'>{formatLaunchDate(launch.date)}</td>
                       )}
-                      {visibleColumns.pilot && <td className='px-3 py-2'>{launch.pilot?.name || 'N/A'}</td>}
-                      {visibleColumns.farm && <td className='px-3 py-2'>{launch.farm?.name || 'N/A'}</td>}
+                      {visibleColumns.pilot && <td className='px-3 py-2'>{launch.pilotName}</td>}
+                      {visibleColumns.farm && <td className='px-3 py-2'>{launch.farmName}</td>}
                       {visibleColumns.hectares && (
                         <td className='px-3 py-2 text-right tabular-nums'>
                           {Number(launch.hectares || 0).toLocaleString('pt-BR', {
@@ -780,9 +887,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <td className='px-3 py-2'>
                           <Badge
                             variant='outline'
-                            className={getLaunchStatusBadgeClass(launch.serviceOrder?.status)}
+                            className={getLaunchStatusBadgeClass(launch.launchStatus)}
                           >
-                            {mapStatusLabel(launch.serviceOrder?.status)}
+                            {mapLaunchStatusLabel(launch.launchStatus)}
                           </Badge>
                         </td>
                       )}
@@ -1074,10 +1181,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 const rawProgress =
                   totalHectaresAllPlots > 0 ? (totalHectaresApplied / totalHectaresAllPlots) * 100 : 0;
                 const progressValue = Math.min(rawProgress, 100);
-                const farmName =
-                  serviceOrder.farms?.[0]?.name ||
-                  serviceOrder.customer?.name ||
-                  'Fazenda não informada';
+                const customerName = serviceOrder.customer?.name || 'Cliente não informado';
+                const farmsFromOrder = (serviceOrder.farms || [])
+                  .map((farm) => farm.name)
+                  .filter((name): name is string => Boolean(name));
+                const farmDetails =
+                  farmsFromOrder.length > 0
+                    ? Array.from(new Set(farmsFromOrder)).join(', ')
+                    : 'Fazenda não informada';
                 return (
                   <Card
                     key={serviceOrder.id}
@@ -1085,7 +1196,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   >
                     <CardContent className='space-y-4 p-5'>
                       <div className='flex items-center justify-between gap-2'>
-                        <p className='truncate text-[15px] font-medium'>{farmName}</p>
+                        <div className='min-w-0'>
+                          <p className='truncate text-[15px] font-medium'>{customerName}</p>
+                          <p className='truncate text-xs text-muted-foreground'>{farmDetails}</p>
+                        </div>
                         <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200'>
                           OS #{serviceOrder.number}
                         </Badge>
@@ -1129,3 +1243,4 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     </div>
   );
 }
+

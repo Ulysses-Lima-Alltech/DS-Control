@@ -92,6 +92,11 @@ export const ApplicationStatsQueryStringSchema = z.object({
     .optional()
     .transform((val) => val === "true")
     .describe("Ignore all filters and return global stats"),
+  currentSeason: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((val) => val === "true")
+    .describe("Filter only applications linked to contracts active on the current date"),
 });
 
 export type ApplicationStatsQueryString = z.infer<typeof ApplicationStatsQueryStringSchema>;

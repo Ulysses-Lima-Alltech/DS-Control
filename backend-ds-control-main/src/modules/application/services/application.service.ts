@@ -2,7 +2,7 @@ import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import type { PaginatedRequest } from "@common/types/paginated-request.types";
 import { db } from "@infra/database";
-import { applications, assistants, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
+import { applications, assistants, contracts, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
 import { and, avg, count, countDistinct, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
 
 import { ApplicationVM, type ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
@@ -161,6 +161,20 @@ export class ApplicationService {
       whereConditions.push(
         not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS))
       );
+    }
+
+    if (filters.currentSeason) {
+      whereConditions.push(
+        sql`EXISTS (
+          SELECT 1
+          FROM ${contracts}
+          WHERE ${contracts.id} = ${serviceOrders.contractId}
+            AND ${contracts.deletedAt} IS NULL
+            AND CURRENT_DATE BETWEEN (${contracts.date_start})::date AND (${contracts.date_end})::date
+            AND (${applications.date})::date BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
+        )`
+      );
+      needsJoins = true;
     }
 
     if (filters.startDate && filters.endDate) {

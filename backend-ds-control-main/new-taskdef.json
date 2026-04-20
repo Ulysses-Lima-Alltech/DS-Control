@@ -1,0 +1,123 @@
+{
+    "containerDefinitions":  [
+                                 {
+                                     "name":  "backend",
+                                     "image":  "545009836111.dkr.ecr.us-east-1.amazonaws.com/dscontrol_new:7642fa6",
+                                     "cpu":  0,
+                                     "portMappings":  [
+                                                          {
+                                                              "containerPort":  3000,
+                                                              "hostPort":  3000,
+                                                              "protocol":  "tcp",
+                                                              "name":  "backend-3000-tcp",
+                                                              "appProtocol":  "http"
+                                                          }
+                                                      ],
+                                     "essential":  true,
+                                     "environment":  [
+                                                         {
+                                                             "name":  "API_URL",
+                                                             "value":  "https://api.dstechbrasil.com.br"
+                                                         },
+                                                         {
+                                                             "name":  "DB_PORT",
+                                                             "value":  "5432"
+                                                         },
+                                                         {
+                                                             "name":  "DB_USER",
+                                                             "value":  "dsdbc3PAqgL"
+                                                         },
+                                                         {
+                                                             "name":  "HTTP_PORT",
+                                                             "value":  "3000"
+                                                         },
+                                                         {
+                                                             "name":  "RESEND_API_KEY",
+                                                             "value":  "re_fK1Jor3r_9zL54aYSRLpfJDEd4cAtqnns"
+                                                         },
+                                                         {
+                                                             "name":  "DB_NAME",
+                                                             "value":  "dsdb"
+                                                         },
+                                                         {
+                                                             "name":  "REFRESH_TOKEN_SECRET",
+                                                             "value":  "1e0f039d1c41143cc54f768cf9a2b48405621b058e4c1766ba45ed1b300f18d1"
+                                                         },
+                                                         {
+                                                             "name":  "DB_HOST",
+                                                             "value":  "prod-ds-infra-db.crcuq4m48jxs.us-east-1.rds.amazonaws.com"
+                                                         },
+                                                         {
+                                                             "name":  "FRONTEND_URL",
+                                                             "value":  "https://main.de49rvky625gz.amplifyapp.com/"
+                                                         },
+                                                         {
+                                                             "name":  "COOKIES_SECRET",
+                                                             "value":  "e24eb21762d8dbafad8588425721a819e58bb72c6db50f5ca2a9844d4908c130"
+                                                         },
+                                                         {
+                                                             "name":  "NODE_ENV",
+                                                             "value":  "production"
+                                                         },
+                                                         {
+                                                             "name":  "ACCESS_TOKEN_SECRET",
+                                                             "value":  "e24eb21762d8dbafad8588425721a819e58bb72c6db50f5ca2a9844d4908c130"
+                                                         },
+                                                         {
+                                                             "name":  "DB_PASSWORD",
+                                                             "value":  "d63UhCrD9y9EPteZjXKmdsdb"
+                                                         },
+                                                         {
+                                                             "name":  "REDIS_URL",
+                                                             "value":  "redis://prod-ds-infra-elasticache-dvpc-0edbcfe.wnhrks.0001.use1.cache.amazonaws.com:6379"
+                                                         }
+                                                     ],
+                                     "environmentFiles":  [
+
+                                                          ],
+                                     "mountPoints":  [
+
+                                                     ],
+                                     "volumesFrom":  [
+
+                                                     ],
+                                     "ulimits":  [
+
+                                                 ],
+                                     "logConfiguration":  {
+                                                              "logDriver":  "awslogs",
+                                                              "options":  {
+                                                                              "awslogs-group":  "/ecs/dscontrol-new-task",
+                                                                              "awslogs-create-group":  "true",
+                                                                              "awslogs-region":  "us-east-1",
+                                                                              "awslogs-stream-prefix":  "ecs"
+                                                                          },
+                                                              "secretOptions":  [
+
+                                                                                ]
+                                                          },
+                                     "systemControls":  [
+
+                                                        ]
+                                 }
+                             ],
+    "family":  "dscontrol-new-task",
+    "executionRoleArn":  "arn:aws:iam::545009836111:role/ecsTaskExecutionRole",
+    "networkMode":  "awsvpc",
+    "volumes":  [
+
+                ],
+    "placementConstraints":  [
+
+                             ],
+    "runtimePlatform":  {
+                            "cpuArchitecture":  "X86_64",
+                            "operatingSystemFamily":  "LINUX"
+                        },
+    "requiresCompatibilities":  [
+                                    "FARGATE"
+                                ],
+    "cpu":  "1024",
+    "memory":  "2048",
+    "enableFaultInjection":  false
+}
