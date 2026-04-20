@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import * as Location from 'expo-location';
 import * as turf from '@turf/turf';
@@ -9,10 +9,11 @@ import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
 import { useGetRouteByFarmId } from '@/queries/route.query';
+import { useGetFarmById } from '@/queries/farm.query';
 
 interface ScreenMapViewerWithSearchProps {
   customerId?: string;
-  initialFarmId?: string;
+  initialFarmId?: string | string[];
 }
 
 export default function ScreenMapViewerWithSearch({
@@ -23,6 +24,46 @@ export default function ScreenMapViewerWithSearch({
   const [navigationRoute, setNavigationRoute] = useState<GeoJSON.FeatureCollection | null>(null);
   const [isFetchingNavigation, setIsFetchingNavigation] = useState(false);
   const [isNavigationMode, setIsNavigationMode] = useState(false);
+  const appliedInitialFarmIdRef = useRef<string | null>(null);
+
+  const normalizedInitialFarmId = useMemo(() => {
+    return Array.isArray(initialFarmId) ? initialFarmId[0] : initialFarmId;
+  }, [initialFarmId]);
+
+  const { data: initialFarmData } = useGetFarmById(
+    normalizedInitialFarmId ?? null,
+    {
+      includePlots: 'true',
+      includeGeoJson: 'true',
+      includeCustomer: 'true',
+    },
+    {
+      queryKey: ['initial-map-farm', normalizedInitialFarmId],
+      enabled: !!normalizedInitialFarmId,
+    }
+  );
+
+  useEffect(() => {
+    if (!normalizedInitialFarmId) {
+      appliedInitialFarmIdRef.current = null;
+      return;
+    }
+
+    if (!initialFarmData?.farm) return;
+    if (appliedInitialFarmIdRef.current === normalizedInitialFarmId) return;
+
+    setSelectedFarms((previousSelectedFarms) => {
+      if (
+        previousSelectedFarms.length === 1 &&
+        previousSelectedFarms[0].id === initialFarmData.farm.id
+      ) {
+        return previousSelectedFarms;
+      }
+
+      return [initialFarmData.farm];
+    });
+    appliedInitialFarmIdRef.current = normalizedInitialFarmId;
+  }, [initialFarmData?.farm, normalizedInitialFarmId]);
 
   const allPlots = useMemo<Plot[]>(() => {
     return selectedFarms.flatMap((farm) => farm.plots || []);
@@ -190,6 +231,7 @@ export default function ScreenMapViewerWithSearch({
           placeholder='Buscar fazenda... '
           onFarmsSelect={setSelectedFarms}
           customerId={customerId}
+          selectedFarmsExternal={selectedFarms}
         />
       )}
       {showNavigationButton && (

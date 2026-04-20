@@ -18,12 +18,14 @@ interface TextInputSearchMultipleFarmsProps {
   placeholder?: string;
   onFarmsSelect?: (farms: Farm[]) => void;
   customerId?: string;
+  selectedFarmsExternal?: Farm[];
 }
 
 export default function TextInputSearchMultipleFarms({
   placeholder = 'Buscar fazenda... ',
   onFarmsSelect,
   customerId,
+  selectedFarmsExternal,
 }: TextInputSearchMultipleFarmsProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isFarmsListVisible, setIsFarmsListVisible] = useState<boolean>(false);
@@ -65,6 +67,23 @@ export default function TextInputSearchMultipleFarms({
     const unselectedFarms = queriedFarms.filter((farm) => !selectedFarmIds.has(farm.id));
     return [...selectedFarms, ...unselectedFarms];
   }, [selectedFarms, queriedFarms]);
+
+  useEffect(() => {
+    if (!selectedFarmsExternal) return;
+
+    const externalSelectedIds = selectedFarmsExternal
+      .map((farm) => farm.id)
+      .sort()
+      .join(',');
+    const internalSelectedIds = selectedFarms
+      .map((farm) => farm.id)
+      .sort()
+      .join(',');
+
+    if (externalSelectedIds !== internalSelectedIds) {
+      setSelectedFarms(selectedFarmsExternal);
+    }
+  }, [selectedFarmsExternal, selectedFarms]);
 
   const isFarmSelected = useCallback(
     (farmId: string) => {

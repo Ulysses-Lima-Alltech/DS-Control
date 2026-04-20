@@ -139,7 +139,7 @@ export function calculateGeoJSONCenter(geoData: GeoJSON.FeatureCollection): {
  * Creates a Mapbox expression for fill color with property fallback
  */
 export function createFillColorExpression(defaultColor: string = '#007AFF') {
-  return ['case', ['has', 'fill'], ['get', 'fill'], defaultColor];
+  return ['case', ['has', 'fill'], ['get', 'fill'], defaultColor] as const;
 }
 
 /**
@@ -154,12 +154,12 @@ export function createFillOpacityExpression(defaultOpacity: number = 0.7) {
     ['has', 'stroke-opacity'],
     ['case', ['==', ['get', 'stroke-opacity'], 0], 0.5, ['get', 'stroke-opacity']],
     defaultOpacity,
-  ];
+  ] as const;
 }
 
 /**
  * Creates a Mapbox expression for stroke color with property fallback
  */
 export function createStrokeColorExpression(defaultColor: string = '#007AFF') {
-  return ['case', ['has', 'stroke'], ['get', 'stroke'], defaultColor];
+  return ['case', ['has', 'stroke'], ['get', 'stroke'], defaultColor] as const;
 }
