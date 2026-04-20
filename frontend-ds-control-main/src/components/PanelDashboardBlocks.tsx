@@ -28,13 +28,6 @@ import DateRangePicker from '@/components/DateRangePicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
@@ -168,13 +161,6 @@ function parseDateParam(value: string): Date | undefined {
     return undefined;
   }
   return parsed;
-}
-
-function formatLaunchDate(dateValue?: string): string {
-  if (!dateValue) return '-';
-  const parsed = new Date(dateValue);
-  if (!isValid(parsed)) return '-';
-  return format(parsed, 'dd/MM/yyyy');
 }
 
 function formatHectares(value: number | undefined) {
@@ -316,13 +302,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
-  const [visibleColumns, setVisibleColumns] = useState({
-    date: true,
-    pilot: true,
-    farm: true,
-    hectares: true,
-    status: true,
-  });
   const isDarkTheme = resolvedTheme === 'dark';
   const chartTextColor = isDarkTheme ? DARK_CHART_TEXT_COLOR : LIGHT_CHART_TEXT_COLOR;
   const chartAxisColor = isDarkTheme ? DARK_CHART_AXIS_COLOR : LIGHT_CHART_AXIS_COLOR;
@@ -706,6 +685,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const isLoadingAnyCustomerArea =
     isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
   const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
+  const launchedPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'launched').length;
+  const pendingPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'pending').length;
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
@@ -786,56 +767,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <Button type='button' variant='outline' onClick={clearFilters}>
               Limpar Filtros
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type='button' variant='outline'>
-                  Colunas
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuLabel>Colunas</DropdownMenuLabel>
-                <DropdownMenuCheckboxItem
-                  checked={visibleColumns.date}
-                  onCheckedChange={(value) =>
-                    setVisibleColumns((prev) => ({ ...prev, date: Boolean(value) }))
-                  }
-                >
-                  Data
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={visibleColumns.pilot}
-                  onCheckedChange={(value) =>
-                    setVisibleColumns((prev) => ({ ...prev, pilot: Boolean(value) }))
-                  }
-                >
-                  Nome do Piloto
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={visibleColumns.farm}
-                  onCheckedChange={(value) =>
-                    setVisibleColumns((prev) => ({ ...prev, farm: Boolean(value) }))
-                  }
-                >
-                  Fazenda
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={visibleColumns.hectares}
-                  onCheckedChange={(value) =>
-                    setVisibleColumns((prev) => ({ ...prev, hectares: Boolean(value) }))
-                  }
-                >
-                  Total de Hectares
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={visibleColumns.status}
-                  onCheckedChange={(value) =>
-                    setVisibleColumns((prev) => ({ ...prev, status: Boolean(value) }))
-                  }
-                >
-                  Status de Lançamento
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </CardContent>
       </Card>
@@ -843,6 +774,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       <Card className='border-border/70'>
         <CardHeader className='pb-2'>
           <CardTitle>Lançamentos dos Pilotos</CardTitle>
+          {!isLoadingPilotLaunchRows && pilotLaunchRows.length > 0 ? (
+            <CardDescription>
+              {`Lançado: ${formatInteger(launchedPilotsCount)} · Pendente: ${formatInteger(pendingPilotsCount)}`}
+            </CardDescription>
+          ) : null}
         </CardHeader>
         <CardContent>
           {isLoadingPilotLaunchRows ? (
@@ -850,53 +786,21 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ) : pilotLaunchRows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Nenhum lançamento encontrado para o período.</p>
           ) : (
-            <div className='overflow-x-auto rounded-md border'>
-              <table className='w-full text-sm'>
-                <thead className='bg-muted/40'>
-                  <tr>
-                    {visibleColumns.date && <th className='px-3 py-2 text-left font-medium'>Data</th>}
-                    {visibleColumns.pilot && (
-                      <th className='px-3 py-2 text-left font-medium'>Nome do Piloto</th>
-                    )}
-                    {visibleColumns.farm && <th className='px-3 py-2 text-left font-medium'>Fazenda</th>}
-                    {visibleColumns.hectares && (
-                      <th className='px-3 py-2 text-right font-medium'>Total de Hectares</th>
-                    )}
-                    {visibleColumns.status && (
-                      <th className='px-3 py-2 text-left font-medium'>Status de Lançamento</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pilotLaunchRows.map((launch) => (
-                    <tr key={launch.id} className='border-t'>
-                      {visibleColumns.date && (
-                        <td className='px-3 py-2'>{formatLaunchDate(launch.date)}</td>
-                      )}
-                      {visibleColumns.pilot && <td className='px-3 py-2'>{launch.pilotName}</td>}
-                      {visibleColumns.farm && <td className='px-3 py-2'>{launch.farmName}</td>}
-                      {visibleColumns.hectares && (
-                        <td className='px-3 py-2 text-right tabular-nums'>
-                          {Number(launch.hectares || 0).toLocaleString('pt-BR', {
-                            maximumFractionDigits: 2,
-                          })}{' '}
-                          ha
-                        </td>
-                      )}
-                      {visibleColumns.status && (
-                        <td className='px-3 py-2'>
-                          <Badge
-                            variant='outline'
-                            className={getLaunchStatusBadgeClass(launch.launchStatus)}
-                          >
-                            {mapLaunchStatusLabel(launch.launchStatus)}
-                          </Badge>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className='rounded-md border divide-y'>
+              {pilotLaunchRows.map((launch) => (
+                <div key={launch.id} className='flex items-center justify-between gap-3 px-3 py-2.5'>
+                  <div className='min-w-0'>
+                    <p className='truncate text-sm font-medium'>{launch.customerName}</p>
+                    <p className='truncate text-sm text-muted-foreground'>{launch.pilotName}</p>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-xs text-muted-foreground'>{`OS #${launch.serviceOrderNumber}`}</span>
+                    <Badge variant='outline' className={getLaunchStatusBadgeClass(launch.launchStatus)}>
+                      {mapLaunchStatusLabel(launch.launchStatus)}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -1189,6 +1093,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   farmsFromOrder.length > 0
                     ? Array.from(new Set(farmsFromOrder)).join(', ')
                     : 'Fazenda não informada';
+                const serviceOrderObservation = serviceOrder.observation?.trim();
                 return (
                   <Card
                     key={serviceOrder.id}
@@ -1199,6 +1104,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <div className='min-w-0'>
                           <p className='truncate text-[15px] font-medium'>{customerName}</p>
                           <p className='truncate text-xs text-muted-foreground'>{farmDetails}</p>
+                          {serviceOrderObservation ? (
+                            <p className='truncate text-xs text-muted-foreground'>
+                              {serviceOrderObservation}
+                            </p>
+                          ) : null}
                         </div>
                         <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200'>
                           OS #{serviceOrder.number}
