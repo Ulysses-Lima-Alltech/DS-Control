@@ -2,6 +2,7 @@
 
 import { useQueries } from '@tanstack/react-query';
 import { format, isValid, startOfMonth } from 'date-fns';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
   CalendarClock,
@@ -290,6 +291,9 @@ function getLaunchStatusBadgeClass(status: PilotLaunchStatus) {
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
@@ -299,6 +303,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     startDate,
     endDate,
   });
+  const [datePickerResetKey, setDatePickerResetKey] = useState(0);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
@@ -604,6 +609,18 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     setSelectedFarmId(undefined);
     setSelectedPilotId(undefined);
     setDateRange({ startDate, endDate });
+    setDatePickerResetKey((prev) => prev + 1);
+
+    // Keep URL in sync with the cleared state to avoid hidden/ghost filters.
+    const nextParams = new URLSearchParams(searchParams?.toString() || '');
+    nextParams.delete('search');
+    nextParams.delete('startDate');
+    nextParams.delete('endDate');
+    nextParams.delete('customerId');
+    nextParams.delete('farmId');
+    nextParams.delete('pilotId');
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   };
   const handleDateRangeChange = useCallback(
     (range: { startDate?: string; endDate?: string } | undefined) => {
@@ -739,6 +756,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               />
             </div>
             <DateRangePicker
+              key={datePickerResetKey}
               initialValue={{ startDate: effectiveStartDate, endDate: effectiveEndDate }}
               onChange={handleDateRangeChange}
               placeholder='Período'
