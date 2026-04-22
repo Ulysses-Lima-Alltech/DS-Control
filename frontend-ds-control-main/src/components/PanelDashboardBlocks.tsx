@@ -1,6 +1,6 @@
 'use client';
 
-import { useQueries } from '@tanstack/react-query';
+import { InfiniteData, useQueries } from '@tanstack/react-query';
 import { format, isValid, startOfMonth } from 'date-fns';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -33,12 +33,24 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import { useGetAllApplications, useGetApplicationsByPilotStats, useGetDashboardMetrics, useGetStatsApplications } from '@/queries/application.query';
+import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllCustomers } from '@/queries/customer.query';
+import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarms } from '@/queries/farm.query';
+import { useGetAllProductsInfinite } from '@/queries/product.query';
 import { useGetAllServiceOrders } from '@/queries/service-order.query';
 import { useGetAllUsers } from '@/queries/user.query';
 import * as ApplicationService from '@/services/application.service';
-import { ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
+import {
+  APPLICATION_ISSUE_LABELS,
+  ApplicationIssueFilter,
+  ApplicationOrderBy,
+  ApplicationOrderType,
+} from '@/types/applications.type';
+import { Assistant } from '@/types/assistant.type';
+import { Drone } from '@/types/drone.type';
+import { Product } from '@/types/product.type';
+import { ServiceOrderStatus } from '@/types/service-order.type';
 
 interface PanelDashboardBlocksProps {
   startDate?: string;
@@ -113,6 +125,23 @@ const CUSTOMER_NEON_RETRO_BAR_COLORS = [
   '#FF5C8A',
 ];
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const SERVICE_ORDER_STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
+  { value: 'open', label: 'Aberto' },
+  { value: 'completed', label: 'Concluido' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
+const VALID_SERVICE_ORDER_STATUS = new Set<ServiceOrderStatus>(
+  SERVICE_ORDER_STATUS_OPTIONS.map((option) => option.value)
+);
+const APPLICATION_ISSUE_OPTIONS = (
+  Object.entries(APPLICATION_ISSUE_LABELS) as [ApplicationIssueFilter, string][]
+).map(([value, label]) => ({
+  value,
+  label,
+}));
+const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>(
+  APPLICATION_ISSUE_OPTIONS.map((option) => option.value)
+);
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
   'text-foreground dark:text-slate-100 hover:bg-muted/70 dark:hover:bg-muted/60';
@@ -325,6 +354,34 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedPilotId, setSelectedPilotId] = useState<string | undefined>(undefined);
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(() => {
+    const urlValue = searchParams?.get('productId') || undefined;
+    return urlValue || undefined;
+  });
+  const [selectedAssistantId, setSelectedAssistantId] = useState<string | undefined>(() => {
+    const urlValue = searchParams?.get('assistantId') || undefined;
+    return urlValue || undefined;
+  });
+  const [selectedDroneId, setSelectedDroneId] = useState<string | undefined>(() => {
+    const urlValue = searchParams?.get('droneId') || undefined;
+    return urlValue || undefined;
+  });
+  const [selectedServiceOrderStatus, setSelectedServiceOrderStatus] = useState<
+    ServiceOrderStatus | undefined
+  >(() => {
+    const urlValue = searchParams?.get('serviceOrderStatus');
+    if (!urlValue) return undefined;
+    if (!VALID_SERVICE_ORDER_STATUS.has(urlValue as ServiceOrderStatus)) return undefined;
+    return urlValue as ServiceOrderStatus;
+  });
+  const [selectedApplicationIssue, setSelectedApplicationIssue] = useState<
+    ApplicationIssueFilter | undefined
+  >(() => {
+    const urlValue = searchParams?.get('applicationIssue');
+    if (!urlValue) return undefined;
+    if (!VALID_APPLICATION_ISSUES.has(urlValue as ApplicationIssueFilter)) return undefined;
+    return urlValue as ApplicationIssueFilter;
+  });
   const [dateRange, setDateRange] = useState<{ startDate?: string; endDate?: string } | undefined>(
     () =>
       startDate && endDate
@@ -427,6 +484,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
+    productId: selectedProductId,
+    serviceOrderStatus: selectedServiceOrderStatus,
     startDate: pilotChartRange?.startDate,
     endDate: pilotChartRange?.endDate,
     limit: 10,
@@ -439,6 +498,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       customerId: selectedCustomerId,
       farmId: selectedFarmId,
       pilotId: selectedPilotId,
+      productId: selectedProductId,
+      serviceOrderStatus: selectedServiceOrderStatus,
+      assistantId: selectedAssistantId,
+      droneId: selectedDroneId,
+      applicationIssue: selectedApplicationIssue,
       startDate: yesterday,
       endDate: yesterday,
     });
@@ -458,6 +522,18 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: '100',
     search: search || undefined,
   });
+  const { data: productsData, isPending: isLoadingProducts } = useGetAllProductsInfinite({
+    limit: '100',
+    status: 'active',
+  });
+  const { data: assistantsData, isPending: isLoadingAssistants } = useGetAllAssistantsInfinite({
+    limit: '100',
+    status: 'active',
+  });
+  const { data: dronesData, isPending: isLoadingDrones } = useGetAllDronesInfinite({
+    limit: '100',
+    status: 'active',
+  });
 
   const { data: pilotLaunchesData, isPending: isLoadingPilotLaunches } = useGetAllApplications({
     page: '1',
@@ -466,6 +542,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
+    productId: selectedProductId,
+    serviceOrderStatus: selectedServiceOrderStatus,
+    assistantId: selectedAssistantId,
+    droneId: selectedDroneId,
+    applicationIssue: selectedApplicationIssue,
     ...(effectiveStartDate && effectiveEndDate
       ? {
           startDate: effectiveStartDate,
@@ -499,7 +580,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const customers = customersData?.data || [];
   const farms = farmsData?.data || [];
   const pilots = pilotsData?.data || [];
-  const openServiceOrders = openServiceOrdersData?.data || [];
+  const products =
+    (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+  const assistants =
+    (assistantsData as unknown as InfiniteData<{ data: Assistant[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+  const drones =
+    (dronesData as unknown as InfiniteData<{ data: Drone[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+  const openServiceOrders =
+    selectedServiceOrderStatus && selectedServiceOrderStatus !== 'open'
+      ? []
+      : openServiceOrdersData?.data || [];
 
   const customerAreaQueries = useQueries({
     queries: customers.map((customer) => ({
@@ -511,6 +607,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         customerChartRange?.endDate,
         selectedFarmId,
         selectedPilotId,
+        selectedProductId,
+        selectedServiceOrderStatus,
         search,
       ],
       queryFn: () =>
@@ -519,6 +617,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           customerId: customer.id,
           farmId: selectedFarmId,
           pilotId: selectedPilotId,
+          productId: selectedProductId,
+          serviceOrderStatus: selectedServiceOrderStatus,
           startDate: customerChartRange?.startDate,
           endDate: customerChartRange?.endDate,
         }),
@@ -528,11 +628,21 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
   const orderYesterdayStatsQueries = useQueries({
     queries: openServiceOrders.map((serviceOrder) => ({
-      queryKey: ['panel', 'order-yesterday', serviceOrder.id, yesterday, search],
+      queryKey: [
+        'panel',
+        'order-yesterday',
+        serviceOrder.id,
+        yesterday,
+        search,
+        selectedProductId,
+        selectedServiceOrderStatus,
+      ],
       queryFn: () =>
         ApplicationService.getStatsApplications({
           search: search || undefined,
           serviceOrderId: serviceOrder.id,
+          productId: selectedProductId,
+          serviceOrderStatus: selectedServiceOrderStatus,
           startDate: yesterday,
           endDate: yesterday,
         }),
@@ -542,8 +652,37 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
   const orderApplicationsQueries = useQueries({
     queries: openServiceOrders.map((serviceOrder) => ({
-      queryKey: ['panel', 'order-applications', serviceOrder.id],
-      queryFn: () => ApplicationService.getApplicationsByServiceOrderId(serviceOrder.id),
+      queryKey: [
+        'panel',
+        'order-applications',
+        serviceOrder.id,
+        search,
+        selectedProductId,
+        selectedAssistantId,
+        selectedDroneId,
+        selectedServiceOrderStatus,
+        selectedApplicationIssue,
+        effectiveStartDate,
+        effectiveEndDate,
+      ],
+      queryFn: () =>
+        ApplicationService.getAllApplications({
+          page: '1',
+          limit: '1000',
+          search: search || undefined,
+          serviceOrderId: serviceOrder.id,
+          productId: selectedProductId,
+          assistantId: selectedAssistantId,
+          droneId: selectedDroneId,
+          serviceOrderStatus: selectedServiceOrderStatus,
+          applicationIssue: selectedApplicationIssue,
+          ...(effectiveStartDate && effectiveEndDate
+            ? {
+                startDate: effectiveStartDate,
+                endDate: effectiveEndDate,
+              }
+            : {}),
+        }),
       staleTime: 1000 * 60 * 3,
     })),
   });
@@ -650,11 +789,31 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   }, [pathname, router, searchParams]);
 
+  const syncFilterParamInUrl = useCallback(
+    (paramName: string, value: string | undefined) => {
+      const nextParams = new URLSearchParams(searchParams?.toString() || '');
+      nextParams.delete('cleared');
+      if (value) {
+        nextParams.set(paramName, value);
+      } else {
+        nextParams.delete(paramName);
+      }
+      const nextQuery = nextParams.toString();
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
   const clearFilters = () => {
     setSearch('');
     setSelectedCustomerId(undefined);
     setSelectedFarmId(undefined);
     setSelectedPilotId(undefined);
+    setSelectedProductId(undefined);
+    setSelectedAssistantId(undefined);
+    setSelectedDroneId(undefined);
+    setSelectedServiceOrderStatus(undefined);
+    setSelectedApplicationIssue(undefined);
     setDateRange(undefined);
     setDatePickerResetKey((prev) => prev + 1);
 
@@ -665,6 +824,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     nextParams.delete('customerId');
     nextParams.delete('farmId');
     nextParams.delete('pilotId');
+    nextParams.delete('productId');
+    nextParams.delete('assistantId');
+    nextParams.delete('droneId');
+    nextParams.delete('serviceOrderStatus');
+    nextParams.delete('applicationIssue');
     nextParams.set('cleared', '1');
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
@@ -720,6 +884,41 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       setSelectedPilotId(value);
     },
     [removeClearedFlagFromUrl]
+  );
+  const handleProductChange = useCallback(
+    (value: string | undefined) => {
+      setSelectedProductId(value);
+      syncFilterParamInUrl('productId', value);
+    },
+    [syncFilterParamInUrl]
+  );
+  const handleAssistantChange = useCallback(
+    (value: string | undefined) => {
+      setSelectedAssistantId(value);
+      syncFilterParamInUrl('assistantId', value);
+    },
+    [syncFilterParamInUrl]
+  );
+  const handleDroneChange = useCallback(
+    (value: string | undefined) => {
+      setSelectedDroneId(value);
+      syncFilterParamInUrl('droneId', value);
+    },
+    [syncFilterParamInUrl]
+  );
+  const handleServiceOrderStatusChange = useCallback(
+    (value: ServiceOrderStatus | undefined) => {
+      setSelectedServiceOrderStatus(value);
+      syncFilterParamInUrl('serviceOrderStatus', value);
+    },
+    [syncFilterParamInUrl]
+  );
+  const handleApplicationIssueChange = useCallback(
+    (value: ApplicationIssueFilter | undefined) => {
+      setSelectedApplicationIssue(value);
+      syncFilterParamInUrl('applicationIssue', value);
+    },
+    [syncFilterParamInUrl]
   );
 
   const launches = pilotLaunchesData?.data || [];
@@ -828,7 +1027,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
       <Card className='border-border/70'>
         <CardContent className='p-4'>
-          <div className='grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))_auto]'>
+          <div className='grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6'>
             <div className='relative'>
               <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
               <Input
@@ -874,6 +1073,53 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               searchPlaceholder='Buscar piloto...'
               clearable
               isLoading={isLoadingPilots}
+            />
+            <SearchableSelectQuery
+              options={products.map((product) => ({ value: product.id, label: product.name }))}
+              value={selectedProductId}
+              onValueChange={(value) => handleProductChange(value as string | undefined)}
+              placeholder='Produto'
+              searchPlaceholder='Buscar produto...'
+              clearable
+              isLoading={isLoadingProducts}
+            />
+            <SearchableSelectQuery
+              options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
+              value={selectedAssistantId}
+              onValueChange={(value) => handleAssistantChange(value as string | undefined)}
+              placeholder='Ajudante'
+              searchPlaceholder='Buscar ajudante...'
+              clearable
+              isLoading={isLoadingAssistants}
+            />
+            <SearchableSelectQuery
+              options={SERVICE_ORDER_STATUS_OPTIONS}
+              value={selectedServiceOrderStatus}
+              onValueChange={(value) =>
+                handleServiceOrderStatusChange(value as ServiceOrderStatus | undefined)
+              }
+              placeholder='Status da OS'
+              searchPlaceholder='Buscar status...'
+              clearable
+            />
+            <SearchableSelectQuery
+              options={APPLICATION_ISSUE_OPTIONS}
+              value={selectedApplicationIssue}
+              onValueChange={(value) =>
+                handleApplicationIssueChange(value as ApplicationIssueFilter | undefined)
+              }
+              placeholder='Tipo de aplicacao'
+              searchPlaceholder='Buscar tipo...'
+              clearable
+            />
+            <SearchableSelectQuery
+              options={drones.map((drone) => ({ value: drone.id, label: drone.name }))}
+              value={selectedDroneId}
+              onValueChange={(value) => handleDroneChange(value as string | undefined)}
+              placeholder='Drone'
+              searchPlaceholder='Buscar drone...'
+              clearable
+              isLoading={isLoadingDrones}
             />
             <Button type='button' variant='outline' onClick={clearFilters}>
               Limpar Filtros
