@@ -1841,6 +1841,34 @@ export class ApplicationService {
       whereConditions.push(inArray(applications.farmId, filters.farmIds));
     }
 
+    if (filters?.pilotId) {
+      whereConditions.push(eq(applications.pilotId, filters.pilotId));
+    }
+
+    if (filters?.search) {
+      whereConditions.push(
+        or(
+          ilike(applications.observations, `%${filters.search}%`),
+          ilike(users.name, `%${filters.search}%`),
+          ilike(customers.name, `%${filters.search}%`),
+          ilike(farms.name, `%${filters.search}%`)
+        )!
+      );
+    }
+
+    if (filters?.currentSeason) {
+      whereConditions.push(
+        sql`EXISTS (
+          SELECT 1
+          FROM ${contracts}
+          WHERE ${contracts.id} = ${serviceOrders.contractId}
+            AND ${contracts.deletedAt} IS NULL
+            AND CURRENT_DATE BETWEEN (${contracts.date_start})::date AND (${contracts.date_end})::date
+            AND (${applications.date})::date BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
+        )`
+      );
+    }
+
     // Get start date from filters (required - client must always send a period)
     // The start date is interpreted as Brazil time (GMT-3)
     if (!filters?.startDate) {
@@ -1852,12 +1880,14 @@ export class ApplicationService {
     // Start date 00:00 GMT-3 = 03:00 UTC
     const startDateUTC = getStartOfDayBrazilInUTC(startDate);
 
-    // Add date filter to where conditions
-    // Only count applications from the start date onwards
-    const whereConditionsWithDate = [
-      ...whereConditions,
-      gte(applications.date, startDateUTC),
-    ];
+    // Default behavior (legacy): only count applications from startDate onwards.
+    // In currentSeason mode, the temporal window is defined by active contract dates up to today.
+    const whereConditionsWithDate = filters?.currentSeason
+      ? [...whereConditions]
+      : [
+          ...whereConditions,
+          gte(applications.date, startDateUTC),
+        ];
 
     // Get total area hectares (filtered by date, farm, customer, and contract)
     // Join with serviceOrders to enable filtering by contractId
@@ -1868,6 +1898,7 @@ export class ApplicationService {
       .leftJoin(plots, eq(applications.plotId, plots.id))
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(users, eq(applications.pilotId, users.id))
       .where(and(...whereConditionsWithDate));
 
     const totalAreaHectares = Number(totalAreaResult[0]?.totalArea || 0);
@@ -1880,17 +1911,51 @@ export class ApplicationService {
       todayBrazil.getUTCDate(),
       0, 0, 0, 0
     ));
-    const startOfStartDate = new Date(Date.UTC(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate(),
-      0, 0, 0, 0
-    ));
-    const diffTime = startOfTodayBrazil.getTime() - startOfStartDate.getTime();
-    const daysSinceStart = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    let daysSinceStart = 1;
+
+    if (filters?.currentSeason) {
+      const seasonStartResult = await db
+        .select({
+          seasonStart: sql<Date>`MIN((${contracts.date_start})::date)`,
+        })
+        .from(applications)
+        .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+        .leftJoin(contracts, eq(serviceOrders.contractId, contracts.id))
+        .leftJoin(plots, eq(applications.plotId, plots.id))
+        .leftJoin(farms, eq(applications.farmId, farms.id))
+        .leftJoin(customers, eq(farms.customerId, customers.id))
+        .leftJoin(users, eq(applications.pilotId, users.id))
+        .where(and(...whereConditionsWithDate));
+
+      const seasonStart = seasonStartResult[0]?.seasonStart
+        ? new Date(seasonStartResult[0].seasonStart)
+        : null;
+
+      if (seasonStart) {
+        const startOfSeason = new Date(Date.UTC(
+          seasonStart.getUTCFullYear(),
+          seasonStart.getUTCMonth(),
+          seasonStart.getUTCDate(),
+          0, 0, 0, 0
+        ));
+        const diffTime = startOfTodayBrazil.getTime() - startOfSeason.getTime();
+        daysSinceStart = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      } else {
+        daysSinceStart = 0;
+      }
+    } else {
+      const startOfStartDate = new Date(Date.UTC(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate(),
+        0, 0, 0, 0
+      ));
+      const diffTime = startOfTodayBrazil.getTime() - startOfStartDate.getTime();
+      daysSinceStart = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
 
     // Calculate average daily area
-    const averageDailyArea = totalAreaHectares / daysSinceStart;
+    const averageDailyArea = daysSinceStart > 0 ? totalAreaHectares / daysSinceStart : 0;
 
     // Get yesterday's statistics (pass contractIds for proper filtering)
     const yesterdayStats = await this.getYesterdayStats(whereConditions, filters?.customerIds, filters?.farmIds, filters?.contractIds);

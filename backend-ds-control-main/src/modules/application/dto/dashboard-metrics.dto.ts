@@ -16,6 +16,12 @@ export const DashboardMetricsQueryStringSchema = z.object({
   contractIds: arrayQueryParam,
   customerIds: arrayQueryParam,
   farmIds: arrayQueryParam,
+  pilotId: z.string().uuid().optional(),
+  search: z.string().optional(),
+  currentSeason: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((val) => val === "true"),
   startDate: z.string()
     .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), { message: "Data no formato incorreto. Use YYYY-MM-DD." }),
 });
@@ -64,4 +70,3 @@ export const DashboardMetricsResponseSchema = z.object({
     })),
   }),
 });
-

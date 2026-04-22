@@ -382,6 +382,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     startDate: effectiveStartDate,
     customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
     farmIds: selectedFarmId ? [selectedFarmId] : undefined,
+    pilotId: selectedPilotId,
+    search: search || undefined,
+    currentSeason: true,
   });
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
@@ -436,7 +439,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const { data: openServiceOrdersData, isPending: isLoadingOpenServiceOrders } = useGetAllServiceOrders({
     page: '1',
     limit: '100',
+    search: search || undefined,
     status: 'open',
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
@@ -722,7 +728,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
       <Card className='border-border/70'>
         <CardContent className='p-4'>
-          <div className='grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))_auto_auto]'>
+          <div className='grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))_auto]'>
             <div className='relative'>
               <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
               <Input

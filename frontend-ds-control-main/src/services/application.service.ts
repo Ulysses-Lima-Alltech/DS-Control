@@ -641,6 +641,9 @@ export type GetDashboardMetricsParams = {
   contractIds?: string[];
   customerIds?: string[];
   farmIds?: string[];
+  pilotId?: string;
+  search?: string;
+  currentSeason?: boolean;
   startDate: string; // Required - first day of selected period (YYYY-MM-DD format)
 };
 
@@ -701,6 +704,15 @@ export async function getDashboardMetrics(
   }
   if (params.farmIds && params.farmIds.length > 0) {
     params.farmIds.forEach((id) => searchParams.append('farmIds', id));
+  }
+  if (params.pilotId) {
+    searchParams.append('pilotId', params.pilotId);
+  }
+  if (params.search) {
+    searchParams.append('search', params.search);
+  }
+  if (params.currentSeason !== undefined) {
+    searchParams.append('currentSeason', params.currentSeason.toString());
   }
 
   const url = `/applications/dashboard-metrics?${searchParams.toString()}`;
