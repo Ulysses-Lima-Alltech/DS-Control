@@ -252,30 +252,7 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   };
 }
 
-function getRangeByMode(
-  mode: RangeMode,
-  baseEndDate: string,
-  totalStartDate?: string,
-  totalEndDate?: string
-) {
-  if (!totalStartDate || !totalEndDate) {
-    if (mode === 'total') {
-      return undefined;
-    }
-    const end = parseDateParam(baseEndDate) ?? new Date();
-    const normalizedEnd = format(end, 'yyyy-MM-dd');
-    if (mode === 'month') {
-      return {
-        startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
-        endDate: normalizedEnd,
-      };
-    }
-    return {
-      startDate: normalizedEnd,
-      endDate: normalizedEnd,
-    };
-  }
-
+function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: string, totalEndDate: string) {
   if (mode === 'total') {
     return { startDate: totalStartDate, endDate: totalEndDate };
   }
@@ -318,11 +295,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedPilotId, setSelectedPilotId] = useState<string | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<{ startDate?: string; endDate?: string } | undefined>({
+  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>({
     startDate,
     endDate,
   });
-  const [datePickerResetKey, setDatePickerResetKey] = useState(0);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
@@ -364,22 +340,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     [chartTooltipFg]
   );
 
-  const todayDate = format(new Date(), 'yyyy-MM-dd');
-  const effectiveStartDate = dateRange?.startDate;
-  const effectiveEndDate = dateRange?.endDate;
-  const fallbackEndDate = effectiveEndDate ?? todayDate;
+  const effectiveStartDate = dateRange.startDate;
+  const effectiveEndDate = dateRange.endDate;
   const pilotChartRange = getRangeByMode(
     pilotPeriodMode,
-    fallbackEndDate,
+    effectiveEndDate,
     effectiveStartDate,
     effectiveEndDate
   );
   const customerChartRange = getRangeByMode(
     customerPeriodMode,
-    fallbackEndDate,
+    effectiveEndDate,
     effectiveStartDate,
     effectiveEndDate
   );
+
+  const todayDate = format(new Date(), 'yyyy-MM-dd');
   const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const kpiBaseFilters = {
     search: search || undefined,
@@ -403,7 +379,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     endDate: yesterday,
   });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
-    startDate: effectiveStartDate ?? startDate,
+    startDate: effectiveStartDate,
     customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
     farmIds: selectedFarmId ? [selectedFarmId] : undefined,
     pilotId: selectedPilotId,
@@ -415,8 +391,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    startDate: pilotChartRange?.startDate,
-    endDate: pilotChartRange?.endDate,
+    startDate: pilotChartRange.startDate,
+    endDate: pilotChartRange.endDate,
     limit: 10,
   });
   const { data: byPilotYesterdayStats, isPending: isLoadingByPilotYesterdayStats } =
@@ -454,12 +430,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    ...(effectiveStartDate && effectiveEndDate
-      ? {
-          startDate: effectiveStartDate,
-          endDate: effectiveEndDate,
-        }
-      : {}),
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate,
     orderBy: ApplicationOrderBy.DATE,
     orderType: ApplicationOrderType.DESC,
   });
@@ -469,12 +441,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: '100',
     search: search || undefined,
     status: 'open',
-    ...(effectiveStartDate && effectiveEndDate
-      ? {
-          startDate: effectiveStartDate,
-          endDate: effectiveEndDate,
-        }
-      : {}),
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
@@ -495,8 +463,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         'panel',
         'customer-hectares',
         customer.id,
-        customerChartRange?.startDate,
-        customerChartRange?.endDate,
+        customerChartRange.startDate,
+        customerChartRange.endDate,
         selectedFarmId,
         selectedPilotId,
         search,
@@ -507,9 +475,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           customerId: customer.id,
           farmId: selectedFarmId,
           pilotId: selectedPilotId,
-          startDate: customerChartRange?.startDate,
-          endDate: customerChartRange?.endDate,
+          startDate: customerChartRange.startDate,
+          endDate: customerChartRange.endDate,
         }),
+      enabled: Boolean(customerChartRange.startDate && customerChartRange.endDate),
       staleTime: 1000 * 60 * 5,
     })),
   });
@@ -634,15 +603,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     setSelectedCustomerId(undefined);
     setSelectedFarmId(undefined);
     setSelectedPilotId(undefined);
-    setDateRange(undefined);
-    setDatePickerResetKey((prev) => prev + 1);
+    setDateRange({ startDate, endDate });
   };
   const handleDateRangeChange = useCallback(
     (range: { startDate?: string; endDate?: string } | undefined) => {
       const nextRange =
         range?.startDate && range?.endDate
           ? { startDate: range.startDate, endDate: range.endDate }
-          : undefined;
+          : { startDate, endDate };
 
       setDateRange((prev) => {
         if (areDateRangesEqual(prev, nextRange)) {
@@ -651,7 +619,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         return nextRange;
       });
     },
-    []
+    [startDate, endDate]
   );
 
   const launches = pilotLaunchesData?.data || [];
@@ -771,12 +739,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               />
             </div>
             <DateRangePicker
-              key={datePickerResetKey}
-              initialValue={
-                effectiveStartDate && effectiveEndDate
-                  ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
-                  : undefined
-              }
+              initialValue={{ startDate: effectiveStartDate, endDate: effectiveEndDate }}
               onChange={handleDateRangeChange}
               placeholder='Período'
             />
