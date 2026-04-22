@@ -22,8 +22,13 @@ const isValidDateParam = (value: string | null): value is string => {
 
 const resolveInitialDateRange = (
   urlStartDate: string | null,
-  urlEndDate: string | null
-): { startDate: string; endDate: string } => {
+  urlEndDate: string | null,
+  cleared: boolean
+): { startDate?: string; endDate?: string } => {
+  if (cleared) {
+    return {};
+  }
+
   const hasValidStart = isValidDateParam(urlStartDate);
   const hasValidEnd = isValidDateParam(urlEndDate);
   if (hasValidStart && hasValidEnd) {
@@ -37,9 +42,11 @@ const resolveInitialDateRange = (
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const cleared = searchParams.get('cleared') === '1';
   const { startDate, endDate } = resolveInitialDateRange(
     searchParams.get('startDate'),
-    searchParams.get('endDate')
+    searchParams.get('endDate'),
+    cleared
   );
   const yesterday = getYesterdayDateString();
 

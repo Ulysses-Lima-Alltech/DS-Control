@@ -41,8 +41,8 @@ import * as ApplicationService from '@/services/application.service';
 import { ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
 
 interface PanelDashboardBlocksProps {
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
   yesterday: string;
 }
 type RangeMode = 'total' | 'month' | 'day';
@@ -253,7 +253,33 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   };
 }
 
-function getRangeByMode(mode: RangeMode, baseEndDate: string, totalStartDate: string, totalEndDate: string) {
+function getRangeByMode(
+  mode: RangeMode,
+  baseEndDate: string,
+  totalStartDate?: string,
+  totalEndDate?: string
+) {
+  if (!totalStartDate || !totalEndDate) {
+    if (mode === 'total') {
+      return undefined;
+    }
+
+    const end = parseDateParam(baseEndDate) ?? new Date();
+    const normalizedEnd = format(end, 'yyyy-MM-dd');
+
+    if (mode === 'month') {
+      return {
+        startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
+        endDate: normalizedEnd,
+      };
+    }
+
+    return {
+      startDate: normalizedEnd,
+      endDate: normalizedEnd,
+    };
+  }
+
   if (mode === 'total') {
     return { startDate: totalStartDate, endDate: totalEndDate };
   }
@@ -299,10 +325,15 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedPilotId, setSelectedPilotId] = useState<string | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>({
-    startDate,
-    endDate,
-  });
+  const [dateRange, setDateRange] = useState<{ startDate?: string; endDate?: string } | undefined>(
+    () =>
+      startDate && endDate
+        ? {
+            startDate,
+            endDate,
+          }
+        : undefined
+  );
   const [datePickerResetKey, setDatePickerResetKey] = useState(0);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
@@ -345,22 +376,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     [chartTooltipFg]
   );
 
-  const effectiveStartDate = dateRange.startDate;
-  const effectiveEndDate = dateRange.endDate;
+  const todayDate = format(new Date(), 'yyyy-MM-dd');
+  const effectiveStartDate = dateRange?.startDate;
+  const effectiveEndDate = dateRange?.endDate;
+  const fallbackEndDate = effectiveEndDate ?? todayDate;
   const pilotChartRange = getRangeByMode(
     pilotPeriodMode,
-    effectiveEndDate,
+    fallbackEndDate,
     effectiveStartDate,
     effectiveEndDate
   );
   const customerChartRange = getRangeByMode(
     customerPeriodMode,
-    effectiveEndDate,
+    fallbackEndDate,
     effectiveStartDate,
     effectiveEndDate
   );
-
-  const todayDate = format(new Date(), 'yyyy-MM-dd');
   const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const kpiBaseFilters = {
     search: search || undefined,
@@ -384,7 +415,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     endDate: yesterday,
   });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
-    startDate: effectiveStartDate,
+    startDate: effectiveStartDate ?? todayDate,
     customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
     farmIds: selectedFarmId ? [selectedFarmId] : undefined,
     pilotId: selectedPilotId,
@@ -396,8 +427,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    startDate: pilotChartRange.startDate,
-    endDate: pilotChartRange.endDate,
+    startDate: pilotChartRange?.startDate,
+    endDate: pilotChartRange?.endDate,
     limit: 10,
   });
   const { data: byPilotYesterdayStats, isPending: isLoadingByPilotYesterdayStats } =
@@ -435,8 +466,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
-    startDate: effectiveStartDate,
-    endDate: effectiveEndDate,
+    ...(effectiveStartDate && effectiveEndDate
+      ? {
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+        }
+      : {}),
     orderBy: ApplicationOrderBy.DATE,
     orderType: ApplicationOrderType.DESC,
   });
@@ -446,8 +481,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: '100',
     search: search || undefined,
     status: 'open',
-    startDate: effectiveStartDate,
-    endDate: effectiveEndDate,
+    ...(effectiveStartDate && effectiveEndDate
+      ? {
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+        }
+      : {}),
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
@@ -468,8 +507,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         'panel',
         'customer-hectares',
         customer.id,
-        customerChartRange.startDate,
-        customerChartRange.endDate,
+        customerChartRange?.startDate,
+        customerChartRange?.endDate,
         selectedFarmId,
         selectedPilotId,
         search,
@@ -480,10 +519,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           customerId: customer.id,
           farmId: selectedFarmId,
           pilotId: selectedPilotId,
-          startDate: customerChartRange.startDate,
-          endDate: customerChartRange.endDate,
+          startDate: customerChartRange?.startDate,
+          endDate: customerChartRange?.endDate,
         }),
-      enabled: Boolean(customerChartRange.startDate && customerChartRange.endDate),
       staleTime: 1000 * 60 * 5,
     })),
   });
@@ -603,15 +641,23 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
   ];
 
+  const removeClearedFlagFromUrl = useCallback(() => {
+    if (!searchParams?.has('cleared')) return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('cleared');
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const clearFilters = () => {
     setSearch('');
     setSelectedCustomerId(undefined);
     setSelectedFarmId(undefined);
     setSelectedPilotId(undefined);
-    setDateRange({ startDate, endDate });
+    setDateRange(undefined);
     setDatePickerResetKey((prev) => prev + 1);
 
-    // Keep URL in sync with the cleared state to avoid hidden/ghost filters.
     const nextParams = new URLSearchParams(searchParams?.toString() || '');
     nextParams.delete('search');
     nextParams.delete('startDate');
@@ -619,15 +665,20 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     nextParams.delete('customerId');
     nextParams.delete('farmId');
     nextParams.delete('pilotId');
+    nextParams.set('cleared', '1');
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   };
   const handleDateRangeChange = useCallback(
     (range: { startDate?: string; endDate?: string } | undefined) => {
+      if (range?.startDate && range?.endDate) {
+        removeClearedFlagFromUrl();
+      }
+
       const nextRange =
         range?.startDate && range?.endDate
           ? { startDate: range.startDate, endDate: range.endDate }
-          : { startDate, endDate };
+          : undefined;
 
       setDateRange((prev) => {
         if (areDateRangesEqual(prev, nextRange)) {
@@ -636,7 +687,39 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         return nextRange;
       });
     },
-    [startDate, endDate]
+    [removeClearedFlagFromUrl]
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      removeClearedFlagFromUrl();
+      setSearch(value);
+    },
+    [removeClearedFlagFromUrl]
+  );
+
+  const handleCustomerChange = useCallback(
+    (value: string | undefined) => {
+      removeClearedFlagFromUrl();
+      setSelectedCustomerId(value);
+    },
+    [removeClearedFlagFromUrl]
+  );
+
+  const handleFarmChange = useCallback(
+    (value: string | undefined) => {
+      removeClearedFlagFromUrl();
+      setSelectedFarmId(value);
+    },
+    [removeClearedFlagFromUrl]
+  );
+
+  const handlePilotChange = useCallback(
+    (value: string | undefined) => {
+      removeClearedFlagFromUrl();
+      setSelectedPilotId(value);
+    },
+    [removeClearedFlagFromUrl]
   );
 
   const launches = pilotLaunchesData?.data || [];
@@ -750,21 +833,25 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
               <Input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder='Busca'
                 className='pl-9'
               />
             </div>
             <DateRangePicker
               key={datePickerResetKey}
-              initialValue={{ startDate: effectiveStartDate, endDate: effectiveEndDate }}
+              initialValue={
+                effectiveStartDate && effectiveEndDate
+                  ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
+                  : undefined
+              }
               onChange={handleDateRangeChange}
               placeholder='Período'
             />
             <SearchableSelectQuery
               options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
               value={selectedCustomerId}
-              onValueChange={(value) => setSelectedCustomerId(value as string | undefined)}
+              onValueChange={(value) => handleCustomerChange(value as string | undefined)}
               placeholder='Cliente'
               searchPlaceholder='Buscar cliente...'
               clearable
@@ -773,7 +860,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <SearchableSelectQuery
               options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
               value={selectedFarmId}
-              onValueChange={(value) => setSelectedFarmId(value as string | undefined)}
+              onValueChange={(value) => handleFarmChange(value as string | undefined)}
               placeholder='Fazenda'
               searchPlaceholder='Buscar fazenda...'
               clearable
@@ -782,7 +869,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <SearchableSelectQuery
               options={pilots.map((pilot) => ({ value: pilot.id, label: pilot.name }))}
               value={selectedPilotId}
-              onValueChange={(value) => setSelectedPilotId(value as string | undefined)}
+              onValueChange={(value) => handlePilotChange(value as string | undefined)}
               placeholder='Piloto'
               searchPlaceholder='Buscar piloto...'
               clearable
