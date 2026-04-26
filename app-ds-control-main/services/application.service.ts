@@ -6,15 +6,27 @@ import {
   UpdateApplicationByIdSchema,
   UpdateLooseApplicationSchema,
 } from '@/schemas/application.schema';
-import { Application, ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
+import {
+  Application,
+  ApplicationIssueFilter,
+  ApplicationOrderBy,
+  ApplicationOrderType,
+} from '@/types/applications.type';
+import { ServiceOrderStatus } from '@/types/service-order.type';
 
 import { api } from './api.service';
 
 export type GetAllApplicationsParams = {
   pilotId?: string;
+  assistantId?: string;
+  productId?: string;
+  droneId?: string;
   customerId?: string;
   serviceOrderId?: string;
   farmId?: string;
+  serviceOrderStatus?: ServiceOrderStatus;
+  applicationIssue?: ApplicationIssueFilter;
+  invalidApplication?: string;
   includePlots?: string;
   includeCustomer?: string;
   includeServiceOrder?: string;
@@ -37,24 +49,46 @@ export type GetAllApplicationsResponse = {
 export async function getAllApplications(
   params?: GetAllApplicationsParams
 ): Promise<GetAllApplicationsResponse> {
-  const searchParams = new URLSearchParams();
-  const toYYYYMMDD = (dateString: string) => {
-    try {
-      return new Date(dateString).toISOString().split('T')[0];
-    } catch {
-      return '';
-    }
+  const dateParamRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const toCivilYYYYMMDD = (value: string) => {
+    if (!value) return '';
+    if (dateParamRegex.test(value)) return value;
+    if (value.includes('T')) return value.split('T')[0];
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
+
+  const searchParams = new URLSearchParams();
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
+  if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.droneId) searchParams.append('droneId', params.droneId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
+  if (params?.invalidApplication)
+    searchParams.append('invalidApplication', params.invalidApplication);
   if (params?.includePlots) searchParams.append('includePlots', params.includePlots);
   if (params?.includeCustomer) searchParams.append('includeCustomer', params.includeCustomer);
   if (params?.includeServiceOrder)
     searchParams.append('includeServiceOrder', params.includeServiceOrder);
-  if (params?.startDate) searchParams.append('startDate', toYYYYMMDD(params.startDate));
-  if (params?.endDate) searchParams.append('endDate', toYYYYMMDD(params.endDate));
+  if (params?.startDate) {
+    const normalizedStartDate = toCivilYYYYMMDD(params.startDate);
+    if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
+  }
+  if (params?.endDate) {
+    const normalizedEndDate = toCivilYYYYMMDD(params.endDate);
+    if (normalizedEndDate) searchParams.append('endDate', normalizedEndDate);
+  }
   if (params?.page) searchParams.append('page', params.page);
   if (params?.limit) searchParams.append('limit', params.limit);
   if (params?.orderBy) searchParams.append('orderBy', params.orderBy);
@@ -107,9 +141,9 @@ export async function getApplicationsByServiceOrderId(
 ): Promise<GetApplicationsByServiceOrderIdResponse> {
   const searchParams = new URLSearchParams();
   if (params?.includeGeoJson) searchParams.append('includeGeoJson', params.includeGeoJson);
-  
+
   const url = `/applications/service-order/${serviceOrderId}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-  
+
   const response = await api(url, {
     method: 'GET',
   });
