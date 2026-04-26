@@ -1,7 +1,7 @@
 'use client';
 
 import { InfiniteData, useQueries } from '@tanstack/react-query';
-import { format, isValid, startOfMonth } from 'date-fns';
+import { format, isValid, startOfMonth, subDays } from 'date-fns';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
@@ -69,6 +69,10 @@ type PilotLaunchRow = {
   hectares: number;
   launchStatus: PilotLaunchStatus;
   serviceOrderNumber: number;
+};
+type EntityChartDataRow = {
+  name: string;
+  hectares: number;
 };
 
 const TOP_CARD_STYLES = [
@@ -437,18 +441,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const effectiveStartDate = dateRange?.startDate;
   const effectiveEndDate = dateRange?.endDate;
   const fallbackEndDate = effectiveEndDate ?? todayDate;
-  const pilotChartRange = getRangeByMode(
-    pilotPeriodMode,
-    fallbackEndDate,
-    effectiveStartDate,
-    effectiveEndDate
-  );
-  const customerChartRange = getRangeByMode(
-    customerPeriodMode,
-    fallbackEndDate,
-    effectiveStartDate,
-    effectiveEndDate
-  );
+  const pilotChartRange =
+    pilotPeriodMode === 'total'
+      ? undefined
+      : getRangeByMode(pilotPeriodMode, fallbackEndDate, effectiveStartDate, effectiveEndDate);
+  const customerChartRange =
+    customerPeriodMode === 'total'
+      ? undefined
+      : getRangeByMode(customerPeriodMode, fallbackEndDate, effectiveStartDate, effectiveEndDate);
   const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const kpiBaseFilters = {
     search: search || undefined,
@@ -479,6 +479,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     search: search || undefined,
     currentSeason: true,
   });
+  const seasonStartDate = useMemo(() => {
+    const daysSinceStart = dashboardMetrics?.metrics?.daysSinceStart;
+    if (!daysSinceStart || daysSinceStart < 1) return undefined;
+    return format(subDays(new Date(), daysSinceStart - 1), 'yyyy-MM-dd');
+  }, [dashboardMetrics?.metrics?.daysSinceStart]);
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
     customerId: selectedCustomerId,
@@ -486,6 +491,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     pilotId: selectedPilotId,
     productId: selectedProductId,
     serviceOrderStatus: selectedServiceOrderStatus,
+    currentSeason: pilotPeriodMode === 'total' ? true : undefined,
     startDate: pilotChartRange?.startDate,
     endDate: pilotChartRange?.endDate,
     limit: 10,
@@ -556,18 +562,43 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     orderBy: ApplicationOrderBy.DATE,
     orderType: ApplicationOrderType.DESC,
   });
+  const assistantChartStartDate =
+    pilotPeriodMode === 'total' ? seasonStartDate : pilotChartRange?.startDate;
+  const assistantChartEndDate = pilotPeriodMode === 'total' ? todayDate : pilotChartRange?.endDate;
+  const {
+    data: assistantChartApplicationsData,
+    isPending: isLoadingAssistantChartApplications,
+  } = useGetAllApplications(
+    {
+      page: '1',
+      limit: '5000',
+      search: search || undefined,
+      customerId: selectedCustomerId,
+      farmId: selectedFarmId,
+      pilotId: selectedPilotId,
+      productId: selectedProductId,
+      serviceOrderStatus: selectedServiceOrderStatus,
+      assistantId: selectedAssistantId,
+      droneId: selectedDroneId,
+      applicationIssue: selectedApplicationIssue,
+      ...(assistantChartStartDate && assistantChartEndDate
+        ? {
+            startDate: assistantChartStartDate,
+            endDate: assistantChartEndDate,
+          }
+        : {}),
+    },
+    {
+      enabled:
+        pilotEntityMode === 'assistants' && (pilotPeriodMode !== 'total' || Boolean(seasonStartDate)),
+    }
+  );
 
   const { data: openServiceOrdersData, isPending: isLoadingOpenServiceOrders } = useGetAllServiceOrders({
     page: '1',
-    limit: '100',
+    limit: '1000',
     search: search || undefined,
     status: 'open',
-    ...(effectiveStartDate && effectiveEndDate
-      ? {
-          startDate: effectiveStartDate,
-          endDate: effectiveEndDate,
-        }
-      : {}),
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
@@ -603,6 +634,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         'panel',
         'customer-hectares',
         customer.id,
+        customerPeriodMode,
         customerChartRange?.startDate,
         customerChartRange?.endDate,
         selectedFarmId,
@@ -611,17 +643,23 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         selectedServiceOrderStatus,
         search,
       ],
-      queryFn: () =>
-        ApplicationService.getStatsApplications({
+      queryFn: () => {
+        const statsParams: ApplicationService.GetStatsApplicationsParams = {
           search: search || undefined,
           customerId: customer.id,
           farmId: selectedFarmId,
           pilotId: selectedPilotId,
           productId: selectedProductId,
           serviceOrderStatus: selectedServiceOrderStatus,
-          startDate: customerChartRange?.startDate,
-          endDate: customerChartRange?.endDate,
-        }),
+          ...(customerPeriodMode === 'total'
+            ? { currentSeason: true }
+            : {
+                startDate: customerChartRange?.startDate,
+                endDate: customerChartRange?.endDate,
+              }),
+        };
+        return ApplicationService.getStatsApplications(statsParams);
+      },
       staleTime: 1000 * 60 * 5,
     })),
   });
@@ -635,14 +673,22 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         yesterday,
         search,
         selectedProductId,
+        selectedPilotId,
+        selectedAssistantId,
+        selectedDroneId,
         selectedServiceOrderStatus,
+        selectedApplicationIssue,
       ],
       queryFn: () =>
         ApplicationService.getStatsApplications({
           search: search || undefined,
           serviceOrderId: serviceOrder.id,
+          pilotId: selectedPilotId,
           productId: selectedProductId,
           serviceOrderStatus: selectedServiceOrderStatus,
+          assistantId: selectedAssistantId,
+          droneId: selectedDroneId,
+          applicationIssue: selectedApplicationIssue,
           startDate: yesterday,
           endDate: yesterday,
         }),
@@ -658,12 +704,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         serviceOrder.id,
         search,
         selectedProductId,
+        selectedPilotId,
         selectedAssistantId,
         selectedDroneId,
         selectedServiceOrderStatus,
         selectedApplicationIssue,
-        effectiveStartDate,
-        effectiveEndDate,
       ],
       queryFn: () =>
         ApplicationService.getAllApplications({
@@ -671,17 +716,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           limit: '1000',
           search: search || undefined,
           serviceOrderId: serviceOrder.id,
+          pilotId: selectedPilotId,
           productId: selectedProductId,
           assistantId: selectedAssistantId,
           droneId: selectedDroneId,
           serviceOrderStatus: selectedServiceOrderStatus,
           applicationIssue: selectedApplicationIssue,
-          ...(effectiveStartDate && effectiveEndDate
-            ? {
-                startDate: effectiveStartDate,
-                endDate: effectiveEndDate,
-              }
-            : {}),
         }),
       staleTime: 1000 * 60 * 3,
     })),
@@ -703,7 +743,66 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     return [];
   }, [customers, customerAreaQueries, customerPeriodMode]);
 
-  const pilotChartData = useMemo(() => {
+  const assistantNameById = useMemo(
+    () =>
+      new Map(
+        assistants
+          .filter((assistant) => Boolean(assistant.id))
+          .map((assistant) => [assistant.id, assistant.name || 'Ajudante não informado'])
+      ),
+    [assistants]
+  );
+  const assistantChartData = useMemo<EntityChartDataRow[]>(() => {
+    const applications = assistantChartApplicationsData?.data || [];
+    const groupedByAssistant = new Map<string, EntityChartDataRow>();
+
+    for (const application of applications) {
+      const assistantId = application.assistantId || '';
+      const assistantName =
+        application.assistant?.name ||
+        (assistantId ? assistantNameById.get(assistantId) : undefined) ||
+        'Ajudante não informado';
+      const groupKey = assistantId || `missing:${assistantName}`;
+      const current = groupedByAssistant.get(groupKey);
+      const hectares = Number(application.hectares || 0);
+      if (current) {
+        current.hectares += hectares;
+      } else {
+        groupedByAssistant.set(groupKey, {
+          name: assistantName,
+          hectares,
+        });
+      }
+    }
+
+    const sorted = Array.from(groupedByAssistant.values())
+      .sort((a, b) => b.hectares - a.hectares)
+      .slice(0, 10);
+    if (sorted.length > 0) return sorted;
+
+    if (pilotPeriodMode === 'day') {
+      return assistants
+        .filter((assistant) => !selectedAssistantId || assistant.id === selectedAssistantId)
+        .map((assistant) => ({
+          name: assistant.name || 'Ajudante não informado',
+          hectares: 0,
+        }))
+        .slice(0, 10);
+    }
+
+    return [];
+  }, [
+    assistantChartApplicationsData?.data,
+    assistantNameById,
+    assistants,
+    pilotPeriodMode,
+    selectedAssistantId,
+  ]);
+  const pilotChartData = useMemo<EntityChartDataRow[]>(() => {
+    if (pilotEntityMode === 'assistants') {
+      return assistantChartData;
+    }
+
     const base = (byPilotStats?.byPilot || []).map((item) => ({
       name: item.pilotName,
       hectares: item.totalAreaHectares,
@@ -717,11 +816,16 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         }))
         .slice(0, 10);
     }
-    if (pilotEntityMode === 'assistants') {
-      return base;
-    }
+
     return base;
-  }, [byPilotStats?.byPilot, pilotEntityMode, pilotPeriodMode, pilots, selectedPilotId]);
+  }, [
+    assistantChartData,
+    byPilotStats?.byPilot,
+    pilotEntityMode,
+    pilotPeriodMode,
+    pilots,
+    selectedPilotId,
+  ]);
   const pilotXAxisConfig = useMemo(
     () => getDynamicXAxisConfig(pilotChartData.map((item) => item.name)),
     [pilotChartData]
@@ -920,6 +1024,18 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
     [syncFilterParamInUrl]
   );
+  const togglePilotMonthMode = useCallback(() => {
+    setPilotPeriodMode((prev) => (prev === 'month' ? 'total' : 'month'));
+  }, []);
+  const togglePilotDayMode = useCallback(() => {
+    setPilotPeriodMode((prev) => (prev === 'day' ? 'total' : 'day'));
+  }, []);
+  const toggleCustomerMonthMode = useCallback(() => {
+    setCustomerPeriodMode((prev) => (prev === 'month' ? 'total' : 'month'));
+  }, []);
+  const toggleCustomerDayMode = useCallback(() => {
+    setCustomerPeriodMode((prev) => (prev === 'day' ? 'total' : 'day'));
+  }, []);
 
   const launches = pilotLaunchesData?.data || [];
   const pilotLaunchRows = useMemo<PilotLaunchRow[]>(() => {
@@ -990,12 +1106,34 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const isLoadingAnyCustomerArea =
     isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
   const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
+  const isLoadingPilotChart =
+    pilotEntityMode === 'assistants'
+      ? isLoadingAssistantChartApplications ||
+        (pilotPeriodMode === 'total' && !seasonStartDate && isLoadingDashboardMetrics)
+      : isLoadingByPilotStats;
   const launchedPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'launched').length;
   const pendingPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'pending').length;
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
     orderApplicationsQueries.some((query) => query.isPending);
+  const hasApplicationLevelOsFilters = Boolean(
+    selectedProductId || selectedAssistantId || selectedDroneId || selectedApplicationIssue
+  );
+  const visibleOpenServiceOrders = useMemo(
+    () =>
+      openServiceOrders
+        .map((serviceOrder, index) => ({
+          serviceOrder,
+          queryIndex: index,
+        }))
+        .filter(({ queryIndex }) => {
+          if (!hasApplicationLevelOsFilters) return true;
+          const applications = orderApplicationsQueries[queryIndex]?.data?.data || [];
+          return applications.length > 0;
+        }),
+    [hasApplicationLevelOsFilters, openServiceOrders, orderApplicationsQueries]
+  );
 
   return (
     <div className='space-y-5'>
@@ -1203,10 +1341,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
                     className={
                       pilotPeriodMode === 'total'
-                        ? 'bg-blue-600 text-white hover:bg-blue-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                        ? 'bg-blue-600 text-white hover:bg-blue-600/90 cursor-default pointer-events-none'
+                        : `${PANEL_TOGGLE_INACTIVE_CLASS} cursor-default pointer-events-none`
                     }
-                  onClick={() => setPilotPeriodMode('total')}
+                  aria-disabled='true'
+                  tabIndex={-1}
                 >
                   Total Geral
                 </Button>
@@ -1219,7 +1358,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
                         : PANEL_TOGGLE_INACTIVE_CLASS
                     }
-                  onClick={() => setPilotPeriodMode('month')}
+                  onClick={togglePilotMonthMode}
                 >
                   Mês
                 </Button>
@@ -1232,7 +1371,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
                         : PANEL_TOGGLE_INACTIVE_CLASS
                     }
-                  onClick={() => setPilotPeriodMode('day')}
+                  onClick={togglePilotDayMode}
                 >
                   Dia
                 </Button>
@@ -1241,12 +1380,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           </div>
           {pilotEntityMode === 'assistants' ? (
             <CardDescription>
-              Modo Ajudantes adaptado com dados operacionais disponíveis atualmente.
+              Agrupamento por Ajudante com filtros operacionais do painel.
             </CardDescription>
           ) : null}
         </CardHeader>
         <CardContent className='h-[320px] pt-0'>
-          {isLoadingByPilotStats ? (
+          {isLoadingPilotChart ? (
             <p className='text-sm text-muted-foreground'>Carregando gráfico...</p>
           ) : pilotChartData.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Sem dados para exibir.</p>
@@ -1314,10 +1453,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 variant={customerPeriodMode === 'total' ? 'default' : 'ghost'}
                 className={
                   customerPeriodMode === 'total'
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
-                    : PANEL_TOGGLE_INACTIVE_CLASS
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-600/90 cursor-default pointer-events-none'
+                    : `${PANEL_TOGGLE_INACTIVE_CLASS} cursor-default pointer-events-none`
                 }
-                onClick={() => setCustomerPeriodMode('total')}
+                aria-disabled='true'
+                tabIndex={-1}
               >
                 Total Geral
               </Button>
@@ -1330,7 +1470,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     ? 'bg-teal-600 text-white hover:bg-teal-600/90'
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
-                onClick={() => setCustomerPeriodMode('month')}
+                onClick={toggleCustomerMonthMode}
               >
                 Mês
               </Button>
@@ -1343,7 +1483,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     ? 'bg-orange-600 text-white hover:bg-orange-600/90'
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
-                onClick={() => setCustomerPeriodMode('day')}
+                onClick={toggleCustomerDayMode}
               >
                 Dia
               </Button>
@@ -1417,13 +1557,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         <CardContent>
           {isLoadingAnyOrderStats ? (
             <p className='text-sm text-muted-foreground'>Carregando ordens de serviço...</p>
-          ) : openServiceOrders.length === 0 ? (
+          ) : visibleOpenServiceOrders.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Nenhuma OS em aberto encontrada para o recorte.</p>
           ) : (
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
-              {openServiceOrders.map((serviceOrder, index) => {
-                const yesterdayStats = orderYesterdayStatsQueries[index]?.data?.stats;
-                const serviceOrderApplications = orderApplicationsQueries[index]?.data?.data || [];
+              {visibleOpenServiceOrders.map(({ serviceOrder, queryIndex }) => {
+                const yesterdayStats = orderYesterdayStatsQueries[queryIndex]?.data?.stats;
+                const serviceOrderApplications = orderApplicationsQueries[queryIndex]?.data?.data || [];
                 const totalPlots = serviceOrder.plots?.length || 0;
                 const totalHectaresAllPlots = (serviceOrder.plots || []).reduce(
                   (sum, plot) => sum + Number.parseFloat(plot.hectare || '0'),

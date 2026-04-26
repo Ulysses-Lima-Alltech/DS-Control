@@ -337,10 +337,13 @@ export type GetStatsApplicationsParams = {
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
   pilotId?: string;
+  assistantId?: string;
+  droneId?: string;
   productId?: string;
   customerId?: string;
   serviceOrderId?: string;
   invalidApplication?: boolean;
+  applicationIssue?: ApplicationIssueFilter;
   currentSeason?: boolean;
   startDate?: string;
   endDate?: string;
@@ -411,11 +414,14 @@ export async function getStatsApplications(
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
+  if (params?.droneId) searchParams.append('droneId', params.droneId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
     searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
   if (params?.currentSeason !== undefined)
     searchParams.append('currentSeason', params.currentSeason.toString());
   if (params?.startDate) searchParams.append('startDate', params.startDate);
@@ -487,6 +493,8 @@ export async function getByPilotApplications(
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
     searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.currentSeason !== undefined)
+    searchParams.append('currentSeason', params.currentSeason.toString());
   if (params?.startDate) searchParams.append('startDate', params.startDate);
   if (params?.endDate) searchParams.append('endDate', params.endDate);
   if (params?.limit) searchParams.append('limit', params.limit.toString());
