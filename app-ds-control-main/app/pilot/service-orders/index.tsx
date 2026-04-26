@@ -1,23 +1,134 @@
-import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import ServiceOrdersEmptyState from '@/components/ServiceOrdersEmptyState';
-import { useGetAllMyOpenServiceOrders } from '@/queries/service-order.query';
-import { ServiceOrder } from '@/types/service-order.type';
 import Entypo from '@expo/vector-icons/Entypo';
-import Skeleton from '@/components/ui/Skeleton';
 import Feather from '@expo/vector-icons/Feather';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import formatDateToDDMMYYYY from '../../../utils/date-formatter';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import { COLORS } from '@/constants/colors';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { FlashList } from '@shopify/flash-list';
+import { InfiniteData } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+
+import ServiceOrdersEmptyState from '@/components/ServiceOrdersEmptyState';
+import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
+import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import Separator from '@/components/ui/Separator';
+import Skeleton from '@/components/ui/Skeleton';
+import TextInputSearch from '@/components/ui/TextInputSearch';
+import { COLORS } from '@/constants/colors';
+import { useGetAllFarmsInfinite } from '@/queries/farm.query';
+import { useGetAllMyOpenServiceOrders } from '@/queries/service-order.query';
+import { Farm } from '@/types/farm.type';
+import { ServiceOrder, ServiceOrderBy, ServiceOrderType } from '@/types/service-order.type';
+import formatDateToDDMMYYYY from '@/utils/date-formatter';
+import { isAndroid } from '@/utils/isAndroid';
+
+const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const toCivilDateParam = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseCivilDate = (value?: string) => {
+  if (value && DATE_PARAM_REGEX.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  if (value) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return new Date();
+};
+
+const orderByOptions: { id: string; label: string }[] = [
+  { id: ServiceOrderBy.PLANNED_DATE, label: 'Data planejada' },
+  { id: ServiceOrderBy.CUSTOMER, label: 'Cliente' },
+  { id: ServiceOrderBy.NAME, label: 'Nome' },
+];
+
+const orderTypeOptions: { id: string; label: string }[] = [
+  { id: ServiceOrderType.DESC, label: 'Descendente' },
+  { id: ServiceOrderType.ASC, label: 'Ascendente' },
+];
+
+const limitOptions: { id: string; label: string }[] = [
+  { id: '5', label: '5 por pÃ¡gina' },
+  { id: '10', label: '10 por pÃ¡gina' },
+  { id: '20', label: '20 por pÃ¡gina' },
+];
 
 export default function ServiceOrders() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [farmId, setFarmId] = useState<string | undefined>(undefined);
+  const [farmSearchTerm, setFarmSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [orderBy, setOrderBy] = useState<ServiceOrderBy>(ServiceOrderBy.PLANNED_DATE);
+  const [orderType, setOrderType] = useState<ServiceOrderType>(ServiceOrderType.DESC);
+  const [pageSize, setPageSize] = useState('5');
+
+  const {
+    data: farmsData,
+    hasNextPage: hasNextPageFarms,
+    isFetchingNextPage: isFetchingNextPageFarms,
+    fetchNextPage: fetchNextPageFarms,
+    isFetching: isFetchingFarms,
+  } = useGetAllFarmsInfinite(undefined, {
+    limit: '10',
+    search: farmSearchTerm || undefined,
+  });
+
+  const listedFarms: Farm[] = useMemo(() => {
+    return (
+      ((farmsData as unknown as InfiniteData<{ data: Farm[] }> | undefined)?.pages?.flatMap(
+        (page) => page.data
+      ) as Farm[]) || []
+    );
+  }, [farmsData]);
+
+  const farmsOptions = useMemo(() => {
+    return [{ id: 'all', name: 'Todas as fazendas' }, ...listedFarms];
+  }, [listedFarms]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, farmId, startDate, endDate, orderBy, orderType, pageSize]);
+
+  const activeFilters = useMemo(() => {
+    return [
+      !!search && 'Busca',
+      !!farmId && 'Fazenda',
+      !!startDate && 'Data inicial',
+      !!endDate && 'Data final',
+      orderBy !== ServiceOrderBy.PLANNED_DATE && 'OrdenaÃ§Ã£o',
+      orderType !== ServiceOrderType.DESC && 'Ordem',
+      pageSize !== '5' && 'Limite',
+    ].filter(Boolean) as string[];
+  }, [search, farmId, startDate, endDate, orderBy, orderType, pageSize]);
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setFarmId(undefined);
+    setFarmSearchTerm('');
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setOrderBy(ServiceOrderBy.PLANNED_DATE);
+    setOrderType(ServiceOrderType.DESC);
+    setPageSize('5');
+    setCurrentPage(1);
+  };
 
   const {
     data,
@@ -25,6 +136,13 @@ export default function ServiceOrders() {
     error,
     refetch,
   } = useGetAllMyOpenServiceOrders({
+    search: search || undefined,
+    status: 'open',
+    farmId,
+    startDate,
+    endDate,
+    orderBy,
+    orderType,
     includeFarms: 'true',
     includeCustomers: 'true',
     includePlots: 'false',
@@ -32,13 +150,10 @@ export default function ServiceOrders() {
     includeContracts: 'false',
     includeGeoJson: 'false',
     page: currentPage.toString(),
-    limit: '5',
+    limit: pageSize,
   });
 
-  const serviceOrderOrderedByPlannedDate: ServiceOrder[] =
-    data?.data.sort((a, b) => {
-      return new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime();
-    }) ?? [];
+  const serviceOrdersList: ServiceOrder[] = data?.data ?? [];
 
   const totalPages = data?.totalPages ?? 1;
   const totalCount = data?.totalCount ?? 0;
@@ -55,7 +170,7 @@ export default function ServiceOrders() {
   };
 
   if (error) {
-    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviço')} />;
+    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviÃ§o')} />;
   }
 
   if (isFetchingServiceOrders) {
@@ -77,29 +192,288 @@ export default function ServiceOrders() {
       }}
     >
       <FlashList
-        data={serviceOrderOrderedByPlannedDate}
+        data={serviceOrdersList}
         ListHeaderComponent={() => {
           return (
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 12,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.black }}>
-                Ordens de serviço
-              </Text>
+            <View style={{ gap: 12, marginBottom: 12 }}>
               <View
                 style={{
-                  backgroundColor: COLORS.lightblue,
-                  borderRadius: 8,
-                  padding: 4,
-                  paddingHorizontal: 8,
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                <Text style={{ fontSize: 12, color: COLORS.blue }}>{data?.totalCount} ordens</Text>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.black }}>
+                  Ordens de serviço
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: COLORS.lightblue,
+                    borderRadius: 8,
+                    padding: 4,
+                    paddingHorizontal: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: COLORS.blue }}>
+                    {data?.totalCount} ordens
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  backgroundColor: COLORS.white,
+                  borderRadius: 12,
+                  padding: 12,
+                  borderColor: COLORS.lightblue,
+                  borderWidth: 1,
+                  gap: 12,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.black }}>
+                  Filtros
+                </Text>
+                <Text style={{ fontSize: 12, color: COLORS.gray }}>
+                  Escopo de piloto: somente ordens abertas.
+                </Text>
+                {activeFilters.length > 0 && (
+                  <Text style={{ fontSize: 12, color: COLORS.blue }}>
+                    {activeFilters.length} filtro(s) ativo(s): {activeFilters.join(', ')}
+                  </Text>
+                )}
+
+                <View>
+                  <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Busca</Text>
+                  <TextInputSearch
+                    placeholder='Buscar número, cliente ou fazenda...'
+                    style={{
+                      backgroundColor: COLORS.white,
+                      height: 50,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: COLORS.gray,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 15,
+                    }}
+                    onChangeText={setSearch}
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                      Data inicial
+                    </Text>
+                    {isAndroid ? (
+                      <>
+                        <TouchableOpacity
+                          onPress={() => setShowStartPicker(true)}
+                          style={{
+                            backgroundColor: COLORS.white,
+                            padding: 12,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: COLORS.gray,
+                          }}
+                        >
+                          <Text style={{ color: COLORS.black }}>
+                            {startDate ? formatDateToDDMMYYYY(startDate) : 'Selecione...'}
+                          </Text>
+                        </TouchableOpacity>
+                        {showStartPicker && (
+                          <DateTimePicker
+                            value={parseCivilDate(startDate)}
+                            mode='date'
+                            display='default'
+                            onChange={(_: any, selectedDate?: Date) => {
+                              setShowStartPicker(false);
+                              if (selectedDate) {
+                                const selectedCivilDate = toCivilDateParam(selectedDate);
+                                setStartDate(selectedCivilDate);
+                                if (endDate && selectedCivilDate > endDate) {
+                                  setEndDate(undefined);
+                                }
+                              }
+                            }}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <DatePickeriOSModal
+                        value={parseCivilDate(startDate)}
+                        onDateChange={(date) => {
+                          const selectedCivilDate = toCivilDateParam(date);
+                          setStartDate(selectedCivilDate);
+                          if (endDate && selectedCivilDate > endDate) {
+                            setEndDate(undefined);
+                          }
+                        }}
+                        minimumDate={undefined}
+                        maximumDate={new Date()}
+                        disabled={false}
+                      />
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                      Data final
+                    </Text>
+                    {isAndroid ? (
+                      <>
+                        <TouchableOpacity
+                          onPress={() => setShowEndPicker(true)}
+                          style={{
+                            backgroundColor: COLORS.white,
+                            padding: 12,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: COLORS.gray,
+                          }}
+                        >
+                          <Text style={{ color: COLORS.black }}>
+                            {endDate ? formatDateToDDMMYYYY(endDate) : 'Selecione...'}
+                          </Text>
+                        </TouchableOpacity>
+                        {showEndPicker && (
+                          <DateTimePicker
+                            value={parseCivilDate(endDate)}
+                            mode='date'
+                            display='default'
+                            minimumDate={startDate ? parseCivilDate(startDate) : undefined}
+                            onChange={(_: any, selectedDate?: Date) => {
+                              setShowEndPicker(false);
+                              if (selectedDate) {
+                                setEndDate(toCivilDateParam(selectedDate));
+                              }
+                            }}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <DatePickeriOSModal
+                        value={parseCivilDate(endDate)}
+                        onDateChange={(date) => setEndDate(toCivilDateParam(date))}
+                        minimumDate={startDate ? parseCivilDate(startDate) : undefined}
+                        maximumDate={new Date()}
+                        disabled={false}
+                      />
+                    )}
+                  </View>
+                </View>
+
+                <View>
+                  <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Fazenda</Text>
+                  <SearchableSelectQuery
+                    value={farmId || 'all'}
+                    listedData={farmsOptions}
+                    onSearchChange={setFarmSearchTerm}
+                    onItemSelect={(value: string | undefined) => {
+                      if (!value || value === 'all') {
+                        setFarmId(undefined);
+                        return;
+                      }
+                      setFarmId(value);
+                    }}
+                    itemKey='name'
+                    hasNextPage={hasNextPageFarms}
+                    fetchNextPage={fetchNextPageFarms}
+                    isFetchingNextPage={isFetchingNextPageFarms}
+                    isFetching={isFetchingFarms}
+                    disabled={false}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setShowAdvancedFilters((prev) => !prev)}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderColor: COLORS.lightgray,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 10,
+                    backgroundColor: COLORS.background,
+                  }}
+                >
+                  <Text style={{ color: COLORS.black, fontWeight: 'bold' }}>Filtros avançados</Text>
+                  <Feather
+                    name={showAdvancedFilters ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={COLORS.gray}
+                  />
+                </TouchableOpacity>
+
+                {showAdvancedFilters && (
+                  <View style={{ gap: 10 }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                          Ordenar por
+                        </Text>
+                        <SearchableSelectQuery
+                          value={orderBy}
+                          listedData={orderByOptions}
+                          onItemSelect={(value: string | undefined) =>
+                            setOrderBy((value as ServiceOrderBy) || ServiceOrderBy.PLANNED_DATE)
+                          }
+                          itemKey='label'
+                          disabled={false}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                          Ordem
+                        </Text>
+                        <SearchableSelectQuery
+                          value={orderType}
+                          listedData={orderTypeOptions}
+                          onItemSelect={(value: string | undefined) =>
+                            setOrderType((value as ServiceOrderType) || ServiceOrderType.DESC)
+                          }
+                          itemKey='label'
+                          disabled={false}
+                        />
+                      </View>
+                    </View>
+
+                    <View>
+                      <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                        Itens por página
+                      </Text>
+                      <SearchableSelectQuery
+                        value={pageSize}
+                        listedData={limitOptions}
+                        onItemSelect={(value: string | undefined) => setPageSize(value || '5')}
+                        itemKey='label'
+                        disabled={false}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                  <TouchableOpacity
+                    onPress={handleClearFilters}
+                    style={{
+                      flexDirection: 'row',
+                      gap: 6,
+                      alignItems: 'center',
+                      borderColor: COLORS.blue,
+                      borderWidth: 1,
+                      borderRadius: 8,
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      backgroundColor: COLORS.white,
+                    }}
+                  >
+                    <Feather name='x-circle' size={14} color={COLORS.blue} />
+                    <Text style={{ color: COLORS.blue, fontWeight: 'bold' }}>Limpar filtros</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           );
@@ -146,7 +520,7 @@ export default function ServiceOrders() {
                       marginRight: 10,
                     }}
                   >
-                    #{number} - Ordem de serviço
+                    #{number} - Ordem de serviÃ§o
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -330,8 +704,8 @@ export default function ServiceOrders() {
         onRefresh={handleRefresh}
         ListEmptyComponent={
           <ServiceOrdersEmptyState
-            title='Nenhuma ordem de serviço encontrada'
-            description='Contate o administrador para solicitar uma ordem de serviço.'
+            title='Nenhuma ordem de serviÃ§o encontrada'
+            description='Contate o administrador para solicitar uma ordem de serviÃ§o.'
             iconName='clipboard-list-outline'
             primaryActionLabel='Atualizar'
             onPrimaryAction={handleRefresh}
@@ -355,7 +729,7 @@ export default function ServiceOrders() {
               {/* Pagination Info */}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, color: COLORS.gray }}>
-                  Página {currentPage} de {totalPages} • {totalCount} ordens
+                  PÃ¡gina {currentPage} de {totalPages} â€¢ {totalCount} ordens
                 </Text>
               </View>
 
@@ -451,7 +825,7 @@ const SkeletonError = ({ error }: { error: Error }) => {
         paddingHorizontal: 20,
       }}
     >
-      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviço</Text>
+      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviÃ§o</Text>
       <Text style={{ color: COLORS.red }}>{error.message}</Text>
     </View>
   );

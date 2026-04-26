@@ -25,6 +25,7 @@ export type ServiceOrder = {
 };
 
 export enum ServiceOrderBy {
+  NAME = 'name',
   NUMBER = 'number',
   CUSTOMER = 'customer',
   PLANNED_DATE = 'planned_date',
