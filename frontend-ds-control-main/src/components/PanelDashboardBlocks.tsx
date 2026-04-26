@@ -1,7 +1,7 @@
 'use client';
 
 import { InfiniteData, useQueries } from '@tanstack/react-query';
-import { format, isValid, startOfMonth, subDays } from 'date-fns';
+import { format, isValid, startOfMonth } from 'date-fns';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
@@ -57,7 +57,7 @@ interface PanelDashboardBlocksProps {
   endDate?: string;
   yesterday: string;
 }
-type RangeMode = 'total' | 'month' | 'day';
+type RangeMode = 'month' | 'day';
 type ComparableDateRange = { startDate?: string; endDate?: string } | undefined;
 type PilotLaunchStatus = 'launched' | 'pending';
 type PilotLaunchRow = {
@@ -286,55 +286,26 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   };
 }
 
-function getRangeByMode(
-  mode: RangeMode,
-  baseEndDate: string,
-  totalStartDate?: string,
-  totalEndDate?: string
-) {
-  if (!totalStartDate || !totalEndDate) {
-    if (mode === 'total') {
-      return undefined;
-    }
-
-    const end = parseDateParam(baseEndDate) ?? new Date();
-    const normalizedEnd = format(end, 'yyyy-MM-dd');
-
-    if (mode === 'month') {
-      return {
-        startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
-        endDate: normalizedEnd,
-      };
-    }
-
-    return {
-      startDate: normalizedEnd,
-      endDate: normalizedEnd,
-    };
-  }
-
-  if (mode === 'total') {
-    return { startDate: totalStartDate, endDate: totalEndDate };
-  }
+function getRangeByMode(mode: RangeMode, filteredStartDate: string, filteredEndDate: string) {
   if (mode === 'month') {
-    const end = parseDateParam(baseEndDate);
+    const end = parseDateParam(filteredEndDate);
     if (!end) {
-      return { startDate: totalStartDate, endDate: totalEndDate };
+      return { startDate: filteredStartDate, endDate: filteredEndDate };
     }
     return {
       startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
-      endDate: totalEndDate,
+      endDate: filteredEndDate,
     };
   }
-  if (totalStartDate === totalEndDate) {
+  if (filteredStartDate === filteredEndDate) {
     return {
-      startDate: totalEndDate,
-      endDate: totalEndDate,
+      startDate: filteredEndDate,
+      endDate: filteredEndDate,
     };
   }
   return {
-    startDate: totalStartDate,
-    endDate: totalEndDate,
+    startDate: filteredEndDate,
+    endDate: filteredEndDate,
   };
 }
 
@@ -397,8 +368,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   );
   const [datePickerResetKey, setDatePickerResetKey] = useState(0);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
-  const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
-  const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
+  const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
+  const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('month');
   const isDarkTheme = resolvedTheme === 'dark';
   const chartTextColor = isDarkTheme ? DARK_CHART_TEXT_COLOR : LIGHT_CHART_TEXT_COLOR;
   const chartAxisColor = isDarkTheme ? DARK_CHART_AXIS_COLOR : LIGHT_CHART_AXIS_COLOR;
@@ -440,15 +411,28 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const todayDate = format(new Date(), 'yyyy-MM-dd');
   const effectiveStartDate = dateRange?.startDate;
   const effectiveEndDate = dateRange?.endDate;
-  const fallbackEndDate = effectiveEndDate ?? todayDate;
+  const hasDateFilter = Boolean(effectiveStartDate && effectiveEndDate);
+  const hasAnyPanelFilter = Boolean(
+    search.trim() ||
+      hasDateFilter ||
+      selectedCustomerId ||
+      selectedFarmId ||
+      selectedPilotId ||
+      selectedProductId ||
+      selectedAssistantId ||
+      selectedDroneId ||
+      selectedServiceOrderStatus ||
+      selectedApplicationIssue
+  );
+  const shouldApplyChartDateFilter = hasAnyPanelFilter && hasDateFilter;
   const pilotChartRange =
-    pilotPeriodMode === 'total'
-      ? undefined
-      : getRangeByMode(pilotPeriodMode, fallbackEndDate, effectiveStartDate, effectiveEndDate);
+    shouldApplyChartDateFilter && effectiveStartDate && effectiveEndDate
+      ? getRangeByMode(pilotPeriodMode, effectiveStartDate, effectiveEndDate)
+      : undefined;
   const customerChartRange =
-    customerPeriodMode === 'total'
-      ? undefined
-      : getRangeByMode(customerPeriodMode, fallbackEndDate, effectiveStartDate, effectiveEndDate);
+    shouldApplyChartDateFilter && effectiveStartDate && effectiveEndDate
+      ? getRangeByMode(customerPeriodMode, effectiveStartDate, effectiveEndDate)
+      : undefined;
   const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const kpiBaseFilters = {
     search: search || undefined,
@@ -479,11 +463,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     search: search || undefined,
     currentSeason: true,
   });
-  const seasonStartDate = useMemo(() => {
-    const daysSinceStart = dashboardMetrics?.metrics?.daysSinceStart;
-    if (!daysSinceStart || daysSinceStart < 1) return undefined;
-    return format(subDays(new Date(), daysSinceStart - 1), 'yyyy-MM-dd');
-  }, [dashboardMetrics?.metrics?.daysSinceStart]);
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
     customerId: selectedCustomerId,
@@ -491,7 +470,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     pilotId: selectedPilotId,
     productId: selectedProductId,
     serviceOrderStatus: selectedServiceOrderStatus,
-    currentSeason: pilotPeriodMode === 'total' ? true : undefined,
     startDate: pilotChartRange?.startDate,
     endDate: pilotChartRange?.endDate,
     limit: 10,
@@ -562,9 +540,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     orderBy: ApplicationOrderBy.DATE,
     orderType: ApplicationOrderType.DESC,
   });
-  const assistantChartStartDate =
-    pilotPeriodMode === 'total' ? seasonStartDate : pilotChartRange?.startDate;
-  const assistantChartEndDate = pilotPeriodMode === 'total' ? todayDate : pilotChartRange?.endDate;
   const {
     data: assistantChartApplicationsData,
     isPending: isLoadingAssistantChartApplications,
@@ -581,16 +556,15 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       assistantId: selectedAssistantId,
       droneId: selectedDroneId,
       applicationIssue: selectedApplicationIssue,
-      ...(assistantChartStartDate && assistantChartEndDate
+      ...(pilotChartRange?.startDate && pilotChartRange?.endDate
         ? {
-            startDate: assistantChartStartDate,
-            endDate: assistantChartEndDate,
+            startDate: pilotChartRange.startDate,
+            endDate: pilotChartRange.endDate,
           }
         : {}),
     },
     {
-      enabled:
-        pilotEntityMode === 'assistants' && (pilotPeriodMode !== 'total' || Boolean(seasonStartDate)),
+      enabled: pilotEntityMode === 'assistants',
     }
   );
 
@@ -651,12 +625,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           pilotId: selectedPilotId,
           productId: selectedProductId,
           serviceOrderStatus: selectedServiceOrderStatus,
-          ...(customerPeriodMode === 'total'
-            ? { currentSeason: true }
-            : {
-                startDate: customerChartRange?.startDate,
-                endDate: customerChartRange?.endDate,
-              }),
+          ...(customerChartRange?.startDate && customerChartRange?.endDate
+            ? {
+                startDate: customerChartRange.startDate,
+                endDate: customerChartRange.endDate,
+              }
+            : {}),
         };
         return ApplicationService.getStatsApplications(statsParams);
       },
@@ -1024,17 +998,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
     [syncFilterParamInUrl]
   );
-  const togglePilotMonthMode = useCallback(() => {
-    setPilotPeriodMode((prev) => (prev === 'month' ? 'total' : 'month'));
+  const selectPilotMonthMode = useCallback(() => {
+    setPilotPeriodMode('month');
   }, []);
-  const togglePilotDayMode = useCallback(() => {
-    setPilotPeriodMode((prev) => (prev === 'day' ? 'total' : 'day'));
+  const selectPilotDayMode = useCallback(() => {
+    setPilotPeriodMode('day');
   }, []);
-  const toggleCustomerMonthMode = useCallback(() => {
-    setCustomerPeriodMode((prev) => (prev === 'month' ? 'total' : 'month'));
+  const selectCustomerMonthMode = useCallback(() => {
+    setCustomerPeriodMode('month');
   }, []);
-  const toggleCustomerDayMode = useCallback(() => {
-    setCustomerPeriodMode((prev) => (prev === 'day' ? 'total' : 'day'));
+  const selectCustomerDayMode = useCallback(() => {
+    setCustomerPeriodMode('day');
   }, []);
 
   const launches = pilotLaunchesData?.data || [];
@@ -1107,10 +1081,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
   const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
   const isLoadingPilotChart =
-    pilotEntityMode === 'assistants'
-      ? isLoadingAssistantChartApplications ||
-        (pilotPeriodMode === 'total' && !seasonStartDate && isLoadingDashboardMetrics)
-      : isLoadingByPilotStats;
+    pilotEntityMode === 'assistants' ? isLoadingAssistantChartApplications : isLoadingByPilotStats;
   const launchedPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'launched').length;
   const pendingPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'pending').length;
   const isLoadingAnyOrderStats =
@@ -1338,27 +1309,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
-                    className={
-                      pilotPeriodMode === 'total'
-                        ? 'bg-blue-600 text-white hover:bg-blue-600/90 cursor-default pointer-events-none'
-                        : `${PANEL_TOGGLE_INACTIVE_CLASS} cursor-default pointer-events-none`
-                    }
-                  aria-disabled='true'
-                  tabIndex={-1}
-                >
-                  Total Geral
-                </Button>
-                <Button
-                  type='button'
-                  size='sm'
                     variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
                     className={
                       pilotPeriodMode === 'month'
                         ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
                         : PANEL_TOGGLE_INACTIVE_CLASS
                     }
-                  onClick={togglePilotMonthMode}
+                  onClick={selectPilotMonthMode}
                 >
                   Mês
                 </Button>
@@ -1371,7 +1328,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
                         : PANEL_TOGGLE_INACTIVE_CLASS
                     }
-                  onClick={togglePilotDayMode}
+                  onClick={selectPilotDayMode}
                 >
                   Dia
                 </Button>
@@ -1450,27 +1407,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               <Button
                 type='button'
                 size='sm'
-                variant={customerPeriodMode === 'total' ? 'default' : 'ghost'}
-                className={
-                  customerPeriodMode === 'total'
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-600/90 cursor-default pointer-events-none'
-                    : `${PANEL_TOGGLE_INACTIVE_CLASS} cursor-default pointer-events-none`
-                }
-                aria-disabled='true'
-                tabIndex={-1}
-              >
-                Total Geral
-              </Button>
-              <Button
-                type='button'
-                size='sm'
                 variant={customerPeriodMode === 'month' ? 'default' : 'ghost'}
                 className={
                   customerPeriodMode === 'month'
                     ? 'bg-teal-600 text-white hover:bg-teal-600/90'
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
-                onClick={toggleCustomerMonthMode}
+                onClick={selectCustomerMonthMode}
               >
                 Mês
               </Button>
@@ -1483,7 +1426,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     ? 'bg-orange-600 text-white hover:bg-orange-600/90'
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
-                onClick={toggleCustomerDayMode}
+                onClick={selectCustomerDayMode}
               >
                 Dia
               </Button>
