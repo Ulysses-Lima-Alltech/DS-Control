@@ -80,6 +80,8 @@ const limitOptions: { id: string; label: string }[] = [
 export default function ServiceOrders() {
   const router = useRouter();
   const { user } = useAuth();
+  const routeGroup = user?.type === 'backoffice' ? 'backoffice' : 'farmer';
+  const customerIdFilter = user?.type === 'farmer' ? user?.customerId : undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -103,14 +105,14 @@ export default function ServiceOrders() {
     isFetchingNextPage: isFetchingNextPageFarms,
     fetchNextPage: fetchNextPageFarms,
     isFetching: isFetchingFarms,
-  } = useGetAllFarmsInfinite(user?.customerId, {
+  } = useGetAllFarmsInfinite(customerIdFilter, {
     limit: '10',
     search: farmSearchTerm || undefined,
   });
 
   const { data: pilotSourceData, isFetching: isFetchingPilots } = useGetAllServiceOrders(
     {
-      customerId: user?.customerId,
+      customerId: customerIdFilter,
       includePilots: 'true',
       includeCustomers: 'false',
       includePlots: 'false',
@@ -120,7 +122,7 @@ export default function ServiceOrders() {
       page: '1',
       limit: '100',
     },
-    { enabled: !!user?.customerId }
+    { enabled: user?.type !== 'pilot' }
   );
 
   const listedFarms: Farm[] = useMemo(() => {
@@ -199,7 +201,7 @@ export default function ServiceOrders() {
     status: statusFilter,
     farmId,
     pilotId,
-    customerId: user?.customerId,
+    customerId: customerIdFilter,
     startDate,
     endDate,
     includeFarms: 'true',
@@ -597,7 +599,10 @@ export default function ServiceOrders() {
                 elevation: 5,
               }}
               onPress={() => {
-                router.push(`/farmer/service-orders/${id}`);
+                router.push({
+                  pathname: `/${routeGroup}/service-orders/[serviceOrderId]` as any,
+                  params: { serviceOrderId: id },
+                });
               }}
             >
               <View
@@ -631,7 +636,10 @@ export default function ServiceOrders() {
                     paddingVertical: 4,
                   }}
                   onPress={() => {
-                    router.push(`/farmer/service-orders/${id}`);
+                    router.push({
+                      pathname: `/${routeGroup}/service-orders/[serviceOrderId]` as any,
+                      params: { serviceOrderId: id },
+                    });
                   }}
                 >
                   <MaterialCommunityIcons name='dots-vertical' size={24} color={COLORS.gray} />

@@ -66,6 +66,9 @@ export default function ScreenLayoutAdminAndFarmers() {
             tabBarIcon: ({ color, size }) => <Ionicons name='person' size={size} color={color} />,
           }}
         />
+        <Tabs.Screen name='applications' options={{ href: null }} />
+        <Tabs.Screen name='service-orders' options={{ href: null }} />
+        <Tabs.Screen name='routes' options={{ href: null }} />
       </Tabs>
 
       {user?.type === 'backoffice' && (
