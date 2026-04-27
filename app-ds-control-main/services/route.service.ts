@@ -40,6 +40,14 @@ export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllR
   const baseUrl = `/routes`;
   const url = `${baseUrl}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 
+  if (__DEV__) {
+    console.warn('[Route Service][DEV] getAllRoutes request', {
+      apiBaseUrl: process.env.EXPO_PUBLIC_DS_CONTROL_API_URL,
+      endpoint: baseUrl,
+      params: Object.fromEntries(searchParams.entries()),
+    });
+  }
+
   const response = await api(url, {
     method: 'GET',
   });

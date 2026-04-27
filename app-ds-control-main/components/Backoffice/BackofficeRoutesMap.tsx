@@ -483,23 +483,18 @@ export default function BackofficeRoutesMap() {
     isError: isRoutesError,
     error: routesError,
     refetch: refetchRoutes,
-  } = useGetAllRoutes(
-    {
-      customerId: selectedCustomerId,
-      farmId: selectedFarmId,
-      page: currentPage.toString(),
-      limit,
-      search: debouncedRouteSearch || undefined,
-      includeFarm: 'true',
-      includeCustomer: 'true',
-      includeGeoJson: 'true',
-      orderBy,
-      orderType,
-    },
-    {
-      enabled: !!selectedFarmId,
-    }
-  );
+  } = useGetAllRoutes({
+    customerId: selectedCustomerId,
+    farmId: selectedFarmId,
+    page: currentPage.toString(),
+    limit,
+    search: debouncedRouteSearch || undefined,
+    includeFarm: 'true',
+    includeCustomer: 'true',
+    includeGeoJson: 'true',
+    orderBy,
+    orderType,
+  });
 
   const listedCustomers: Customer[] = useMemo(() => {
     return (
@@ -548,11 +543,6 @@ export default function BackofficeRoutesMap() {
   const totalCount = routesData?.totalCount ?? routeRecords.length;
 
   useEffect(() => {
-    if (!selectedFarmId) {
-      setSelectedRouteId(null);
-      return;
-    }
-
     if (routeRecords.length === 0) {
       setSelectedRouteId(null);
       return;
@@ -568,7 +558,7 @@ export default function BackofficeRoutesMap() {
 
       return routeRecords[0].id;
     });
-  }, [routeRecords, selectedFarmId]);
+  }, [routeRecords]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -788,7 +778,36 @@ export default function BackofficeRoutesMap() {
     selectedRoute?.customer?.name || selectedFarm?.customer?.name || 'Cliente nao informado';
   const selectedRouteFarmName = selectedRoute?.farm?.name || selectedFarm?.name || 'Fazenda N/A';
 
-  const showMapViewer = Boolean(selectedFarmId) && !isSelectedFarmError && hasMapboxToken;
+  const shouldShowMapViewer =
+    hasMapboxToken && !isSelectedFarmError && (Boolean(selectedFarmId) || Boolean(selectedRoute));
+
+  useEffect(() => {
+    if (!__DEV__) return;
+
+    console.warn('[Backoffice Routes][DEV] route query', {
+      apiBaseUrl: process.env.EXPO_PUBLIC_DS_CONTROL_API_URL,
+      params: {
+        customerId: selectedCustomerId,
+        farmId: selectedFarmId,
+        page: currentPage.toString(),
+        limit,
+        search: debouncedRouteSearch || undefined,
+        includeFarm: 'true',
+        includeCustomer: 'true',
+        includeGeoJson: 'true',
+        orderBy,
+        orderType,
+      },
+    });
+  }, [
+    currentPage,
+    debouncedRouteSearch,
+    limit,
+    orderBy,
+    orderType,
+    selectedCustomerId,
+    selectedFarmId,
+  ]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -941,15 +960,7 @@ export default function BackofficeRoutesMap() {
             )}
           </View>
 
-          {!selectedFarmId ? (
-            <View style={[styles.emptyStateCard, { height: mapHeight }]}>
-              <MaterialCommunityIcons name='map-search-outline' size={34} color={COLORS.gray} />
-              <Text style={styles.emptyStateTitle}>Selecione uma fazenda</Text>
-              <Text style={styles.emptyStateDescription}>
-                As rotas sao carregadas somente apos escolher uma fazenda no filtro acima.
-              </Text>
-            </View>
-          ) : isSelectedFarmError ? (
+          {selectedFarmId && isSelectedFarmError ? (
             <View style={[styles.errorStateCard, { height: mapHeight }]}>
               <Text style={styles.errorStateTitle}>Erro ao carregar dados da fazenda</Text>
               <Text style={styles.errorStateMessage}>
@@ -968,31 +979,45 @@ export default function BackofficeRoutesMap() {
                 mobile.
               </Text>
             </View>
-          ) : (
+          ) : shouldShowMapViewer ? (
             <View style={{ height: mapHeight, borderRadius: 10, overflow: 'hidden' }}>
-              {showMapViewer && (
-                <MapViewer
-                  isFetching={
-                    isFetchingSelectedFarm || isFetchingRoutes || isFetchingNavigationRoute
-                  }
-                  selectedFarmId={selectedFarmId || null}
-                  plots={selectedFarmPlots}
-                  routes={routesForMap}
-                  navigationRoute={navigationRoute}
-                  showMapTools={Boolean(selectedFarmId)}
-                  showRoute={routesForMap.length > 0}
-                  showNavigationRoute={Boolean(navigationRoute)}
-                  isNavigationMode={isNavigationMode}
-                />
-              )}
+              <MapViewer
+                isFetching={isFetchingSelectedFarm || isFetchingRoutes || isFetchingNavigationRoute}
+                selectedFarmId={selectedFarmId || null}
+                plots={selectedFarmPlots}
+                routes={routesForMap}
+                navigationRoute={navigationRoute}
+                showMapTools={Boolean(selectedFarmId)}
+                showRoute={routesForMap.length > 0}
+                showNavigationRoute={Boolean(navigationRoute)}
+                isNavigationMode={isNavigationMode}
+              />
               <MapNavigationButton
                 isNavigationMode={isNavigationMode}
                 onToggleNavigationMode={() => setIsNavigationMode((previous) => !previous)}
-                disabled={!selectedFarmId}
+                disabled={!destinationCoordinate}
                 showGoNow={Boolean(destinationCoordinate)}
                 goNowDisabled={!destinationCoordinate}
                 onGoNow={handleOpenExternalNavigation}
               />
+            </View>
+          ) : (
+            <View style={[styles.emptyStateCard, { height: mapHeight }]}>
+              <MaterialCommunityIcons name='map-search-outline' size={34} color={COLORS.gray} />
+              <Text style={styles.emptyStateTitle}>Nenhuma rota para exibir no mapa</Text>
+              <Text style={styles.emptyStateDescription}>
+                Selecione uma rota na listagem abaixo. A fazenda e opcional e melhora o foco de
+                talhoes no mapa.
+              </Text>
+            </View>
+          )}
+
+          {!selectedFarmId && (
+            <View style={styles.optionalFarmHint}>
+              <Ionicons name='information-circle-outline' size={16} color={COLORS.blue} />
+              <Text style={styles.optionalFarmHintText}>
+                Filtro de fazenda opcional: use para melhorar o foco do mapa e mostrar talhoes.
+              </Text>
             </View>
           )}
 
@@ -1051,19 +1076,16 @@ export default function BackofficeRoutesMap() {
 
       <View style={styles.routesListCard}>
         <View style={styles.routesListHeader}>
-          <Text style={styles.routesListTitle}>Rotas da fazenda selecionada</Text>
+          <Text style={styles.routesListTitle}>Rotas backoffice</Text>
           <Text style={styles.routesListCount}>{totalCount.toLocaleString('pt-BR')} rotas</Text>
         </View>
+        <Text style={styles.routesListSubtitle}>
+          {selectedFarmId
+            ? 'Lista filtrada pela fazenda selecionada.'
+            : 'Lista geral de rotas. Selecione uma fazenda para filtrar.'}
+        </Text>
 
-        {!selectedFarmId ? (
-          <View style={styles.emptyStateCard}>
-            <Ionicons name='navigate-outline' size={28} color={COLORS.gray} />
-            <Text style={styles.emptyStateTitle}>Nenhuma fazenda selecionada</Text>
-            <Text style={styles.emptyStateDescription}>
-              Selecione uma fazenda para listar as rotas disponiveis.
-            </Text>
-          </View>
-        ) : isLoadingRoutes ? (
+        {isLoadingRoutes ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size='large' color={COLORS.blue} />
             <Text style={styles.loadingStateText}>Carregando rotas...</Text>
@@ -1461,6 +1483,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  optionalFarmHint: {
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  optionalFarmHintText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    flex: 1,
+  },
   detailsEmptyState: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
@@ -1521,6 +1559,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     flex: 1,
+  },
+  routesListSubtitle: {
+    color: COLORS.gray,
+    fontSize: 12,
+    marginTop: -2,
   },
   routesListCount: {
     color: COLORS.blue,
