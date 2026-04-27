@@ -1,5 +1,5 @@
-import ScreenMapViewerWithSearch from '@/components/Screen/ScreenMapViewerWithSearch';
+import BackofficeRoutesMap from '@/components/Backoffice/BackofficeRoutesMap';
 
 export default function BackofficeRoutesScreen() {
-  return <ScreenMapViewerWithSearch />;
+  return <BackofficeRoutesMap />;
 }
