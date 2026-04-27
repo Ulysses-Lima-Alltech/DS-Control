@@ -17,6 +17,7 @@ import { ServiceOrderStatus } from '@/types/service-order.type';
 import { api } from './api.service';
 
 export type GetAllApplicationsParams = {
+  search?: string;
   pilotId?: string;
   assistantId?: string;
   productId?: string;
@@ -65,6 +66,7 @@ export async function getAllApplications(
   };
 
   const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
   if (params?.productId) searchParams.append('productId', params.productId);
@@ -376,6 +378,254 @@ export async function getApplicationsByPlotId(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(`[Application Service] Erro ao buscar aplicações do plot: ${error.message}`);
+  }
+
+  return await response.json();
+}
+
+export type ApplicationStats = {
+  applicationCount: number;
+  applicationCountByMonth: number;
+  totalAreaHectares: number;
+  averageApplicationArea: number;
+  pilotsCount: number;
+  dronesCount: number;
+  culturesCount: number;
+  averageApplicationByPilot: number;
+  averageApplicationByDrone: number;
+  averageAreaCoveredApplication: number;
+  invalidApplication: number;
+  totalHectaresByMonth: number;
+  totalHectaresPerDay: number;
+  totalHectaresByMonthPerDay: number;
+  pendingApplicationsCount: number;
+  pendingApplicationsTotalArea: number;
+  pendingFarmsCount: number;
+  pendingPlotsCount: number;
+  pendingApplicationsMissingFarmCount: number;
+  pendingApplicationsOtherThanInvalidOpenCount: number;
+  operationalAverageHectaresPerDay: number;
+  operationalAverageHectaresPerDrone: number;
+  operationalAverageHectaresPerPilot: number;
+};
+
+export type GetStatsApplicationsParams = {
+  search?: string;
+  serviceOrderStatus?: ServiceOrderStatus;
+  farmId?: string;
+  pilotId?: string;
+  assistantId?: string;
+  droneId?: string;
+  productId?: string;
+  customerId?: string;
+  serviceOrderId?: string;
+  invalidApplication?: boolean;
+  applicationIssue?: ApplicationIssueFilter;
+  currentSeason?: boolean;
+  startDate?: string;
+  endDate?: string;
+  ignoreFilters?: boolean;
+};
+
+export type GetStatsApplicationsResponse = {
+  message: string;
+  stats: ApplicationStats;
+};
+
+export type ByPilotStat = {
+  pilotId: string | null;
+  pilotName: string;
+  applicationsCount: number;
+  totalAreaHectares: number;
+  averageAreaPerApplication: number;
+};
+
+export type GetByPilotApplicationsParams = GetStatsApplicationsParams & {
+  limit?: number;
+};
+
+export type GetByPilotApplicationsResponse = {
+  message: string;
+  byPilot: ByPilotStat[];
+};
+
+export type GetDashboardMetricsParams = {
+  contractIds?: string[];
+  customerIds?: string[];
+  farmIds?: string[];
+  pilotId?: string;
+  search?: string;
+  currentSeason?: boolean;
+  startDate: string;
+};
+
+export type YesterdayStats = {
+  totalArea: number;
+  dronesCount: number;
+  areaPerDrone: number;
+};
+
+export type MonthlySprayedArea = {
+  month: string;
+  yearMonth: string;
+  hectares: number;
+};
+
+export type DashboardMetrics = {
+  totalAreaHectares: number;
+  daysSinceStart: number;
+  averageDailyArea: number;
+  yesterdayStats: YesterdayStats;
+  monthlySprayedArea: MonthlySprayedArea[];
+};
+
+export type GetDashboardMetricsResponse = {
+  message: string;
+  metrics: DashboardMetrics;
+};
+
+const statsDateParamRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+const toStatsCivilYYYYMMDD = (value: string) => {
+  if (!value) return '';
+  if (statsDateParamRegex.test(value)) return value;
+  if (value.includes('T')) return value.split('T')[0];
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export async function getStatsApplications(
+  params?: GetStatsApplicationsParams
+): Promise<GetStatsApplicationsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
+  if (params?.droneId) searchParams.append('droneId', params.droneId);
+  if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
+  if (params?.invalidApplication !== undefined)
+    searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
+  if (params?.currentSeason !== undefined)
+    searchParams.append('currentSeason', params.currentSeason.toString());
+  if (params?.startDate) {
+    const normalizedStartDate = toStatsCivilYYYYMMDD(params.startDate);
+    if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
+  }
+  if (params?.endDate) {
+    const normalizedEndDate = toStatsCivilYYYYMMDD(params.endDate);
+    if (normalizedEndDate) searchParams.append('endDate', normalizedEndDate);
+  }
+  if (params?.ignoreFilters !== undefined)
+    searchParams.append('ignoreFilters', params.ignoreFilters.toString());
+
+  const url = `/applications/stats${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(
+      `[Application Service] Erro ao buscar estatisticas das aplicacoes: ${error.message}`
+    );
+  }
+
+  return await response.json();
+}
+
+export async function getByPilotApplications(
+  params?: GetByPilotApplicationsParams
+): Promise<GetByPilotApplicationsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.serviceOrderStatus)
+    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
+  if (params?.invalidApplication !== undefined)
+    searchParams.append('invalidApplication', params.invalidApplication.toString());
+  if (params?.currentSeason !== undefined)
+    searchParams.append('currentSeason', params.currentSeason.toString());
+  if (params?.startDate) {
+    const normalizedStartDate = toStatsCivilYYYYMMDD(params.startDate);
+    if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
+  }
+  if (params?.endDate) {
+    const normalizedEndDate = toStatsCivilYYYYMMDD(params.endDate);
+    if (normalizedEndDate) searchParams.append('endDate', normalizedEndDate);
+  }
+  if (params?.limit) searchParams.append('limit', params.limit.toString());
+
+  const url = `/applications/stats/by-pilot${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(
+      `[Application Service] Erro ao buscar estatisticas por piloto: ${error.message}`
+    );
+  }
+
+  return await response.json();
+}
+
+export async function getDashboardMetrics(
+  params: GetDashboardMetricsParams
+): Promise<GetDashboardMetricsResponse> {
+  const searchParams = new URLSearchParams();
+  const normalizedStartDate = toStatsCivilYYYYMMDD(params.startDate);
+
+  if (!normalizedStartDate || !statsDateParamRegex.test(normalizedStartDate)) {
+    throw new Error(
+      `[Application Service] Erro ao buscar metricas do dashboard: startDate invalida (${params.startDate})`
+    );
+  }
+
+  searchParams.append('startDate', normalizedStartDate);
+
+  if (params.contractIds && params.contractIds.length > 0) {
+    params.contractIds.forEach((id) => searchParams.append('contractIds', id));
+  }
+  if (params.customerIds && params.customerIds.length > 0) {
+    params.customerIds.forEach((id) => searchParams.append('customerIds', id));
+  }
+  if (params.farmIds && params.farmIds.length > 0) {
+    params.farmIds.forEach((id) => searchParams.append('farmIds', id));
+  }
+  if (params.pilotId) searchParams.append('pilotId', params.pilotId);
+  if (params.search) searchParams.append('search', params.search);
+  if (params.currentSeason !== undefined) {
+    searchParams.append('currentSeason', params.currentSeason.toString());
+  }
+
+  const url = `/applications/dashboard-metrics?${searchParams.toString()}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`[Application Service] Erro ao buscar metricas do dashboard: ${error.message}`);
   }
 
   return await response.json();
