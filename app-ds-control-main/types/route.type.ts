@@ -1,7 +1,14 @@
 export type Route = {
   id: string;
   name: string;
-  geoJson: Record<string, unknown>;
+  geoJson: Record<string, unknown> | null;
+  geojson?: Record<string, unknown> | null;
+  geometry?: Record<string, unknown> | null;
+  start?: unknown;
+  startPoint?: unknown;
+  startCoordinate?: unknown;
+  initialPoint?: unknown;
+  initialCoordinate?: unknown;
   farmId: string;
   customerId: string;
   createdAt: string;
@@ -34,6 +41,7 @@ export type RouteWithFarmAndCustomer = Route & {
   };
 };
 
+/* eslint-disable no-unused-vars */
 export enum RouteOrderBy {
   NAME = 'name',
   CREATEDAT = 'created_at',
@@ -45,3 +53,4 @@ export enum RouteOrderType {
   ASC = 'asc',
   DESC = 'desc',
 }
+/* eslint-enable no-unused-vars */

@@ -1,5 +1,6 @@
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
+import { normalizeRouteGeometry } from '@/utils/route-geometry';
 
 export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
   geoData: Plot[]
@@ -39,44 +40,21 @@ export function convertDatabaseRoutesToMapViewerRoutesFeatureCollection(
   };
 
   routes.forEach((route) => {
-    if (!route.geoJson) return;
+    const normalizedRoute = normalizeRouteGeometry(route);
+    const normalizedFeatures = normalizedRoute.featureCollection?.features ?? [];
 
-    const routeGeoJson = route.geoJson as any;
+    if (normalizedFeatures.length === 0) return;
 
-    // Check if the geoJson is a Feature
-    if (routeGeoJson.type === 'Feature') {
-      formattedRoutes.features.push({
-        ...routeGeoJson,
-        properties: {
-          ...routeGeoJson.properties,
-          route_id: route.id,
-          route_name: route.name,
-        },
-      });
-    }
-    // Check if the geoJson is a FeatureCollection
-    else if (routeGeoJson.type === 'FeatureCollection' && routeGeoJson.features) {
-      const featuresWithRouteId = routeGeoJson.features.map((feature: any) => ({
-        ...feature,
-        properties: {
-          ...feature.properties,
-          route_id: route.id,
-          route_name: route.name,
-        },
-      }));
-      formattedRoutes.features.push(...featuresWithRouteId);
-    }
-    // If it's a geometry object directly, wrap it in a Feature
-    else if (routeGeoJson.type && routeGeoJson.coordinates) {
-      formattedRoutes.features.push({
-        type: 'Feature',
-        properties: {
-          route_id: route.id,
-          route_name: route.name,
-        },
-        geometry: routeGeoJson,
-      });
-    }
+    const featuresWithRouteId = normalizedFeatures.map((feature) => ({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        route_id: route.id,
+        route_name: route.name,
+      },
+    }));
+
+    formattedRoutes.features.push(...featuresWithRouteId);
   });
 
   return formattedRoutes.features.length > 0 ? formattedRoutes : null;
