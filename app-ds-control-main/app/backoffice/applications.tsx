@@ -1,5 +1,5 @@
-import ScreenApplicationsListing from '@/components/Screen/ScreenApplicationsListing';
+import BackofficeApplications from '@/components/Backoffice/BackofficeApplications';
 
 export default function BackofficeApplicationsScreen() {
-  return <ScreenApplicationsListing />;
+  return <BackofficeApplications />;
 }

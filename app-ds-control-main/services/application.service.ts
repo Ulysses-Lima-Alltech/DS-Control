@@ -45,6 +45,12 @@ export type GetAllApplicationsResponse = {
   limit: number;
   totalPages: number;
   totalCount: number;
+  summary?: {
+    totalFilteredHectares: number;
+    yesterdayHectares: number;
+    standaloneCount: number;
+    standaloneHectares: number;
+  };
 };
 
 export async function getAllApplications(
