@@ -6,17 +6,18 @@ import Mapbox, {
   SymbolLayer,
   LineLayer,
 } from '@rnmapbox/maps';
+import { useRef, useEffect, useMemo } from 'react';
 import { UserTrackingMode } from '@rnmapbox/maps';
-import * as turf from '@turf/turf';
-import { usePathname } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
-
-import { MapToolsHookReturn } from '@/components/Map/MapTools';
 import {
   createFillColorExpression,
   createFillOpacityExpression,
   createStrokeColorExpression,
 } from '@/utils/map-utils';
+import * as turf from '@turf/turf';
+import { usePathname } from 'expo-router';
+
+import { MapToolsHookReturn } from '@/components/Map/MapTools';
+import { FeatureCollection } from 'geojson';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '');
 
@@ -26,16 +27,13 @@ export type MapContentProps = {
   showGeoDataRoute?: boolean;
   navigationRoute?: GeoJSON.FeatureCollection | null;
   showNavigationRoute?: boolean;
-  selectedRouteId?: string;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
   mapTools?: boolean;
   isCameraLockedOnUserLocation?: boolean;
   setIsCameraLockedOnUserLocation?: (isCameraLockedOnUserLocation: boolean) => void;
   moveCameraToGeodataBbox: number;
-  moveCameraToRouteBbox: number;
-  plotForCameraMovingToIstBbbox: GeoJSON.FeatureCollection | null;
-  routeForCameraMovingToItsBbox: GeoJSON.FeatureCollection | null;
+  plotForCameraMovingToIstBbbox: FeatureCollection | null;
   mapToolsHookReturn: MapToolsHookReturn;
   isNavigationMode?: boolean;
 };
@@ -46,16 +44,13 @@ export default function MapContent({
   showGeoDataRoute = true,
   navigationRoute,
   showNavigationRoute = true,
-  selectedRouteId,
   selectedPlotId,
   onPlotPress,
   mapTools = true,
   isCameraLockedOnUserLocation,
   setIsCameraLockedOnUserLocation,
   moveCameraToGeodataBbox,
-  moveCameraToRouteBbox,
   plotForCameraMovingToIstBbbox,
-  routeForCameraMovingToItsBbox,
   mapToolsHookReturn,
   isNavigationMode = false,
 }: MapContentProps) {
@@ -102,41 +97,6 @@ export default function MapContent({
   useEffect(() => {
     handleMoveCameraToGeodataBbox();
   }, [moveCameraToGeodataBbox]);
-
-  const routeBBox = useMemo(() => {
-    if (routeForCameraMovingToItsBbox && routeForCameraMovingToItsBbox.features.length > 0) {
-      const bbox = turf.bbox(routeForCameraMovingToItsBbox);
-      const bounds: [[number, number], [number, number]] = [
-        [bbox[0], bbox[1]],
-        [bbox[2], bbox[3]],
-      ];
-      return bounds;
-    }
-  }, [routeForCameraMovingToItsBbox]);
-
-  const handleMoveCameraToRouteBbox = () => {
-    if (!routeBBox || !cameraRef.current) {
-      return;
-    }
-
-    cameraRef.current.setCamera({
-      bounds: {
-        ne: routeBBox[1],
-        sw: routeBBox[0],
-      },
-      padding: {
-        paddingTop: 60,
-        paddingRight: 60,
-        paddingBottom: 60,
-        paddingLeft: 60,
-      },
-      animationDuration: 1500,
-    });
-  };
-
-  useEffect(() => {
-    handleMoveCameraToRouteBbox();
-  }, [moveCameraToRouteBbox]);
 
   // PLOT BBOX
   const plotBBox = useMemo(() => {
@@ -234,12 +194,7 @@ export default function MapContent({
       pitchEnabled={!isDraggingSomePoint && !isNavigationMode}
       rotateEnabled={!isDraggingSomePoint && !isNavigationMode}
       onDidFinishLoadingStyle={() => {
-        if (mapToolsHookReturn.isSomeToolActive) return;
-        if (routeForCameraMovingToItsBbox?.features?.length) {
-          handleMoveCameraToRouteBbox();
-          return;
-        }
-        if (!geoData) return;
+        if (!geoData || mapToolsHookReturn.isSomeToolActive) return;
         handleMoveCameraToGeodataBbox();
       }}
     >
@@ -327,39 +282,10 @@ export default function MapContent({
       {showGeoDataRoute && geoDataRoute && (
         <ShapeSource id='routes' shape={geoDataRoute}>
           <LineLayer
-            id='routes-line-casing'
-            filter={
-              selectedRouteId ? ['all', ['==', ['get', 'route_id'], selectedRouteId]] : undefined
-            }
-            style={{
-              lineColor: '#000000',
-              lineWidth: 7,
-              lineOpacity: 0.7,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-          <LineLayer
             id='routes-line'
-            filter={
-              selectedRouteId ? ['all', ['!=', ['get', 'route_id'], selectedRouteId]] : undefined
-            }
             style={{
               lineColor: '#FF6B6B',
               lineWidth: 3,
-              lineOpacity: 0.9,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-          <LineLayer
-            id='selected-route-line'
-            filter={
-              selectedRouteId ? ['all', ['==', ['get', 'route_id'], selectedRouteId]] : undefined
-            }
-            style={{
-              lineColor: '#EAAE07',
-              lineWidth: 5,
               lineCap: 'round',
               lineJoin: 'round',
             }}

@@ -28,7 +28,6 @@ export type MapViewerProps = {
   selectedFarmId: string | null;
   plots: Plot[];
   routes?: Route[];
-  selectedRouteId?: string;
   navigationRoute?: GeoJSON.FeatureCollection | null;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
@@ -38,7 +37,6 @@ export type MapViewerProps = {
   showNavigationRoute?: boolean;
   buttonsOffset?: ButtonsOffset;
   isNavigationMode?: boolean;
-  focusRouteOnChange?: boolean;
 };
 
 export default function MapViewer({
@@ -46,7 +44,6 @@ export default function MapViewer({
   selectedFarmId,
   plots,
   routes = [],
-  selectedRouteId,
   navigationRoute = null,
   selectedPlotId,
   onPlotPress,
@@ -56,14 +53,10 @@ export default function MapViewer({
   showNavigationRoute = false,
   buttonsOffset,
   isNavigationMode = false,
-  focusRouteOnChange = false,
 }: MapViewerProps) {
   const [isCameraLockedOnUserLocation, setIsCameraLockedOnUserLocation] = useState<boolean>(true);
   const [moveCameraToGeodataBbox, triggerMoveCameraToGeodataBbox] = useState(0);
-  const [moveCameraToRouteBbox, triggerMoveCameraToRouteBbox] = useState(0);
   const [plotForCameraMovingToIstBbbox, setMoveCameraToPlotGeojson] =
-    useState<GeoJSON.FeatureCollection | null>(null);
-  const [routeForCameraMovingToItsBbox, setRouteForCameraMovingToItsBbox] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [isPlotModalVisible, setIsPlotModalVisible] = useState(false);
   const [selectedPlotIdForModal, setSelectedPlotIdForModal] = useState<string | null>(null);
@@ -109,14 +102,6 @@ export default function MapViewer({
   }, [plots]);
 
   useEffect(() => {
-    if (!focusRouteOnChange || !geoDataRoute || geoDataRoute.features.length === 0) return;
-
-    setIsCameraLockedOnUserLocation(false);
-    setRouteForCameraMovingToItsBbox(geoDataRoute);
-    triggerMoveCameraToRouteBbox((value) => value + 1);
-  }, [focusRouteOnChange, geoDataRoute, selectedRouteId]);
-
-  useEffect(() => {
     if (isNavigationMode) {
       setIsCameraLockedOnUserLocation(true);
     }
@@ -152,15 +137,12 @@ export default function MapViewer({
         showGeoDataRoute={showRoute || isNavigationMode}
         navigationRoute={navigationRoute}
         showNavigationRoute={showNavigationRoute && isNavigationMode}
-        selectedRouteId={selectedRouteId}
         selectedPlotId={selectedPlotId}
         onPlotPress={handlePlotPress}
         isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}
         setIsCameraLockedOnUserLocation={setIsCameraLockedOnUserLocation}
         moveCameraToGeodataBbox={moveCameraToGeodataBbox}
-        moveCameraToRouteBbox={moveCameraToRouteBbox}
         plotForCameraMovingToIstBbbox={plotForCameraMovingToIstBbbox}
-        routeForCameraMovingToItsBbox={routeForCameraMovingToItsBbox}
         mapToolsHookReturn={mapToolsHookReturn}
         isNavigationMode={isNavigationMode}
       />

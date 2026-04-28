@@ -26,7 +26,8 @@ import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
 import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 import { NavigationCoordinate, openExternalNavigation } from '@/utils/navigationExternal';
-import { LngLatCoordinate, normalizeRouteGeometry } from '@/utils/route-geometry';
+
+type LngLatCoordinate = [number, number];
 
 type RouteWithRelations = Route & {
   farm?: {
@@ -66,29 +67,162 @@ const routeLimitOptions: { id: string; label: string }[] = [
   { id: '20', label: '20 por pagina' },
 ];
 
-const toLngLatCoordinate = (value: unknown): LngLatCoordinate | null => {
-  if (!Array.isArray(value) || value.length < 2) return null;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isGeometryType = (value: unknown): value is GeoJSON.Geometry['type'] =>
+  typeof value === 'string' &&
+  [
+    'Point',
+    'LineString',
+    'Polygon',
+    'MultiPoint',
+    'MultiLineString',
+    'MultiPolygon',
+    'GeometryCollection',
+  ].includes(value);
+
+const isGeometry = (value: unknown): value is GeoJSON.Geometry =>
+  isRecord(value) && isGeometryType(value.type);
+
+const isValidLngLatCoordinate = (value: unknown): value is LngLatCoordinate => {
+  if (!Array.isArray(value) || value.length < 2) return false;
 
   const longitude = Number(value[0]);
   const latitude = Number(value[1]);
 
-  if (
-    !Number.isFinite(longitude) ||
-    !Number.isFinite(latitude) ||
-    Math.abs(longitude) > 180 ||
-    Math.abs(latitude) > 90
-  ) {
-    return null;
+  return (
+    Number.isFinite(longitude) &&
+    Number.isFinite(latitude) &&
+    Math.abs(longitude) <= 180 &&
+    Math.abs(latitude) <= 90
+  );
+};
+
+const toLngLatCoordinate = (value: unknown): LngLatCoordinate | null => {
+  if (!isValidLngLatCoordinate(value)) return null;
+  return [Number(value[0]), Number(value[1])];
+};
+
+const normalizeProperties = (value: unknown): Record<string, unknown> => {
+  if (!isRecord(value)) return {};
+  return value;
+};
+
+const toFeature = (
+  geometry: GeoJSON.Geometry,
+  properties?: Record<string, unknown>
+): GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>> => ({
+  type: 'Feature',
+  geometry,
+  properties: properties || {},
+});
+
+const getFeaturesFromRouteGeoJson = (
+  routeGeoJson: unknown
+): GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>>[] => {
+  if (!routeGeoJson) return [];
+
+  if (isRecord(routeGeoJson) && routeGeoJson.type === 'FeatureCollection') {
+    const rawFeatures = Array.isArray(routeGeoJson.features) ? routeGeoJson.features : [];
+
+    return rawFeatures
+      .map((rawFeature) => {
+        if (!isRecord(rawFeature) || rawFeature.type !== 'Feature') return null;
+        if (!isGeometry(rawFeature.geometry)) return null;
+        return toFeature(rawFeature.geometry, normalizeProperties(rawFeature.properties));
+      })
+      .filter((feature): feature is GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>> =>
+        Boolean(feature)
+      );
   }
 
-  return [longitude, latitude];
+  if (isRecord(routeGeoJson) && routeGeoJson.type === 'Feature') {
+    if (!isGeometry(routeGeoJson.geometry)) return [];
+    return [toFeature(routeGeoJson.geometry, normalizeProperties(routeGeoJson.properties))];
+  }
+
+  if (isGeometry(routeGeoJson)) {
+    return [toFeature(routeGeoJson)];
+  }
+
+  return [];
+};
+
+const collectCoordinatesFromGeometry = (geometry: GeoJSON.Geometry): LngLatCoordinate[] => {
+  switch (geometry.type) {
+    case 'Point': {
+      const coordinate = toLngLatCoordinate(geometry.coordinates);
+      return coordinate ? [coordinate] : [];
+    }
+    case 'MultiPoint':
+      return geometry.coordinates
+        .map((coordinate) => toLngLatCoordinate(coordinate))
+        .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate));
+    case 'LineString':
+      return geometry.coordinates
+        .map((coordinate) => toLngLatCoordinate(coordinate))
+        .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate));
+    case 'MultiLineString':
+      return geometry.coordinates.flatMap((line) =>
+        line
+          .map((coordinate) => toLngLatCoordinate(coordinate))
+          .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate))
+      );
+    case 'Polygon':
+      return geometry.coordinates.flatMap((ring) =>
+        ring
+          .map((coordinate) => toLngLatCoordinate(coordinate))
+          .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate))
+      );
+    case 'MultiPolygon':
+      return geometry.coordinates.flatMap((polygon) =>
+        polygon.flatMap((ring) =>
+          ring
+            .map((coordinate) => toLngLatCoordinate(coordinate))
+            .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate))
+        )
+      );
+    case 'GeometryCollection':
+      return geometry.geometries.flatMap((item) => collectCoordinatesFromGeometry(item));
+    default:
+      return [];
+  }
+};
+
+const getDistanceKmFromLineGeometry = (geometry: GeoJSON.Geometry): number => {
+  switch (geometry.type) {
+    case 'LineString': {
+      const coordinates = geometry.coordinates
+        .map((coordinate) => toLngLatCoordinate(coordinate))
+        .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate));
+      if (coordinates.length < 2) return 0;
+      return turf.length(turf.lineString(coordinates), { units: 'kilometers' });
+    }
+    case 'MultiLineString':
+      return geometry.coordinates.reduce((totalDistance, line) => {
+        const lineCoordinates = line
+          .map((coordinate) => toLngLatCoordinate(coordinate))
+          .filter((coordinate): coordinate is LngLatCoordinate => Boolean(coordinate));
+        if (lineCoordinates.length < 2) return totalDistance;
+        return (
+          totalDistance + turf.length(turf.lineString(lineCoordinates), { units: 'kilometers' })
+        );
+      }, 0);
+    case 'GeometryCollection':
+      return geometry.geometries.reduce(
+        (totalDistance, item) => totalDistance + getDistanceKmFromLineGeometry(item),
+        0
+      );
+    default:
+      return 0;
+  }
 };
 
 const getFirstStringProperty = (
-  properties: Record<string, unknown> | null | undefined,
+  properties: Record<string, unknown>,
   keys: string[]
 ): string | undefined => {
-  if (!properties) return undefined;
   for (const key of keys) {
     const value = properties[key];
     if (typeof value === 'string' && value.trim()) {
@@ -99,10 +233,9 @@ const getFirstStringProperty = (
 };
 
 const getFirstNumericProperty = (
-  properties: Record<string, unknown> | null | undefined,
+  properties: Record<string, unknown>,
   keys: string[]
 ): number | undefined => {
-  if (!properties) return undefined;
   for (const key of keys) {
     const rawValue = properties[key];
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) return rawValue;
@@ -115,8 +248,7 @@ const getFirstNumericProperty = (
 };
 
 const extractRouteGeoStats = (routeGeoJson: unknown): RouteGeoStats => {
-  const normalizedRoute = normalizeRouteGeometry(routeGeoJson);
-  const features = normalizedRoute.featureCollection?.features ?? [];
+  const features = getFeaturesFromRouteGeoJson(routeGeoJson);
 
   if (features.length === 0) {
     return {
@@ -134,17 +266,12 @@ const extractRouteGeoStats = (routeGeoJson: unknown): RouteGeoStats => {
   let observation: string | undefined;
 
   features.forEach((feature) => {
-    const featureCoordinates = normalizeRouteGeometry(feature.geometry).coordinates;
+    const featureCoordinates = collectCoordinatesFromGeometry(feature.geometry);
     if (featureCoordinates.length > 0) {
       coordinates.push(...featureCoordinates);
     }
 
-    if (
-      (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') &&
-      featureCoordinates.length >= 2
-    ) {
-      distanceKm += turf.length(turf.feature(feature.geometry), { units: 'kilometers' });
-    }
+    distanceKm += getDistanceKmFromLineGeometry(feature.geometry);
 
     if (!status) {
       status = getFirstStringProperty(feature.properties, [
@@ -181,10 +308,10 @@ const extractRouteGeoStats = (routeGeoJson: unknown): RouteGeoStats => {
         : null;
 
   return {
-    pointCount: normalizedRoute.pointCount,
+    pointCount: coordinates.length,
     distanceKm: normalizedDistanceKm,
-    startCoordinate: normalizedRoute.startCoordinate,
-    destinationCoordinate: normalizedRoute.destinationCoordinate,
+    startCoordinate: coordinates.length > 0 ? coordinates[0] : null,
+    destinationCoordinate: coordinates.length > 0 ? coordinates[coordinates.length - 1] : null,
     status,
     observation,
   };
@@ -452,15 +579,10 @@ export default function BackofficeRoutesMap() {
   const routeStatsById = useMemo(() => {
     const map = new Map<string, RouteGeoStats>();
     routeRecords.forEach((route) => {
-      map.set(route.id, extractRouteGeoStats(route));
+      map.set(route.id, extractRouteGeoStats(route.geoJson));
     });
     return map;
   }, [routeRecords]);
-
-  const selectedRouteGeometry = useMemo(
-    () => (selectedRoute ? normalizeRouteGeometry(selectedRoute) : null),
-    [selectedRoute]
-  );
 
   const selectedRouteStats = useMemo<RouteGeoStats>(() => {
     if (!selectedRoute) {
@@ -472,7 +594,7 @@ export default function BackofficeRoutesMap() {
       };
     }
 
-    return routeStatsById.get(selectedRoute.id) ?? extractRouteGeoStats(selectedRoute);
+    return routeStatsById.get(selectedRoute.id) ?? extractRouteGeoStats(selectedRoute.geoJson);
   }, [routeStatsById, selectedRoute]);
 
   const fallbackFarmDestination = useMemo(
@@ -481,11 +603,11 @@ export default function BackofficeRoutesMap() {
   );
 
   const destinationCoordinate = useMemo<NavigationCoordinate | null>(() => {
-    const routeStart = selectedRouteGeometry?.navigationStartCoordinate;
-    if (routeStart) {
+    const routeDestination = selectedRouteStats.destinationCoordinate;
+    if (routeDestination) {
       return {
-        longitude: routeStart[0],
-        latitude: routeStart[1],
+        longitude: routeDestination[0],
+        latitude: routeDestination[1],
       };
     }
 
@@ -497,7 +619,7 @@ export default function BackofficeRoutesMap() {
     }
 
     return null;
-  }, [fallbackFarmDestination, selectedRouteGeometry?.navigationStartCoordinate]);
+  }, [fallbackFarmDestination, selectedRouteStats.destinationCoordinate]);
 
   const routesForMap = useMemo<RouteWithRelations[]>(() => {
     if (selectedRoute) return [selectedRoute];
@@ -587,13 +709,11 @@ export default function BackofficeRoutesMap() {
     if (!destinationCoordinate) {
       Alert.alert(
         'Destino indisponivel',
-        'Nao encontramos um ponto inicial valido da rota nem um fallback da fazenda para abrir a navegacao externa.'
+        'Selecione uma fazenda e uma rota com coordenadas validas para abrir a navegacao externa.'
       );
       return;
     }
 
-    // A navegacao externa leva o usuario apenas ate o inicio da rota.
-    // Depois disso, a rota desenhada deve continuar sendo acompanhada no Mapbox dentro do app.
     const result = await openExternalNavigation(destinationCoordinate);
     if (!result.success) {
       Alert.alert(
@@ -661,13 +781,6 @@ export default function BackofficeRoutesMap() {
   const shouldShowMapViewer =
     hasMapboxToken && !isSelectedFarmError && (Boolean(selectedFarmId) || Boolean(selectedRoute));
 
-  const selectedRouteGeometryWarning = useMemo(() => {
-    if (!selectedRoute) return null;
-    if (selectedRouteGeometry?.pointCount) return null;
-
-    return 'A rota selecionada nao possui geometria valida para desenho no mapa. A navegacao externa usara a fazenda apenas como fallback.';
-  }, [selectedRoute, selectedRouteGeometry?.pointCount]);
-
   useEffect(() => {
     if (!__DEV__) return;
 
@@ -694,23 +807,6 @@ export default function BackofficeRoutesMap() {
     orderType,
     selectedCustomerId,
     selectedFarmId,
-  ]);
-
-  useEffect(() => {
-    if (!__DEV__ || !selectedRoute) return;
-
-    console.warn('[Backoffice Routes][DEV] selected route geometry', {
-      routeId: selectedRoute.id,
-      routeName: selectedRoute.name,
-      normalizedPoints: selectedRouteGeometry?.pointCount ?? 0,
-      navigationStartCoordinate: destinationCoordinate,
-      invertedLatLng: selectedRouteGeometry?.invertedLatLng ?? false,
-    });
-  }, [
-    destinationCoordinate,
-    selectedRoute,
-    selectedRouteGeometry?.invertedLatLng,
-    selectedRouteGeometry?.pointCount,
   ]);
 
   return (
@@ -890,13 +986,11 @@ export default function BackofficeRoutesMap() {
                 selectedFarmId={selectedFarmId || null}
                 plots={selectedFarmPlots}
                 routes={routesForMap}
-                selectedRouteId={selectedRoute?.id}
                 navigationRoute={navigationRoute}
                 showMapTools={Boolean(selectedFarmId)}
                 showRoute={routesForMap.length > 0}
                 showNavigationRoute={Boolean(navigationRoute)}
                 isNavigationMode={isNavigationMode}
-                focusRouteOnChange={Boolean(selectedRoute)}
               />
               <MapNavigationButton
                 isNavigationMode={isNavigationMode}
@@ -904,7 +998,6 @@ export default function BackofficeRoutesMap() {
                 disabled={!destinationCoordinate}
                 showGoNow={Boolean(destinationCoordinate)}
                 goNowDisabled={!destinationCoordinate}
-                goNowLabel='Ir ate inicio'
                 onGoNow={handleOpenExternalNavigation}
               />
             </View>
@@ -930,9 +1023,6 @@ export default function BackofficeRoutesMap() {
 
           {navigationErrorMessage ? (
             <Text style={styles.navigationErrorMessage}>{navigationErrorMessage}</Text>
-          ) : null}
-          {selectedRouteGeometryWarning ? (
-            <Text style={styles.navigationWarningMessage}>{selectedRouteGeometryWarning}</Text>
           ) : null}
         </View>
 
@@ -967,7 +1057,7 @@ export default function BackofficeRoutesMap() {
                 value={formatCoordinate(selectedRouteStats.startCoordinate)}
               />
               <DetailsField
-                label='Inicio usado na navegacao'
+                label='Destino da navegacao'
                 value={formatCoordinate(
                   destinationCoordinate
                     ? [destinationCoordinate.longitude, destinationCoordinate.latitude]
@@ -1022,7 +1112,8 @@ export default function BackofficeRoutesMap() {
           <>
             <View style={styles.routesGrid}>
               {routeRecords.map((route, index) => {
-                const routeStats = routeStatsById.get(route.id) ?? extractRouteGeoStats(route);
+                const routeStats =
+                  routeStatsById.get(route.id) ?? extractRouteGeoStats(route.geoJson);
                 const isSelected = selectedRoute?.id === route.id;
 
                 return (
@@ -1391,11 +1482,6 @@ const styles = StyleSheet.create({
     color: '#B45309',
     fontSize: 12,
     marginTop: 2,
-  },
-  navigationWarningMessage: {
-    color: '#92400E',
-    fontSize: 12,
-    marginTop: 6,
   },
   optionalFarmHint: {
     borderWidth: 1,

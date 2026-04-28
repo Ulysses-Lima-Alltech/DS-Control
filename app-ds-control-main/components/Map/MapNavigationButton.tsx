@@ -8,7 +8,6 @@ interface MapNavigationButtonProps {
   onGoNow?: () => void;
   showGoNow?: boolean;
   goNowDisabled?: boolean;
-  goNowLabel?: string;
 }
 
 export default function MapNavigationButton({
@@ -18,7 +17,6 @@ export default function MapNavigationButton({
   onGoNow,
   showGoNow = false,
   goNowDisabled = false,
-  goNowLabel = 'Ir agora',
 }: MapNavigationButtonProps) {
   return (
     <View style={styles.container}>
@@ -35,7 +33,7 @@ export default function MapNavigationButton({
           disabled={goNowDisabled}
         >
           <MaterialCommunityIcons name='navigation-variant' size={16} color='white' />
-          <Text style={styles.goNowButtonText}>{goNowLabel}</Text>
+          <Text style={styles.goNowButtonText}>Ir agora</Text>
         </TouchableOpacity>
       )}
 
