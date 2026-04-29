@@ -565,7 +565,7 @@ export default function DialogPlotDetails({
                               <div className='flex justify-between items-center py-2'>
                                 <span className='text-sm font-medium'>Data de Criação</span>
                                 <span className='text-sm text-muted-foreground'>
-                                  {formatTimestamp(new Date(filteredPlotForDetails.createdAt))}
+                                  {formatTimestamp(filteredPlotForDetails.createdAt)}
                                 </span>
                               </div>
                             )}
@@ -574,7 +574,7 @@ export default function DialogPlotDetails({
                               <div className='flex justify-between items-center py-2'>
                                 <span className='text-sm font-medium'>Última Atualização</span>
                                 <span className='text-sm text-muted-foreground'>
-                                  {formatTimestamp(new Date(filteredPlotForDetails.updatedAt))}
+                                  {formatTimestamp(filteredPlotForDetails.updatedAt)}
                                 </span>
                               </div>
                             )}

@@ -163,8 +163,7 @@ export class ApplicationController {
     try {
       app.log.info("[ApplicationController] - Fetching application details for application %s", request.params.id);
       const applicationDb = await this.service.getApplicationById(request.params.id);
-      // For now, return the raw data since the types need to be aligned
-      const application = applicationDb;
+      const application = ApplicationVM.toViewModelWithRelations(applicationDb);
 
       app.log.info("[ApplicationController] - Successfully retrieved application details");
       return reply.status(200).send({
@@ -416,7 +415,7 @@ export class ApplicationController {
        const { startDate, endDate  } = request.query;
 
        app.log.info("[ApplicationController] - Starting application stats for application %s - %s", startDate, endDate);
-       const summary = await this.service.applicationStatsSummary(new Date(startDate), new Date(endDate));
+       const summary = await this.service.applicationStatsSummary(startDate, endDate);
 
        app.log.info("[ApplicationController] - Application successfully")
        return reply.status(200).send({
@@ -445,7 +444,7 @@ export class ApplicationController {
     try {
       const { startDate, endDate } = request.query;
 
-      const pilots = await this.service.getApplicationsPerformance(new Date(startDate), new Date(endDate));
+      const pilots = await this.service.getApplicationsPerformance(startDate, endDate);
 
       return reply.status(200).send({
         message: "Pilots performance retrieved successfully",

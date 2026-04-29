@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
+import { parseOperationalDateToPickerDate, toOperationalDateYMD } from '@/utils/operational-date';
 
 export interface DateParams {
   startDate: string;
@@ -15,14 +16,16 @@ interface DashboardDateFilterProps {
   onDateChange: (dateParams: DateParams) => void;
 }
 
+const toDateParam = (date: Date) => toOperationalDateYMD(date) ?? format(date, 'yyyy-MM-dd');
+
 export const DashboardDateFilter = ({ onDateChange }: DashboardDateFilterProps) => {
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 3);
-    return format(date, 'yyyy-MM-dd');
+    return toDateParam(date);
   });
   const [endDate, setEndDate] = useState<string>(() => {
-    return format(new Date(), 'yyyy-MM-dd');
+    return toDateParam(new Date());
   });
 
   const handleDateRangePreset = (preset: string) => {
@@ -55,8 +58,8 @@ export const DashboardDateFilter = ({ onDateChange }: DashboardDateFilterProps) 
         return;
     }
 
-    setStartDate(format(start, 'yyyy-MM-dd'));
-    setEndDate(format(end, 'yyyy-MM-dd'));
+    setStartDate(toDateParam(start));
+    setEndDate(toDateParam(end));
   };
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export const DashboardDateFilter = ({ onDateChange }: DashboardDateFilterProps) 
               value={startDate}
               onChange={setStartDate}
               placeholder='Selecione a data inicial'
-              defaultMonth={startDate ? new Date(startDate) : undefined}
+              defaultMonth={parseOperationalDateToPickerDate(startDate)}
             />
           </div>
           <div className='flex items-center gap-2'>
@@ -90,7 +93,7 @@ export const DashboardDateFilter = ({ onDateChange }: DashboardDateFilterProps) 
               value={endDate}
               onChange={setEndDate}
               placeholder='Selecione a data final'
-              defaultMonth={endDate ? new Date(endDate) : undefined}
+              defaultMonth={parseOperationalDateToPickerDate(endDate)}
             />
           </div>
         </div>

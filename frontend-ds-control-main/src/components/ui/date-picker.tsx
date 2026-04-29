@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { parseOperationalDateToPickerDate } from '@/utils/operational-date';
 
 interface DatePickerProps {
   value?: string;
@@ -20,14 +21,8 @@ interface DatePickerProps {
   defaultMonth?: Date;
 }
 
-const parseLocalDate = (dateString: string): Date => {
-  if (dateString.includes('T')) {
-    return new Date(dateString);
-  }
-
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
+const parseLocalDate = (dateString: string): Date | undefined =>
+  parseOperationalDateToPickerDate(dateString);
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();

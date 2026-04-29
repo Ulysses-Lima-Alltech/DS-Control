@@ -21,6 +21,7 @@ import { useGetAllCustomers } from '@/queries/customer.query';
 import { UpdateContractByIdSchema } from '@/schemas/contract.schema';
 import { UpdateContractByIdParams } from '@/services/contract.service';
 import { Contract } from '@/types/contracts.type';
+import { toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 type FormEditContractProps = {
   contract: Contract;
@@ -43,8 +44,8 @@ export default function FormEditContract({ contract, onSuccess }: FormEditContra
     defaultValues: {
       customerId: contract.customerId,
       name: contract.name,
-      dateStart: new Date(contract.dateStart).toISOString().split('T')[0],
-      dateEnd: new Date(contract.dateEnd).toISOString().split('T')[0],
+      dateStart: toOperationalDateYMDOrToday(contract.dateStart),
+      dateEnd: toOperationalDateYMDOrToday(contract.dateEnd),
       observation: contract.observation,
     },
   });

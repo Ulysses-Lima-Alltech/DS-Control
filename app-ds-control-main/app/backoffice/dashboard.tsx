@@ -1,5 +1,5 @@
-import PageDashboardFarms from '@/components/Screen/ScreenDashboardFarms';
+import BackofficeDashboard from '@/components/Backoffice/BackofficeDashboard';
 
 export default function Dashboard() {
-  return <PageDashboardFarms />;
+  return <BackofficeDashboard />;
 }

@@ -10,7 +10,6 @@ import {
   format,
   getYear,
   isValid,
-  parseISO,
   startOfMonth,
   startOfYear,
   subDays,
@@ -76,6 +75,7 @@ import {
   APPLICATION_ISSUE_LABELS,
   type ApplicationIssueFilter,
 } from '@/types/applications.type';
+import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 /**
  * Gráficos — Visão Geral (Aplicações)
@@ -137,24 +137,27 @@ function startOfDayLocal(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+function toDateKey(date: Date): string {
+  return toOperationalDateYMD(date) ?? format(date, 'yyyy-MM-dd');
+}
+
 function parseCalendarDateStr(s: string): Date {
-  const part = s.slice(0, 10);
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(part);
-  if (!m) return parseISO(s);
+  const normalized = toOperationalDateYMD(s);
+  if (!normalized) return new Date(Number.NaN);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!m) return new Date(Number.NaN);
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
 function normalizeCalendarDateKey(raw: string): string {
   const s = typeof raw === 'string' ? raw.trim() : '';
   if (s.length < 10) return s;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const parsed = parseISO(s);
-  if (!isValid(parsed)) return s.slice(0, 10);
-  return format(parsed, 'yyyy-MM-dd');
+  return toOperationalDateYMD(s) ?? s.slice(0, 10);
 }
 
 function getDefaultEvolutionWindow(granularity: EvolutionGranularity): { start: Date; end: Date } {
-  const today = startOfDayLocal(new Date());
+  const todayParsed = parseCalendarDateStr(toOperationalDateYMDOrToday());
+  const today = startOfDayLocal(isValid(todayParsed) ? todayParsed : new Date());
   if (granularity === 'day') {
     const end = today;
     const start = subDays(end, EVOLUTION_DAY_BUCKET_COUNT - 1);
@@ -176,9 +179,14 @@ function getEffectiveEvolutionWindow(
   granularity: EvolutionGranularity
 ): { start: Date; end: Date } {
   if (startDateStr && endDateStr) {
+    const parsedStart = parseCalendarDateStr(startDateStr);
+    const parsedEnd = parseCalendarDateStr(endDateStr);
+    if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+      return getDefaultEvolutionWindow(granularity);
+    }
     return {
-      start: startOfDayLocal(parseCalendarDateStr(startDateStr)),
-      end: startOfDayLocal(parseCalendarDateStr(endDateStr)),
+      start: startOfDayLocal(parsedStart),
+      end: startOfDayLocal(parsedEnd),
     };
   }
   return getDefaultEvolutionWindow(granularity);
@@ -196,22 +204,20 @@ function buildBucketKeysWithinWindow(
     const keys: string[] = [];
     const n = differenceInCalendarDays(end, start) + 1;
     for (let i = 0; i < n; i++) {
-      keys.push(format(addDays(start, i), 'yyyy-MM-dd'));
+      keys.push(toDateKey(addDays(start, i)));
     }
     return keys;
   }
   if (granularity === 'month') {
     const rangeStart = startOfMonth(start);
     const rangeEnd = startOfMonth(end);
-    return eachMonthOfInterval({ start: rangeStart, end: rangeEnd }).map((d) =>
-      format(d, 'yyyy-MM-dd')
-    );
+    return eachMonthOfInterval({ start: rangeStart, end: rangeEnd }).map((d) => toDateKey(d));
   }
   const ys = getYear(start);
   const ye = getYear(end);
   const keys: string[] = [];
   for (let y = ys; y <= ye; y++) {
-    keys.push(format(new Date(y, 0, 1), 'yyyy-MM-dd'));
+    keys.push(toDateKey(new Date(y, 0, 1)));
   }
   return keys;
 }
@@ -233,10 +239,9 @@ function mergeEvolutionSeriesWithZeros(
 }
 
 function formatByGranularity(dateValue: string, g: EvolutionGranularity, forTooltip = false): string {
-  const parsed =
-    dateValue.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(dateValue)
-      ? parseCalendarDateStr(dateValue.slice(0, 10))
-      : parseISO(dateValue);
+  const normalized = toOperationalDateYMD(dateValue);
+  if (!normalized) return dateValue;
+  const parsed = parseCalendarDateStr(normalized);
   if (!isValid(parsed)) return dateValue;
   if (g === 'day') {
     return format(parsed, forTooltip ? 'dd/MM/yyyy' : 'dd/MM', { locale: ptBR });
@@ -252,24 +257,23 @@ function bucketDateRangeFromEvolutionPoint(
   pointName: string,
   g: EvolutionGranularity
 ): { startDate: string; endDate: string } | null {
-  const parsed =
-    pointName.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(pointName)
-      ? parseCalendarDateStr(pointName.slice(0, 10))
-      : parseISO(pointName);
+  const normalized = toOperationalDateYMD(pointName);
+  if (!normalized) return null;
+  const parsed = parseCalendarDateStr(normalized);
   if (!isValid(parsed)) return null;
   if (g === 'day') {
-    const d = format(parsed, 'yyyy-MM-dd');
+    const d = toDateKey(parsed);
     return { startDate: d, endDate: d };
   }
   if (g === 'month') {
     return {
-      startDate: format(startOfMonth(parsed), 'yyyy-MM-dd'),
-      endDate: format(endOfMonth(parsed), 'yyyy-MM-dd'),
+      startDate: toDateKey(startOfMonth(parsed)),
+      endDate: toDateKey(endOfMonth(parsed)),
     };
   }
   return {
-    startDate: format(startOfYear(parsed), 'yyyy-MM-dd'),
-    endDate: format(endOfYear(parsed), 'yyyy-MM-dd'),
+    startDate: toDateKey(startOfYear(parsed)),
+    endDate: toDateKey(endOfYear(parsed)),
   };
 }
 
@@ -287,7 +291,9 @@ function hasActiveOverviewFilters(f: OverviewFilters): boolean {
 }
 
 function getYesterdayDateString(): string {
-  return format(subDays(startOfDayLocal(new Date()), 1), 'yyyy-MM-dd');
+  const today = parseCalendarDateStr(toOperationalDateYMDOrToday());
+  const safeToday = startOfDayLocal(isValid(today) ? today : new Date());
+  return toDateKey(subDays(safeToday, 1));
 }
 
 function isYesterdayRange(startDate?: string, endDate?: string): boolean {
@@ -602,8 +608,8 @@ export function ApplicationsOverviewDashboard({
       filters.startDate && filters.endDate
         ? { startDate: filters.startDate, endDate: filters.endDate }
         : {
-            startDate: format(effectiveEvolutionWindow.start, 'yyyy-MM-dd'),
-            endDate: format(effectiveEvolutionWindow.end, 'yyyy-MM-dd'),
+            startDate: toDateKey(effectiveEvolutionWindow.start),
+            endDate: toDateKey(effectiveEvolutionWindow.end),
           };
     return {
       search: filters.search,

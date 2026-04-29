@@ -1,12 +1,13 @@
-import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-request.types";
+﻿import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-request.types";
+import { isOperationalDateString } from "@common/utils/operational-date";
 import { ApplicationOrderBy, ApplicationOrderType } from "@repositories/applications/application.types";
 import z from "zod";
 
-/** Alinhado às métricas de stats (pendências / OS aberta sem talhão). */
+/** Alinhado as metricas de stats (pendencias / OS aberta sem talhao). */
 export const ApplicationIssueFilterSchema = z.enum([
   "invalid_open_os",
   "structural_pending",
-  /** Pendência estrutural exceto o recorte sem talhão em OS aberta (composição disjunta com invalid_open_os). */
+  /** Pendencia estrutural exceto o recorte sem talhao em OS aberta (composicao disjunta com invalid_open_os). */
   "structural_pending_other",
   "structural_missing_plot",
   "structural_missing_farm",
@@ -23,31 +24,11 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
     .enum(["open", "completed", "cancelled"])
     .optional()
     .describe("Filter by service order status"),
-  farmId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by farm ID"),
-  pilotId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by pilot ID"),
-  productId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by product ID"),
-  customerId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by customer ID"),
-  serviceOrderId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by service order ID"),
+  farmId: z.string().uuid().optional().describe("Filter by farm ID"),
+  pilotId: z.string().uuid().optional().describe("Filter by pilot ID"),
+  productId: z.string().uuid().optional().describe("Filter by product ID"),
+  customerId: z.string().uuid().optional().describe("Filter by customer ID"),
+  serviceOrderId: z.string().uuid().optional().describe("Filter by service order ID"),
   assistantId: z.string().uuid().optional().describe("Filter by assistant ID"),
   droneId: z.string().uuid().optional().describe("Filter by drone ID"),
   cultureId: z.string().uuid().optional().describe("Filter by culture ID"),
@@ -82,24 +63,19 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
   ),
   startDate: z
     .string()
-    .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), {message: "Data Inicial no formato incorreto. Use YYYY-MM-DD. \n"} )
-    .refine(val =>  !isNaN(Date.parse(val)), {message: "Data inválida"})
+    .refine(isOperationalDateString, { message: "Data Inicial no formato incorreto. Use YYYY-MM-DD." })
     .optional()
     .describe("Filter application start date"),
   endDate: z
     .string()
-    .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), {message: " Data Final no formato incorreto. Use YYYY-MM-DD."} )  
-    .refine(val =>  !isNaN(Date.parse(val)), {message: "invalid date"})
+    .refine(isOperationalDateString, { message: "Data Final no formato incorreto. Use YYYY-MM-DD." })
     .optional()
     .describe("Filter application end date"),
-    orderBy: z
-        .nativeEnum(ApplicationOrderBy)
-        .optional()
-        .describe("Fiel to order the users by"),
-    orderType: z
-        .nativeEnum(ApplicationOrderType)
-        .optional()
-        .describe("Order type (ascending or descending)"),
+  orderBy: z.nativeEnum(ApplicationOrderBy).optional().describe("Field to order applications by"),
+  orderType: z
+    .nativeEnum(ApplicationOrderType)
+    .optional()
+    .describe("Order type (ascending or descending)"),
 });
 
 export const ApplicationListSummarySchema = z.object({

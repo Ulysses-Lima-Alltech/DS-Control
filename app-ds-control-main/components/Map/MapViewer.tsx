@@ -1,18 +1,16 @@
-import { View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 
 import MapContent from '@/components/Map/MapContent';
+import MapControls from '@/components/Map/MapControls';
+import MapTools, { useMapTools } from '@/components/Map/MapTools';
+import ModalPlotViewer from '@/components/Modal/ModalPlotViewer';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
 import {
   convertDatabasePlotsToMapViewerPlotsFeatureCollection,
   convertDatabaseRoutesToMapViewerRoutesFeatureCollection,
 } from '@/utils/map-utils';
-import MapControls from '@/components/Map/MapControls';
-import MapTools, { useMapTools } from '@/components/Map/MapTools';
-import { useEffect, useMemo, useState } from 'react';
-import { FeatureCollection } from 'geojson';
-import { ActivityIndicator } from 'react-native';
-import ModalPlotViewer from '@/components/Modal/ModalPlotViewer';
 
 interface ButtonsOffset {
   mapControls?: {
@@ -59,7 +57,7 @@ export default function MapViewer({
   const [isCameraLockedOnUserLocation, setIsCameraLockedOnUserLocation] = useState<boolean>(true);
   const [moveCameraToGeodataBbox, triggerMoveCameraToGeodataBbox] = useState(0);
   const [plotForCameraMovingToIstBbbox, setMoveCameraToPlotGeojson] =
-    useState<FeatureCollection | null>(null);
+    useState<GeoJSON.FeatureCollection | null>(null);
   const [isPlotModalVisible, setIsPlotModalVisible] = useState(false);
   const [selectedPlotIdForModal, setSelectedPlotIdForModal] = useState<string | null>(null);
 
@@ -136,9 +134,9 @@ export default function MapViewer({
       <MapContent
         geoData={geoData}
         geoDataRoute={geoDataRoute}
-        showGeoDataRoute={isNavigationMode}
+        showGeoDataRoute={showRoute || isNavigationMode}
         navigationRoute={navigationRoute}
-        showNavigationRoute={isNavigationMode}
+        showNavigationRoute={showNavigationRoute && isNavigationMode}
         selectedPlotId={selectedPlotId}
         onPlotPress={handlePlotPress}
         isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}

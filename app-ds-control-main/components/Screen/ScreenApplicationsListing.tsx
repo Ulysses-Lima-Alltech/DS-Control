@@ -1,6 +1,3 @@
-import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
-import { useGetAllApplications } from '@/queries/application.query';
-import { COLORS } from '@/constants/colors';
 import {
   AntDesign,
   Entypo,
@@ -9,29 +6,126 @@ import {
   Octicons,
   SimpleLineIcons,
 } from '@expo/vector-icons';
-import { useAuth } from '@/providers/auth.provider';
-import { Application, ApplicationOrderBy, ApplicationOrderType } from '@/types/applications.type';
-import formatDateToDDMMYYYY from '@/utils/date-formatter';
-import { useMemo, useState, useEffect } from 'react';
-import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { InfiniteData } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+
 import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
+import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/providers/auth.provider';
+import { useGetAllApplications } from '@/queries/application.query';
+import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
+import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
-import { InfiniteData } from '@tanstack/react-query';
+import { useGetAllProductsInfinite } from '@/queries/product.query';
+import { useGetAllServiceOrders } from '@/queries/service-order.query';
+import { GetAllApplicationsParams } from '@/services/application.service';
+import {
+  Application,
+  ApplicationIssueFilter,
+  APPLICATION_ISSUE_LABELS,
+  ApplicationOrderBy,
+  ApplicationOrderType,
+} from '@/types/applications.type';
+import { Assistant } from '@/types/assistant.type';
+import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
+import { Product } from '@/types/product.type';
+import { ServiceOrderStatus } from '@/types/service-order.type';
+import { User } from '@/types/user.type';
+import formatDateToDDMMYYYY from '@/utils/date-formatter';
 import { isAndroid } from '@/utils/isAndroid';
+
+const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const toCivilDateParam = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseCivilDate = (value?: string) => {
+  if (value && DATE_PARAM_REGEX.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  if (value) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return new Date();
+};
+
+const serviceOrderStatusOptions: { id: string; label: string }[] = [
+  { id: 'open', label: 'Aberta' },
+  { id: 'completed', label: 'Concluída' },
+  { id: 'cancelled', label: 'Cancelada' },
+];
+
+const invalidApplicationOptions: { id: string; label: string }[] = [
+  { id: 'all', label: 'Todas (válidas + inconsistentes)' },
+  { id: 'true', label: 'Somente inconsistentes' },
+  { id: 'false', label: 'Somente válidas' },
+];
+
+const orderByOptions: { id: string; label: string }[] = [
+  { id: ApplicationOrderBy.DATE, label: 'Data da aplicação' },
+  { id: ApplicationOrderBy.PILOT, label: 'Piloto' },
+  { id: ApplicationOrderBy.PRODUCT, label: 'Produto' },
+];
+
+const orderTypeOptions: { id: string; label: string }[] = [
+  { id: ApplicationOrderType.DESC, label: 'Descendente' },
+  { id: ApplicationOrderType.ASC, label: 'Ascendente' },
+];
+
+const limitOptions: { id: string; label: string }[] = [
+  { id: '5', label: '5 por página' },
+  { id: '10', label: '10 por página' },
+  { id: '20', label: '20 por página' },
+];
+
+const applicationIssueOptions: { id: string; label: string }[] = [
+  { id: 'all', label: 'Todas as inconsistências' },
+  ...Object.entries(APPLICATION_ISSUE_LABELS).map(([id, label]) => ({ id, label })),
+];
 
 export default function ScreenApplicationsListing() {
   const router = useRouter();
   const { user } = useAuth();
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [pageSize, setPageSize] = useState('5');
+  const [orderBy, setOrderBy] = useState<ApplicationOrderBy>(ApplicationOrderBy.DATE);
+  const [orderType, setOrderType] = useState<ApplicationOrderType>(ApplicationOrderType.DESC);
+
   const [farmId, setFarmId] = useState<string | undefined>(undefined);
   const [farmSearchTerm, setFarmSearchTerm] = useState('');
+  const [pilotId, setPilotId] = useState<string | undefined>(undefined);
+  const [pilotSearchTerm, setPilotSearchTerm] = useState('');
+  const [assistantId, setAssistantId] = useState<string | undefined>(undefined);
+  const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
+  const [productId, setProductId] = useState<string | undefined>(undefined);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [droneId, setDroneId] = useState<string | undefined>(undefined);
+  const [droneSearchTerm, setDroneSearchTerm] = useState('');
+  const [serviceOrderStatus, setServiceOrderStatus] = useState<ServiceOrderStatus | undefined>(
+    undefined
+  );
+  const [applicationIssue, setApplicationIssue] = useState<ApplicationIssueFilter | undefined>(
+    undefined
+  );
+  const [invalidApplication, setInvalidApplication] = useState<'all' | 'true' | 'false'>('all');
 
   const {
     data: farmsData,
@@ -44,6 +138,56 @@ export default function ScreenApplicationsListing() {
     search: farmSearchTerm || undefined,
   });
 
+  const {
+    data: assistantsData,
+    hasNextPage: hasNextPageAssistants,
+    isFetchingNextPage: isFetchingNextPageAssistants,
+    fetchNextPage: fetchNextPageAssistants,
+    isFetching: isFetchingAssistants,
+  } = useGetAllAssistantsInfinite({
+    limit: '10',
+    search: assistantSearchTerm || undefined,
+  });
+
+  const {
+    data: productsData,
+    hasNextPage: hasNextPageProducts,
+    isFetchingNextPage: isFetchingNextPageProducts,
+    fetchNextPage: fetchNextPageProducts,
+    isFetching: isFetchingProducts,
+  } = useGetAllProductsInfinite({
+    limit: '10',
+    search: productSearchTerm || undefined,
+  });
+
+  const {
+    data: dronesData,
+    hasNextPage: hasNextPageDrones,
+    isFetchingNextPage: isFetchingNextPageDrones,
+    fetchNextPage: fetchNextPageDrones,
+    isFetching: isFetchingDrones,
+  } = useGetAllDronesInfinite({
+    limit: '10',
+    search: droneSearchTerm || undefined,
+  });
+
+  const { data: serviceOrdersData, isFetching: isFetchingPilots } = useGetAllServiceOrders(
+    {
+      customerId: user?.type === 'farmer' ? user?.customerId : undefined,
+      includePilots: 'true',
+      includeCustomers: 'false',
+      includePlots: 'false',
+      includeFarms: 'false',
+      includeContracts: 'false',
+      includeGeoJson: 'false',
+      page: '1',
+      limit: '100',
+    },
+    {
+      enabled: user?.type !== 'pilot',
+    }
+  );
+
   const listedFarms: Farm[] = useMemo(() => {
     return (
       ((farmsData as unknown as InfiniteData<{ data: Farm[] }> | undefined)?.pages?.flatMap(
@@ -52,15 +196,63 @@ export default function ScreenApplicationsListing() {
     );
   }, [farmsData]);
 
-  const applicationParams: any = {
-    pilotId: user?.type === 'pilot' ? user?.id : undefined,
+  const listedAssistants: Assistant[] = useMemo(() => {
+    return (
+      ((
+        assistantsData as unknown as InfiniteData<{ data: Assistant[] }> | undefined
+      )?.pages?.flatMap((page) => page.data) as Assistant[]) || []
+    );
+  }, [assistantsData]);
+
+  const listedProducts: Product[] = useMemo(() => {
+    return (
+      ((productsData as unknown as InfiniteData<{ data: Product[] }> | undefined)?.pages?.flatMap(
+        (page) => page.data
+      ) as Product[]) || []
+    );
+  }, [productsData]);
+
+  const listedDrones: Drone[] = useMemo(() => {
+    return (
+      ((dronesData as unknown as InfiniteData<{ data: Drone[] }> | undefined)?.pages?.flatMap(
+        (page) => page.data
+      ) as Drone[]) || []
+    );
+  }, [dronesData]);
+
+  const listedPilots: User[] = useMemo(() => {
+    const pilotsMap = new Map<string, User>();
+
+    serviceOrdersData?.data?.forEach((serviceOrder) => {
+      serviceOrder.pilots?.forEach((pilot) => {
+        if (!pilotsMap.has(pilot.id)) {
+          pilotsMap.set(pilot.id, pilot);
+        }
+      });
+    });
+
+    const pilots = Array.from(pilotsMap.values());
+    if (!pilotSearchTerm.trim()) return pilots;
+
+    const search = pilotSearchTerm.trim().toLowerCase();
+    return pilots.filter((pilot) => pilot.name?.toLowerCase().includes(search));
+  }, [serviceOrdersData, pilotSearchTerm]);
+
+  const applicationParams: GetAllApplicationsParams = {
+    pilotId: user?.type === 'pilot' ? user?.id : pilotId,
+    assistantId,
+    productId,
+    droneId,
     customerId: user?.type === 'farmer' ? user?.customerId : undefined,
+    serviceOrderStatus,
+    applicationIssue,
+    invalidApplication: invalidApplication === 'all' ? undefined : invalidApplication,
     includeCustomer: 'true',
     includeServiceOrder: 'true',
     page: currentPage.toString(),
-    limit: '5',
-    orderBy: ApplicationOrderBy.DATE,
-    orderType: ApplicationOrderType.DESC,
+    limit: pageSize,
+    orderBy,
+    orderType,
     startDate,
     endDate,
     farmId,
@@ -75,13 +267,93 @@ export default function ScreenApplicationsListing() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [startDate, endDate, farmId]);
+  }, [
+    startDate,
+    endDate,
+    farmId,
+    pilotId,
+    assistantId,
+    productId,
+    droneId,
+    serviceOrderStatus,
+    applicationIssue,
+    invalidApplication,
+    orderBy,
+    orderType,
+    pageSize,
+  ]);
+
+  const activeFilters = useMemo(() => {
+    return [
+      !!startDate && 'Data inicial',
+      !!endDate && 'Data final',
+      !!farmId && 'Fazenda',
+      !!pilotId && user?.type !== 'pilot' && 'Piloto',
+      !!assistantId && 'Ajudante',
+      !!productId && 'Produto',
+      !!droneId && 'Drone',
+      !!serviceOrderStatus && 'Status OS',
+      !!applicationIssue && 'Inconsistência',
+      invalidApplication !== 'all' && 'Inválida',
+      orderBy !== ApplicationOrderBy.DATE && 'Ordenação',
+      orderType !== ApplicationOrderType.DESC && 'Ordem',
+      pageSize !== '5' && 'Limite',
+    ].filter(Boolean) as string[];
+  }, [
+    startDate,
+    endDate,
+    farmId,
+    pilotId,
+    user?.type,
+    assistantId,
+    productId,
+    droneId,
+    serviceOrderStatus,
+    applicationIssue,
+    invalidApplication,
+    orderBy,
+    orderType,
+    pageSize,
+  ]);
+
+  const handleInvalidApplicationChange = (value: string) => {
+    const nextInvalidApplication = value as 'all' | 'true' | 'false';
+    setInvalidApplication(nextInvalidApplication);
+
+    if (nextInvalidApplication === 'true') {
+      setApplicationIssue(undefined);
+    }
+  };
+
+  const handleApplicationIssueChange = (value: string) => {
+    if (value === 'all') {
+      setApplicationIssue(undefined);
+      return;
+    }
+
+    setApplicationIssue(value as ApplicationIssueFilter);
+    setInvalidApplication('all');
+  };
 
   const clearFilters = () => {
     setStartDate(undefined);
     setEndDate(undefined);
     setFarmId(undefined);
+    setPilotId(undefined);
+    setAssistantId(undefined);
+    setProductId(undefined);
+    setDroneId(undefined);
+    setServiceOrderStatus(undefined);
+    setApplicationIssue(undefined);
+    setInvalidApplication('all');
+    setOrderBy(ApplicationOrderBy.DATE);
+    setOrderType(ApplicationOrderType.DESC);
+    setPageSize('5');
     setFarmSearchTerm('');
+    setPilotSearchTerm('');
+    setAssistantSearchTerm('');
+    setProductSearchTerm('');
+    setDroneSearchTerm('');
     setCurrentPage(1);
   };
 
@@ -117,6 +389,12 @@ export default function ScreenApplicationsListing() {
         }}
       >
         <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.black }}>Filtros</Text>
+        {activeFilters.length > 0 && (
+          <Text style={{ fontSize: 12, color: COLORS.blue }}>
+            {activeFilters.length} filtro(s) ativo(s): {activeFilters.join(', ')}
+          </Text>
+        )}
+
         {/* Date Range */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {/* Start Date */}
@@ -140,15 +418,15 @@ export default function ScreenApplicationsListing() {
                 </TouchableOpacity>
                 {showStartPicker && (
                   <DateTimePicker
-                    value={new Date(startDate || new Date().toISOString())}
+                    value={parseCivilDate(startDate)}
                     mode='date'
                     display='default'
                     onChange={(_: any, selectedDate?: Date) => {
                       setShowStartPicker(false);
                       if (selectedDate) {
-                        const iso = selectedDate.toISOString();
-                        setStartDate(iso);
-                        if (endDate && new Date(iso) > new Date(endDate)) {
+                        const selectedCivilDate = toCivilDateParam(selectedDate);
+                        setStartDate(selectedCivilDate);
+                        if (endDate && selectedCivilDate > endDate) {
                           setEndDate(undefined);
                         }
                       }
@@ -158,11 +436,11 @@ export default function ScreenApplicationsListing() {
               </>
             ) : (
               <DatePickeriOSModal
-                value={new Date(startDate || new Date().toISOString())}
+                value={parseCivilDate(startDate)}
                 onDateChange={(date) => {
-                  const iso = date.toISOString();
-                  setStartDate(iso);
-                  if (endDate && new Date(iso) > new Date(endDate)) {
+                  const selectedCivilDate = toCivilDateParam(date);
+                  setStartDate(selectedCivilDate);
+                  if (endDate && selectedCivilDate > endDate) {
                     setEndDate(undefined);
                   }
                 }}
@@ -194,14 +472,14 @@ export default function ScreenApplicationsListing() {
                 </TouchableOpacity>
                 {showEndPicker && (
                   <DateTimePicker
-                    value={new Date(endDate || new Date().toISOString())}
+                    value={parseCivilDate(endDate)}
                     mode='date'
                     display='default'
-                    minimumDate={startDate ? new Date(startDate) : undefined}
+                    minimumDate={startDate ? parseCivilDate(startDate) : undefined}
                     onChange={(_: any, selectedDate?: Date) => {
                       setShowEndPicker(false);
                       if (selectedDate) {
-                        setEndDate(selectedDate.toISOString());
+                        setEndDate(toCivilDateParam(selectedDate));
                       }
                     }}
                   />
@@ -209,9 +487,9 @@ export default function ScreenApplicationsListing() {
               </>
             ) : (
               <DatePickeriOSModal
-                value={new Date(endDate || new Date().toISOString())}
-                onDateChange={(date) => setEndDate(date.toISOString())}
-                minimumDate={startDate ? new Date(startDate) : undefined}
+                value={parseCivilDate(endDate)}
+                onDateChange={(date) => setEndDate(toCivilDateParam(date))}
+                minimumDate={startDate ? parseCivilDate(startDate) : undefined}
                 maximumDate={new Date()}
                 disabled={false}
               />
@@ -235,6 +513,182 @@ export default function ScreenApplicationsListing() {
             disabled={false}
           />
         </View>
+
+        <TouchableOpacity
+          onPress={() => setShowAdvancedFilters((prev) => !prev)}
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderColor: COLORS.lightgray,
+            borderWidth: 1,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 10,
+            backgroundColor: COLORS.background,
+          }}
+        >
+          <Text style={{ color: COLORS.black, fontWeight: 'bold' }}>Filtros avançados</Text>
+          <Feather
+            name={showAdvancedFilters ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={COLORS.gray}
+          />
+        </TouchableOpacity>
+
+        {showAdvancedFilters && (
+          <View style={{ gap: 10 }}>
+            {user?.type !== 'pilot' && (
+              <View>
+                <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Piloto</Text>
+                <SearchableSelectQuery
+                  value={pilotId}
+                  listedData={listedPilots}
+                  onSearchChange={setPilotSearchTerm}
+                  onItemSelect={(value: string | undefined) => setPilotId(value)}
+                  itemKey='name'
+                  isFetching={isFetchingPilots}
+                  disabled={false}
+                />
+              </View>
+            )}
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Ajudante</Text>
+              <SearchableSelectQuery
+                value={assistantId}
+                listedData={listedAssistants}
+                onSearchChange={setAssistantSearchTerm}
+                onItemSelect={(value: string | undefined) => setAssistantId(value)}
+                itemKey='name'
+                hasNextPage={hasNextPageAssistants}
+                fetchNextPage={fetchNextPageAssistants}
+                isFetchingNextPage={isFetchingNextPageAssistants}
+                isFetching={isFetchingAssistants}
+                disabled={false}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Produto</Text>
+              <SearchableSelectQuery
+                value={productId}
+                listedData={listedProducts}
+                onSearchChange={setProductSearchTerm}
+                onItemSelect={(value: string | undefined) => setProductId(value)}
+                itemKey='name'
+                hasNextPage={hasNextPageProducts}
+                fetchNextPage={fetchNextPageProducts}
+                isFetchingNextPage={isFetchingNextPageProducts}
+                isFetching={isFetchingProducts}
+                disabled={false}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Drone</Text>
+              <SearchableSelectQuery
+                value={droneId}
+                listedData={listedDrones}
+                onSearchChange={setDroneSearchTerm}
+                onItemSelect={(value: string | undefined) => setDroneId(value)}
+                itemKey='name'
+                hasNextPage={hasNextPageDrones}
+                fetchNextPage={fetchNextPageDrones}
+                isFetchingNextPage={isFetchingNextPageDrones}
+                isFetching={isFetchingDrones}
+                disabled={false}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                Status da OS
+              </Text>
+              <SearchableSelectQuery
+                value={serviceOrderStatus}
+                listedData={serviceOrderStatusOptions}
+                onItemSelect={(value: string | undefined) =>
+                  setServiceOrderStatus((value as ServiceOrderStatus | undefined) || undefined)
+                }
+                itemKey='label'
+                disabled={false}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                Inconsistência (applicationIssue)
+              </Text>
+              <SearchableSelectQuery
+                value={applicationIssue || 'all'}
+                listedData={applicationIssueOptions}
+                onItemSelect={(value: string | undefined) =>
+                  handleApplicationIssueChange(value || 'all')
+                }
+                itemKey='label'
+                disabled={false}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                Válida/Inconsistente (invalidApplication)
+              </Text>
+              <SearchableSelectQuery
+                value={invalidApplication}
+                listedData={invalidApplicationOptions}
+                onItemSelect={(value: string | undefined) =>
+                  handleInvalidApplicationChange(value || 'all')
+                }
+                itemKey='label'
+                disabled={false}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                  Ordenar por
+                </Text>
+                <SearchableSelectQuery
+                  value={orderBy}
+                  listedData={orderByOptions}
+                  onItemSelect={(value: string | undefined) =>
+                    setOrderBy((value as ApplicationOrderBy) || ApplicationOrderBy.DATE)
+                  }
+                  itemKey='label'
+                  disabled={false}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>Ordem</Text>
+                <SearchableSelectQuery
+                  value={orderType}
+                  listedData={orderTypeOptions}
+                  onItemSelect={(value: string | undefined) =>
+                    setOrderType((value as ApplicationOrderType) || ApplicationOrderType.DESC)
+                  }
+                  itemKey='label'
+                  disabled={false}
+                />
+              </View>
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 6 }}>
+                Itens por página
+              </Text>
+              <SearchableSelectQuery
+                value={pageSize}
+                listedData={limitOptions}
+                onItemSelect={(value: string | undefined) => setPageSize(value || '5')}
+                itemKey='label'
+                disabled={false}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Clear filters */}
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>

@@ -1,9 +1,15 @@
 import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import type { PaginatedRequest } from "@common/types/paginated-request.types";
+import {
+  addOperationalDays,
+  diffOperationalDaysInclusive,
+  operationalDateSql,
+  toOperationalDateYMD,
+} from "@common/utils/operational-date";
 import { db } from "@infra/database";
 import { applications, assistants, contracts, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
-import { and, avg, count, countDistinct, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
+import { and, avg, count, countDistinct, eq, exists, ilike, inArray, isNull, not, or, sql, sum } from "drizzle-orm";
 
 import { ApplicationVM, type ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
 import { app } from "@modules/app/app.module";
@@ -26,10 +32,6 @@ import type { UpdateApplicationDTO } from "../dto/update-application.dto";
 import type { DashboardMetricsDTO, DashboardMetricsQueryString, MonthlySprayedArea, YesterdayStats } from "../dto/dashboard-metrics.dto";
 import { ApplicationStatsDTO, type ApplicationStatsQueryString } from "../dto/stats.dto";
 
-// Timezone constant for Brazilian time (GMT-3)
-const BRAZIL_TIMEZONE = 'America/Sao_Paulo';
-const BRAZIL_TIMEZONE_OFFSET_HOURS = -3;
-
 // Service orders to exclude from "aplicações avulsas" and invalid applications metrics
 // These are special service orders used to organize loose/invalid applications in the system
 const EXCLUDED_SERVICE_ORDER_IDS = [
@@ -51,44 +53,6 @@ type ApplicationListSummary = {
 type PaginatedApplicationsListResponse = PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema> & {
   summary: ApplicationListSummary;
 };
-
-
-
-/**
- * Get current date/time adjusted for Brazil timezone (GMT-3)
- * @returns {Date} Current date in Brazil timezone
- */
-function getBrazilNow(): Date {
-  const now = new Date();
-  // Convert UTC to Brazil time by adding the offset
-  const brazilTime = new Date(now.getTime() + (BRAZIL_TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000));
-  return brazilTime;
-}
-
-/**
- * Get start of day in Brazil timezone, converted to UTC for database queries
- * @param {Date} date - Date to get start of day for (in any timezone)
- * @returns {Date} Start of day in UTC that corresponds to 00:00 in Brazil
- * 
- * Example: If date represents 2025-12-08 in Brazil timezone,
- * this returns 2025-12-08 03:00:00 UTC (which is 00:00 GMT-3)
- */
-function getStartOfDayBrazilInUTC(date: Date): Date {
-  // Get the date as it appears in Brazil timezone (GMT-3)
-  // We need to convert the local date to what it would be in Brazil
-  const localDate = new Date(date);
-  
-  // Get UTC components
-  const year = localDate.getUTCFullYear();
-  const month = localDate.getUTCMonth();
-  const day = localDate.getUTCDate();
-  
-  // Create date at 00:00:00 Brazil time (GMT-3)
-  // 00:00 GMT-3 = 03:00 UTC on the same calendar date
-  const startOfDayUTC = new Date(Date.UTC(year, month, day, 3, 0, 0, 0));
-  
-  return startOfDayUTC;
-}
 
 export class ApplicationService {
   private readonly applicationRepository = new ApplicationRepository();
@@ -171,7 +135,7 @@ export class ApplicationService {
           WHERE ${contracts.id} = ${serviceOrders.contractId}
             AND ${contracts.deletedAt} IS NULL
             AND CURRENT_DATE BETWEEN (${contracts.date_start})::date AND (${contracts.date_end})::date
-            AND (${applications.date})::date BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
+            AND ${applicationOperationalDate} BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
         )`
       );
       needsJoins = true;
@@ -184,10 +148,11 @@ export class ApplicationService {
        * gerava recorte diferente do bucket diário em `timestamp without time zone`, e com
        * `ORDER BY ... DESC LIMIT n` o gráfico podia mostrar 0 no dia do painel com contagem > 0 nos stats.
        */
-      const startD = filters.startDate.slice(0, 10);
-      const endD = filters.endDate.slice(0, 10);
-      whereConditions.push(sql`(${applications.date})::date >= ${sql.raw(`'${startD}'`)}::date`);
-      whereConditions.push(sql`(${applications.date})::date <= ${sql.raw(`'${endD}'`)}::date`);
+      const startD = toOperationalDateYMD(filters.startDate);
+      const endD = toOperationalDateYMD(filters.endDate);
+      const applicationOperationalDate = operationalDateSql(applications.date);
+      whereConditions.push(sql`${applicationOperationalDate} >= ${sql.raw(`'${startD}'`)}::date`);
+      whereConditions.push(sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`);
     }
 
     return {
@@ -198,17 +163,14 @@ export class ApplicationService {
 
   private async getOperationalDayCount(filters?: ApplicationStatsQueryString): Promise<number> {
     if (filters?.startDate && filters?.endDate) {
-      const startDate = new Date(`${filters.startDate}T00:00:00`);
-      const endDate = new Date(`${filters.endDate}T00:00:00`);
-      const diffInMs = endDate.getTime() - startDate.getTime();
-      const diffDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1;
-      return Math.max(1, diffDays);
+      return diffOperationalDaysInclusive(filters.startDate, filters.endDate);
     }
 
     const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const applicationOperationalDate = operationalDateSql(applications.date);
     const result = await db
       .select({
-        days: sql<number>`COUNT(DISTINCT (${applications.date})::date)`,
+        days: sql<number>`COUNT(DISTINCT ${applicationOperationalDate})`,
       })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
@@ -563,7 +525,7 @@ export class ApplicationService {
     }
   }
 
-  public async applicationStatsSummary(startDate: Date, endDate: Date): Promise<ApplicationSummaryStatsDTO> {
+  public async applicationStatsSummary(startDate: string, endDate: string): Promise<ApplicationSummaryStatsDTO> {
     const [
       openOrdersCount,
       completedOrdersCount,
@@ -614,7 +576,7 @@ export class ApplicationService {
     }
   }
 
-  public async getApplicationsPerformance(startDate: Date, endDate: Date): Promise<PilotPerformanceDTO>{
+  public async getApplicationsPerformance(startDate: string, endDate: string): Promise<PilotPerformanceDTO>{
     const [
       avgHectaresByPilot, 
       totalHectares,
@@ -714,12 +676,12 @@ export class ApplicationService {
     ]);
 
     // Calculate days elapsed for total hectares
-    const today = new Date();
+    const today = toOperationalDateYMD(new Date());
     const daysElapsedTotal = this.calculateDaysElapsed(firstApplicationDate, today);
     const totalHectaresPerDay = daysElapsedTotal > 0 ? totalAreaHectares / daysElapsedTotal : 0;
 
     // Calculate days elapsed for current month (from day 1 to today)
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstDayOfMonth = `${today.slice(0, 8)}01`;
     const daysElapsedMonth = this.calculateDaysElapsed(firstDayOfMonth, today);
     const totalHectaresByMonthPerDay = daysElapsedMonth > 0 ? totalHectaresByMonth / daysElapsedMonth : 0;
     const operationalAverageHectaresPerDay =
@@ -837,12 +799,13 @@ export class ApplicationService {
   }>> {
     const { whereClause } = this.buildApplicationWhereConditions(filters);
     const granularity = filters?.granularity ?? "month";
+    const applicationOperationalDate = operationalDateSql(applications.date);
     const bucketDateSql =
       granularity === "day"
-        ? sql`(${applications.date})::date`
+        ? applicationOperationalDate
         : granularity === "month"
-          ? sql`DATE_TRUNC('month', ${applications.date})::date`
-          : sql`DATE_TRUNC('year', ${applications.date})::date`;
+          ? sql`DATE_TRUNC('month', ${applicationOperationalDate})::date`
+          : sql`DATE_TRUNC('year', ${applicationOperationalDate})::date`;
 
     const rows = await db
       .select({
@@ -905,14 +868,15 @@ export class ApplicationService {
    * @returns {Promise<number>} Count of Applications.
    */
   private async getApplicationCountByMonth(): Promise<number> {
+    const applicationOperationalDate = operationalDateSql(applications.date);
     const result =  await db
       .select({ count: count()})
       .from(applications)
       .where(
         and(
           isNull(applications.deletedAt),
-          sql`EXTRACT(MONTH FROM ${applications.date}) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM ${applications.date}) = EXTRACT(YEAR FROM CURRENT_DATE)`
+          sql`EXTRACT(MONTH FROM ${applicationOperationalDate}) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM ${applicationOperationalDate}) = EXTRACT(YEAR FROM CURRENT_DATE)`
         )
       )
 
@@ -957,12 +921,13 @@ export class ApplicationService {
    */
   private async getTotalAreaHectaresByMonth(filters?: ApplicationStatsQueryString): Promise<number> {
     const { whereClause, needsJoins } = this.buildApplicationWhereConditions(filters);
+    const applicationOperationalDate = operationalDateSql(applications.date);
     
     // Add month filter to where clause
     const monthWhereClause = and(
       whereClause,
-      sql`EXTRACT(MONTH FROM ${applications.date}) = EXTRACT(MONTH FROM CURRENT_DATE)
-        AND EXTRACT(YEAR FROM ${applications.date}) = EXTRACT(YEAR FROM CURRENT_DATE)`
+      sql`EXTRACT(MONTH FROM ${applicationOperationalDate}) = EXTRACT(MONTH FROM CURRENT_DATE)
+        AND EXTRACT(YEAR FROM ${applicationOperationalDate}) = EXTRACT(YEAR FROM CURRENT_DATE)`
     );
 
     if (!needsJoins) {
@@ -991,23 +956,24 @@ export class ApplicationService {
   /**
    * Gets the date of the first application.
    * @param {ApplicationStatsQueryString} filters - Optional filters to apply
-   * @returns {Promise<Date | null>} Date of first application or null if none exists.
+   * @returns {Promise<string | null>} Date of first application or null if none exists.
    */
-  private async getFirstApplicationDate(filters?: ApplicationStatsQueryString): Promise<Date | null> {
+  private async getFirstApplicationDate(filters?: ApplicationStatsQueryString): Promise<string | null> {
     const { whereClause, needsJoins } = this.buildApplicationWhereConditions(filters);
+    const applicationOperationalDate = operationalDateSql(applications.date);
 
     if (!needsJoins) {
       const result = await db
-        .select({ firstDate: sql<Date>`MIN(${applications.date})` })
+        .select({ firstDate: sql<string>`TO_CHAR(MIN(${applicationOperationalDate}), 'YYYY-MM-DD')` })
         .from(applications)
         .where(whereClause);
 
-      return result[0]?.firstDate ? new Date(result[0].firstDate) : null;
+      return result[0]?.firstDate ?? null;
     }
 
     // With joins
     const result = await db
-      .select({ firstDate: sql<Date>`MIN(${applications.date})` })
+      .select({ firstDate: sql<string>`TO_CHAR(MIN(${applicationOperationalDate}), 'YYYY-MM-DD')` })
       .from(applications)
       .leftJoin(users, eq(applications.pilotId, users.id))
       .leftJoin(plots, eq(applications.plotId, plots.id))
@@ -1016,33 +982,20 @@ export class ApplicationService {
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
       .where(whereClause);
 
-    return result[0]?.firstDate ? new Date(result[0].firstDate) : null;
+    return result[0]?.firstDate ?? null;
   }
 
   /**
    * Calculates the number of elapsed days between two dates.
-   * @param {Date | null} firstDate - Start date
-   * @param {Date} endDate - End date
+   * @param {string | null} firstDate - Start date
+   * @param {string} endDate - End date
    * @returns {number} Number of days elapsed (inclusive of both dates)
    */
-  private calculateDaysElapsed(firstDate: Date | null, endDate: Date): number {
+  private calculateDaysElapsed(firstDate: string | null, endDate: string): number {
     if (!firstDate) {
       return 0;
     }
-
-    // Set both dates to midnight to get accurate day count
-    const start = new Date(firstDate);
-    start.setHours(0, 0, 0, 0);
-    
-    const end = new Date(endDate);
-    end.setHours(0, 0, 0, 0);
-
-    // Calculate difference in milliseconds and convert to days
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Return at least 1 day if dates are the same or very close
-    return Math.max(1, diffDays);
+    return diffOperationalDaysInclusive(firstDate, endDate);
   }
 
   /**
@@ -1186,14 +1139,12 @@ export class ApplicationService {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-
+      const startYmd = toOperationalDateYMD(filters.startDate);
+      const endYmd = toOperationalDateYMD(filters.endDate);
+      const applicationOperationalDate = operationalDateSql(applications.date);
       whereConditions.push(
-        and(
-          gte(applications.date, new Date(filters.startDate)),
-          lt(applications.date, adjustEndDate)
-        )!
+        sql`${applicationOperationalDate} >= ${sql.raw(`'${startYmd}'`)}::date
+            AND ${applicationOperationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`
       );
     }
 
@@ -1822,8 +1773,8 @@ export class ApplicationService {
   public async getDashboardMetrics(filters?: DashboardMetricsQueryString): Promise<DashboardMetricsDTO> {
     app.log.info("[ApplicationService] - Fetching dashboard metrics");
 
-    // Build where conditions
-    const whereConditions = [isNull(applications.deletedAt)];
+    const applicationOperationalDate = operationalDateSql(applications.date);
+    const whereConditions: unknown[] = [isNull(applications.deletedAt)];
     
     // Filter by contract IDs via serviceOrders.contractId
     // This is the correct way to filter by contract - through service orders
@@ -1864,7 +1815,7 @@ export class ApplicationService {
           WHERE ${contracts.id} = ${serviceOrders.contractId}
             AND ${contracts.deletedAt} IS NULL
             AND CURRENT_DATE BETWEEN (${contracts.date_start})::date AND (${contracts.date_end})::date
-            AND (${applications.date})::date BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
+            AND ${applicationOperationalDate} BETWEEN (${contracts.date_start})::date AND LEAST((${contracts.date_end})::date, CURRENT_DATE)
         )`
       );
     }
@@ -1874,11 +1825,7 @@ export class ApplicationService {
     if (!filters?.startDate) {
       throw new AppError("O parâmetro startDate é obrigatório", HTTP_STATUS_CODES.BAD_REQUEST);
     }
-    const startDate = new Date(filters.startDate + 'T00:00:00-03:00');
-    
-    // Convert start date to UTC for database query
-    // Start date 00:00 GMT-3 = 03:00 UTC
-    const startDateUTC = getStartOfDayBrazilInUTC(startDate);
+    const startDate = toOperationalDateYMD(filters.startDate);
 
     // Default behavior (legacy): only count applications from startDate onwards.
     // In currentSeason mode, the temporal window is defined by active contract dates up to today.
@@ -1886,7 +1833,7 @@ export class ApplicationService {
       ? [...whereConditions]
       : [
           ...whereConditions,
-          gte(applications.date, startDateUTC),
+          sql`${applicationOperationalDate} >= ${sql.raw(`'${startDate}'`)}::date`,
         ];
 
     // Get total area hectares (filtered by date, farm, customer, and contract)
@@ -1903,20 +1850,13 @@ export class ApplicationService {
 
     const totalAreaHectares = Number(totalAreaResult[0]?.totalArea || 0);
 
-    // Calculate days since start using Brazil timezone (GMT-3)
-    const todayBrazil = getBrazilNow();
-    const startOfTodayBrazil = new Date(Date.UTC(
-      todayBrazil.getUTCFullYear(),
-      todayBrazil.getUTCMonth(),
-      todayBrazil.getUTCDate(),
-      0, 0, 0, 0
-    ));
+    const todayOperationalDate = toOperationalDateYMD(new Date());
     let daysSinceStart = 1;
 
     if (filters?.currentSeason) {
       const seasonStartResult = await db
         .select({
-          seasonStart: sql<Date>`MIN((${contracts.date_start})::date)`,
+          seasonStart: sql<string>`TO_CHAR(MIN((${contracts.date_start})::date), 'YYYY-MM-DD')`,
         })
         .from(applications)
         .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
@@ -1927,41 +1867,25 @@ export class ApplicationService {
         .leftJoin(users, eq(applications.pilotId, users.id))
         .where(and(...whereConditionsWithDate));
 
-      const seasonStart = seasonStartResult[0]?.seasonStart
-        ? new Date(seasonStartResult[0].seasonStart)
-        : null;
+      const seasonStart = seasonStartResult[0]?.seasonStart ?? null;
 
       if (seasonStart) {
-        const startOfSeason = new Date(Date.UTC(
-          seasonStart.getUTCFullYear(),
-          seasonStart.getUTCMonth(),
-          seasonStart.getUTCDate(),
-          0, 0, 0, 0
-        ));
-        const diffTime = startOfTodayBrazil.getTime() - startOfSeason.getTime();
-        daysSinceStart = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        daysSinceStart = diffOperationalDaysInclusive(seasonStart, todayOperationalDate);
       } else {
         daysSinceStart = 0;
       }
     } else {
-      const startOfStartDate = new Date(Date.UTC(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate(),
-        0, 0, 0, 0
-      ));
-      const diffTime = startOfTodayBrazil.getTime() - startOfStartDate.getTime();
-      daysSinceStart = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      daysSinceStart = diffOperationalDaysInclusive(startDate, todayOperationalDate);
     }
 
     // Calculate average daily area
     const averageDailyArea = daysSinceStart > 0 ? totalAreaHectares / daysSinceStart : 0;
 
     // Get yesterday's statistics (pass contractIds for proper filtering)
-    const yesterdayStats = await this.getYesterdayStats(whereConditions, filters?.customerIds, filters?.farmIds, filters?.contractIds);
+    const yesterdayStats = await this.getYesterdayStats(filters?.customerIds, filters?.farmIds, filters?.contractIds);
 
     // Get monthly sprayed area for chart (with date filter)
-    const monthlySprayedArea = await this.getMonthlySprayedArea(whereConditionsWithDate, filters?.customerIds, filters?.farmIds, startDateUTC, filters?.contractIds);
+    const monthlySprayedArea = await this.getMonthlySprayedArea(whereConditionsWithDate);
 
     app.log.info("[ApplicationService] - Dashboard metrics fetched successfully");
 
@@ -1976,51 +1900,27 @@ export class ApplicationService {
 
   /**
    * @description Get yesterday's statistics
-   * @param {any[]} baseWhereConditions - Base where conditions
    * @param {string[]} customerIds - Customer IDs to filter by
    * @param {string[]} farmIds - Farm IDs to filter by
    * @param {string[]} contractIds - Contract IDs to filter by (via serviceOrders)
    * @returns {Promise<YesterdayStats>} Yesterday statistics
    */
   private async getYesterdayStats(
-    baseWhereConditions: unknown[],
     customerIds?: string[],
     farmIds?: string[],
     contractIds?: string[]
   ): Promise<YesterdayStats> {
-    // Get current date/time in Brazil timezone (GMT-3)
-    const nowBrazil = getBrazilNow();
-    
-    // Get today's date components in Brazil timezone
-    const todayYear = nowBrazil.getUTCFullYear();
-    const todayMonth = nowBrazil.getUTCMonth();
-    const todayDay = nowBrazil.getUTCDate();
-    
-    // Calculate yesterday in Brazil timezone
-    const yesterdayBrazil = new Date(Date.UTC(todayYear, todayMonth, todayDay, 0, 0, 0, 0));
-    yesterdayBrazil.setUTCDate(yesterdayBrazil.getUTCDate() - 1);
-    
-    // Get yesterday's date string (YYYY-MM-DD format)
-    // We use Brazil timezone to determine which calendar day is "yesterday"
-    const yesterdayDateStr = `${yesterdayBrazil.getUTCFullYear()}-${String(yesterdayBrazil.getUTCMonth() + 1).padStart(2, '0')}-${String(yesterdayBrazil.getUTCDate()).padStart(2, '0')}`;
+    const yesterdayDateStr = addOperationalDays(new Date(), -1);
+    const applicationOperationalDate = operationalDateSql(applications.date);
     
     // Debug: Log the date being used
     app.log.info(
       `[ApplicationService] - Yesterday stats: filtering for UTC date = ${yesterdayDateStr}`
     );
 
-    // IMPORTANT: Use DATE(applications.date) directly WITHOUT timezone conversion
-    // This is because many entries are stored with midnight UTC (00:00:00 UTC) 
-    // which represents the user's intended date. When converted to Brazil time,
-    // midnight UTC becomes 21:00 of the previous day, incorrectly excluding these entries.
-    // 
-    // Example: User enters date "2025-12-08" -> stored as "2025-12-08 00:00:00 UTC"
-    // With Brazil conversion: shows as "2025-12-07 21:00:00 Brazil" (WRONG day)
-    // Without conversion: DATE = "2025-12-08" (CORRECT day)
     const whereConditions = [
       isNull(applications.deletedAt),
-      // Compare the UTC date directly - this includes entries stored at midnight UTC
-      sql`DATE(${applications.date}) = ${sql.raw(`'${yesterdayDateStr}'`)}::date`,
+      sql`${applicationOperationalDate} = ${sql.raw(`'${yesterdayDateStr}'`)}::date`,
     ];
 
     // Add contract filter (requires join with serviceOrders)
@@ -2109,29 +2009,16 @@ export class ApplicationService {
   /**
    * @description Get monthly sprayed area for chart
    * @param {any[]} baseWhereConditions - Base where conditions (already includes date, customer, farm, and contract filters)
-   * @param {string[]} customerIds - Customer IDs to filter by
-   * @param {string[]} farmIds - Farm IDs to filter by
-   * @param {Date} startDateUTC - Start date in UTC for filtering
-   * @param {string[]} contractIds - Contract IDs to filter by (determines if serviceOrders join is needed)
    * @returns {Promise<MonthlySprayedArea[]>} Monthly sprayed area data
    */
   private async getMonthlySprayedArea(
     baseWhereConditions: unknown[],
-    customerIds?: string[],
-    farmIds?: string[],
-    startDateUTC?: Date,
-    contractIds?: string[]
   ): Promise<MonthlySprayedArea[]> {
-    // Use the provided where conditions which already include all filters (date, customer, farm, contract)
-    // Convert unknown[] to proper SQL conditions
-    const whereConditions = baseWhereConditions as ReturnType<typeof and>[];
+    const applicationOperationalDate = operationalDateSql(applications.date);
 
-    // Get monthly aggregated data using Brazil timezone (GMT-3)
-    // The AT TIME ZONE converts the UTC timestamp to Brazil local time before extracting the month
-    // Include serviceOrders join to support filtering by contractId
     const monthlyDataResult = await db
       .select({
-        yearMonth: sql<string>`TO_CHAR(${applications.date} AT TIME ZONE 'UTC' AT TIME ZONE '${sql.raw(BRAZIL_TIMEZONE)}', 'YYYY-MM')`,
+        yearMonth: sql<string>`TO_CHAR(DATE_TRUNC('month', ${applicationOperationalDate}), 'YYYY-MM')`,
         hectares: sum(applications.hectares),
       })
       .from(applications)
@@ -2140,8 +2027,8 @@ export class ApplicationService {
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .where(baseWhereConditions.length > 0 ? and(...(baseWhereConditions as Parameters<typeof and>[0][])) : isNull(applications.deletedAt))
-      .groupBy(sql`TO_CHAR(${applications.date} AT TIME ZONE 'UTC' AT TIME ZONE '${sql.raw(BRAZIL_TIMEZONE)}', 'YYYY-MM')`)
-      .orderBy(sql`TO_CHAR(${applications.date} AT TIME ZONE 'UTC' AT TIME ZONE '${sql.raw(BRAZIL_TIMEZONE)}', 'YYYY-MM')`);
+      .groupBy(sql`TO_CHAR(DATE_TRUNC('month', ${applicationOperationalDate}), 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(DATE_TRUNC('month', ${applicationOperationalDate}), 'YYYY-MM')`);
 
     // Format month names in Portuguese
     const monthNames: Record<string, string> = {

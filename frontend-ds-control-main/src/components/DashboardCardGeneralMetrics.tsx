@@ -18,11 +18,14 @@ import { useGetAllCustomers } from '@/queries/customer.query';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import * as FarmService from '@/services/farm.service';
 import { Farm } from '@/types/farm.type';
+import { parseOperationalDateToPickerDate, toOperationalDateYMD } from '@/utils/operational-date';
 
 interface DashboardCardGeneralMetricsProps {
   startDate: string;
   onStartDateChange: (startDate: string) => void;
 }
+
+const toDateParam = (date: Date) => toOperationalDateYMD(date) ?? format(date, 'yyyy-MM-dd');
 
 export const DashboardCardGeneralMetrics = ({
   startDate,
@@ -163,7 +166,7 @@ export const DashboardCardGeneralMetrics = ({
         break;
     }
 
-    onStartDateChange(format(start, 'yyyy-MM-dd'));
+    onStartDateChange(toDateParam(start));
   };
 
   const {
@@ -274,7 +277,7 @@ export const DashboardCardGeneralMetrics = ({
                   value={startDate}
                   onChange={onStartDateChange}
                   placeholder='Selecione a data inicial'
-                  defaultMonth={startDate ? new Date(startDate) : undefined}
+                  defaultMonth={parseOperationalDateToPickerDate(startDate)}
                   className='w-full'
                 />
                 <div className='flex flex-wrap gap-2'>

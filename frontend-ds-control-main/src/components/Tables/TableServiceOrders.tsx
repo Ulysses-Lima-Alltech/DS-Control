@@ -19,6 +19,7 @@ import {
     createBadgesColumn,
     createColumn,
     createDateColumn,
+    createOperationalDateColumn,
 } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
@@ -300,7 +301,7 @@ export const TableServiceOrders = ({
         </div>
       ),
     },
-    createDateColumn<ServiceOrder>('plannedDate', 'plannedDate', 'Data Planejada'),
+    createOperationalDateColumn<ServiceOrder>('plannedDate', 'plannedDate', 'Data Planejada'),
     createDateColumn<ServiceOrder>('createdAt', 'createdAt', 'Data de Criação'),
     createActionsColumn<ServiceOrder>((serviceOrder) => (
       <div className='flex justify-center gap-2'>

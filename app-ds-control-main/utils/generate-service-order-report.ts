@@ -7,6 +7,7 @@ import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 
 const resolveImageUri = (imagePath: any): string => {
   if (typeof imagePath === 'number') {
@@ -15,14 +16,7 @@ const resolveImageUri = (imagePath: any): string => {
   return imagePath;
 };
 
-const formatDate = (dateString: string | Date) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
+const formatDate = (dateString: string | Date) => formatOperationalDateBR(dateString);
 
 const formatHectares = (hectares: string) => {
   return `${parseFloat(hectares).toFixed(2)} ha`;

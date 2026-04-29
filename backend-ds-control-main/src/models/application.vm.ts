@@ -1,4 +1,5 @@
 import z from "zod";
+import { toOperationalDateYMD } from "@common/utils/operational-date";
 
 export const ApplicationSchema = z.object({
   id: z.string().uuid(),
@@ -23,7 +24,8 @@ export const ApplicationSchema = z.object({
 });
 
 export const ApplicationViewModelSchema = ApplicationSchema.extend({
-  date: z.union([z.string(), z.date()]),
+  date: z.string(),
+  applicationDate: z.string(),
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]).nullish(),
   deletedAt: z.union([z.string(), z.date()]).nullish(),
@@ -74,7 +76,8 @@ export const ApplicationWithRelationsSchema = ApplicationSchema.extend({
 });
 
 export const ApplicationWithRelationsViewModelSchema = ApplicationWithRelationsSchema.extend({
-  date: z.union([z.string(), z.date()]),
+  date: z.string(),
+  applicationDate: z.string(),
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]).nullish(),
   deletedAt: z.union([z.string(), z.date()]).nullish(),
@@ -87,9 +90,19 @@ export type ApplicationWithRelationsViewModel = z.infer<typeof ApplicationWithRe
 
 export const ApplicationVM = {
   toViewModel: (application: Application) => {
-    return ApplicationViewModelSchema.parse(application);
+    const operationalDate = toOperationalDateYMD(application.date);
+    return ApplicationViewModelSchema.parse({
+      ...application,
+      date: operationalDate,
+      applicationDate: operationalDate,
+    });
   },
   toViewModelWithRelations: (application: ApplicationWithRelations) => {
-    return ApplicationWithRelationsViewModelSchema.parse(application);
+    const operationalDate = toOperationalDateYMD(application.date);
+    return ApplicationWithRelationsViewModelSchema.parse({
+      ...application,
+      date: operationalDate,
+      applicationDate: operationalDate,
+    });
   },
 }; 

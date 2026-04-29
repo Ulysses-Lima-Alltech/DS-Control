@@ -68,3 +68,46 @@ export const useGetApplicationsByPlotId = (
     enabled: !!plotId,
   });
 };
+
+export const useGetStatsApplications = (
+  params?: ApplicationService.GetStatsApplicationsParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetStatsApplicationsResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetStatsApplicationsResponse, Error>({
+    queryKey: ['applications', 'stats', params],
+    queryFn: () => ApplicationService.getStatsApplications(params),
+    ...options,
+  });
+};
+
+export const useGetApplicationsByPilotStats = (
+  params?: ApplicationService.GetByPilotApplicationsParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetByPilotApplicationsResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetByPilotApplicationsResponse, Error>({
+    queryKey: ['applications', 'stats', 'by-pilot', params],
+    queryFn: () => ApplicationService.getByPilotApplications(params),
+    ...options,
+  });
+};
+
+export const useGetDashboardMetrics = (
+  params?: ApplicationService.GetDashboardMetricsParams,
+  options?: Omit<
+    UseQueryOptions<ApplicationService.GetDashboardMetricsResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<ApplicationService.GetDashboardMetricsResponse, Error>({
+    queryKey: ['applications', 'dashboard-metrics', params],
+    queryFn: () => ApplicationService.getDashboardMetrics(params!),
+    enabled: !!params?.startDate,
+    ...options,
+  });
+};

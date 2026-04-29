@@ -1,6 +1,6 @@
 'use client';
 
-import { format, subDays } from 'date-fns';
+import { subDays } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -9,10 +9,16 @@ import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
+import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-const getYesterdayDateString = () => format(subDays(new Date(), 1), 'yyyy-MM-dd');
+const getYesterdayDateString = () => {
+  const todayYmd = toOperationalDateYMDOrToday();
+  const [year, month, day] = todayYmd.split('-').map(Number);
+  const todayDate = new Date(year, month - 1, day);
+  return toOperationalDateYMD(subDays(todayDate, 1)) ?? todayYmd;
+};
 
 const resolveInitialDateRange = (
   urlStartDate: string | null,

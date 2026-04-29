@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toOperationalDateYMD } from "@common/utils/operational-date";
 
 export const UpdateApplicationSchema = z.object({
   serviceOrderId: z.string().uuid("Service order ID must be a valid UUID").optional().nullable(),
@@ -27,7 +28,17 @@ export const UpdateApplicationSchema = z.object({
     (val) => !Number.isNaN(Number(val)) && Number(val) > 0,
     "Droplet size must be a positive number"
   ).optional(),
-  date: z.coerce.date().optional(),
+  date: z
+    .union([z.string(), z.number(), z.date()])
+    .refine((value) => {
+      try {
+        toOperationalDateYMD(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Date must be a valid operational date (YYYY-MM-DD, ISO or timestamp)")
+    .optional(),
   productId: z.string().uuid("Product ID must be a valid UUID").optional(),
   plotId: z.string().uuid("Plot ID must be a valid UUID").optional().nullable(),
   observations: z.string().max(1000, "Observations is too long").optional(),
