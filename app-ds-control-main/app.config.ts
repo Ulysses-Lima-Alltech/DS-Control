@@ -13,9 +13,7 @@ export default {
     updates: {
       url: 'https://u.expo.dev/76717c73-949f-4266-8ad5-792c6d1fbd85',
     },
-    runtimeVersion: {
-      policy: 'appVersion',
-    },
+    runtimeVersion: appVersion,
     platforms: ['ios', 'android'],
     ios: {
       supportsTablet: true,

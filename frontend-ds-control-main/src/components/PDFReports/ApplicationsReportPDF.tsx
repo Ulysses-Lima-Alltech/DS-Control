@@ -5,6 +5,7 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
@@ -80,15 +81,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     minute: '2-digit',
     second: '2-digit',
   });
-
-  const formatDate = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
 
   const formatHectares = (hectares: string) => {
     return `${parseFloat(hectares).toFixed(2)} ha`;
@@ -291,7 +283,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#1F2937',
                 }}
               >
-                {formatDate(serviceOrder.plannedDate)}
+                {formatOperationalDateBR(serviceOrder.plannedDate)}
               </Text>
             </View>
             {serviceOrder.farms && serviceOrder.farms.length > 0 && (

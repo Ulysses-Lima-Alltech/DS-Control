@@ -1,38 +1,36 @@
-import { z } from "zod";
+﻿import { z } from "zod";
+import { isOperationalDateString } from "@common/utils/operational-date";
 
 export interface ApplicationStatsDTO {
-    applicationCount: number;
-    applicationCountByMonth: number;
-    totalAreaHectares: number;
-    averageApplicationArea: number;
-    typeOfProducts: { productId: string; product: string; hectares: number }[];
-    pilotsCount: number;
-    dronesCount: number;
-    culturesCount: number;
-    averageApplicationByPilot: number;
-    averageApplicationByDrone: number;
-    averageAreaCoveredApplication: number;
-    invalidApplication: number;
-    totalHectaresByMonth: number;
-    totalHectaresPerDay: number;
-    totalHectaresByMonthPerDay: number;
-    pendingApplicationsCount: number;
-    pendingApplicationsTotalArea: number;
-    pendingFarmsCount: number;
-    pendingPlotsCount: number;
-    /** Pendências estruturais com fazenda não informada (farmId nulo). */
-    pendingApplicationsMissingFarmCount: number;
-    /**
-     * Pendências estruturais que não entram no recorte invalidApplication (OS aberta sem talhão).
-     * Com invalidApplication: soma = pendingApplicationsCount (partição disjunta por aplicação).
-     */
-    pendingApplicationsOtherThanInvalidOpenCount: number;
-    /** Média operacional baseada em hectares totais / dias do recorte atual. */
-    operationalAverageHectaresPerDay: number;
-    /** Média operacional baseada em hectares totais / drones distintos no recorte atual. */
-    operationalAverageHectaresPerDrone: number;
-    /** Média operacional baseada em hectares totais / pilotos distintos no recorte atual. */
-    operationalAverageHectaresPerPilot: number;
+  applicationCount: number;
+  applicationCountByMonth: number;
+  totalAreaHectares: number;
+  averageApplicationArea: number;
+  typeOfProducts: { productId: string; product: string; hectares: number }[];
+  pilotsCount: number;
+  dronesCount: number;
+  culturesCount: number;
+  averageApplicationByPilot: number;
+  averageApplicationByDrone: number;
+  averageAreaCoveredApplication: number;
+  invalidApplication: number;
+  totalHectaresByMonth: number;
+  totalHectaresPerDay: number;
+  totalHectaresByMonthPerDay: number;
+  pendingApplicationsCount: number;
+  pendingApplicationsTotalArea: number;
+  pendingFarmsCount: number;
+  pendingPlotsCount: number;
+  /** Pendencias estruturais com fazenda nao informada (farmId nulo). */
+  pendingApplicationsMissingFarmCount: number;
+  /** Pendencias estruturais fora do recorte invalidApplication. */
+  pendingApplicationsOtherThanInvalidOpenCount: number;
+  /** Media operacional baseada em hectares totais / dias do recorte atual. */
+  operationalAverageHectaresPerDay: number;
+  /** Media operacional baseada em hectares totais / drones distintos no recorte atual. */
+  operationalAverageHectaresPerDrone: number;
+  /** Media operacional baseada em hectares totais / pilotos distintos no recorte atual. */
+  operationalAverageHectaresPerPilot: number;
 }
 
 // Query string schema for filtered statistics
@@ -45,31 +43,11 @@ export const ApplicationStatsQueryStringSchema = z.object({
     .enum(["open", "completed", "cancelled"])
     .optional()
     .describe("Filter by service order status"),
-  farmId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by farm ID"),
-  pilotId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by pilot ID"),
-  productId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by product ID"),
-  customerId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by customer ID"),
-  serviceOrderId: z
-    .string()
-    .uuid()
-    .optional()
-    .describe("Filter by service order ID"),
+  farmId: z.string().uuid().optional().describe("Filter by farm ID"),
+  pilotId: z.string().uuid().optional().describe("Filter by pilot ID"),
+  productId: z.string().uuid().optional().describe("Filter by product ID"),
+  customerId: z.string().uuid().optional().describe("Filter by customer ID"),
+  serviceOrderId: z.string().uuid().optional().describe("Filter by service order ID"),
   invalidApplication: z
     .enum(["true", "false"])
     .optional()
@@ -77,14 +55,12 @@ export const ApplicationStatsQueryStringSchema = z.object({
     .describe("Filter to invalid applications"),
   startDate: z
     .string()
-    .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), {message: "Data Inicial no formato incorreto. Use YYYY-MM-DD. \n"} )
-    .refine(val =>  !isNaN(Date.parse(val)), {message: "Data inválida"})
+    .refine(isOperationalDateString, { message: "Data Inicial no formato incorreto. Use YYYY-MM-DD." })
     .optional()
     .describe("Filter application start date"),
   endDate: z
     .string()
-    .refine(val => /^\d{4}-\d{2}-\d{2}$/.test(val), {message: " Data Final no formato incorreto. Use YYYY-MM-DD."} )  
-    .refine(val =>  !isNaN(Date.parse(val)), {message: "invalid date"})
+    .refine(isOperationalDateString, { message: "Data Final no formato incorreto. Use YYYY-MM-DD." })
     .optional()
     .describe("Filter application end date"),
   ignoreFilters: z

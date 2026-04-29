@@ -41,9 +41,10 @@ export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllR
   const url = `${baseUrl}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
 
   if (__DEV__) {
-    console.warn('[Route Service][DEV] getAllRoutes request', {
-      apiBaseUrl: process.env.EXPO_PUBLIC_DS_CONTROL_API_URL,
+    console.warn('[Route Service][DEV] GET /routes request diagnostic', {
+      method: 'GET',
       endpoint: baseUrl,
+      url,
       params: Object.fromEntries(searchParams.entries()),
     });
   }

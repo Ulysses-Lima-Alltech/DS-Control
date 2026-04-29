@@ -35,8 +35,7 @@ const resolveInitialDateRange = (
     return { startDate: urlStartDate, endDate: urlEndDate };
   }
 
-  const yesterday = getYesterdayDateString();
-  return { startDate: yesterday, endDate: yesterday };
+  return {};
 };
 
 export default function DashboardPage() {

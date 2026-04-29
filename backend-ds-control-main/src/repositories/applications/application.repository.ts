@@ -1,5 +1,14 @@
 import { db } from "@infra/database";
 import { applications, assistants, cultureTypes, customers, drones, farms, plots, products, serviceOrderPlots, serviceOrders, users } from "@infra/database/schema";
+import {
+  addOperationalDays,
+  addOperationalMonths,
+  diffOperationalDaysInclusive,
+  operationalDateSql,
+  operationalDateToYmdSql,
+  toOperationalDateDatabaseTimestamp,
+  toOperationalDateYMD,
+} from "@common/utils/operational-date";
 import type { ApplicationIssueFilter } from "@modules/application/dto/get-all-application.dto";
 import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -19,12 +28,28 @@ const EXCLUDED_SERVICE_ORDER_IDS = [
 
 
 export class ApplicationRepository {
+  private getOperationalDateColumnSql(): SQL {
+    return operationalDateSql(applications.date);
+  }
+
+  private operationalDateRangeCondition(startDate: Date | string, endDate: Date | string): SQL {
+    const startYmd = toOperationalDateYMD(startDate);
+    const endYmd = toOperationalDateYMD(endDate);
+    const operationalDate = this.getOperationalDateColumnSql();
+
+    return and(
+      sql`${operationalDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
+      sql`${operationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
+    )!;
+  }
+
   /**
    * @description Create a new application
    * @param {CreateApplication} data - The application data
    * @returns {Promise<Application>} The created application
    */
   public async createApplication(data: CreateApplication): Promise<Application> {
+    const normalizedApplicationDate = toOperationalDateDatabaseTimestamp(data.date);
     let farmId = data.farmId;
     
     if(data.plotId) {
@@ -48,7 +73,7 @@ export class ApplicationRepository {
         altitude: data.altitude,
         routeSpacing: data.routeSpacing,
         dropletSize: data.dropletSize,
-        date: data.date,
+        date: normalizedApplicationDate,
         productId: data.productId,
         plotId: data.plotId,
         farmId: farmId,
@@ -410,16 +435,7 @@ export class ApplicationRepository {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      const startD =
-        typeof filters.startDate === "string"
-          ? filters.startDate.slice(0, 10)
-          : filters.startDate.toISOString().slice(0, 10);
-      const endD =
-        typeof filters.endDate === "string"
-          ? filters.endDate.slice(0, 10)
-          : filters.endDate.toISOString().slice(0, 10);
-      whereConditions.push(sql`(${applications.date})::date >= ${sql.raw(`'${startD}'`)}::date`);
-      whereConditions.push(sql`(${applications.date})::date <= ${sql.raw(`'${endD}'`)}::date`);
+      whereConditions.push(this.operationalDateRangeCondition(filters.startDate, filters.endDate));
     }
 
     return whereConditions;
@@ -554,7 +570,8 @@ export class ApplicationRepository {
   }> {
     const whereConditions = this.buildApplicationsListConditions(search, filters);
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
-    const yesterdayDate = DateTime.now().setZone("America/Sao_Paulo").minus({ days: 1 }).toISODate();
+    const yesterdayDate = addOperationalDays(new Date(), -1);
+    const operationalDate = this.getOperationalDateColumnSql();
 
     const [summary] = await db
       .select({
@@ -564,7 +581,7 @@ export class ApplicationRepository {
           COALESCE(
             SUM(
               CASE
-                WHEN (${applications.date})::date = CAST(${yesterdayDate} AS date)
+                WHEN ${operationalDate} = CAST(${yesterdayDate} AS date)
                 THEN CAST(${applications.hectares} AS numeric)
                 ELSE 0
               END
@@ -626,7 +643,7 @@ export class ApplicationRepository {
       ),
       offset: (page - 1) * limit,
       limit,
-      orderBy: (applications, { desc }) => [desc(applications.createdAt)],
+      orderBy: (applications, { desc }) => [desc(applications.date)],
       with: {
         serviceOrder: {
           columns: {
@@ -709,7 +726,7 @@ export class ApplicationRepository {
       where: eq(applications.pilotId, pilotId),
       offset: (page - 1) * limit,
       limit,
-      orderBy: (applications, { desc }) => [desc(applications.createdAt)],
+      orderBy: (applications, { desc }) => [desc(applications.date)],
       with: {
         serviceOrder: {
           columns: {
@@ -802,7 +819,7 @@ export class ApplicationRepository {
         ),
       offset: (page - 1) * limit,
       limit,
-      orderBy: (applications, { desc }) => [desc(applications.createdAt)],
+      orderBy: (applications, { desc }) => [desc(applications.date)],
       with: {
         serviceOrder: {
           columns: {
@@ -885,7 +902,7 @@ export class ApplicationRepository {
       where: and(eq(applications.serviceOrderId, serviceOrderId), isNull(applications.deletedAt)),
       offset: (page - 1) * limit,
       limit,
-      orderBy: (applications, { desc }) => [desc(applications.createdAt)],
+      orderBy: (applications, { desc }) => [desc(applications.date)],
       with: {
         serviceOrder: {
           columns: {
@@ -968,7 +985,7 @@ export class ApplicationRepository {
       where: and(eq(applications.plotId, plotId), isNull(applications.deletedAt)),
       offset: (page - 1) * limit,
       limit,
-      orderBy: (applications, { desc }) => [desc(applications.createdAt)],
+      orderBy: (applications, { desc }) => [desc(applications.date)],
       with: {
         serviceOrder: {
           columns: {
@@ -1058,7 +1075,7 @@ export class ApplicationRepository {
     if(data.altitude !== undefined) updateData.altitude = data.altitude;
     if(data.routeSpacing !== undefined) updateData.routeSpacing = data.routeSpacing;
     if(data.dropletSize !== undefined) updateData.dropletSize = data.dropletSize; 
-    if (data.date !== undefined) updateData.date = data.date;
+    if (data.date !== undefined) updateData.date = toOperationalDateDatabaseTimestamp(data.date);
     if (data.productId !== undefined) updateData.productId = data.productId;
     if (data.plotId !== undefined) updateData.plotId = data.plotId;
     if (data.observations !== undefined) updateData.observations = data.observations;
@@ -1262,26 +1279,23 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<number>} The count
    */
-  public async avgServiceOrdersByDaily(startDate: Date, endDate: Date): Promise<number> {
-
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+  public async avgServiceOrdersByDaily(startDate: Date | string, endDate: Date | string): Promise<number> {
+    const startYmd = toOperationalDateYMD(startDate);
+    const endYmd = toOperationalDateYMD(endDate);
+    const serviceOrderOperationalDate = operationalDateSql(serviceOrders.createdAt);
 
     const result = await db
       .select({ count: count() })
       .from(serviceOrders)
       .where(
         and(
-          gte(serviceOrders.createdAt, startDate),
-          lt(serviceOrders.createdAt, adjustEndDate)
+          sql`${serviceOrderOperationalDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
+          sql`${serviceOrderOperationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
         )
       );
 
     const serviceOrdersCount = Number(result[0]?.count || 0)
-    const daysCount = Math.max(
-      1,
-      Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 *24))
-    )
+    const daysCount = Math.max(1, diffOperationalDaysInclusive(startYmd, endYmd));
 
     return serviceOrdersCount > 0 ?  Number((serviceOrdersCount / daysCount).toFixed(2)) : 0;
   }
@@ -1294,11 +1308,12 @@ export class ApplicationRepository {
    * @returns {Promise<number>} Count of service orders.
    */
   public async countServiceOrdersByStatus(
-    startDate: Date, 
-    endDate: Date, 
+    startDate: Date | string, 
+    endDate: Date | string, 
     status: 'open' | 'completed' | 'cancelled'): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+    const startYmd = toOperationalDateYMD(startDate);
+    const endYmd = toOperationalDateYMD(endDate);
+    const plannedOperationalDate = operationalDateSql(serviceOrders.plannedDate);
 
     const [result] = await db
       .select({ count: count() })
@@ -1306,8 +1321,8 @@ export class ApplicationRepository {
       .where(
         and(
           eq(serviceOrders.status, status),
-          gte(serviceOrders.plannedDate, startDate),
-          lt(serviceOrders.plannedDate, adjustEndDate)
+          sql`${plannedOperationalDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
+          sql`${plannedOperationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
         )
       );
 
@@ -1320,9 +1335,8 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<number>} The count
    */
-  public async avgHectarebyApplication(startDate: Date, endDate: Date): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+  public async avgHectarebyApplication(startDate: Date | string, endDate: Date | string): Promise<number> {
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
 
     const result = await db
       .select({   
@@ -1333,8 +1347,7 @@ export class ApplicationRepository {
       .where(
         and(
           isNull(applications.deletedAt),
-          gte(applications.date, startDate),
-          lt(applications.date, adjustEndDate)
+          dateRangeCondition,
         )
       );
 
@@ -1355,9 +1368,8 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<number>} The count
    */
-  public async countHectares(startDate: Date, endDate: Date): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+  public async countHectares(startDate: Date | string, endDate: Date | string): Promise<number> {
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
 
     const result = await db
       .select({
@@ -1367,8 +1379,7 @@ export class ApplicationRepository {
       .where(
         and(
           isNull(applications.deletedAt),
-          gte(applications.date, startDate),
-          lt(applications.date, adjustEndDate)
+          dateRangeCondition,
         )
       );
     
@@ -1383,9 +1394,8 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<number>} The count
    */
-  public async countHectaresPerfomance(startDate: Date, endDate: Date): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+  public async countHectaresPerfomance(startDate: Date | string, endDate: Date | string): Promise<number> {
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
 
     const result = await db
       .select({
@@ -1395,8 +1405,7 @@ export class ApplicationRepository {
       .where(
         and(
           isNull(applications.deletedAt),
-          gte(applications.date, startDate),
-          lt(applications.date, adjustEndDate)
+          dateRangeCondition,
         )
       );
     
@@ -1413,30 +1422,25 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<{day: string, totalApplications: number, hectares: number}>[]} The count
    */
-  public async compareLastMonths(startDate: Date, endDate: Date) {
-
-    const comparasionStarDate = new Date(startDate);
-    comparasionStarDate.setMonth(comparasionStarDate.getMonth() - 3);
-
-    const comparisonEndDate = new Date(endDate);
-
-    const adjustEndDateComparison = new Date(comparisonEndDate);
-    adjustEndDateComparison.setDate(adjustEndDateComparison.getDate() + 1);
+  public async compareLastMonths(startDate: Date | string, endDate: Date | string) {
+    const comparisonStartDate = addOperationalMonths(startDate, -3);
+    const comparisonEndDate = toOperationalDateYMD(endDate);
+    const dateRangeCondition = this.operationalDateRangeCondition(comparisonStartDate, comparisonEndDate);
+    const operationalDaySql = operationalDateToYmdSql(applications.date);
 
     const result = await db
       .select({
-        day: sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD')`,
+        day: operationalDaySql,
         totalApplications: sql<number>`COUNT(DISTINCT ${applications.id})`,
         hectares: sql<number>`COALESCE(SUM(${applications.hectares}), 0)`,
       })
       .from(applications)
       .where(and(
         isNull(applications.deletedAt),
-        gte(applications.date, comparasionStarDate),
-        lt(applications.date, adjustEndDateComparison)
+        dateRangeCondition,
       ))
-      .groupBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD') `)
-      .orderBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD') DESC`)
+      .groupBy(operationalDaySql)
+      .orderBy(sql`${operationalDaySql} DESC`)
 
       return result.map(r => ({
         day: r.day,
@@ -1452,9 +1456,8 @@ export class ApplicationRepository {
    * @param {Date} endDate - The final Date
    * @returns {Promise<{pilotName: string, avgHectares: number}[]>} The count
    */
-  public async avgHectaresByPilot(startDate: Date, endDate: Date): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+  public async avgHectaresByPilot(startDate: Date | string, endDate: Date | string): Promise<number> {
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
     
     const result = await db
       .select({
@@ -1467,8 +1470,7 @@ export class ApplicationRepository {
         and(
           isNull(applications.deletedAt),
           isNull(users.deletedAt),
-          gte(applications.date, startDate),
-          lt(applications.date, adjustEndDate)
+          dateRangeCondition,
         )
       )
 
@@ -1478,21 +1480,16 @@ export class ApplicationRepository {
       return totalUsers > 0 ? totalHectares / totalUsers : 0;
   }
 
-  public async applicationsByPilotsLastMonths(startDate: Date, endDate: Date) {
-  
-    const comparasionStarDate = new Date(startDate);
-    comparasionStarDate.setMonth(comparasionStarDate.getMonth() - 3);
+  public async applicationsByPilotsLastMonths(startDate: Date | string, endDate: Date | string) {
+    const comparisonStartDate = addOperationalMonths(startDate, -3);
+    const comparisonEndDate = toOperationalDateYMD(endDate);
+    const dateRangeCondition = this.operationalDateRangeCondition(comparisonStartDate, comparisonEndDate);
+    const operationalDaySql = operationalDateToYmdSql(applications.date);
 
-    let comparisonEndDate =  new Date(endDate);
-    
-    let adjustEndDateComparison =  new Date(comparisonEndDate);
-    adjustEndDateComparison.setDate(adjustEndDateComparison.getDate() + 1);
-    
-    
     const result = await db
       .select({ 
         pilotName: users.name,
-        day: sql<string>`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD')`,
+        day: operationalDaySql,
         applications: sql<number>`COUNT(${applications.id})`,
         hectares: sql<number>`COALESCE(SUM(${applications.hectares}), 0)`
       })
@@ -1502,12 +1499,11 @@ export class ApplicationRepository {
         and(
           isNull(applications.deletedAt),
           isNull(users.deletedAt),
-          gte(applications.date, comparasionStarDate),
-          lt(applications.date, adjustEndDateComparison)
+          dateRangeCondition,
         )
       )
-      .groupBy(users.id, users.name, sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD')`)
-      .orderBy(sql`TO_CHAR(${applications.date}::timestamp, 'YYYY-MM-DD') DESC`);
+      .groupBy(users.id, users.name, operationalDaySql)
+      .orderBy(sql`${operationalDaySql} DESC`);
 
       return result.map(r => ({
         pilotName: r.pilotName,
@@ -1607,11 +1603,10 @@ export class ApplicationRepository {
    */
   public async getAreaHectaresByStatus(
     status: 'open' | 'completed' | 'cancelled',
-    startDate: Date,
-    endDate: Date
+    startDate: Date | string,
+    endDate: Date | string,
   ): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
 
     // Query plots through serviceOrderPlots junction table
     // Filter by service order status and application dates
@@ -1632,8 +1627,7 @@ export class ApplicationRepository {
                 and(
                   eq(applications.serviceOrderId, serviceOrders.id),
                   isNull(applications.deletedAt),
-                  gte(applications.date, startDate),
-                  lt(applications.date, adjustEndDate)
+                  dateRangeCondition,
                 )
               )
           )
@@ -1653,11 +1647,10 @@ export class ApplicationRepository {
    */
   public async getAppliedHectaresByStatus(
     status: 'open' | 'completed' | 'cancelled',
-    startDate: Date,
-    endDate: Date
+    startDate: Date | string,
+    endDate: Date | string,
   ): Promise<number> {
-    const adjustEndDate = new Date(endDate);
-    adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+    const dateRangeCondition = this.operationalDateRangeCondition(startDate, endDate);
 
     // Query applications through serviceOrders
     // Sum hectares from applications where serviceOrderId matches and application is not deleted
@@ -1669,8 +1662,7 @@ export class ApplicationRepository {
         and(
           eq(serviceOrders.status, status),
           isNull(applications.deletedAt),
-          gte(applications.date, startDate),
-          lt(applications.date, adjustEndDate)
+          dateRangeCondition,
         )
       );
 

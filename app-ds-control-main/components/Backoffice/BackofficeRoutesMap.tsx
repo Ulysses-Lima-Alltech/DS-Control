@@ -67,8 +67,71 @@ const routeLimitOptions: { id: string; label: string }[] = [
   { id: '20', label: '20 por pagina' },
 ];
 
+const ROUTE_GEOMETRY_CANDIDATE_FIELDS = [
+  'geoJson',
+  'geojson',
+  'geometry',
+  'points',
+  'routePoints',
+  'routeCoordinates',
+  'coordinates',
+  'path',
+  'paths',
+  'polyline',
+  'kml',
+  'distance',
+  'pointCount',
+  'pointsCount',
+  'totalPoints',
+  'destination',
+  'start',
+  'farm',
+  'customer',
+] as const;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const summarizeDevRouteFieldValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      length: value.length,
+      firstItem: value.length > 0 ? value[0] : null,
+      lastItem: value.length > 0 ? value[value.length - 1] : null,
+    };
+  }
+
+  if (typeof value === 'string') {
+    return {
+      type: 'string',
+      length: value.length,
+      preview: value.slice(0, 300),
+    };
+  }
+
+  if (isRecord(value)) {
+    const summary: Record<string, unknown> = {
+      type: 'object',
+      keys: Object.keys(value),
+    };
+
+    if ('type' in value) summary.typeValue = value.type;
+    if ('coordinates' in value) {
+      summary.coordinatesSummary = summarizeDevRouteFieldValue(value.coordinates);
+    }
+    if ('features' in value) {
+      summary.featuresSummary = summarizeDevRouteFieldValue(value.features);
+    }
+
+    return summary;
+  }
+
+  return {
+    type: value === null ? 'null' : typeof value,
+    value,
+  };
+};
 
 const isGeometryType = (value: unknown): value is GeoJSON.Geometry['type'] =>
   typeof value === 'string' &&
@@ -572,6 +635,24 @@ export default function BackofficeRoutesMap() {
 
     return routeRecords.find((route) => route.id === selectedRouteId) ?? routeRecords[0];
   }, [routeRecords, selectedRouteId]);
+
+  useEffect(() => {
+    if (!__DEV__ || !selectedRoute || !isRecord(selectedRoute)) return;
+
+    const routeRecord = selectedRoute as Record<string, unknown>;
+    const candidates: Record<string, unknown> = {};
+
+    ROUTE_GEOMETRY_CANDIDATE_FIELDS.forEach((field) => {
+      candidates[field] = summarizeDevRouteFieldValue(routeRecord[field]);
+    });
+
+    console.warn('[BackofficeRoutesMap][DEV] Selected route payload diagnostic', {
+      routeId: routeRecord.id,
+      routeName: routeRecord.name,
+      routeKeys: Object.keys(routeRecord),
+      candidates,
+    });
+  }, [selectedRoute]);
 
   const selectedFarm = selectedFarmData?.farm;
   const selectedFarmPlots = selectedFarm?.plots ?? [];

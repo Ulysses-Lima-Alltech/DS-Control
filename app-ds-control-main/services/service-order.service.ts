@@ -4,6 +4,7 @@ import {
   ServiceOrderBy,
   ServiceOrderType,
 } from '@/types/service-order.type';
+import { toOperationalDateYMD } from '@/utils/operational-date';
 
 import { api } from './api.service';
 
@@ -12,15 +13,7 @@ const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const toCivilYYYYMMDD = (value: string) => {
   if (!value) return '';
   if (DATE_PARAM_REGEX.test(value)) return value;
-  if (value.includes('T')) return value.split('T')[0];
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return toOperationalDateYMD(value) ?? '';
 };
 
 export type GetAllMyOpenServiceOrdersResponse = {

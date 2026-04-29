@@ -9,20 +9,12 @@
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 
 interface ApplicationsReportLayoutMirrorProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
 }
-
-const formatDate = (dateString: string | Date) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
 
 const formatHectares = (hectares: string) => {
   return `${parseFloat(hectares).toFixed(2)} ha`;
@@ -115,7 +107,7 @@ export function ApplicationsReportLayoutMirror({
           </div>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Data Planejada:</span>
-            <span className='text-[10px] w-[60%]'>{formatDate(serviceOrder.plannedDate)}</span>
+            <span className='text-[10px] w-[60%]'>{formatOperationalDateBR(serviceOrder.plannedDate)}</span>
           </div>
           {serviceOrder.farms?.length ? (
             <div className='flex mb-2'>

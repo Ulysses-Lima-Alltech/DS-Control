@@ -1,3 +1,5 @@
+import type { OperationalDateInput } from "@common/utils/operational-date";
+
 export type Application = {
   id: string;
   serviceOrderId: string | null;
@@ -31,7 +33,7 @@ export interface CreateApplication {
   altitude: string;
   routeSpacing: string;
   dropletSize: string;
-  date: Date;
+  date: OperationalDateInput;
   productId: string;
   plotId: string | null;
   farmId: string | null;
@@ -49,7 +51,7 @@ export interface UpdateApplication {
   altitude?: string;
   routeSpacing?: string;
   dropletSize?: string;
-  date?: Date;
+  date?: OperationalDateInput;
   productId?: string;
   plotId?: string;
   farmId?: string;
