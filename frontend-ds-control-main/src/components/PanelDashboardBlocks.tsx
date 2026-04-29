@@ -12,7 +12,7 @@ import {
   Sprout,
   UserCheck,
 } from 'lucide-react';
-import { CSSProperties, useCallback, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -34,6 +34,7 @@ import { Progress } from '@/components/ui/progress';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import { useGetAllApplications, useGetApplicationsByPilotStats, useGetDashboardMetrics, useGetStatsApplications } from '@/queries/application.query';
 import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
+import { useGetAllCropSeasonsInfinite, useGetCurrentCropSeason } from '@/queries/crop-season.query';
 import { useGetAllCustomers } from '@/queries/customer.query';
 import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarms } from '@/queries/farm.query';
@@ -48,6 +49,7 @@ import {
   ApplicationOrderType,
 } from '@/types/applications.type';
 import { Assistant } from '@/types/assistant.type';
+import { CropSeason } from '@/types/crop-season.type';
 import { Drone } from '@/types/drone.type';
 import { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
@@ -58,7 +60,7 @@ interface PanelDashboardBlocksProps {
   endDate?: string;
   yesterday: string;
 }
-type RangeMode = 'month' | 'day';
+type RangeMode = 'total' | 'month' | 'day';
 type ComparableDateRange = { startDate?: string; endDate?: string } | undefined;
 type PilotLaunchStatus = 'launched' | 'pending';
 type PilotLaunchRow = {
@@ -292,6 +294,7 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
 }
 
 function getRangeByMode(mode: RangeMode, filteredStartDate: string, filteredEndDate: string) {
+  if (mode === 'total') return undefined;
   if (mode === 'month') {
     const end = parseDateParam(filteredEndDate);
     if (!end) {
@@ -362,6 +365,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     if (!VALID_APPLICATION_ISSUES.has(urlValue as ApplicationIssueFilter)) return undefined;
     return urlValue as ApplicationIssueFilter;
   });
+  const [selectedCropSeasonId, setSelectedCropSeasonId] = useState<string | undefined>(() => {
+    const urlValue = searchParams?.get('cropSeasonId') || undefined;
+    return urlValue || undefined;
+  });
   const [dateRange, setDateRange] = useState<{ startDate?: string; endDate?: string } | undefined>(
     () =>
       startDate && endDate
@@ -373,8 +380,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   );
   const [datePickerResetKey, setDatePickerResetKey] = useState(0);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
-  const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
-  const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('month');
+  const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
+  const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
   const isDarkTheme = resolvedTheme === 'dark';
   const chartTextColor = isDarkTheme ? DARK_CHART_TEXT_COLOR : LIGHT_CHART_TEXT_COLOR;
   const chartAxisColor = isDarkTheme ? DARK_CHART_AXIS_COLOR : LIGHT_CHART_AXIS_COLOR;
@@ -426,6 +433,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       selectedProductId ||
       selectedAssistantId ||
       selectedDroneId ||
+      selectedCropSeasonId ||
       selectedServiceOrderStatus ||
       selectedApplicationIssue
   );
@@ -446,11 +454,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
+    cropSeasonId: selectedCropSeasonId,
   };
   const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
     useGetStatsApplications({
       ...kpiBaseFilters,
-      currentSeason: true,
+      ...(selectedCropSeasonId ? {} : { currentSeason: true }),
     });
   const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } = useGetStatsApplications({
     ...kpiBaseFilters,
@@ -468,7 +477,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     farmIds: selectedFarmId ? [selectedFarmId] : undefined,
     pilotId: selectedPilotId,
     search: search || undefined,
-    currentSeason: true,
+    ...(selectedCropSeasonId ? {} : { currentSeason: true }),
+    cropSeasonId: selectedCropSeasonId,
   });
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
@@ -476,6 +486,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
     productId: selectedProductId,
+    cropSeasonId: selectedCropSeasonId,
     serviceOrderStatus: selectedServiceOrderStatus,
     startDate: pilotChartRange?.startDate,
     endDate: pilotChartRange?.endDate,
@@ -490,6 +501,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       farmId: selectedFarmId,
       pilotId: selectedPilotId,
       productId: selectedProductId,
+      cropSeasonId: selectedCropSeasonId,
       serviceOrderStatus: selectedServiceOrderStatus,
       assistantId: selectedAssistantId,
       droneId: selectedDroneId,
@@ -525,6 +537,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: '100',
     status: 'active',
   });
+  const {
+    data: cropSeasonsData,
+    fetchNextPage: fetchNextPageCropSeasons,
+    hasNextPage: hasNextPageCropSeasons,
+    isFetchingNextPage: isFetchingNextPageCropSeasons,
+    isPending: isLoadingCropSeasons,
+  } = useGetAllCropSeasonsInfinite({
+    limit: '50',
+    status: 'active',
+  });
+  const { data: currentCropSeasonData, isLoading: isLoadingCurrentCropSeason } = useGetCurrentCropSeason();
 
   const { data: pilotLaunchesData, isPending: isLoadingPilotLaunches } = useGetAllApplications({
     page: '1',
@@ -535,6 +558,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     pilotId: selectedPilotId,
     productId: selectedProductId,
     serviceOrderStatus: selectedServiceOrderStatus,
+    cropSeasonId: selectedCropSeasonId,
     assistantId: selectedAssistantId,
     droneId: selectedDroneId,
     applicationIssue: selectedApplicationIssue,
@@ -560,6 +584,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       pilotId: selectedPilotId,
       productId: selectedProductId,
       serviceOrderStatus: selectedServiceOrderStatus,
+      cropSeasonId: selectedCropSeasonId,
       assistantId: selectedAssistantId,
       droneId: selectedDroneId,
       applicationIssue: selectedApplicationIssue,
@@ -604,6 +629,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     (dronesData as unknown as InfiniteData<{ data: Drone[] }>)?.pages?.flatMap(
       (page) => page.data
     ) || [];
+  const cropSeasons =
+    (cropSeasonsData as unknown as InfiniteData<{ data: CropSeason[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
   const openServiceOrders =
     selectedServiceOrderStatus && selectedServiceOrderStatus !== 'open'
       ? []
@@ -621,6 +650,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         selectedFarmId,
         selectedPilotId,
         selectedProductId,
+        selectedCropSeasonId,
         selectedServiceOrderStatus,
         search,
       ],
@@ -631,6 +661,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           farmId: selectedFarmId,
           pilotId: selectedPilotId,
           productId: selectedProductId,
+          cropSeasonId: selectedCropSeasonId,
           serviceOrderStatus: selectedServiceOrderStatus,
           ...(customerChartRange?.startDate && customerChartRange?.endDate
             ? {
@@ -657,6 +688,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         selectedPilotId,
         selectedAssistantId,
         selectedDroneId,
+        selectedCropSeasonId,
         selectedServiceOrderStatus,
         selectedApplicationIssue,
       ],
@@ -666,6 +698,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           serviceOrderId: serviceOrder.id,
           pilotId: selectedPilotId,
           productId: selectedProductId,
+          cropSeasonId: selectedCropSeasonId,
           serviceOrderStatus: selectedServiceOrderStatus,
           assistantId: selectedAssistantId,
           droneId: selectedDroneId,
@@ -688,6 +721,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         selectedPilotId,
         selectedAssistantId,
         selectedDroneId,
+        selectedCropSeasonId,
         selectedServiceOrderStatus,
         selectedApplicationIssue,
       ],
@@ -699,6 +733,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           serviceOrderId: serviceOrder.id,
           pilotId: selectedPilotId,
           productId: selectedProductId,
+          cropSeasonId: selectedCropSeasonId,
           assistantId: selectedAssistantId,
           droneId: selectedDroneId,
           serviceOrderStatus: selectedServiceOrderStatus,
@@ -889,6 +924,19 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     [pathname, router, searchParams]
   );
 
+  useEffect(() => {
+    if (selectedCropSeasonId || isLoadingCurrentCropSeason) return;
+    const currentId = currentCropSeasonData?.cropSeason?.id;
+    if (!currentId) return;
+    setSelectedCropSeasonId(currentId);
+    syncFilterParamInUrl('cropSeasonId', currentId);
+  }, [
+    currentCropSeasonData?.cropSeason?.id,
+    isLoadingCurrentCropSeason,
+    selectedCropSeasonId,
+    syncFilterParamInUrl,
+  ]);
+
   const clearFilters = () => {
     setSearch('');
     setSelectedCustomerId(undefined);
@@ -897,6 +945,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     setSelectedProductId(undefined);
     setSelectedAssistantId(undefined);
     setSelectedDroneId(undefined);
+    setSelectedCropSeasonId(undefined);
     setSelectedServiceOrderStatus(undefined);
     setSelectedApplicationIssue(undefined);
     setDateRange(undefined);
@@ -912,6 +961,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     nextParams.delete('productId');
     nextParams.delete('assistantId');
     nextParams.delete('droneId');
+    nextParams.delete('cropSeasonId');
     nextParams.delete('serviceOrderStatus');
     nextParams.delete('applicationIssue');
     nextParams.set('cleared', '1');
@@ -991,6 +1041,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
     [syncFilterParamInUrl]
   );
+  const handleCropSeasonChange = useCallback(
+    (value: string | undefined) => {
+      setSelectedCropSeasonId(value);
+      syncFilterParamInUrl('cropSeasonId', value);
+    },
+    [syncFilterParamInUrl]
+  );
   const handleServiceOrderStatusChange = useCallback(
     (value: ServiceOrderStatus | undefined) => {
       setSelectedServiceOrderStatus(value);
@@ -1005,11 +1062,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
     [syncFilterParamInUrl]
   );
+  const selectPilotTotalMode = useCallback(() => {
+    setPilotPeriodMode('total');
+  }, []);
   const selectPilotMonthMode = useCallback(() => {
     setPilotPeriodMode('month');
   }, []);
   const selectPilotDayMode = useCallback(() => {
     setPilotPeriodMode('day');
+  }, []);
+  const selectCustomerTotalMode = useCallback(() => {
+    setCustomerPeriodMode('total');
   }, []);
   const selectCustomerMonthMode = useCallback(() => {
     setCustomerPeriodMode('month');
@@ -1164,6 +1227,21 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               placeholder='Período'
             />
             <SearchableSelectQuery
+              options={cropSeasons.map((cropSeason) => ({
+                value: cropSeason.id,
+                label: cropSeason.name,
+              }))}
+              value={selectedCropSeasonId}
+              onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
+              placeholder='Safra'
+              searchPlaceholder='Buscar safra...'
+              clearable
+              isLoading={isLoadingCropSeasons || isLoadingCurrentCropSeason}
+              onScrollEnd={fetchNextPageCropSeasons}
+              hasNextPage={hasNextPageCropSeasons}
+              isFetchingNextPage={isFetchingNextPageCropSeasons}
+            />
+            <SearchableSelectQuery
               options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
               value={selectedCustomerId}
               onValueChange={(value) => handleCustomerChange(value as string | undefined)}
@@ -1285,6 +1363,20 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <CardTitle>Hectares por Piloto/Ajudante</CardTitle>
             <div className='flex flex-wrap items-center gap-2'>
               <div className='flex gap-1 rounded-md border border-border/70 p-1'>
+                <Button
+                  type='button'
+                  size='sm'
+                    variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
+                    className={
+                      pilotPeriodMode === 'total'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                        : PANEL_TOGGLE_INACTIVE_CLASS
+                    }
+                  onClick={selectPilotTotalMode}
+                  disabled={!selectedCropSeasonId}
+                >
+                  Total Geral
+                </Button>
                 <Button
                   type='button'
                   size='sm'
@@ -1411,6 +1503,20 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <CardTitle>Hectares por Cliente</CardTitle>
             <div className='flex gap-1 rounded-md border border-border/70 p-1'>
+              <Button
+                type='button'
+                size='sm'
+                variant={customerPeriodMode === 'total' ? 'default' : 'ghost'}
+                className={
+                  customerPeriodMode === 'total'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                    : PANEL_TOGGLE_INACTIVE_CLASS
+                }
+                onClick={selectCustomerTotalMode}
+                disabled={!selectedCropSeasonId}
+              >
+                Total Geral
+              </Button>
               <Button
                 type='button'
                 size='sm'

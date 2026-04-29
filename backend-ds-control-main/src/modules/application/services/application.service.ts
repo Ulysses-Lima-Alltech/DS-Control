@@ -54,6 +54,11 @@ type ApplicationListSummary = {
 type PaginatedApplicationsListResponse = PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema> & {
   summary: ApplicationListSummary;
 };
+type ApplicationStatsFiltersWithCropSeason = ApplicationStatsQueryString & {
+  cropSeasonStartDate?: string;
+  cropSeasonEndDate?: string;
+  cropSeasonProductIds?: string[];
+};
 
 export class ApplicationService {
   private readonly applicationRepository = new ApplicationRepository();
@@ -69,7 +74,7 @@ export class ApplicationService {
    * @param {ApplicationStatsQueryString} filters - Optional filters to apply
    * @returns {object} Object with whereClause and joins needed
    */
-  private buildApplicationWhereConditions(filters?: ApplicationStatsQueryString) {
+  private buildApplicationWhereConditions(filters?: ApplicationStatsFiltersWithCropSeason) {
     if (!filters) {
       return {
         whereClause: isNull(applications.deletedAt),
@@ -110,6 +115,14 @@ export class ApplicationService {
 
     if (filters.productId) {
       whereConditions.push(eq(applications.productId, filters.productId));
+    }
+
+    if (filters.cropSeasonProductIds) {
+      if (filters.cropSeasonProductIds.length === 0) {
+        whereConditions.push(sql`1 = 0`);
+      } else {
+        whereConditions.push(inArray(applications.productId, filters.cropSeasonProductIds));
+      }
     }
 
     if (filters.customerId) {
@@ -157,9 +170,36 @@ export class ApplicationService {
       whereConditions.push(sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`);
     }
 
+    if (filters.cropSeasonStartDate && filters.cropSeasonEndDate) {
+      const startD = toOperationalDateYMD(filters.cropSeasonStartDate);
+      const endD = toOperationalDateYMD(filters.cropSeasonEndDate);
+      const applicationOperationalDate = operationalDateSql(applications.date);
+      whereConditions.push(sql`${applicationOperationalDate} >= ${sql.raw(`'${startD}'`)}::date`);
+      whereConditions.push(sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`);
+    }
+
     return {
       whereClause: whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0],
       needsJoins
+    };
+  }
+
+  private async resolveCropSeasonFilters<T extends { cropSeasonId?: string }>(
+    filters?: T
+  ): Promise<(T & { cropSeasonStartDate?: string; cropSeasonEndDate?: string; cropSeasonProductIds?: string[] }) | undefined> {
+    if (!filters) return undefined;
+    if (!filters.cropSeasonId) return filters;
+
+    const cropSeason = await this.cropSeasonRepository.getCropSeasonById(filters.cropSeasonId);
+    if (!cropSeason) {
+      throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    return {
+      ...filters,
+      cropSeasonStartDate: cropSeason.startDate,
+      cropSeasonEndDate: cropSeason.endDate,
+      cropSeasonProductIds: cropSeason.products.map((product) => product.id),
     };
   }
 
@@ -650,7 +690,8 @@ export class ApplicationService {
    * @returns {Promise<ApplicationStatsDTO>}
    */ 
   public async getGeneralStats(filters?: ApplicationStatsQueryString): Promise<ApplicationStatsDTO> {
-    const effectiveFilters = filters?.ignoreFilters ? undefined : filters;
+    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
+    const effectiveFilters = resolvedFilters?.ignoreFilters ? undefined : resolvedFilters;
     const [
       applicationCount,
       applicationCountByMonth,
@@ -746,8 +787,9 @@ export class ApplicationService {
     totalAreaHectares: number;
     averageAreaPerApplication: number;
   }>> {
-    const { whereClause } = this.buildApplicationWhereConditions(filters);
-    const limit = filters?.limit ?? 10;
+    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
+    const { whereClause } = this.buildApplicationWhereConditions(resolvedFilters);
+    const limit = resolvedFilters?.limit ?? 10;
 
     const result = await db
       .select({
@@ -786,8 +828,9 @@ export class ApplicationService {
     applicationsCount: number;
     totalAreaHectares: number;
   }>> {
-    const { whereClause } = this.buildApplicationWhereConditions(filters);
-    const limit = filters?.limit ?? 5;
+    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
+    const { whereClause } = this.buildApplicationWhereConditions(resolvedFilters);
+    const limit = resolvedFilters?.limit ?? 5;
 
     const results = await db
       .select({
@@ -819,8 +862,9 @@ export class ApplicationService {
     date: string;
     applicationsCount: number;
   }>> {
-    const { whereClause } = this.buildApplicationWhereConditions(filters);
-    const granularity = filters?.granularity ?? "month";
+    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
+    const { whereClause } = this.buildApplicationWhereConditions(resolvedFilters);
+    const granularity = resolvedFilters?.granularity ?? "month";
     const applicationOperationalDate = operationalDateSql(applications.date);
     const bucketDateSql =
       granularity === "day"
@@ -1797,6 +1841,7 @@ export class ApplicationService {
 
     const applicationOperationalDate = operationalDateSql(applications.date);
     const whereConditions: unknown[] = [isNull(applications.deletedAt)];
+    let cropSeasonProductIds: string[] | undefined;
     
     // Filter by contract IDs via serviceOrders.contractId
     // This is the correct way to filter by contract - through service orders
@@ -1826,6 +1871,26 @@ export class ApplicationService {
           ilike(customers.name, `%${filters.search}%`),
           ilike(farms.name, `%${filters.search}%`)
         )!
+      );
+    }
+
+    if (filters?.cropSeasonId) {
+      const cropSeason = await this.cropSeasonRepository.getCropSeasonById(filters.cropSeasonId);
+      if (!cropSeason) {
+        throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
+      }
+
+      cropSeasonProductIds = cropSeason.products.map((product) => product.id);
+      if (cropSeasonProductIds.length === 0) {
+        whereConditions.push(sql`1 = 0`);
+      } else {
+        whereConditions.push(inArray(applications.productId, cropSeasonProductIds));
+      }
+      whereConditions.push(
+        sql`${applicationOperationalDate} >= ${sql.raw(`'${cropSeason.startDate}'`)}::date`
+      );
+      whereConditions.push(
+        sql`${applicationOperationalDate} <= ${sql.raw(`'${cropSeason.endDate}'`)}::date`
       );
     }
 
@@ -1904,7 +1969,12 @@ export class ApplicationService {
     const averageDailyArea = daysSinceStart > 0 ? totalAreaHectares / daysSinceStart : 0;
 
     // Get yesterday's statistics (pass contractIds for proper filtering)
-    const yesterdayStats = await this.getYesterdayStats(filters?.customerIds, filters?.farmIds, filters?.contractIds);
+    const yesterdayStats = await this.getYesterdayStats(
+      filters?.customerIds,
+      filters?.farmIds,
+      filters?.contractIds,
+      cropSeasonProductIds
+    );
 
     // Get monthly sprayed area for chart (with date filter)
     const monthlySprayedArea = await this.getMonthlySprayedArea(whereConditionsWithDate);
@@ -1930,7 +2000,8 @@ export class ApplicationService {
   private async getYesterdayStats(
     customerIds?: string[],
     farmIds?: string[],
-    contractIds?: string[]
+    contractIds?: string[],
+    cropSeasonProductIds?: string[]
   ): Promise<YesterdayStats> {
     const yesterdayDateStr = addOperationalDays(new Date(), -1);
     const applicationOperationalDate = operationalDateSql(applications.date);
@@ -1958,6 +2029,13 @@ export class ApplicationService {
     // Add farm filter (no join needed, farmId is directly on applications)
     if (farmIds && farmIds.length > 0) {
       whereConditions.push(inArray(applications.farmId, farmIds));
+    }
+    if (cropSeasonProductIds) {
+      if (cropSeasonProductIds.length === 0) {
+        whereConditions.push(sql`1 = 0`);
+      } else {
+        whereConditions.push(inArray(applications.productId, cropSeasonProductIds));
+      }
     }
 
     // Determine if we need joins based on filters

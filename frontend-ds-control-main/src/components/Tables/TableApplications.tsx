@@ -1246,24 +1246,27 @@ export const TableApplications = ({
               onChange={handleDateChange}
             />
             {enableCropSeasonControls && (
-              <SearchableSelectQuery
-                options={cropSeasons.map((cropSeason: CropSeason) => ({
-                  value: cropSeason.id,
-                  label: cropSeason.name,
-                }))}
-                value={cropSeasonFilter}
-                onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
-                placeholder='Safra'
-                searchPlaceholder='Buscar safra...'
-                className='h-9 w-full'
-                popoverClassName='w-[280px]'
-                clearable
-                onSearchChange={setCropSeasonSearchValue}
-                onScrollEnd={fetchNextPageCropSeasons}
-                hasNextPage={hasNextPageCropSeasons}
-                isFetchingNextPage={isFetchingNextPageCropSeasons}
-                isLoading={isLoadingCropSeasons}
-              />
+              <div className='space-y-1.5'>
+                <p className='text-sm font-medium text-foreground/90'>Safra</p>
+                <SearchableSelectQuery
+                  options={cropSeasons.map((cropSeason: CropSeason) => ({
+                    value: cropSeason.id,
+                    label: cropSeason.name,
+                  }))}
+                  value={cropSeasonFilter}
+                  onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
+                  placeholder='Selecionar safra'
+                  searchPlaceholder='Buscar safra...'
+                  className='h-9 w-full'
+                  popoverClassName='w-[280px]'
+                  clearable
+                  onSearchChange={setCropSeasonSearchValue}
+                  onScrollEnd={fetchNextPageCropSeasons}
+                  hasNextPage={hasNextPageCropSeasons}
+                  isFetchingNextPage={isFetchingNextPageCropSeasons}
+                  isLoading={isLoadingCropSeasons}
+                />
+              </div>
             )}
             <SearchableSelectQuery
               options={farms.map((farm: Farm) => ({

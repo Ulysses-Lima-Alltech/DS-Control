@@ -17,6 +17,7 @@ export const DashboardMetricsQueryStringSchema = z.object({
   customerIds: arrayQueryParam,
   farmIds: arrayQueryParam,
   pilotId: z.string().uuid().optional(),
+  cropSeasonId: z.string().uuid().optional(),
   search: z.string().optional(),
   currentSeason: z
     .enum(["true", "false"])
