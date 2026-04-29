@@ -1232,21 +1232,23 @@ export const TableApplications = ({
 
       <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
         <div className='flex w-full flex-col gap-4'>
-          <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
+          <div className='grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,0.9fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
               onChange={(event) => handleSearchChange(event.target.value)}
-              className='h-9 w-full'
-            />
-            <DateRangePicker
-              key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
               className='h-9 w-full min-w-0'
-              initialValue={dateFilter}
-              onChange={handleDateChange}
             />
+            <div className='min-w-[220px]'>
+              <DateRangePicker
+                key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
+                className='h-9 w-full min-w-0'
+                initialValue={dateFilter}
+                onChange={handleDateChange}
+              />
+            </div>
             {enableCropSeasonControls && (
-              <div className='space-y-1.5'>
+              <div className='min-w-[160px] space-y-1.5'>
                 <p className='text-sm font-medium text-foreground/90'>Safra</p>
                 <SearchableSelectQuery
                   options={cropSeasons.map((cropSeason: CropSeason) => ({
@@ -1277,7 +1279,7 @@ export const TableApplications = ({
               onValueChange={(value) => handleFarmChange(value as string | undefined)}
               placeholder='Fazenda'
               searchPlaceholder='Buscar fazenda...'
-              className='h-9 w-full'
+              className='h-9 w-full min-w-[160px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setFarmSearchValue}
@@ -1295,7 +1297,7 @@ export const TableApplications = ({
               onValueChange={(value) => handleProductChange(value as string | undefined)}
               placeholder='Produto'
               searchPlaceholder='Buscar produto...'
-              className='h-9 w-full'
+              className='h-9 w-full min-w-[160px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setProductSearchValue}
@@ -1313,7 +1315,7 @@ export const TableApplications = ({
               onValueChange={(value) => handlePilotChange(value as string | undefined)}
               placeholder='Piloto'
               searchPlaceholder='Buscar piloto...'
-              className='h-9 w-full'
+              className='h-9 w-full min-w-[160px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setPilotSearchValue}
@@ -1322,7 +1324,7 @@ export const TableApplications = ({
               isFetchingNextPage={isFetchingNextPagePilots}
               isLoading={isLoadingPilots}
             />
-            <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
+            <div className='flex w-full flex-wrap items-center justify-start gap-2 md:justify-end'>
               {enableCropSeasonControls && (
                 <Button
                   variant='secondary'
