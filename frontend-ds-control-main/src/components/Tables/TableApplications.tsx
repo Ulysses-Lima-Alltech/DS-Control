@@ -48,6 +48,7 @@ import { Separator } from '@/components/ui/separator';
 import { useDeleteApplicationById } from '@/mutations/application.mutation';
 import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllApplications } from '@/queries/application.query';
+import { useGetAllCropSeasonsInfinite, useGetCropSeasonById } from '@/queries/crop-season.query';
 import { useGetAllCultureTypesInfinite } from '@/queries/culture-type.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllDronesInfinite } from '@/queries/drone.query';
@@ -68,6 +69,7 @@ import { Customer } from '@/types/customer.type';
 import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
 import { Product } from '@/types/product.type';
+import { CropSeason } from '@/types/crop-season.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
@@ -86,6 +88,7 @@ interface TableApplicationsProps {
   serviceOrderStatus?: ServiceOrderStatus;
   farmId?: string;
   productId?: string;
+  cropSeasonId?: string;
   pilotId?: string;
   customerIdFilter?: string;
   serviceOrderIdFilter?: string;
@@ -106,6 +109,7 @@ interface TableApplicationsProps {
     setApplicationIssue?: (value: ApplicationIssueFilter | undefined) => void;
     setStartDate: (value: string | undefined) => void;
     setEndDate: (value: string | undefined) => void;
+    setCropSeasonId?: (value: string | undefined) => void;
   };
 }
 
@@ -123,6 +127,7 @@ export const TableApplications = ({
   serviceOrderStatus: propServiceOrderStatus,
   farmId: propFarmId,
   productId: propProductId,
+  cropSeasonId: propCropSeasonId,
   pilotId: propPilotId,
   customerIdFilter: propCustomerIdFilter,
   serviceOrderIdFilter: propServiceOrderIdFilter,
@@ -143,6 +148,7 @@ export const TableApplications = ({
   const [customerSearchValue, setCustomerSearchValue] = React.useState('');
   const [farmSearchValue, setFarmSearchValue] = React.useState('');
   const [productSearchValue, setProductSearchValue] = React.useState('');
+  const [cropSeasonSearchValue, setCropSeasonSearchValue] = React.useState('');
   const [pilotSearchValue, setPilotSearchValue] = React.useState('');
   const [assistantSearchValue, setAssistantSearchValue] = React.useState('');
   const [droneSearchValue, setDroneSearchValue] = React.useState('');
@@ -153,6 +159,7 @@ export const TableApplications = ({
   );
   const [farmFilter, setFarmFilter] = React.useState<string | undefined>(propFarmId);
   const [productFilter, setProductFilter] = React.useState<string | undefined>(propProductId);
+  const [cropSeasonFilter, setCropSeasonFilter] = React.useState<string | undefined>(propCropSeasonId);
   const [pilotFilter, setPilotFilter] = React.useState<string | undefined>(propPilotId);
   const [customerFilter, setCustomerFilter] = React.useState<string | undefined>(propCustomerId);
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
@@ -214,6 +221,7 @@ export const TableApplications = ({
     serviceOrderStatus: propServiceOrderStatus || statusFilter,
     farmId: propFarmId || farmFilter,
     productId: propProductId || productFilter,
+    cropSeasonId: propCropSeasonId || cropSeasonFilter,
     pilotId: propPilotId || pilotFilter,
     customerId: propCustomerIdFilter || customerFilter,
     serviceOrderId: propServiceOrderIdFilter || serviceOrderFilter,
@@ -373,6 +381,23 @@ export const TableApplications = ({
       (page) => page.data
     ) || [];
 
+  const {
+    data: cropSeasonsData,
+    fetchNextPage: fetchNextPageCropSeasons,
+    hasNextPage: hasNextPageCropSeasons,
+    isFetchingNextPage: isFetchingNextPageCropSeasons,
+    isLoading: isLoadingCropSeasons,
+  } = useGetAllCropSeasonsInfinite({
+    limit: '10',
+    search: cropSeasonSearchValue || undefined,
+    status: 'active',
+  });
+
+  const allCropSeasons =
+    (cropSeasonsData as unknown as InfiniteData<{ data: CropSeason[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+
   const { mutate: deleteApplicationById, isPending: isDeletingApplication } =
     useDeleteApplicationById({
       onSuccess: () => {
@@ -431,6 +456,10 @@ export const TableApplications = ({
   }, [propProductId]);
 
   useEffect(() => {
+    setCropSeasonFilter(propCropSeasonId);
+  }, [propCropSeasonId]);
+
+  useEffect(() => {
     setPilotFilter(propPilotId);
   }, [propPilotId]);
 
@@ -479,6 +508,7 @@ export const TableApplications = ({
     statusFilter,
     farmFilter,
     productFilter,
+    cropSeasonFilter,
     pilotFilter,
     assistantFilter,
     droneFilter,
@@ -544,6 +574,15 @@ export const TableApplications = ({
     [onFilterChange]
   );
 
+  const handleCropSeasonChange = useCallback(
+    (cropSeasonIdValue: string | undefined) => {
+      setCropSeasonFilter(cropSeasonIdValue);
+      setCurrentPage(1);
+      onFilterChange?.setCropSeasonId?.(cropSeasonIdValue);
+    },
+    [onFilterChange]
+  );
+
   const handlePilotChange = useCallback((pilotId: string | undefined) => {
     setPilotFilter(pilotId);
     setCurrentPage(1);
@@ -591,12 +630,20 @@ export const TableApplications = ({
     onFilterChange?.setEndDate(dateRange?.endDate);
   }, [onFilterChange]);
 
+  const handleTotalGeralClick = useCallback(() => {
+    setDateFilter(undefined);
+    setCurrentPage(1);
+    onFilterChange?.setStartDate(undefined);
+    onFilterChange?.setEndDate(undefined);
+  }, [onFilterChange]);
+
   const clearAllFilters = useCallback(() => {
     setInputSearchValue('');
     setDebouncedSearchValue('');
     setStatusFilter(undefined);
     setFarmFilter(undefined);
     setProductFilter(undefined);
+    setCropSeasonFilter(undefined);
     setPilotFilter(undefined);
     setAssistantFilter(undefined);
     setDroneFilter(undefined);
@@ -632,6 +679,7 @@ export const TableApplications = ({
     onFilterChange?.setApplicationIssue?.(undefined);
     onFilterChange?.setStartDate(undefined);
     onFilterChange?.setEndDate(undefined);
+    onFilterChange?.setCropSeasonId?.(undefined);
   }, [onFilterChange]);
 
     const handleOrderTypeChange = (orderType: ApplicationOrderType | undefined) => {
@@ -877,6 +925,7 @@ export const TableApplications = ({
   const customers = allCustomers;
   const farms = allFarms;
   const products = allProducts;
+  const cropSeasons = allCropSeasons;
   const pilots = allPilots;
 
   const overviewFarmId = propFarmId || farmFilter;
@@ -894,6 +943,13 @@ export const TableApplications = ({
     overviewProductId &&
     (products.find((p) => p.id === overviewProductId)?.name ??
       overviewProductDetail?.product?.name);
+  const { data: selectedCropSeasonData } = useGetCropSeasonById(cropSeasonFilter ?? '', {
+    enabled: !!cropSeasonFilter,
+  });
+  const cropSeasonChipName =
+    cropSeasonFilter &&
+    (cropSeasons.find((season) => season.id === cropSeasonFilter)?.name ??
+      selectedCropSeasonData?.cropSeason?.name);
   const serviceOrders = allServiceOrders;
 
   const selectedServiceOrder = serviceOrders.find((so) => so.id === serviceOrderFilter);
@@ -932,6 +988,13 @@ export const TableApplications = ({
           key: 'product',
           label: `Produto: ${productChipName || 'Selecionado'}`,
           onRemove: () => handleProductChange(undefined),
+        }
+      : null,
+    !simpleMode && cropSeasonFilter
+      ? {
+          key: 'cropSeason',
+          label: `Safra: ${cropSeasonChipName || 'Selecionada'}`,
+          onRemove: () => handleCropSeasonChange(undefined),
         }
       : null,
     !simpleMode && pilotFilter
@@ -1098,6 +1161,7 @@ export const TableApplications = ({
         customerFilter ||
         overviewFarmId ||
         overviewProductId ||
+        cropSeasonFilter ||
         pilotFilter ||
         assistantFilter ||
         droneFilter ||
@@ -1122,7 +1186,8 @@ export const TableApplications = ({
         dropletSizeMaxFilter
     );
 
-  const showOverviewCards = !simpleMode && !propCustomerId && !propServiceOrderId;
+  const enableCropSeasonControls = !simpleMode && !propCustomerId && !propServiceOrderId;
+  const showOverviewCards = enableCropSeasonControls;
   const overviewSummary = data?.summary;
   const formatSummaryHectares = (value: number | undefined) =>
     value === undefined ? '-- ha' : `${value.toFixed(2).replace('.', ',')} ha`;
@@ -1167,7 +1232,7 @@ export const TableApplications = ({
 
       <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
         <div className='flex w-full flex-col gap-4'>
-          <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
+          <div className='grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
@@ -1180,6 +1245,26 @@ export const TableApplications = ({
               initialValue={dateFilter}
               onChange={handleDateChange}
             />
+            {enableCropSeasonControls && (
+              <SearchableSelectQuery
+                options={cropSeasons.map((cropSeason: CropSeason) => ({
+                  value: cropSeason.id,
+                  label: cropSeason.name,
+                }))}
+                value={cropSeasonFilter}
+                onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
+                placeholder='Safra'
+                searchPlaceholder='Buscar safra...'
+                className='h-9 w-full'
+                popoverClassName='w-[280px]'
+                clearable
+                onSearchChange={setCropSeasonSearchValue}
+                onScrollEnd={fetchNextPageCropSeasons}
+                hasNextPage={hasNextPageCropSeasons}
+                isFetchingNextPage={isFetchingNextPageCropSeasons}
+                isLoading={isLoadingCropSeasons}
+              />
+            )}
             <SearchableSelectQuery
               options={farms.map((farm: Farm) => ({
                 value: farm.id,
@@ -1235,6 +1320,16 @@ export const TableApplications = ({
               isLoading={isLoadingPilots}
             />
             <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
+              {enableCropSeasonControls && (
+                <Button
+                  variant='secondary'
+                  className='h-9 px-3 text-sm'
+                  onClick={handleTotalGeralClick}
+                  disabled={!cropSeasonFilter}
+                >
+                  Total Geral
+                </Button>
+              )}
               {!simpleMode && (
                 <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
                   <SheetTrigger asChild>

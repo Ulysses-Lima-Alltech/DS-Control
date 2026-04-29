@@ -37,6 +37,7 @@ export type GetAllApplicationsParams = {
   farmId?: string;
   pilotId?: string;
   productId?: string;
+  cropSeasonId?: string;
   customerId?: string;
   serviceOrderId?: string;
   assistantId?: string;
@@ -83,6 +84,7 @@ export async function getAllApplications(
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.assistantId) searchParams.append('assistantId', params.assistantId);

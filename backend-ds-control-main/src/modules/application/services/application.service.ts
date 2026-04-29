@@ -20,6 +20,7 @@ import { FarmRepository } from "@repositories/farms/farm.repository";
 import { PlotRepository } from "@repositories/plots/plot.repository";
 import { ServiceOrderRepository } from "@repositories/service-order/service-order.repository";
 import { UserRepository } from "@repositories/users/user.repository";
+import { CropSeasonRepository } from "@repositories/crop-seasons/crop-season.repository";
 import type { CreateApplicationDTO } from "../dto/create-application.dto";
 import type { ApplicationIssueFilter } from "../dto/get-all-application.dto";
 import { PilotPerformanceDTO } from "../dto/stats-performance.dto";
@@ -61,6 +62,7 @@ export class ApplicationService {
   private readonly farmRepository = new FarmRepository();
   private readonly serviceOrdersRepository = new ServiceOrderRepository();
   private readonly plotRepository = new PlotRepository();
+  private readonly cropSeasonRepository = new CropSeasonRepository();
 
   /**
    * Build WHERE conditions for application queries based on filters
@@ -223,6 +225,7 @@ export class ApplicationService {
       farmId?: string;
       pilotId?: string;
       productId?: string;
+      cropSeasonId?: string;
       customerId?: string;
       serviceOrderId?: string;
       assistantId?: string;
@@ -253,16 +256,35 @@ export class ApplicationService {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: string;
       endDate?: string;
+      cropSeasonStartDate?: string;
+      cropSeasonEndDate?: string;
+      cropSeasonProductIds?: string[];
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
   ): Promise<PaginatedApplicationsListResponse> {
     app.log.info("[ApplicationService] - Listing all applications");
 
+    let resolvedFilters = filters ? { ...filters } : undefined;
+
+    if (resolvedFilters?.cropSeasonId) {
+      const cropSeason = await this.cropSeasonRepository.getCropSeasonById(resolvedFilters.cropSeasonId);
+      if (!cropSeason) {
+        throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
+      }
+
+      resolvedFilters = {
+        ...resolvedFilters,
+        cropSeasonStartDate: cropSeason.startDate,
+        cropSeasonEndDate: cropSeason.endDate,
+        cropSeasonProductIds: cropSeason.products.map((product) => product.id),
+      };
+    }
+
     const [queryResult, totalCount, summary] = await Promise.all([
-      this.applicationRepository.getAllApplications(page, limit, search, filters, orderBy, orderType),
-      this.applicationRepository.countApplications(search, filters),
-      this.applicationRepository.getApplicationsListSummary(search, filters),
+      this.applicationRepository.getAllApplications(page, limit, search, resolvedFilters, orderBy, orderType),
+      this.applicationRepository.countApplications(search, resolvedFilters),
+      this.applicationRepository.getApplicationsListSummary(search, resolvedFilters),
     ]);
 
     app.log.info("[ApplicationService] - Retrieved %d applications", totalCount);

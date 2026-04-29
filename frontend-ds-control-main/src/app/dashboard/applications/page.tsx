@@ -3,12 +3,13 @@
 import { subDays } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
+import { useGetCurrentCropSeason } from '@/queries/crop-season.query';
 import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,7 +24,7 @@ const getYesterdayDateString = () => {
 const resolveInitialDateRange = (
   urlStartDate: string | null,
   urlEndDate: string | null
-): { startDate: string; endDate: string } => {
+): { startDate: string; endDate: string } | undefined => {
   const hasValidStart = !!urlStartDate && DATE_PARAM_REGEX.test(urlStartDate);
   const hasValidEnd = !!urlEndDate && DATE_PARAM_REGEX.test(urlEndDate);
 
@@ -34,11 +35,7 @@ const resolveInitialDateRange = (
     };
   }
 
-  const yesterday = getYesterdayDateString();
-  return {
-    startDate: yesterday,
-    endDate: yesterday,
-  };
+  return undefined;
 };
 
 export default function AgriculturalApplicationsPage() {
@@ -49,8 +46,43 @@ export default function AgriculturalApplicationsPage() {
   );
 
   const [search, setSearch] = useState('');
-  const [startDate, setStartDate] = useState<string | undefined>(initialDateRange.startDate);
-  const [endDate, setEndDate] = useState<string | undefined>(initialDateRange.endDate);
+  const [startDate, setStartDate] = useState<string | undefined>(initialDateRange?.startDate);
+  const [endDate, setEndDate] = useState<string | undefined>(initialDateRange?.endDate);
+  const [cropSeasonId, setCropSeasonId] = useState<string | undefined>(undefined);
+
+  const {
+    data: currentCropSeasonData,
+    isLoading: isLoadingCurrentCropSeason,
+  } = useGetCurrentCropSeason();
+
+  const hasInitializedDefaults = useRef(false);
+
+  useEffect(() => {
+    if (hasInitializedDefaults.current || isLoadingCurrentCropSeason) {
+      return;
+    }
+
+    const currentCropSeasonId = currentCropSeasonData?.cropSeason?.id;
+    if (currentCropSeasonId) {
+      setCropSeasonId(currentCropSeasonId);
+
+      if (!initialDateRange) {
+        setStartDate(undefined);
+        setEndDate(undefined);
+      }
+
+      hasInitializedDefaults.current = true;
+      return;
+    }
+
+    if (!initialDateRange) {
+      const yesterday = getYesterdayDateString();
+      setStartDate(yesterday);
+      setEndDate(yesterday);
+    }
+
+    hasInitializedDefaults.current = true;
+  }, [currentCropSeasonData?.cropSeason?.id, initialDateRange, isLoadingCurrentCropSeason]);
 
   const filterChangeHandlers = useMemo(
     () => ({
@@ -65,6 +97,7 @@ export default function AgriculturalApplicationsPage() {
       setApplicationIssue: (_value: unknown) => undefined,
       setStartDate,
       setEndDate,
+      setCropSeasonId,
     }),
     []
   );
@@ -93,9 +126,11 @@ export default function AgriculturalApplicationsPage() {
           search={search}
           startDate={startDate}
           endDate={endDate}
+          cropSeasonId={cropSeasonId}
           onFilterChange={filterChangeHandlers}
         />
       </div>
     </div>
   );
 }
+

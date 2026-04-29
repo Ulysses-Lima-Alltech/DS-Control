@@ -9,6 +9,7 @@ import {
   Map,
   NotepadText,
   Route,
+  Settings,
   ShieldUser,
   SprayCan,
   Tractor,
@@ -33,13 +34,6 @@ export const pathItems: PathItem[] = [
     showOnSidebar: true,
     category: 'visualizar',
   },
-  // {
-  //   title: 'Métricas',
-  //   url: '/dashboard/metrics',
-  //   icon: ChartColumnIncreasing,
-  //   showOnSidebar: true,
-  //   category: 'visualizar',
-  // },
   {
     title: 'Mapa',
     url: '/dashboard/map',
@@ -88,6 +82,13 @@ export const pathItems: PathItem[] = [
     icon: NotepadText,
     showOnSidebar: true,
     category: 'cadastros',
+  },
+  {
+    title: 'Configurações',
+    url: '/dashboard/configurations',
+    icon: Settings,
+    showOnSidebar: true,
+    category: 'configurações',
   },
   {
     title: 'Usuários',
@@ -146,3 +147,4 @@ export const pathItems: PathItem[] = [
     category: 'configurações',
   },
 ];
+

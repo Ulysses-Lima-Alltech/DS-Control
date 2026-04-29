@@ -27,6 +27,7 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
   farmId: z.string().uuid().optional().describe("Filter by farm ID"),
   pilotId: z.string().uuid().optional().describe("Filter by pilot ID"),
   productId: z.string().uuid().optional().describe("Filter by product ID"),
+  cropSeasonId: z.string().uuid().optional().describe("Filter by crop season ID"),
   customerId: z.string().uuid().optional().describe("Filter by customer ID"),
   serviceOrderId: z.string().uuid().optional().describe("Filter by service order ID"),
   assistantId: z.string().uuid().optional().describe("Filter by assistant ID"),

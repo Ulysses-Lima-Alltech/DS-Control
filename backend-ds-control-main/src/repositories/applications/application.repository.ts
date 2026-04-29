@@ -201,6 +201,7 @@ export class ApplicationRepository {
           farmId?: string;
           pilotId?: string;
           productId?: string;
+          cropSeasonId?: string;
           customerId?: string;
           serviceOrderId?: string;
           assistantId?: string;
@@ -231,6 +232,9 @@ export class ApplicationRepository {
           applicationIssue?: ApplicationIssueFilter;
           startDate?: Date | string;
           endDate?: Date | string;
+          cropSeasonStartDate?: Date | string;
+          cropSeasonEndDate?: Date | string;
+          cropSeasonProductIds?: string[];
         }
       | undefined,
   ): SQL[] {
@@ -378,6 +382,14 @@ export class ApplicationRepository {
       whereConditions.push(eq(applications.productId, filters.productId));
     }
 
+    if (filters?.cropSeasonProductIds) {
+      if (filters.cropSeasonProductIds.length === 0) {
+        whereConditions.push(sql`1 = 0`);
+      } else {
+        whereConditions.push(inArray(applications.productId, filters.cropSeasonProductIds));
+      }
+    }
+
     if (filters?.customerId) {
       whereConditions.push(eq(customers.id, filters.customerId));
     }
@@ -438,6 +450,12 @@ export class ApplicationRepository {
       whereConditions.push(this.operationalDateRangeCondition(filters.startDate, filters.endDate));
     }
 
+    if (filters?.cropSeasonStartDate && filters?.cropSeasonEndDate) {
+      whereConditions.push(
+        this.operationalDateRangeCondition(filters.cropSeasonStartDate, filters.cropSeasonEndDate),
+      );
+    }
+
     return whereConditions;
   }
 
@@ -458,6 +476,7 @@ export class ApplicationRepository {
       farmId?: string;
       pilotId?: string;
       productId?: string;
+      cropSeasonId?: string;
       customerId?: string;
       serviceOrderId?: string;
       assistantId?: string;
@@ -488,6 +507,9 @@ export class ApplicationRepository {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
       endDate?: Date | string;
+      cropSeasonStartDate?: Date | string;
+      cropSeasonEndDate?: Date | string;
+      cropSeasonProductIds?: string[];
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
@@ -1124,6 +1146,7 @@ export class ApplicationRepository {
       farmId?: string;
       pilotId?: string;
       productId?: string;
+      cropSeasonId?: string;
       customerId?: string;
       serviceOrderId?: string;
       assistantId?: string;
@@ -1154,6 +1177,9 @@ export class ApplicationRepository {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
       endDate?: Date | string;
+      cropSeasonStartDate?: Date | string;
+      cropSeasonEndDate?: Date | string;
+      cropSeasonProductIds?: string[];
     }
   ): Promise<number> {
     const hasListFilters =
@@ -1164,6 +1190,7 @@ export class ApplicationRepository {
             filters.farmId ||
             filters.pilotId ||
             filters.productId ||
+            filters.cropSeasonId ||
             filters.customerId ||
             filters.serviceOrderId ||
             filters.assistantId ||
