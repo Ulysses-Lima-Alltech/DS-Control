@@ -279,16 +279,16 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   }
 
   const hasManyItems = count >= 8;
-  const lineChars = hasManyItems ? 15 : maxLabelLength > 24 ? 18 : 20;
+  const lineChars = hasManyItems ? 14 : maxLabelLength > 24 ? 18 : 20;
 
   return {
-    interval: hasManyItems ? 'preserveStartEnd' : 0,
+    interval: 0,
     angle: 0,
     textAnchor: 'middle',
-    height: hasManyItems ? 96 : 88,
-    tickMargin: hasManyItems ? 16 : 12,
-    minTickGap: hasManyItems ? 24 : 16,
-    bottomMargin: hasManyItems ? 34 : 26,
+    height: hasManyItems ? 112 : 96,
+    tickMargin: hasManyItems ? 18 : 14,
+    minTickGap: 0,
+    bottomMargin: hasManyItems ? 44 : 32,
     lineChars,
   };
 }
@@ -764,7 +764,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       new Map(
         assistants
           .filter((assistant) => Boolean(assistant.id))
-          .map((assistant) => [assistant.id, assistant.name || 'Ajudante não informado'])
+          .map((assistant) => [assistant.id, assistant.name || 'Sem ajudante'])
       ),
     [assistants]
   );
@@ -777,7 +777,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       const assistantName =
         application.assistant?.name ||
         (assistantId ? assistantNameById.get(assistantId) : undefined) ||
-        'Ajudante não informado';
+        'Sem ajudante';
       const groupKey = assistantId || `missing:${assistantName}`;
       const current = groupedByAssistant.get(groupKey);
       const hectares = Number(application.hectares || 0);
@@ -800,7 +800,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       return assistants
         .filter((assistant) => !selectedAssistantId || assistant.id === selectedAssistantId)
         .map((assistant) => ({
-          name: assistant.name || 'Ajudante não informado',
+          name: assistant.name || 'Sem ajudante',
           hectares: 0,
         }))
         .slice(0, 10);
@@ -820,14 +820,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     }
 
     const base = (byPilotStats?.byPilot || []).map((item) => ({
-      name: item.pilotName,
+      name: item.pilotName || 'Sem piloto',
       hectares: item.totalAreaHectares,
     }));
     if (base.length === 0 && pilotPeriodMode === 'day') {
       return pilots
         .filter((pilot) => !selectedPilotId || pilot.id === selectedPilotId)
         .map((pilot) => ({
-          name: pilot.name,
+          name: pilot.name || 'Sem piloto',
           hectares: 0,
         }))
         .slice(0, 10);
