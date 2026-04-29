@@ -1232,7 +1232,7 @@ export const TableApplications = ({
 
       <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
         <div className='flex w-full flex-col gap-4'>
-          <div className='grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,0.9fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_minmax(160px,0.7fr)_auto]'>
+          <div className='grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(200px,1fr)_minmax(200px,220px)_minmax(140px,160px)_minmax(150px,170px)_minmax(150px,170px)_minmax(150px,170px)_auto]'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
@@ -1248,27 +1248,24 @@ export const TableApplications = ({
               />
             </div>
             {enableCropSeasonControls && (
-              <div className='min-w-[160px] space-y-1.5'>
-                <p className='text-sm font-medium text-foreground/90'>Safra</p>
-                <SearchableSelectQuery
-                  options={cropSeasons.map((cropSeason: CropSeason) => ({
-                    value: cropSeason.id,
-                    label: cropSeason.name,
-                  }))}
-                  value={cropSeasonFilter}
-                  onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
-                  placeholder='Selecionar safra'
-                  searchPlaceholder='Buscar safra...'
-                  className='h-9 w-full'
-                  popoverClassName='w-[280px]'
-                  clearable
-                  onSearchChange={setCropSeasonSearchValue}
-                  onScrollEnd={fetchNextPageCropSeasons}
-                  hasNextPage={hasNextPageCropSeasons}
-                  isFetchingNextPage={isFetchingNextPageCropSeasons}
-                  isLoading={isLoadingCropSeasons}
-                />
-              </div>
+              <SearchableSelectQuery
+                options={cropSeasons.map((cropSeason: CropSeason) => ({
+                  value: cropSeason.id,
+                  label: cropSeason.name,
+                }))}
+                value={cropSeasonFilter}
+                onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
+                placeholder='Safra'
+                searchPlaceholder='Buscar safra...'
+                className='h-9 w-full min-w-[140px]'
+                popoverClassName='w-[280px]'
+                clearable
+                onSearchChange={setCropSeasonSearchValue}
+                onScrollEnd={fetchNextPageCropSeasons}
+                hasNextPage={hasNextPageCropSeasons}
+                isFetchingNextPage={isFetchingNextPageCropSeasons}
+                isLoading={isLoadingCropSeasons}
+              />
             )}
             <SearchableSelectQuery
               options={farms.map((farm: Farm) => ({

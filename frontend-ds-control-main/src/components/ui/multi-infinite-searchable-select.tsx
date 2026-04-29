@@ -57,6 +57,12 @@ export function MultiInfiniteSearchableSelect({
   const [searchValue, setSearchValue] = React.useState('');
 
   const selectedOptions = options.filter((option) => values.includes(option.value));
+  const allOptionValues = React.useMemo(
+    () => Array.from(new Set(options.map((option) => option.value))),
+    [options]
+  );
+  const areAllOptionsSelected =
+    allOptionValues.length > 0 && allOptionValues.every((value) => values.includes(value));
 
   const handleSelect = (selectedValue: string) => {
     if (values.includes(selectedValue)) {
@@ -69,6 +75,15 @@ export function MultiInfiniteSearchableSelect({
   const handleClearAll = (e: React.MouseEvent) => {
     e.stopPropagation();
     onValuesChange([]);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (allOptionValues.length === 0) return;
+    if (areAllOptionsSelected) {
+      onValuesChange([]);
+      return;
+    }
+    onValuesChange(allOptionValues);
   };
 
   const handleSearchChange = (value: string) => {
@@ -134,6 +149,17 @@ export function MultiInfiniteSearchableSelect({
           <CommandList onScroll={handleScroll} className='max-h-[200px] overflow-y-auto'>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
+              <div className='px-2 py-1.5'>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='h-8 w-full justify-start px-2 text-sm'
+                  onClick={handleToggleSelectAll}
+                  disabled={options.length === 0}
+                >
+                  {areAllOptionsSelected ? 'Limpar seleção' : 'Selecionar todos'}
+                </Button>
+              </div>
               {options.map((option) => (
                 <CommandItem
                   key={option.value}

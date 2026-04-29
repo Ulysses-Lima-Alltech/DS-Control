@@ -29,7 +29,8 @@ const isValidDateParam = (value: string | null): value is string => {
 const resolveInitialDateRange = (
   urlStartDate: string | null,
   urlEndDate: string | null,
-  cleared: boolean
+  cleared: boolean,
+  fallbackDate: string
 ): { startDate?: string; endDate?: string } => {
   if (cleared) {
     return {};
@@ -41,19 +42,20 @@ const resolveInitialDateRange = (
     return { startDate: urlStartDate, endDate: urlEndDate };
   }
 
-  return {};
+  return { startDate: fallbackDate, endDate: fallbackDate };
 };
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const yesterday = getYesterdayDateString();
   const cleared = searchParams.get('cleared') === '1';
   const { startDate, endDate } = resolveInitialDateRange(
     searchParams.get('startDate'),
     searchParams.get('endDate'),
-    cleared
+    cleared,
+    yesterday
   );
-  const yesterday = getYesterdayDateString();
 
   return (
     <div className='p-6 space-y-6 min-h-full w-full'>
