@@ -1232,19 +1232,20 @@ export const TableApplications = ({
 
       <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
         <div className='flex w-full flex-col gap-4'>
-          <div className='grid w-full grid-cols-1 items-center gap-3 md:grid-cols-2 xl:grid-cols-[220px_190px_150px_150px_150px_150px_auto]'>
+          <div className='grid w-full grid-cols-1 items-center gap-2 md:grid-cols-2 xl:grid-cols-[180px_170px_130px_130px_130px_130px_auto] xl:justify-start'>
             <Input
               placeholder='Buscar aplicações...'
               value={inputSearchValue}
               onChange={(event) => handleSearchChange(event.target.value)}
               className='h-9 w-full min-w-0'
             />
-            <div className='w-full min-w-0 xl:w-[190px]'>
+            <div className='w-full min-w-0 overflow-hidden xl:w-[170px] xl:max-w-[170px]'>
               <DateRangePicker
                 key={`${dateFilter?.startDate ?? 'none'}-${dateFilter?.endDate ?? 'none'}`}
                 className='h-9 w-full min-w-0'
                 initialValue={dateFilter}
                 onChange={handleDateChange}
+                placeholder='Período'
               />
             </div>
             {enableCropSeasonControls && (
@@ -1257,7 +1258,7 @@ export const TableApplications = ({
                 onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
                 placeholder='Safra'
                 searchPlaceholder='Buscar safra...'
-                className='h-9 w-full min-w-0'
+                className='h-9 w-full min-w-0 overflow-hidden text-ellipsis xl:w-[130px] xl:max-w-[130px]'
                 popoverClassName='w-[280px]'
                 clearable
                 onSearchChange={setCropSeasonSearchValue}
@@ -1276,7 +1277,7 @@ export const TableApplications = ({
               onValueChange={(value) => handleFarmChange(value as string | undefined)}
               placeholder='Fazenda'
               searchPlaceholder='Buscar fazenda...'
-              className='h-9 w-full min-w-0'
+              className='h-9 w-full min-w-0 overflow-hidden text-ellipsis xl:w-[130px] xl:max-w-[130px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setFarmSearchValue}
@@ -1294,7 +1295,7 @@ export const TableApplications = ({
               onValueChange={(value) => handleProductChange(value as string | undefined)}
               placeholder='Produto'
               searchPlaceholder='Buscar produto...'
-              className='h-9 w-full min-w-0'
+              className='h-9 w-full min-w-0 overflow-hidden text-ellipsis xl:w-[130px] xl:max-w-[130px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setProductSearchValue}
@@ -1312,7 +1313,7 @@ export const TableApplications = ({
               onValueChange={(value) => handlePilotChange(value as string | undefined)}
               placeholder='Piloto'
               searchPlaceholder='Buscar piloto...'
-              className='h-9 w-full min-w-0'
+              className='h-9 w-full min-w-0 overflow-hidden text-ellipsis xl:w-[130px] xl:max-w-[130px]'
               popoverClassName='w-[260px]'
               clearable
               onSearchChange={setPilotSearchValue}
@@ -1321,7 +1322,7 @@ export const TableApplications = ({
               isFetchingNextPage={isFetchingNextPagePilots}
               isLoading={isLoadingPilots}
             />
-            <div className='flex w-full flex-wrap items-center justify-start gap-2 xl:flex-nowrap xl:justify-end xl:gap-1.5'>
+            <div className='flex w-full flex-wrap items-center justify-start gap-2 xl:flex-nowrap'>
               {enableCropSeasonControls && (
                 <Button
                   variant='secondary'
