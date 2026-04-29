@@ -28,6 +28,7 @@ import { getServiceOrderById } from '@/services/service-order.service';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
@@ -260,7 +261,7 @@ function LoadedCardServiceOrderDetails({
     },
     {
       label: 'Data Planejada',
-      value: formatTimestamp(serviceOrder.plannedDate),
+      value: formatOperationalDateBR(serviceOrder.plannedDate),
     },
     { label: 'Criado em', value: formatTimestamp(serviceOrder.createdAt) },
   ];

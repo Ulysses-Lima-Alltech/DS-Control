@@ -279,7 +279,7 @@ export default function TableRoutes({
               <div className='flex items-center space-x-4 mt-1 text-xs text-muted-foreground'>
                 <div className='flex items-center space-x-1'>
                   <Calendar className='h-3 w-3' />
-                  <span>{formatTimestamp(new Date(route.createdAt))}</span>
+                  <span>{formatTimestamp(route.createdAt)}</span>
                 </div>
               </div>
             </div>

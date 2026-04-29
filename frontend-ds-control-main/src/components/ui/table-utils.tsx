@@ -2,6 +2,7 @@ import { CellContext, ColumnDef } from '@tanstack/react-table';
 
 import { Badge } from '@/components/ui/badge';
 import { ColumnDefWithId } from '@/components/ui/table-data';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 export function createColumn<T>(
@@ -49,6 +50,31 @@ export function createDateColumn<T>(
     maxSize: options?.maxWidth || 150,
     cell: ({ row }) => {
       const date = formatTimestamp(row.getValue(accessorKey));
+      return <div className='text-foreground font-mono text-sm whitespace-nowrap'>{date}</div>;
+    },
+  };
+}
+
+export function createOperationalDateColumn<T>(
+  id: string,
+  accessorKey: string,
+  label: string,
+  options?: {
+    width?: number;
+    minWidth?: number;
+    maxWidth?: number;
+  }
+): ColumnDefWithId<T> {
+  return {
+    id,
+    accessorKey,
+    label,
+    header: label,
+    size: options?.width || 120,
+    minSize: options?.minWidth || 100,
+    maxSize: options?.maxWidth || 150,
+    cell: ({ row }) => {
+      const date = formatOperationalDateBR(row.getValue(accessorKey) as string | Date | null | undefined);
       return <div className='text-foreground font-mono text-sm whitespace-nowrap'>{date}</div>;
     },
   };

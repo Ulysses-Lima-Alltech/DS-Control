@@ -1,14 +1,20 @@
 'use client';
 
-import { format, subDays } from 'date-fns';
+import { subDays } from 'date-fns';
 import { useSearchParams } from 'next/navigation';
 
 import { PanelDashboardBlocks } from '@/components/PanelDashboardBlocks';
 import { useAuth } from '@/providers/auth.provider';
+import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-const getYesterdayDateString = () => format(subDays(new Date(), 1), 'yyyy-MM-dd');
+const getYesterdayDateString = () => {
+  const todayYmd = toOperationalDateYMDOrToday();
+  const [year, month, day] = todayYmd.split('-').map(Number);
+  const todayDate = new Date(year, month - 1, day);
+  return toOperationalDateYMD(subDays(todayDate, 1)) ?? todayYmd;
+};
 
 const isValidDateParam = (value: string | null): value is string => {
   if (!value || !DATE_PARAM_REGEX.test(value)) return false;

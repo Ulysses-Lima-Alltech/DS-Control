@@ -1,7 +1,7 @@
-export function formatTimestamp(timestamp: Date | null | undefined) {
+export function formatTimestamp(timestamp: Date | string | number | null | undefined) {
   if (!timestamp) return 'N/A';
 
-  const date = new Date(timestamp);
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
   if (Number.isNaN(date.getTime())) return 'N/A';
 
   const day = date.getDate().toString().padStart(2, '0');

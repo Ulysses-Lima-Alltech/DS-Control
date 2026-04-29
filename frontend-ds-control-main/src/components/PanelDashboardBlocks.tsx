@@ -51,6 +51,7 @@ import { Assistant } from '@/types/assistant.type';
 import { Drone } from '@/types/drone.type';
 import { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
+import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 interface PanelDashboardBlocksProps {
   startDate?: string;
@@ -197,6 +198,10 @@ function parseDateParam(value: string): Date | undefined {
   return parsed;
 }
 
+function formatDateParam(date: Date): string {
+  return toOperationalDateYMD(date) ?? format(date, 'yyyy-MM-dd');
+}
+
 function formatHectares(value: number | undefined) {
   return `${Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
 }
@@ -293,7 +298,7 @@ function getRangeByMode(mode: RangeMode, filteredStartDate: string, filteredEndD
       return { startDate: filteredStartDate, endDate: filteredEndDate };
     }
     return {
-      startDate: format(startOfMonth(end), 'yyyy-MM-dd'),
+      startDate: formatDateParam(startOfMonth(end)),
       endDate: filteredEndDate,
     };
   }
@@ -408,7 +413,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     [chartTooltipFg]
   );
 
-  const todayDate = format(new Date(), 'yyyy-MM-dd');
+  const todayDate = toOperationalDateYMDOrToday();
   const effectiveStartDate = dateRange?.startDate;
   const effectiveEndDate = dateRange?.endDate;
   const hasDateFilter = Boolean(effectiveStartDate && effectiveEndDate);
@@ -433,7 +438,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     shouldApplyChartDateFilter && effectiveStartDate && effectiveEndDate
       ? getRangeByMode(customerPeriodMode, effectiveStartDate, effectiveEndDate)
       : undefined;
-  const currentMonthStartDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const currentMonthStartDate = formatDateParam(
+    startOfMonth(parseDateParam(todayDate) ?? new Date())
+  );
   const kpiBaseFilters = {
     search: search || undefined,
     customerId: selectedCustomerId,
@@ -1041,9 +1048,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           0
         );
         const latestDate = pilotApplications
-          .map((application) => application.date)
+          .map((application) => toOperationalDateYMD(application.date))
           .filter((date): date is string => Boolean(date))
-          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+          .sort((a, b) => b.localeCompare(a))[0];
 
         rows.push({
           id: `${serviceOrder.id}:${pilot.id}`,

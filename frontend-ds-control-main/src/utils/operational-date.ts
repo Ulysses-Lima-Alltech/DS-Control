@@ -1,7 +1,18 @@
 export const OPERATIONAL_TIME_ZONE = 'America/Sao_Paulo';
 export const OPERATIONAL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const OPERATIONAL_DATE_PREFIX_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
 
 export type OperationalDateInput = string | number | Date | null | undefined;
+
+function extractOperationalDatePrefix(value: string): string | null {
+  const match = OPERATIONAL_DATE_PREFIX_REGEX.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const ymd = `${match[1]}-${match[2]}-${match[3]}`;
+  return parseYmdToDate(ymd) ? ymd : null;
+}
 
 function parseYmdToDate(ymd: string): Date | null {
   if (!OPERATIONAL_DATE_REGEX.test(ymd)) {
@@ -55,6 +66,11 @@ export function toOperationalDateYMD(input: OperationalDateInput): string | null
     const trimmed = input.trim();
     if (!trimmed) {
       return null;
+    }
+
+    const extractedPrefix = extractOperationalDatePrefix(trimmed);
+    if (extractedPrefix) {
+      return extractedPrefix;
     }
 
     if (OPERATIONAL_DATE_REGEX.test(trimmed)) {

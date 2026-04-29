@@ -245,7 +245,7 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
                 </div>
                 <div className='flex items-center space-x-1'>
                   <Calendar className='h-3 w-3' />
-                  <span>{formatTimestamp(new Date(farm.createdAt))}</span>
+                  <span>{formatTimestamp(farm.createdAt)}</span>
                 </div>
               </div>
             </div>
@@ -436,7 +436,7 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
                         {plot.createdAt && (
                           <div className='flex items-center space-x-1'>
                             <Calendar className='h-3 w-3' />
-                            <span>Criado: {formatTimestamp(new Date(plot.createdAt))}</span>
+                            <span>Criado: {formatTimestamp(plot.createdAt)}</span>
                           </div>
                         )}
                       </div>

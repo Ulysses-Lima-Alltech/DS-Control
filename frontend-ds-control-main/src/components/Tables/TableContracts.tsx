@@ -24,6 +24,7 @@ import {
   createActionsColumn,
   createColumn,
   createDateColumn,
+  createOperationalDateColumn,
   createTextColumn,
 } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -171,8 +172,8 @@ export const TableContracts = ({ customerId }: TableContractsProps = {}) => {
             <div className='text-foreground'>{row.original.customer?.name || 'N/A'}</div>
           )),
         ]),
-    createDateColumn<Contract>('dateStart', 'dateStart', 'Data de Início'),
-    createDateColumn<Contract>('dateEnd', 'dateEnd', 'Data de Fim'),
+    createOperationalDateColumn<Contract>('dateStart', 'dateStart', 'Data de Início'),
+    createOperationalDateColumn<Contract>('dateEnd', 'dateEnd', 'Data de Fim'),
     createTextColumn<Contract>('observation', 'observation', 'Observações', {
       maxWidth: 150,
     }),
