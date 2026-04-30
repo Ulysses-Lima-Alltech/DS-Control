@@ -1221,8 +1221,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
       <Card className='border-border/70'>
         <CardContent className='p-4'>
-          <div className='space-y-2'>
-            <div className='flex flex-wrap items-center justify-start gap-2'>
+          <div className='flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
+            <div className='space-y-2'>
+              <div className='flex flex-wrap items-center justify-start gap-2'>
               <div className='relative w-[200px] min-w-0'>
                 <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
                 <Input
@@ -1301,52 +1302,60 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 clearable
                 isLoading={isLoadingProducts}
               />
-            </div>
+              </div>
 
-            <div className='flex flex-wrap items-center justify-start gap-2'>
-              <SearchableSelectQuery
-                options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
-                value={selectedAssistantId}
-                onValueChange={(value) => handleAssistantChange(value as string | undefined)}
-                placeholder='Ajudante'
-                searchPlaceholder='Buscar ajudante...'
-                className='w-[140px] min-w-0'
-                clearable
-                isLoading={isLoadingAssistants}
-              />
-              <SearchableSelectQuery
-                options={SERVICE_ORDER_STATUS_OPTIONS}
-                value={selectedServiceOrderStatus}
-                onValueChange={(value) =>
-                  handleServiceOrderStatusChange(value as ServiceOrderStatus | undefined)
-                }
-                placeholder='Status da OS'
-                searchPlaceholder='Buscar status...'
-                className='w-[140px] min-w-0'
-                clearable
-              />
-              <SearchableSelectQuery
-                options={APPLICATION_ISSUE_OPTIONS}
-                value={selectedApplicationIssue}
-                onValueChange={(value) =>
-                  handleApplicationIssueChange(value as ApplicationIssueFilter | undefined)
-                }
-                placeholder='Tipo de aplicacao'
-                searchPlaceholder='Buscar tipo...'
-                className='w-[160px] min-w-0'
-                clearable
-              />
-              <SearchableSelectQuery
-                options={drones.map((drone) => ({ value: drone.id, label: drone.name }))}
-                value={selectedDroneId}
-                onValueChange={(value) => handleDroneChange(value as string | undefined)}
-                placeholder='Drone'
-                searchPlaceholder='Buscar drone...'
-                className='w-[140px] min-w-0'
-                clearable
-                isLoading={isLoadingDrones}
-              />
-              <Button type='button' variant='outline' onClick={clearFilters}>
+              <div className='flex flex-wrap items-center justify-start gap-2'>
+                <SearchableSelectQuery
+                  options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
+                  value={selectedAssistantId}
+                  onValueChange={(value) => handleAssistantChange(value as string | undefined)}
+                  placeholder='Ajudante'
+                  searchPlaceholder='Buscar ajudante...'
+                  className='w-[140px] min-w-0'
+                  clearable
+                  isLoading={isLoadingAssistants}
+                />
+                <SearchableSelectQuery
+                  options={SERVICE_ORDER_STATUS_OPTIONS}
+                  value={selectedServiceOrderStatus}
+                  onValueChange={(value) =>
+                    handleServiceOrderStatusChange(value as ServiceOrderStatus | undefined)
+                  }
+                  placeholder='Status da OS'
+                  searchPlaceholder='Buscar status...'
+                  className='w-[140px] min-w-0'
+                  clearable
+                />
+                <SearchableSelectQuery
+                  options={APPLICATION_ISSUE_OPTIONS}
+                  value={selectedApplicationIssue}
+                  onValueChange={(value) =>
+                    handleApplicationIssueChange(value as ApplicationIssueFilter | undefined)
+                  }
+                  placeholder='Tipo de aplicacao'
+                  searchPlaceholder='Buscar tipo...'
+                  className='w-[160px] min-w-0'
+                  clearable
+                />
+                <SearchableSelectQuery
+                  options={drones.map((drone) => ({ value: drone.id, label: drone.name }))}
+                  value={selectedDroneId}
+                  onValueChange={(value) => handleDroneChange(value as string | undefined)}
+                  placeholder='Drone'
+                  searchPlaceholder='Buscar drone...'
+                  className='w-[140px] min-w-0'
+                  clearable
+                  isLoading={isLoadingDrones}
+                />
+              </div>
+            </div>
+            <div className='shrink-0 xl:ml-auto'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={clearFilters}
+                className='border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'
+              >
                 Limpar Filtros
               </Button>
             </div>
