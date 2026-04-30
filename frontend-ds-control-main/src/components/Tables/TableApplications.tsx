@@ -1265,7 +1265,8 @@ export const TableApplications = ({
       )}
 
       <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
-        <div className='flex w-full flex-col gap-4'>
+        <div className='flex w-full flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
+          <div className='flex w-full flex-col gap-4'>
           <div className='grid w-full grid-cols-1 items-center gap-2 md:grid-cols-2 xl:grid-cols-[180px_170px_130px_130px_130px_130px_auto] xl:justify-start'>
             <Input
               placeholder='Buscar aplicações...'
@@ -1538,12 +1539,6 @@ export const TableApplications = ({
                   </SheetContent>
                 </Sheet>
               )}
-              {hasAnyFilterActive && (
-                <Button variant='ghost' className='h-9 px-3 text-sm' onClick={clearAllFilters}>
-                  <X className='h-4 w-4 mr-1' />
-                  Limpar filtros
-                </Button>
-              )}
             </div>
           </div>
           {!simpleMode && (
@@ -1657,6 +1652,18 @@ export const TableApplications = ({
                   </button>
                 </Badge>
               ))}
+            </div>
+          )}
+          </div>
+          {hasAnyFilterActive && (
+            <div className='shrink-0 xl:ml-auto'>
+              <Button
+                variant='outline'
+                className='h-9 border-red-200 bg-red-50 px-3 text-sm text-red-600 hover:bg-red-100 hover:text-red-700'
+                onClick={clearAllFilters}
+              >
+                Limpar filtros
+              </Button>
             </div>
           )}
         </div>
