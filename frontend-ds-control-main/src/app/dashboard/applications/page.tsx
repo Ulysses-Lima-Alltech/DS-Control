@@ -10,6 +10,8 @@ import FormApplication from '@/components/Forms/FormApplication';
 import { TableApplications } from '@/components/Tables/TableApplications';
 import { Button } from '@/components/ui/button';
 import { useGetCurrentCropSeason } from '@/queries/crop-season.query';
+import { ApplicationIssueFilter } from '@/types/applications.type';
+import { ServiceOrderStatus } from '@/types/service-order.type';
 import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -38,17 +40,58 @@ const resolveInitialDateRange = (
   return undefined;
 };
 
+const VALID_SERVICE_ORDER_STATUS = new Set<ServiceOrderStatus>(['open', 'completed', 'cancelled']);
+const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>([
+  'invalid_open_os',
+  'structural_pending',
+  'structural_pending_other',
+  'structural_missing_plot',
+  'structural_missing_farm',
+]);
+
 export default function AgriculturalApplicationsPage() {
   const searchParams = useSearchParams();
   const initialDateRange = useMemo(
     () => resolveInitialDateRange(searchParams.get('startDate'), searchParams.get('endDate')),
     [searchParams]
   );
+  const initialCropSeasonId = useMemo(() => searchParams.get('cropSeasonId') || undefined, [searchParams]);
+  const initialCustomerId = useMemo(() => searchParams.get('customerId') || undefined, [searchParams]);
+  const initialFarmId = useMemo(() => searchParams.get('farmId') || undefined, [searchParams]);
+  const initialPilotId = useMemo(() => searchParams.get('pilotId') || undefined, [searchParams]);
+  const initialAssistantId = useMemo(
+    () => searchParams.get('assistantId') || undefined,
+    [searchParams]
+  );
+  const initialProductId = useMemo(() => searchParams.get('productId') || undefined, [searchParams]);
+  const initialDroneId = useMemo(() => searchParams.get('droneId') || undefined, [searchParams]);
+  const initialServiceOrderStatus = useMemo(() => {
+    const value = searchParams.get('serviceOrderStatus');
+    if (!value || !VALID_SERVICE_ORDER_STATUS.has(value as ServiceOrderStatus)) return undefined;
+    return value as ServiceOrderStatus;
+  }, [searchParams]);
+  const initialApplicationIssue = useMemo(() => {
+    const value = searchParams.get('applicationIssue');
+    if (!value || !VALID_APPLICATION_ISSUES.has(value as ApplicationIssueFilter)) return undefined;
+    return value as ApplicationIssueFilter;
+  }, [searchParams]);
 
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState<string | undefined>(initialDateRange?.startDate);
   const [endDate, setEndDate] = useState<string | undefined>(initialDateRange?.endDate);
-  const [cropSeasonId, setCropSeasonId] = useState<string | undefined>(undefined);
+  const [cropSeasonId, setCropSeasonId] = useState<string | undefined>(initialCropSeasonId);
+  const [serviceOrderStatus, setServiceOrderStatus] = useState<ServiceOrderStatus | undefined>(
+    initialServiceOrderStatus
+  );
+  const [farmId, setFarmId] = useState<string | undefined>(initialFarmId);
+  const [productId, setProductId] = useState<string | undefined>(initialProductId);
+  const [pilotId, setPilotId] = useState<string | undefined>(initialPilotId);
+  const [customerId, setCustomerId] = useState<string | undefined>(initialCustomerId);
+  const [assistantId, setAssistantId] = useState<string | undefined>(initialAssistantId);
+  const [droneId, setDroneId] = useState<string | undefined>(initialDroneId);
+  const [applicationIssue, setApplicationIssue] = useState<ApplicationIssueFilter | undefined>(
+    initialApplicationIssue
+  );
 
   const {
     data: currentCropSeasonData,
@@ -63,6 +106,11 @@ export default function AgriculturalApplicationsPage() {
     }
 
     const currentCropSeasonId = currentCropSeasonData?.cropSeason?.id;
+    if (initialCropSeasonId) {
+      hasInitializedDefaults.current = true;
+      return;
+    }
+
     if (currentCropSeasonId) {
       setCropSeasonId(currentCropSeasonId);
 
@@ -82,22 +130,24 @@ export default function AgriculturalApplicationsPage() {
     }
 
     hasInitializedDefaults.current = true;
-  }, [currentCropSeasonData?.cropSeason?.id, initialDateRange, isLoadingCurrentCropSeason]);
+  }, [currentCropSeasonData?.cropSeason?.id, initialCropSeasonId, initialDateRange, isLoadingCurrentCropSeason]);
 
   const filterChangeHandlers = useMemo(
     () => ({
       setSearch,
-      setServiceOrderStatus: (_value: unknown) => undefined,
-      setFarmId: (_value: unknown) => undefined,
-      setProductId: (_value: unknown) => undefined,
-      setPilotId: (_value: unknown) => undefined,
-      setCustomerId: (_value: unknown) => undefined,
+      setServiceOrderStatus,
+      setFarmId,
+      setProductId,
+      setPilotId,
+      setCustomerId,
       setServiceOrderId: (_value: unknown) => undefined,
       setInvalidApplication: (_value: unknown) => undefined,
-      setApplicationIssue: (_value: unknown) => undefined,
+      setApplicationIssue,
       setStartDate,
       setEndDate,
       setCropSeasonId,
+      setAssistantId,
+      setDroneId,
     }),
     []
   );
@@ -124,13 +174,20 @@ export default function AgriculturalApplicationsPage() {
       <div className='max-w-full overflow-auto'>
         <TableApplications
           search={search}
+          serviceOrderStatus={serviceOrderStatus}
+          farmId={farmId}
+          productId={productId}
           startDate={startDate}
           endDate={endDate}
           cropSeasonId={cropSeasonId}
+          pilotId={pilotId}
+          customerIdFilter={customerId}
+          assistantIdFilter={assistantId}
+          droneIdFilter={droneId}
+          applicationIssue={applicationIssue}
           onFilterChange={filterChangeHandlers}
         />
       </div>
     </div>
   );
 }
-

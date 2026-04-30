@@ -74,8 +74,22 @@ type PilotLaunchRow = {
   serviceOrderNumber: number;
 };
 type EntityChartDataRow = {
+  entityId?: string;
   name: string;
   hectares: number;
+};
+type ApplicationsNavigationFilters = {
+  cropSeasonId?: string;
+  startDate?: string;
+  endDate?: string;
+  customerId?: string;
+  farmId?: string;
+  pilotId?: string;
+  assistantId?: string;
+  productId?: string;
+  droneId?: string;
+  serviceOrderStatus?: ServiceOrderStatus;
+  applicationIssue?: ApplicationIssueFilter;
 };
 
 const TOP_CARD_STYLES = [
@@ -760,6 +774,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const hectaresByCustomerData = useMemo(() => {
     const mapped = customers
       .map((customer, index) => ({
+        entityId: customer.id,
         name: customer.name,
         hectares: Number(customerAreaQueries[index]?.data?.stats?.totalAreaHectares || 0),
       }));
@@ -796,6 +811,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         current.hectares += hectares;
       } else {
         groupedByAssistant.set(groupKey, {
+          entityId: assistantId || undefined,
           name: assistantName,
           hectares,
         });
@@ -811,6 +827,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       return assistants
         .filter((assistant) => !selectedAssistantId || assistant.id === selectedAssistantId)
         .map((assistant) => ({
+          entityId: assistant.id || undefined,
           name: assistant.name || 'Sem ajudante',
           hectares: 0,
         }))
@@ -831,6 +848,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     }
 
     const base = (byPilotStats?.byPilot || []).map((item) => ({
+      entityId: item.pilotId || undefined,
       name: item.pilotName || 'Sem piloto',
       hectares: item.totalAreaHectares,
     }));
@@ -838,6 +856,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       return pilots
         .filter((pilot) => !selectedPilotId || pilot.id === selectedPilotId)
         .map((pilot) => ({
+          entityId: pilot.id || undefined,
           name: pilot.name || 'Sem piloto',
           hectares: 0,
         }))
@@ -1095,6 +1114,88 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const selectCustomerDayMode = useCallback(() => {
     setCustomerPeriodMode('day');
   }, []);
+  const buildApplicationsQueryString = useCallback(
+    (
+      overrides: Partial<ApplicationsNavigationFilters> = {},
+      range?: { startDate?: string; endDate?: string }
+    ) => {
+      const params = new URLSearchParams();
+      const filters: ApplicationsNavigationFilters = {
+        cropSeasonId: selectedCropSeasonId,
+        customerId: selectedCustomerId,
+        farmId: selectedFarmId,
+        pilotId: selectedPilotId,
+        assistantId: selectedAssistantId,
+        productId: selectedProductId,
+        droneId: selectedDroneId,
+        serviceOrderStatus: selectedServiceOrderStatus,
+        applicationIssue: selectedApplicationIssue,
+        ...overrides,
+      };
+
+      const append = (key: string, value?: string) => {
+        if (!value) return;
+        params.set(key, value);
+      };
+
+      append('cropSeasonId', filters.cropSeasonId);
+      append('customerId', filters.customerId);
+      append('farmId', filters.farmId);
+      append('pilotId', filters.pilotId);
+      append('assistantId', filters.assistantId);
+      append('productId', filters.productId);
+      append('droneId', filters.droneId);
+      append('serviceOrderStatus', filters.serviceOrderStatus);
+      append('applicationIssue', filters.applicationIssue);
+
+      if (range?.startDate && range?.endDate) {
+        params.set('startDate', range.startDate);
+        params.set('endDate', range.endDate);
+      }
+
+      return params.toString();
+    },
+    [
+      selectedApplicationIssue,
+      selectedAssistantId,
+      selectedCropSeasonId,
+      selectedCustomerId,
+      selectedDroneId,
+      selectedFarmId,
+      selectedPilotId,
+      selectedProductId,
+      selectedServiceOrderStatus,
+    ]
+  );
+  const handlePilotChartRowClick = useCallback(
+    (row: EntityChartDataRow) => {
+      if (!row.entityId) return;
+      const range = pilotPeriodMode === 'total' ? undefined : pilotChartRange;
+      const overrides =
+        pilotEntityMode === 'assistants'
+          ? ({ assistantId: row.entityId } as Partial<ApplicationsNavigationFilters>)
+          : ({ pilotId: row.entityId } as Partial<ApplicationsNavigationFilters>);
+      const query = buildApplicationsQueryString(overrides, range);
+      router.push(query ? `/dashboard/applications?${query}` : '/dashboard/applications');
+    },
+    [buildApplicationsQueryString, pilotChartRange, pilotEntityMode, pilotPeriodMode, router]
+  );
+  const handleCustomerChartRowClick = useCallback(
+    (row: EntityChartDataRow) => {
+      if (!row.entityId) return;
+      const range = customerPeriodMode === 'total' ? undefined : customerChartRange;
+      const query = buildApplicationsQueryString({ customerId: row.entityId }, range);
+      router.push(query ? `/dashboard/applications?${query}` : '/dashboard/applications');
+    },
+    [buildApplicationsQueryString, customerChartRange, customerPeriodMode, router]
+  );
+  const handleOpenServiceOrderClick = useCallback(
+    (serviceOrderId: string) => {
+      if (!serviceOrderId) return;
+      router.push(`/dashboard/service-orders/${serviceOrderId}`);
+    },
+    [router]
+  );
 
   const launches = pilotLaunchesData?.data || [];
   const pilotLaunchRows = useMemo<PilotLaunchRow[]>(() => {
@@ -1527,6 +1628,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   {pilotChartData.map((entry, index) => (
                       <Cell
                         key={`${entry.name}-${index}`}
+                        onClick={entry.entityId ? () => handlePilotChartRowClick(entry) : undefined}
+                        style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
                         fill={
                           PILOT_NEON_RETRO_BAR_COLORS[index % PILOT_NEON_RETRO_BAR_COLORS.length]
                         }
@@ -1635,6 +1738,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   {hectaresByCustomerData.map((entry, index) => (
                       <Cell
                         key={`${entry.name}-${index}`}
+                        onClick={entry.entityId ? () => handleCustomerChartRowClick(entry) : undefined}
+                        style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
                         fill={
                           CUSTOMER_NEON_RETRO_BAR_COLORS[index % CUSTOMER_NEON_RETRO_BAR_COLORS.length]
                         }
@@ -1691,7 +1796,16 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 return (
                   <Card
                     key={serviceOrder.id}
-                    className='border border-border/70 bg-card shadow-sm transition-transform duration-200 hover:-translate-y-0.5'
+                    className='cursor-pointer border border-border/70 bg-card shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:bg-muted/20'
+                    onClick={() => handleOpenServiceOrderClick(serviceOrder.id)}
+                    role='button'
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleOpenServiceOrderClick(serviceOrder.id);
+                      }
+                    }}
                   >
                     <CardContent className='space-y-4 p-5'>
                       <div className='flex items-center justify-between gap-2'>

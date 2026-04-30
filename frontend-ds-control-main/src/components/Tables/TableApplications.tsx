@@ -92,6 +92,8 @@ interface TableApplicationsProps {
   pilotId?: string;
   customerIdFilter?: string;
   serviceOrderIdFilter?: string;
+  assistantIdFilter?: string;
+  droneIdFilter?: string;
   invalidApplication?: boolean;
   applicationIssue?: ApplicationIssueFilter;
   startDate?: string;
@@ -110,6 +112,8 @@ interface TableApplicationsProps {
     setStartDate: (value: string | undefined) => void;
     setEndDate: (value: string | undefined) => void;
     setCropSeasonId?: (value: string | undefined) => void;
+    setAssistantId?: (value: string | undefined) => void;
+    setDroneId?: (value: string | undefined) => void;
   };
 }
 
@@ -131,6 +135,8 @@ export const TableApplications = ({
   pilotId: propPilotId,
   customerIdFilter: propCustomerIdFilter,
   serviceOrderIdFilter: propServiceOrderIdFilter,
+  assistantIdFilter: propAssistantIdFilter,
+  droneIdFilter: propDroneIdFilter,
   invalidApplication: propInvalidApplication,
   applicationIssue: propApplicationIssue,
   startDate: propStartDate,
@@ -165,8 +171,10 @@ export const TableApplications = ({
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
     propServiceOrderId
   );
-  const [assistantFilter, setAssistantFilter] = React.useState<string | undefined>(undefined);
-  const [droneFilter, setDroneFilter] = React.useState<string | undefined>(undefined);
+  const [assistantFilter, setAssistantFilter] = React.useState<string | undefined>(
+    propAssistantIdFilter
+  );
+  const [droneFilter, setDroneFilter] = React.useState<string | undefined>(propDroneIdFilter);
   const [cultureFilter, setCultureFilter] = React.useState<string | undefined>(undefined);
   const [plotNameFilter, setPlotNameFilter] = React.useState('');
   const [observationsFilter, setObservationsFilter] = React.useState('');
@@ -225,8 +233,8 @@ export const TableApplications = ({
     pilotId: propPilotId || pilotFilter,
     customerId: propCustomerIdFilter || customerFilter,
     serviceOrderId: propServiceOrderIdFilter || serviceOrderFilter,
-    assistantId: assistantFilter,
-    droneId: droneFilter,
+    assistantId: propAssistantIdFilter || assistantFilter,
+    droneId: propDroneIdFilter || droneFilter,
     cultureId: cultureFilter,
     plotName: plotNameFilter || undefined,
     observations: observationsFilter || undefined,
@@ -472,6 +480,14 @@ export const TableApplications = ({
   }, [propServiceOrderIdFilter, propServiceOrderId]);
 
   useEffect(() => {
+    setAssistantFilter(propAssistantIdFilter);
+  }, [propAssistantIdFilter]);
+
+  useEffect(() => {
+    setDroneFilter(propDroneIdFilter);
+  }, [propDroneIdFilter]);
+
+  useEffect(() => {
     if (propInvalidApplication === undefined) {
       return;
     }
@@ -588,6 +604,22 @@ export const TableApplications = ({
     setCurrentPage(1);
     onFilterChange?.setPilotId(pilotId);
   }, [onFilterChange]);
+  const handleAssistantChange = useCallback(
+    (assistantId: string | undefined) => {
+      setAssistantFilter(assistantId);
+      setCurrentPage(1);
+      onFilterChange?.setAssistantId?.(assistantId);
+    },
+    [onFilterChange]
+  );
+  const handleDroneChange = useCallback(
+    (droneId: string | undefined) => {
+      setDroneFilter(droneId);
+      setCurrentPage(1);
+      onFilterChange?.setDroneId?.(droneId);
+    },
+    [onFilterChange]
+  );
 
   const handleServiceOrderChange = useCallback(
     (newServiceOrderId: string | undefined) => {
@@ -680,6 +712,8 @@ export const TableApplications = ({
     onFilterChange?.setStartDate(undefined);
     onFilterChange?.setEndDate(undefined);
     onFilterChange?.setCropSeasonId?.(undefined);
+    onFilterChange?.setAssistantId?.(undefined);
+    onFilterChange?.setDroneId?.(undefined);
   }, [onFilterChange]);
 
     const handleOrderTypeChange = (orderType: ApplicationOrderType | undefined) => {
@@ -1008,14 +1042,14 @@ export const TableApplications = ({
       ? {
           key: 'assistant',
           label: `Ajudante: ${allAssistants.find((a) => a.id === assistantFilter)?.name || 'Selecionado'}`,
-          onRemove: () => setAssistantFilter(undefined),
+          onRemove: () => handleAssistantChange(undefined),
         }
       : null,
     !simpleMode && droneFilter
       ? {
           key: 'drone',
           label: `Drone: ${allDrones.find((d) => d.id === droneFilter)?.name || 'Selecionado'}`,
-          onRemove: () => setDroneFilter(undefined),
+          onRemove: () => handleDroneChange(undefined),
         }
       : null,
     !simpleMode && cultureFilter
@@ -1523,7 +1557,7 @@ export const TableApplications = ({
                     label: assistant.name,
                   }))}
                   value={assistantFilter}
-                  onValueChange={(value) => setAssistantFilter(value as string | undefined)}
+                  onValueChange={(value) => handleAssistantChange(value as string | undefined)}
                   placeholder='Selecionar ajudante'
                   searchPlaceholder='Buscar ajudante...'
                   className='h-9 w-full'
@@ -1544,7 +1578,7 @@ export const TableApplications = ({
                     label: drone.name,
                   }))}
                   value={droneFilter}
-                  onValueChange={(value) => setDroneFilter(value as string | undefined)}
+                  onValueChange={(value) => handleDroneChange(value as string | undefined)}
                   placeholder='Selecionar drone'
                   searchPlaceholder='Buscar drone...'
                   className='h-9 w-full'
