@@ -9,7 +9,7 @@ import {
 } from "@common/utils/operational-date";
 import { db } from "@infra/database";
 import { applications, assistants, contracts, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
-import { and, avg, count, countDistinct, eq, exists, ilike, inArray, isNull, not, or, sql, sum } from "drizzle-orm";
+import { and, avg, count, countDistinct, eq, exists, ilike, inArray, isNull, not, or, sql, sum, type SQL } from "drizzle-orm";
 
 import { ApplicationVM, type ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
 import { app } from "@modules/app/app.module";
@@ -55,9 +55,7 @@ type PaginatedApplicationsListResponse = PaginatedRequest<typeof ApplicationWith
   summary: ApplicationListSummary;
 };
 type ApplicationStatsFiltersWithCropSeason = ApplicationStatsQueryString & {
-  cropSeasonStartDate?: string;
-  cropSeasonEndDate?: string;
-  cropSeasonProductIds?: string[];
+  cropSeasonDateRanges?: Array<{ startDate: string; endDate: string }>;
 };
 
 export class ApplicationService {
@@ -68,6 +66,34 @@ export class ApplicationService {
   private readonly serviceOrdersRepository = new ServiceOrderRepository();
   private readonly plotRepository = new PlotRepository();
   private readonly cropSeasonRepository = new CropSeasonRepository();
+
+  private normalizeCropSeasonIds(filters?: { cropSeasonId?: string; cropSeasonIds?: string[] }): string[] {
+    if (!filters) return [];
+    const ids = [
+      ...(filters.cropSeasonId ? [filters.cropSeasonId] : []),
+      ...(filters.cropSeasonIds || []),
+    ];
+    return Array.from(new Set(ids.filter(Boolean)));
+  }
+
+  private buildCropSeasonRangeWhereClause(
+    dateRanges?: Array<{ startDate: string; endDate: string }>
+  ): SQL | undefined {
+    if (!dateRanges || dateRanges.length === 0) return undefined;
+    const applicationOperationalDate = operationalDateSql(applications.date);
+
+    const rangeConditions = dateRanges.map((range) => {
+      const startD = toOperationalDateYMD(range.startDate);
+      const endD = toOperationalDateYMD(range.endDate);
+      return and(
+        sql`${applicationOperationalDate} >= ${sql.raw(`'${startD}'`)}::date`,
+        sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`,
+      )!;
+    });
+
+    if (rangeConditions.length === 1) return rangeConditions[0];
+    return or(...rangeConditions)!;
+  }
 
   /**
    * Build WHERE conditions for application queries based on filters
@@ -117,14 +143,6 @@ export class ApplicationService {
       whereConditions.push(eq(applications.productId, filters.productId));
     }
 
-    if (filters.cropSeasonProductIds) {
-      if (filters.cropSeasonProductIds.length === 0) {
-        whereConditions.push(sql`1 = 0`);
-      } else {
-        whereConditions.push(inArray(applications.productId, filters.cropSeasonProductIds));
-      }
-    }
-
     if (filters.customerId) {
       whereConditions.push(eq(customers.id, filters.customerId));
       needsJoins = true;
@@ -170,12 +188,9 @@ export class ApplicationService {
       whereConditions.push(sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`);
     }
 
-    if (filters.cropSeasonStartDate && filters.cropSeasonEndDate) {
-      const startD = toOperationalDateYMD(filters.cropSeasonStartDate);
-      const endD = toOperationalDateYMD(filters.cropSeasonEndDate);
-      const applicationOperationalDate = operationalDateSql(applications.date);
-      whereConditions.push(sql`${applicationOperationalDate} >= ${sql.raw(`'${startD}'`)}::date`);
-      whereConditions.push(sql`${applicationOperationalDate} <= ${sql.raw(`'${endD}'`)}::date`);
+    const cropSeasonRangeClause = this.buildCropSeasonRangeWhereClause(filters.cropSeasonDateRanges);
+    if (cropSeasonRangeClause) {
+      whereConditions.push(cropSeasonRangeClause);
     }
 
     return {
@@ -184,22 +199,26 @@ export class ApplicationService {
     };
   }
 
-  private async resolveCropSeasonFilters<T extends { cropSeasonId?: string }>(
+  private async resolveCropSeasonFilters<T extends { cropSeasonId?: string; cropSeasonIds?: string[] }>(
     filters?: T
-  ): Promise<(T & { cropSeasonStartDate?: string; cropSeasonEndDate?: string; cropSeasonProductIds?: string[] }) | undefined> {
+  ): Promise<(T & { cropSeasonDateRanges?: Array<{ startDate: string; endDate: string }> }) | undefined> {
     if (!filters) return undefined;
-    if (!filters.cropSeasonId) return filters;
+    const selectedCropSeasonIds = this.normalizeCropSeasonIds(filters);
+    if (selectedCropSeasonIds.length === 0) return filters;
 
-    const cropSeason = await this.cropSeasonRepository.getCropSeasonById(filters.cropSeasonId);
-    if (!cropSeason) {
+    const cropSeasons = await Promise.all(
+      selectedCropSeasonIds.map((cropSeasonId) => this.cropSeasonRepository.getCropSeasonById(cropSeasonId))
+    );
+    if (cropSeasons.some((cropSeason) => !cropSeason)) {
       throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
     }
 
     return {
       ...filters,
-      cropSeasonStartDate: cropSeason.startDate,
-      cropSeasonEndDate: cropSeason.endDate,
-      cropSeasonProductIds: cropSeason.products.map((product) => product.id),
+      cropSeasonDateRanges: cropSeasons.map((cropSeason) => ({
+        startDate: cropSeason!.startDate,
+        endDate: cropSeason!.endDate,
+      })),
     };
   }
 
@@ -266,6 +285,7 @@ export class ApplicationService {
       pilotId?: string;
       productId?: string;
       cropSeasonId?: string;
+      cropSeasonIds?: string[];
       customerId?: string;
       serviceOrderId?: string;
       assistantId?: string;
@@ -296,30 +316,14 @@ export class ApplicationService {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: string;
       endDate?: string;
-      cropSeasonStartDate?: string;
-      cropSeasonEndDate?: string;
-      cropSeasonProductIds?: string[];
+      cropSeasonDateRanges?: Array<{ startDate: string; endDate: string }>;
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
   ): Promise<PaginatedApplicationsListResponse> {
     app.log.info("[ApplicationService] - Listing all applications");
 
-    let resolvedFilters = filters ? { ...filters } : undefined;
-
-    if (resolvedFilters?.cropSeasonId) {
-      const cropSeason = await this.cropSeasonRepository.getCropSeasonById(resolvedFilters.cropSeasonId);
-      if (!cropSeason) {
-        throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
-      }
-
-      resolvedFilters = {
-        ...resolvedFilters,
-        cropSeasonStartDate: cropSeason.startDate,
-        cropSeasonEndDate: cropSeason.endDate,
-        cropSeasonProductIds: cropSeason.products.map((product) => product.id),
-      };
-    }
+    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
 
     const [queryResult, totalCount, summary] = await Promise.all([
       this.applicationRepository.getAllApplications(page, limit, search, resolvedFilters, orderBy, orderType),
@@ -902,7 +906,7 @@ export class ApplicationService {
    * @param {ApplicationStatsQueryString} filters - Optional filters to apply
    * @returns {Promise<number>} Count of Applications.
    */
-  private async getApplicationCount(filters?: ApplicationStatsQueryString): Promise<number> {
+  private async getApplicationCount(filters?: ApplicationStatsFiltersWithCropSeason): Promise<number> {
     if (!filters) {
       const result = await db
         .select({ count: count() })
@@ -912,21 +916,18 @@ export class ApplicationService {
       return Number(result[0]?.count || 0);
     }
 
-    // Use the repository method that already handles all filters
-    return await this.applicationRepository.countApplications(
-      filters.search,
-      {
-        serviceOrderStatus: filters.serviceOrderStatus,
-        farmId: filters.farmId,
-        pilotId: filters.pilotId,
-        productId: filters.productId,
-        customerId: filters.customerId,
-        serviceOrderId: filters.serviceOrderId,
-        invalidApplication: filters.invalidApplication,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-      }
-    );
+    const { whereClause } = this.buildApplicationWhereConditions(filters);
+    const result = await db
+      .select({ count: countDistinct(applications.id) })
+      .from(applications)
+      .leftJoin(users, eq(applications.pilotId, users.id))
+      .leftJoin(plots, eq(applications.plotId, plots.id))
+      .leftJoin(farms, eq(applications.farmId, farms.id))
+      .leftJoin(customers, eq(farms.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .where(whereClause);
+
+    return Number(result[0]?.count || 0);
   }
 
   /**
@@ -1428,23 +1429,25 @@ export class ApplicationService {
    * @param {ApplicationStatsQueryString} filters - Optional filters to apply
    * @returns {Promise<{productId: string, product: string, hectares: number}[]>} hectares by product.
    */
-  private async getTypeOfProducts(filters?: ApplicationStatsQueryString): Promise<{ productId: string; product: string; hectares: number }[]> {
+  private async getTypeOfProducts(
+    filters?: ApplicationStatsQueryString
+  ): Promise<{ productId?: string; product: string; hectares: number }[]> {
     const { whereClause, needsJoins } = this.buildApplicationWhereConditions(filters);
 
     if (!needsJoins) {
       const results = await db
         .select({
-          productId: products.id,
-          product: products.name,
+          productId: sql<string>`COALESCE(${products.id}::text, '__NO_PRODUCT__')`,
+          product: sql<string>`COALESCE(${products.name}, 'Produtos diversos')`,
           hectares: sum(applications.hectares)
         })
         .from(applications)
-        .innerJoin(products, eq(applications.productId, products.id))
+        .leftJoin(products, eq(applications.productId, products.id))
         .where(whereClause)
         .groupBy(products.id, products.name);
 
       return results.map(r => ({
-        productId: r.productId,
+        productId: r.productId === "__NO_PRODUCT__" ? undefined : r.productId,
         product: r.product,
         hectares: Number(r.hectares || 0),
       }));
@@ -1453,12 +1456,12 @@ export class ApplicationService {
     // With joins
     const results = await db
       .select({
-        productId: products.id,
-        product: products.name,
+        productId: sql<string>`COALESCE(${products.id}::text, '__NO_PRODUCT__')`,
+        product: sql<string>`COALESCE(${products.name}, 'Produtos diversos')`,
         hectares: sum(applications.hectares)
       })
       .from(applications)
-      .innerJoin(products, eq(applications.productId, products.id))
+      .leftJoin(products, eq(applications.productId, products.id))
       .leftJoin(users, eq(applications.pilotId, users.id))
       .leftJoin(plots, eq(applications.plotId, plots.id))
       .leftJoin(farms, eq(applications.farmId, farms.id))
@@ -1468,7 +1471,7 @@ export class ApplicationService {
       .groupBy(products.id, products.name);
 
     return results.map(r => ({
-      productId: r.productId,
+      productId: r.productId === "__NO_PRODUCT__" ? undefined : r.productId,
       product: r.product,
       hectares: Number(r.hectares || 0),
     }));
@@ -1841,7 +1844,7 @@ export class ApplicationService {
 
     const applicationOperationalDate = operationalDateSql(applications.date);
     const whereConditions: unknown[] = [isNull(applications.deletedAt)];
-    let cropSeasonProductIds: string[] | undefined;
+    const cropSeasonDateRanges = (await this.resolveCropSeasonFilters(filters))?.cropSeasonDateRanges;
     
     // Filter by contract IDs via serviceOrders.contractId
     // This is the correct way to filter by contract - through service orders
@@ -1874,24 +1877,9 @@ export class ApplicationService {
       );
     }
 
-    if (filters?.cropSeasonId) {
-      const cropSeason = await this.cropSeasonRepository.getCropSeasonById(filters.cropSeasonId);
-      if (!cropSeason) {
-        throw new AppError("Safra não encontrada", HTTP_STATUS_CODES.NOT_FOUND);
-      }
-
-      cropSeasonProductIds = cropSeason.products.map((product) => product.id);
-      if (cropSeasonProductIds.length === 0) {
-        whereConditions.push(sql`1 = 0`);
-      } else {
-        whereConditions.push(inArray(applications.productId, cropSeasonProductIds));
-      }
-      whereConditions.push(
-        sql`${applicationOperationalDate} >= ${sql.raw(`'${cropSeason.startDate}'`)}::date`
-      );
-      whereConditions.push(
-        sql`${applicationOperationalDate} <= ${sql.raw(`'${cropSeason.endDate}'`)}::date`
-      );
+    const cropSeasonRangeClause = this.buildCropSeasonRangeWhereClause(cropSeasonDateRanges);
+    if (cropSeasonRangeClause) {
+      whereConditions.push(cropSeasonRangeClause);
     }
 
     if (filters?.currentSeason) {
@@ -1973,7 +1961,7 @@ export class ApplicationService {
       filters?.customerIds,
       filters?.farmIds,
       filters?.contractIds,
-      cropSeasonProductIds
+      cropSeasonDateRanges
     );
 
     // Get monthly sprayed area for chart (with date filter)
@@ -2001,7 +1989,7 @@ export class ApplicationService {
     customerIds?: string[],
     farmIds?: string[],
     contractIds?: string[],
-    cropSeasonProductIds?: string[]
+    cropSeasonDateRanges?: Array<{ startDate: string; endDate: string }>
   ): Promise<YesterdayStats> {
     const yesterdayDateStr = addOperationalDays(new Date(), -1);
     const applicationOperationalDate = operationalDateSql(applications.date);
@@ -2030,12 +2018,9 @@ export class ApplicationService {
     if (farmIds && farmIds.length > 0) {
       whereConditions.push(inArray(applications.farmId, farmIds));
     }
-    if (cropSeasonProductIds) {
-      if (cropSeasonProductIds.length === 0) {
-        whereConditions.push(sql`1 = 0`);
-      } else {
-        whereConditions.push(inArray(applications.productId, cropSeasonProductIds));
-      }
+    const cropSeasonRangeClause = this.buildCropSeasonRangeWhereClause(cropSeasonDateRanges);
+    if (cropSeasonRangeClause) {
+      whereConditions.push(cropSeasonRangeClause);
     }
 
     // Determine if we need joins based on filters

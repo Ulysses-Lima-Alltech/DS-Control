@@ -58,6 +58,7 @@ export class ApplicationController {
         pilotId?: string;
         productId?: string;
         cropSeasonId?: string;
+        cropSeasonIds?: string[];
         customerId?: string;
         serviceOrderId?: string;
         assistantId?: string;
@@ -105,6 +106,7 @@ export class ApplicationController {
         pilotId: request.query.pilotId,
         productId: request.query.productId,
         cropSeasonId: request.query.cropSeasonId,
+        cropSeasonIds: request.query.cropSeasonIds,
         customerId: request.query.customerId,
         serviceOrderId: request.query.serviceOrderId,
         assistantId: request.query.assistantId,

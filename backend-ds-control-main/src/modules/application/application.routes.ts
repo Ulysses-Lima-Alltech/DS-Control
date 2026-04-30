@@ -305,7 +305,7 @@ export function ApplicationV1Routes(
             averageApplicationArea: z.number(),
             typeOfProducts: z.array(
               z.object({
-                productId: z.string().uuid(),
+                productId: z.string().optional(),
                 product: z.string(),
                 hectares: z.number(),
               })

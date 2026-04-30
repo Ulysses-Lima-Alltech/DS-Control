@@ -89,6 +89,7 @@ interface TableApplicationsProps {
   farmId?: string;
   productId?: string;
   cropSeasonId?: string;
+  cropSeasonIds?: string[];
   pilotId?: string;
   customerIdFilter?: string;
   serviceOrderIdFilter?: string;
@@ -112,6 +113,7 @@ interface TableApplicationsProps {
     setStartDate: (value: string | undefined) => void;
     setEndDate: (value: string | undefined) => void;
     setCropSeasonId?: (value: string | undefined) => void;
+    setCropSeasonIds?: (value: string[] | undefined) => void;
     setAssistantId?: (value: string | undefined) => void;
     setDroneId?: (value: string | undefined) => void;
   };
@@ -132,6 +134,7 @@ export const TableApplications = ({
   farmId: propFarmId,
   productId: propProductId,
   cropSeasonId: propCropSeasonId,
+  cropSeasonIds: propCropSeasonIds,
   pilotId: propPilotId,
   customerIdFilter: propCustomerIdFilter,
   serviceOrderIdFilter: propServiceOrderIdFilter,
@@ -165,7 +168,9 @@ export const TableApplications = ({
   );
   const [farmFilter, setFarmFilter] = React.useState<string | undefined>(propFarmId);
   const [productFilter, setProductFilter] = React.useState<string | undefined>(propProductId);
-  const [cropSeasonFilter, setCropSeasonFilter] = React.useState<string | undefined>(propCropSeasonId);
+  const [cropSeasonFilter, setCropSeasonFilter] = React.useState<string | undefined>(
+    propCropSeasonId || propCropSeasonIds?.[0]
+  );
   const [pilotFilter, setPilotFilter] = React.useState<string | undefined>(propPilotId);
   const [customerFilter, setCustomerFilter] = React.useState<string | undefined>(propCustomerId);
   const [serviceOrderFilter, setServiceOrderFilter] = React.useState<string | undefined>(
@@ -229,7 +234,14 @@ export const TableApplications = ({
     serviceOrderStatus: propServiceOrderStatus || statusFilter,
     farmId: propFarmId || farmFilter,
     productId: propProductId || productFilter,
-    cropSeasonId: propCropSeasonId || cropSeasonFilter,
+    cropSeasonId:
+      propCropSeasonId || (propCropSeasonIds && propCropSeasonIds.length === 1 ? propCropSeasonIds[0] : cropSeasonFilter),
+    cropSeasonIds:
+      propCropSeasonIds && propCropSeasonIds.length > 0
+        ? propCropSeasonIds
+        : cropSeasonFilter
+          ? [cropSeasonFilter]
+          : undefined,
     pilotId: propPilotId || pilotFilter,
     customerId: propCustomerIdFilter || customerFilter,
     serviceOrderId: propServiceOrderIdFilter || serviceOrderFilter,
@@ -464,8 +476,8 @@ export const TableApplications = ({
   }, [propProductId]);
 
   useEffect(() => {
-    setCropSeasonFilter(propCropSeasonId);
-  }, [propCropSeasonId]);
+    setCropSeasonFilter(propCropSeasonId || propCropSeasonIds?.[0]);
+  }, [propCropSeasonId, propCropSeasonIds]);
 
   useEffect(() => {
     setPilotFilter(propPilotId);
@@ -595,6 +607,7 @@ export const TableApplications = ({
       setCropSeasonFilter(cropSeasonIdValue);
       setCurrentPage(1);
       onFilterChange?.setCropSeasonId?.(cropSeasonIdValue);
+      onFilterChange?.setCropSeasonIds?.(cropSeasonIdValue ? [cropSeasonIdValue] : undefined);
     },
     [onFilterChange]
   );
@@ -712,6 +725,7 @@ export const TableApplications = ({
     onFilterChange?.setStartDate(undefined);
     onFilterChange?.setEndDate(undefined);
     onFilterChange?.setCropSeasonId?.(undefined);
+    onFilterChange?.setCropSeasonIds?.(undefined);
     onFilterChange?.setAssistantId?.(undefined);
     onFilterChange?.setDroneId?.(undefined);
   }, [onFilterChange]);
@@ -830,7 +844,11 @@ export const TableApplications = ({
       label: 'Produto',
       header: 'Produto',
       minSize: 150,
-      cell: ({ row }) => <div className='text-foreground whitespace-nowrap'>{row.original.product.name}</div>,
+      cell: ({ row }) => (
+        <div className='text-foreground whitespace-nowrap'>
+          {row.original.product?.name || 'Produtos diversos'}
+        </div>
+      ),
     },
     {
       id: 'plot',
@@ -980,6 +998,12 @@ export const TableApplications = ({
   const { data: selectedCropSeasonData } = useGetCropSeasonById(cropSeasonFilter ?? '', {
     enabled: !!cropSeasonFilter,
   });
+  const effectiveCropSeasonIds =
+    propCropSeasonIds && propCropSeasonIds.length > 0
+      ? propCropSeasonIds
+      : cropSeasonFilter
+        ? [cropSeasonFilter]
+        : [];
   const cropSeasonChipName =
     cropSeasonFilter &&
     (cropSeasons.find((season) => season.id === cropSeasonFilter)?.name ??
@@ -1024,10 +1048,13 @@ export const TableApplications = ({
           onRemove: () => handleProductChange(undefined),
         }
       : null,
-    !simpleMode && cropSeasonFilter
+    !simpleMode && effectiveCropSeasonIds.length > 0
       ? {
           key: 'cropSeason',
-          label: `Safra: ${cropSeasonChipName || 'Selecionada'}`,
+          label:
+            effectiveCropSeasonIds.length > 1
+              ? `Safras: ${effectiveCropSeasonIds.length} selecionadas`
+              : `Safra: ${cropSeasonChipName || 'Selecionada'}`,
           onRemove: () => handleCropSeasonChange(undefined),
         }
       : null,
@@ -1195,7 +1222,7 @@ export const TableApplications = ({
         customerFilter ||
         overviewFarmId ||
         overviewProductId ||
-        cropSeasonFilter ||
+        effectiveCropSeasonIds.length > 0 ||
         pilotFilter ||
         assistantFilter ||
         droneFilter ||
@@ -1363,7 +1390,7 @@ export const TableApplications = ({
                   variant='secondary'
                   className='h-9 px-3 text-sm'
                   onClick={handleTotalGeralClick}
-                  disabled={!cropSeasonFilter}
+                  disabled={effectiveCropSeasonIds.length === 0}
                 >
                   Total Geral
                 </Button>

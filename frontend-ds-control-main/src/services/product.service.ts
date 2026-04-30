@@ -43,6 +43,29 @@ export async function getAllProducts(
   return await response.json();
 }
 
+export async function getAllActiveProductIds(): Promise<string[]> {
+  const collectedIds = new Set<string>();
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await getAllProducts({
+      page: page.toString(),
+      limit: '200',
+      status: 'active',
+    });
+    response.data.forEach((product) => {
+      if (product.id) {
+        collectedIds.add(product.id);
+      }
+    });
+    totalPages = response.totalPages || 1;
+    page += 1;
+  } while (page <= totalPages);
+
+  return Array.from(collectedIds);
+}
+
 export type RegisterNewProductParams = z.infer<typeof RegisterNewProductSchema>;
 
 export type RegisterNewProductResponse = {

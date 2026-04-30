@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { InfiniteData, useQueryClient } from '@tanstack/react-query';
+import { InfiniteData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ import { useUpdateCropSeasonById } from '@/mutations/crop-season.mutation';
 import { useGetAllProductsInfinite } from '@/queries/product.query';
 import { UpdateCropSeasonByIdSchema } from '@/schemas/crop-season.schema';
 import { UpdateCropSeasonByIdParams } from '@/services/crop-season.service';
+import * as ProductService from '@/services/product.service';
 import { Product } from '@/types/product.type';
 import { CropSeason } from '@/types/crop-season.type';
 
@@ -57,6 +58,11 @@ export default function FormEditCropSeason({ cropSeason, onSuccess }: FormEditCr
     (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
       (page) => page.data
     ) || [];
+  const { data: allProductIds = [] } = useQuery({
+    queryKey: ['products', 'active', 'all-ids'],
+    queryFn: ProductService.getAllActiveProductIds,
+    staleTime: 1000 * 60 * 10,
+  });
 
   const { mutate: updateCropSeasonById, isPending } = useUpdateCropSeasonById();
 
@@ -119,6 +125,7 @@ export default function FormEditCropSeason({ cropSeason, onSuccess }: FormEditCr
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
             disabled={isLoadingProducts}
+            selectAllValues={allProductIds}
           />
           {errors.productIds && <p className='text-red-500 text-sm'>{errors.productIds.message}</p>}
         </div>
@@ -130,4 +137,3 @@ export default function FormEditCropSeason({ cropSeason, onSuccess }: FormEditCr
     </form>
   );
 }
-

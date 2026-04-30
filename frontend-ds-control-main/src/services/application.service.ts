@@ -38,6 +38,7 @@ export type GetAllApplicationsParams = {
   pilotId?: string;
   productId?: string;
   cropSeasonId?: string;
+  cropSeasonIds?: string[];
   customerId?: string;
   serviceOrderId?: string;
   assistantId?: string;
@@ -85,6 +86,9 @@ export async function getAllApplications(
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
+  }
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
@@ -343,6 +347,7 @@ export type GetStatsApplicationsParams = {
   droneId?: string;
   productId?: string;
   cropSeasonId?: string;
+  cropSeasonIds?: string[];
   customerId?: string;
   serviceOrderId?: string;
   invalidApplication?: boolean;
@@ -421,6 +426,9 @@ export async function getStatsApplications(
   if (params?.droneId) searchParams.append('droneId', params.droneId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
+  }
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -460,6 +468,9 @@ export async function getTopFarmsApplications(
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
+  }
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -495,6 +506,9 @@ export async function getByPilotApplications(
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
+  }
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -532,6 +546,9 @@ export async function getApplicationsEvolution(
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.cropSeasonId) searchParams.append('cropSeasonId', params.cropSeasonId);
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
+  }
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
@@ -660,6 +677,7 @@ export type GetDashboardMetricsParams = {
   search?: string;
   currentSeason?: boolean;
   cropSeasonId?: string;
+  cropSeasonIds?: string[];
   startDate: string; // Required - first day of selected period (YYYY-MM-DD format)
 };
 
@@ -732,6 +750,9 @@ export async function getDashboardMetrics(
   }
   if (params.cropSeasonId) {
     searchParams.append('cropSeasonId', params.cropSeasonId);
+  }
+  if (params.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((cropSeasonId) => searchParams.append('cropSeasonIds', cropSeasonId));
   }
 
   const url = `/applications/dashboard-metrics?${searchParams.toString()}`;

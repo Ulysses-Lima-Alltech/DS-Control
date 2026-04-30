@@ -43,6 +43,19 @@ export class ApplicationRepository {
     )!;
   }
 
+  private operationalDateRangesCondition(
+    ranges?: Array<{ startDate: Date | string; endDate: Date | string }>
+  ): SQL | undefined {
+    if (!ranges || ranges.length === 0) return undefined;
+
+    const clauses = ranges.map((range) =>
+      this.operationalDateRangeCondition(range.startDate, range.endDate)
+    );
+
+    if (clauses.length === 1) return clauses[0];
+    return or(...clauses)!;
+  }
+
   /**
    * @description Create a new application
    * @param {CreateApplication} data - The application data
@@ -232,9 +245,7 @@ export class ApplicationRepository {
           applicationIssue?: ApplicationIssueFilter;
           startDate?: Date | string;
           endDate?: Date | string;
-          cropSeasonStartDate?: Date | string;
-          cropSeasonEndDate?: Date | string;
-          cropSeasonProductIds?: string[];
+          cropSeasonDateRanges?: Array<{ startDate: Date | string; endDate: Date | string }>;
         }
       | undefined,
   ): SQL[] {
@@ -382,14 +393,6 @@ export class ApplicationRepository {
       whereConditions.push(eq(applications.productId, filters.productId));
     }
 
-    if (filters?.cropSeasonProductIds) {
-      if (filters.cropSeasonProductIds.length === 0) {
-        whereConditions.push(sql`1 = 0`);
-      } else {
-        whereConditions.push(inArray(applications.productId, filters.cropSeasonProductIds));
-      }
-    }
-
     if (filters?.customerId) {
       whereConditions.push(eq(customers.id, filters.customerId));
     }
@@ -450,10 +453,9 @@ export class ApplicationRepository {
       whereConditions.push(this.operationalDateRangeCondition(filters.startDate, filters.endDate));
     }
 
-    if (filters?.cropSeasonStartDate && filters?.cropSeasonEndDate) {
-      whereConditions.push(
-        this.operationalDateRangeCondition(filters.cropSeasonStartDate, filters.cropSeasonEndDate),
-      );
+    const cropSeasonRangeClause = this.operationalDateRangesCondition(filters?.cropSeasonDateRanges);
+    if (cropSeasonRangeClause) {
+      whereConditions.push(cropSeasonRangeClause);
     }
 
     return whereConditions;
@@ -507,9 +509,7 @@ export class ApplicationRepository {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
       endDate?: Date | string;
-      cropSeasonStartDate?: Date | string;
-      cropSeasonEndDate?: Date | string;
-      cropSeasonProductIds?: string[];
+      cropSeasonDateRanges?: Array<{ startDate: Date | string; endDate: Date | string }>;
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
@@ -1177,9 +1177,7 @@ export class ApplicationRepository {
       applicationIssue?: ApplicationIssueFilter;
       startDate?: Date | string;
       endDate?: Date | string;
-      cropSeasonStartDate?: Date | string;
-      cropSeasonEndDate?: Date | string;
-      cropSeasonProductIds?: string[];
+      cropSeasonDateRanges?: Array<{ startDate: Date | string; endDate: Date | string }>;
     }
   ): Promise<number> {
     const hasListFilters =
@@ -1191,6 +1189,7 @@ export class ApplicationRepository {
             filters.pilotId ||
             filters.productId ||
             filters.cropSeasonId ||
+            (filters.cropSeasonDateRanges && filters.cropSeasonDateRanges.length > 0) ||
             filters.customerId ||
             filters.serviceOrderId ||
             filters.assistantId ||

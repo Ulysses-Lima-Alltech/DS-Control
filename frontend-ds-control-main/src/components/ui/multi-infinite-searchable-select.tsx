@@ -35,6 +35,7 @@ interface MultiInfiniteSearchableSelectProps {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   portal?: boolean;
+  selectAllValues?: string[];
 }
 
 export function MultiInfiniteSearchableSelect({
@@ -52,14 +53,19 @@ export function MultiInfiniteSearchableSelect({
   hasNextPage = false,
   isFetchingNextPage = false,
   portal = true,
+  selectAllValues,
 }: MultiInfiniteSearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState('');
 
   const selectedOptions = options.filter((option) => values.includes(option.value));
+  const selectedCount = values.length;
   const allOptionValues = React.useMemo(
-    () => Array.from(new Set(options.map((option) => option.value))),
-    [options]
+    () =>
+      Array.from(
+        new Set((selectAllValues && selectAllValues.length > 0 ? selectAllValues : options.map((option) => option.value)))
+      ),
+    [options, selectAllValues]
   );
   const areAllOptionsSelected =
     allOptionValues.length > 0 && allOptionValues.every((value) => values.includes(value));
@@ -83,7 +89,7 @@ export function MultiInfiniteSearchableSelect({
       onValuesChange([]);
       return;
     }
-    onValuesChange(allOptionValues);
+    onValuesChange(Array.from(new Set(allOptionValues)));
   };
 
   const handleSearchChange = (value: string) => {
@@ -99,13 +105,13 @@ export function MultiInfiniteSearchableSelect({
   };
 
   const displayText = () => {
-    if (selectedOptions.length === 0) {
+    if (selectedCount === 0) {
       return placeholder;
     }
-    if (selectedOptions.length <= maxDisplay) {
+    if (selectedCount <= maxDisplay && selectedOptions.length === selectedCount) {
       return selectedOptions.map((o) => o.label).join(', ');
     }
-    return `${selectedOptions.length} selecionados`;
+    return `${selectedCount} selecionados`;
   };
 
   return (
@@ -123,7 +129,7 @@ export function MultiInfiniteSearchableSelect({
             <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        {selectedOptions.length > 0 && (
+        {selectedCount > 0 && (
           <button
             type='button'
             onClick={handleClearAll}
@@ -155,7 +161,7 @@ export function MultiInfiniteSearchableSelect({
                   variant='ghost'
                   className='h-8 w-full justify-start px-2 text-sm'
                   onClick={handleToggleSelectAll}
-                  disabled={options.length === 0}
+                  disabled={allOptionValues.length === 0}
                 >
                   {areAllOptionsSelected ? 'Limpar seleção' : 'Selecionar todos'}
                 </Button>

@@ -1,7 +1,36 @@
-﻿import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-request.types";
+import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-request.types";
 import { isOperationalDateString } from "@common/utils/operational-date";
 import { ApplicationOrderBy, ApplicationOrderType } from "@repositories/applications/application.types";
 import z from "zod";
+
+const CropSeasonIdsQuerySchema = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value, ctx) => {
+    if (!value) return undefined;
+
+    const rawValues = Array.isArray(value) ? value : [value];
+    const splitValues = rawValues
+      .flatMap((item) => item.split(","))
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (splitValues.length === 0) return undefined;
+
+    const uniqueValues = Array.from(new Set(splitValues));
+    for (const cropSeasonId of uniqueValues) {
+      const parsed = z.string().uuid().safeParse(cropSeasonId);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cropSeasonIds deve conter UUIDs válidos",
+        });
+        return z.NEVER;
+      }
+    }
+
+    return uniqueValues;
+  });
 
 /** Alinhado as metricas de stats (pendencias / OS aberta sem talhao). */
 export const ApplicationIssueFilterSchema = z.enum([
@@ -28,6 +57,9 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
   pilotId: z.string().uuid().optional().describe("Filter by pilot ID"),
   productId: z.string().uuid().optional().describe("Filter by product ID"),
   cropSeasonId: z.string().uuid().optional().describe("Filter by crop season ID"),
+  cropSeasonIds: CropSeasonIdsQuerySchema.describe(
+    "Filter by multiple crop season IDs (CSV or repeated query param)"
+  ),
   customerId: z.string().uuid().optional().describe("Filter by customer ID"),
   serviceOrderId: z.string().uuid().optional().describe("Filter by service order ID"),
   assistantId: z.string().uuid().optional().describe("Filter by assistant ID"),

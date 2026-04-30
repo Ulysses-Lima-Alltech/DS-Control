@@ -11,6 +11,35 @@ const arrayQueryParam = z.union([
   return [val];
 });
 
+const cropSeasonIdsQueryParam = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((val, ctx) => {
+    if (val === undefined || val === null) return undefined;
+
+    const rawValues = Array.isArray(val) ? val : [val];
+    const splitValues = rawValues
+      .flatMap((item) => item.split(","))
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (splitValues.length === 0) return undefined;
+
+    const uniqueValues = Array.from(new Set(splitValues));
+    for (const cropSeasonId of uniqueValues) {
+      const parsed = z.string().uuid().safeParse(cropSeasonId);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cropSeasonIds deve conter UUIDs válidos",
+        });
+        return z.NEVER;
+      }
+    }
+
+    return uniqueValues;
+  });
+
 // Query string schema for dashboard metrics endpoint
 export const DashboardMetricsQueryStringSchema = z.object({
   contractIds: arrayQueryParam,
@@ -18,6 +47,7 @@ export const DashboardMetricsQueryStringSchema = z.object({
   farmIds: arrayQueryParam,
   pilotId: z.string().uuid().optional(),
   cropSeasonId: z.string().uuid().optional(),
+  cropSeasonIds: cropSeasonIdsQueryParam,
   search: z.string().optional(),
   currentSeason: z
     .enum(["true", "false"])
