@@ -1,7 +1,7 @@
 'use client';
 
 import { InfiniteData, useQueries } from '@tanstack/react-query';
-import { differenceInCalendarDays, format, isValid, startOfMonth } from 'date-fns';
+import { differenceInCalendarDays, endOfMonth, format, isValid, startOfMonth } from 'date-fns';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
@@ -293,35 +293,31 @@ function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   };
 }
 
-function getRangeByMode(mode: RangeMode, filteredStartDate: string, filteredEndDate: string) {
+function getRangeByMode(
+  mode: RangeMode,
+  filteredStartDate: string | undefined,
+  todayDate: string,
+  yesterdayDate: string
+) {
   if (mode === 'total') return undefined;
   if (mode === 'month') {
-    const end = parseDateParam(filteredEndDate);
-    if (!end) {
-      return { startDate: filteredStartDate, endDate: filteredEndDate };
-    }
+    const referenceDate = parseDateParam(filteredStartDate || todayDate) ?? parseDateParam(todayDate);
+    if (!referenceDate) return undefined;
+    const monthStart = formatDateParam(startOfMonth(referenceDate));
+    const isCurrentMonth =
+      referenceDate.getFullYear() === (parseDateParam(todayDate) ?? referenceDate).getFullYear() &&
+      referenceDate.getMonth() === (parseDateParam(todayDate) ?? referenceDate).getMonth();
+    const monthEnd = isCurrentMonth ? todayDate : formatDateParam(endOfMonth(referenceDate));
     return {
-      startDate: formatDateParam(startOfMonth(end)),
-      endDate: filteredEndDate,
+      startDate: monthStart,
+      endDate: monthEnd,
     };
   }
-  if (filteredStartDate === filteredEndDate) {
-    return {
-      startDate: filteredEndDate,
-      endDate: filteredEndDate,
-    };
-  }
+  const referenceDay = filteredStartDate || yesterdayDate;
   return {
-    startDate: filteredEndDate,
-    endDate: filteredEndDate,
+    startDate: referenceDay,
+    endDate: referenceDay,
   };
-}
-
-function formatTemporalBucket(dateYmd: string, mode: Exclude<RangeMode, 'total'>): string {
-  const parsed = parseDateParam(dateYmd);
-  if (!parsed) return dateYmd;
-  if (mode === 'month') return format(parsed, 'MM/yyyy');
-  return format(parsed, 'dd/MM');
 }
 
 function getSeasonElapsedDays(
@@ -446,28 +442,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const effectiveStartDate = dateRange?.startDate;
   const effectiveEndDate = dateRange?.endDate;
   const hasDateFilter = Boolean(effectiveStartDate && effectiveEndDate);
-  const hasAnyPanelFilter = Boolean(
-    search.trim() ||
-      hasDateFilter ||
-      selectedCustomerId ||
-      selectedFarmId ||
-      selectedPilotId ||
-      selectedProductId ||
-      selectedAssistantId ||
-      selectedDroneId ||
-      selectedCropSeasonId ||
-      selectedServiceOrderStatus ||
-      selectedApplicationIssue
-  );
-  const shouldApplyChartDateFilter = hasAnyPanelFilter && hasDateFilter;
-  const pilotChartRange =
-    shouldApplyChartDateFilter && effectiveStartDate && effectiveEndDate
-      ? getRangeByMode(pilotPeriodMode, effectiveStartDate, effectiveEndDate)
-      : undefined;
-  const customerChartRange =
-    shouldApplyChartDateFilter && effectiveStartDate && effectiveEndDate
-      ? getRangeByMode(customerPeriodMode, effectiveStartDate, effectiveEndDate)
-      : undefined;
+  const pilotChartRange = getRangeByMode(pilotPeriodMode, effectiveStartDate, todayDate, yesterday);
+  const customerChartRange = getRangeByMode(customerPeriodMode, effectiveStartDate, todayDate, yesterday);
   const currentMonthStartDate = formatDateParam(
     startOfMonth(parseDateParam(todayDate) ?? new Date())
   );
@@ -621,60 +597,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     },
     {
       enabled: pilotEntityMode === 'assistants',
-    }
-  );
-  const { data: pilotTemporalApplicationsData, isPending: isLoadingPilotTemporalApplications } =
-    useGetAllApplications(
-      {
-        page: '1',
-        limit: '5000',
-        search: search || undefined,
-        customerId: selectedCustomerId,
-        farmId: selectedFarmId,
-        pilotId: selectedPilotId,
-        productId: selectedProductId,
-        serviceOrderStatus: selectedServiceOrderStatus,
-        cropSeasonId: selectedCropSeasonId,
-        assistantId: selectedAssistantId,
-        droneId: selectedDroneId,
-        applicationIssue: selectedApplicationIssue,
-        ...(pilotChartRange?.startDate && pilotChartRange?.endDate
-          ? {
-              startDate: pilotChartRange.startDate,
-              endDate: pilotChartRange.endDate,
-            }
-          : {}),
-      },
-      {
-        enabled: pilotPeriodMode !== 'total',
-      }
-    );
-  const {
-    data: customerTemporalApplicationsData,
-    isPending: isLoadingCustomerTemporalApplications,
-  } = useGetAllApplications(
-    {
-      page: '1',
-      limit: '5000',
-      search: search || undefined,
-      customerId: selectedCustomerId,
-      farmId: selectedFarmId,
-      pilotId: selectedPilotId,
-      productId: selectedProductId,
-      serviceOrderStatus: selectedServiceOrderStatus,
-      cropSeasonId: selectedCropSeasonId,
-      assistantId: selectedAssistantId,
-      droneId: selectedDroneId,
-      applicationIssue: selectedApplicationIssue,
-      ...(customerChartRange?.startDate && customerChartRange?.endDate
-        ? {
-            startDate: customerChartRange.startDate,
-            endDate: customerChartRange.endDate,
-          }
-        : {}),
-    },
-    {
-      enabled: customerPeriodMode !== 'total',
     }
   );
 
@@ -836,27 +758,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   });
 
   const hectaresByCustomerData = useMemo(() => {
-    if (customerPeriodMode !== 'total') {
-      const applications = customerTemporalApplicationsData?.data || [];
-      const grouped = new Map<string, number>();
-      for (const application of applications) {
-        const dateYmd = toOperationalDateYMD(application.date);
-        if (!dateYmd) continue;
-        const bucketKey = customerPeriodMode === 'month' ? dateYmd.slice(0, 7) : dateYmd;
-        grouped.set(bucketKey, (grouped.get(bucketKey) || 0) + Number(application.hectares || 0));
-      }
-
-      return Array.from(grouped.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([bucketKey, hectares]) => ({
-          name: formatTemporalBucket(
-            customerPeriodMode === 'month' ? `${bucketKey}-01` : bucketKey,
-            customerPeriodMode
-          ),
-          hectares,
-        }));
-    }
-
     const mapped = customers
       .map((customer, index) => ({
         name: customer.name,
@@ -867,7 +768,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       return withData.slice(0, 6);
     }
     return mapped.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).slice(0, 6);
-  }, [customers, customerAreaQueries, customerPeriodMode, customerTemporalApplicationsData?.data]);
+  }, [customers, customerAreaQueries]);
 
   const assistantNameById = useMemo(
     () =>
@@ -925,27 +826,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     selectedAssistantId,
   ]);
   const pilotChartData = useMemo<EntityChartDataRow[]>(() => {
-    if (pilotPeriodMode !== 'total') {
-      const applications = pilotTemporalApplicationsData?.data || [];
-      const grouped = new Map<string, number>();
-      for (const application of applications) {
-        const dateYmd = toOperationalDateYMD(application.date);
-        if (!dateYmd) continue;
-        const bucketKey = pilotPeriodMode === 'month' ? dateYmd.slice(0, 7) : dateYmd;
-        grouped.set(bucketKey, (grouped.get(bucketKey) || 0) + Number(application.hectares || 0));
-      }
-
-      return Array.from(grouped.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([bucketKey, hectares]) => ({
-          name: formatTemporalBucket(
-            pilotPeriodMode === 'month' ? `${bucketKey}-01` : bucketKey,
-            pilotPeriodMode
-          ),
-          hectares,
-        }));
-    }
-
     if (pilotEntityMode === 'assistants') {
       return assistantChartData;
     }
@@ -970,7 +850,6 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     byPilotStats?.byPilot,
     pilotEntityMode,
     pilotPeriodMode,
-    pilotTemporalApplicationsData?.data,
     pilots,
     selectedPilotId,
   ]);
@@ -1284,16 +1163,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     });
   }, [launches, openServiceOrders, search, selectedPilotId]);
   const isLoadingAnyCustomerArea =
-    customerPeriodMode === 'total'
-      ? isLoadingCustomers || customerAreaQueries.some((query) => query.isPending)
-      : isLoadingCustomerTemporalApplications;
+    isLoadingCustomers || customerAreaQueries.some((query) => query.isPending);
   const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
   const isLoadingPilotChart =
-    pilotPeriodMode !== 'total'
-      ? isLoadingPilotTemporalApplications
-      : pilotEntityMode === 'assistants'
-        ? isLoadingAssistantChartApplications
-        : isLoadingByPilotStats;
+    pilotEntityMode === 'assistants' ? isLoadingAssistantChartApplications : isLoadingByPilotStats;
   const launchedPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'launched').length;
   const pendingPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'pending').length;
   const isLoadingAnyOrderStats =
@@ -1348,130 +1221,135 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
       <Card className='border-border/70'>
         <CardContent className='p-4'>
-          <div className='grid grid-cols-1 items-center gap-2 md:grid-cols-2 xl:grid-cols-[220px_210px_150px_150px_150px_150px_auto] xl:justify-start'>
-            <div className='relative min-w-0'>
-              <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-              <Input
-                value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder='Busca'
-                className='w-full pl-9'
+          <div className='space-y-2'>
+            <div className='flex flex-wrap items-center justify-start gap-2'>
+              <div className='relative w-[200px] min-w-0'>
+                <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                <Input
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder='Busca'
+                  className='w-full pl-9'
+                />
+              </div>
+              <div className='w-[180px] min-w-0 max-w-[180px] overflow-hidden'>
+                <DateRangePicker
+                  key={datePickerResetKey}
+                  className='w-full min-w-0'
+                  initialValue={
+                    effectiveStartDate && effectiveEndDate
+                      ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
+                      : undefined
+                  }
+                  onChange={handleDateRangeChange}
+                  placeholder='Periodo'
+                />
+              </div>
+              <SearchableSelectQuery
+                options={cropSeasons.map((cropSeason) => ({
+                  value: cropSeason.id,
+                  label: cropSeason.name,
+                }))}
+                value={selectedCropSeasonId}
+                onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
+                placeholder='Safra'
+                searchPlaceholder='Buscar safra...'
+                className='w-[140px] min-w-0'
+                clearable={false}
+                isLoading={isLoadingCropSeasons || isLoadingCurrentCropSeason}
+                onScrollEnd={fetchNextPageCropSeasons}
+                hasNextPage={hasNextPageCropSeasons}
+                isFetchingNextPage={isFetchingNextPageCropSeasons}
+              />
+              <SearchableSelectQuery
+                options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
+                value={selectedCustomerId}
+                onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                placeholder='Cliente'
+                searchPlaceholder='Buscar cliente...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingCustomers}
+              />
+              <SearchableSelectQuery
+                options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
+                value={selectedFarmId}
+                onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                placeholder='Fazenda'
+                searchPlaceholder='Buscar fazenda...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingFarms}
+              />
+              <SearchableSelectQuery
+                options={pilots.map((pilot) => ({ value: pilot.id, label: pilot.name }))}
+                value={selectedPilotId}
+                onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                placeholder='Piloto'
+                searchPlaceholder='Buscar piloto...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingPilots}
+              />
+              <SearchableSelectQuery
+                options={products.map((product) => ({ value: product.id, label: product.name }))}
+                value={selectedProductId}
+                onValueChange={(value) => handleProductChange(value as string | undefined)}
+                placeholder='Produto'
+                searchPlaceholder='Buscar produto...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingProducts}
               />
             </div>
-            <div className='w-[210px] min-w-0 max-w-[210px] overflow-hidden'>
-              <DateRangePicker
-                key={datePickerResetKey}
-                className='w-full min-w-0'
-                initialValue={
-                  effectiveStartDate && effectiveEndDate
-                    ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
-                    : undefined
+
+            <div className='flex flex-wrap items-center justify-start gap-2'>
+              <SearchableSelectQuery
+                options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
+                value={selectedAssistantId}
+                onValueChange={(value) => handleAssistantChange(value as string | undefined)}
+                placeholder='Ajudante'
+                searchPlaceholder='Buscar ajudante...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingAssistants}
+              />
+              <SearchableSelectQuery
+                options={SERVICE_ORDER_STATUS_OPTIONS}
+                value={selectedServiceOrderStatus}
+                onValueChange={(value) =>
+                  handleServiceOrderStatusChange(value as ServiceOrderStatus | undefined)
                 }
-                onChange={handleDateRangeChange}
-                placeholder='Periodo'
+                placeholder='Status da OS'
+                searchPlaceholder='Buscar status...'
+                className='w-[140px] min-w-0'
+                clearable
               />
+              <SearchableSelectQuery
+                options={APPLICATION_ISSUE_OPTIONS}
+                value={selectedApplicationIssue}
+                onValueChange={(value) =>
+                  handleApplicationIssueChange(value as ApplicationIssueFilter | undefined)
+                }
+                placeholder='Tipo de aplicacao'
+                searchPlaceholder='Buscar tipo...'
+                className='w-[160px] min-w-0'
+                clearable
+              />
+              <SearchableSelectQuery
+                options={drones.map((drone) => ({ value: drone.id, label: drone.name }))}
+                value={selectedDroneId}
+                onValueChange={(value) => handleDroneChange(value as string | undefined)}
+                placeholder='Drone'
+                searchPlaceholder='Buscar drone...'
+                className='w-[140px] min-w-0'
+                clearable
+                isLoading={isLoadingDrones}
+              />
+              <Button type='button' variant='outline' onClick={clearFilters}>
+                Limpar Filtros
+              </Button>
             </div>
-            <SearchableSelectQuery
-              options={cropSeasons.map((cropSeason) => ({
-                value: cropSeason.id,
-                label: cropSeason.name,
-              }))}
-              value={selectedCropSeasonId}
-              onValueChange={(value) => handleCropSeasonChange(value as string | undefined)}
-              placeholder='Safra'
-              searchPlaceholder='Buscar safra...'
-              className='w-[150px] min-w-0'
-              clearable={false}
-              isLoading={isLoadingCropSeasons || isLoadingCurrentCropSeason}
-              onScrollEnd={fetchNextPageCropSeasons}
-              hasNextPage={hasNextPageCropSeasons}
-              isFetchingNextPage={isFetchingNextPageCropSeasons}
-            />
-            <SearchableSelectQuery
-              options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
-              value={selectedCustomerId}
-              onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-              placeholder='Cliente'
-              searchPlaceholder='Buscar cliente...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingCustomers}
-            />
-            <SearchableSelectQuery
-              options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
-              value={selectedFarmId}
-              onValueChange={(value) => handleFarmChange(value as string | undefined)}
-              placeholder='Fazenda'
-              searchPlaceholder='Buscar fazenda...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingFarms}
-            />
-            <SearchableSelectQuery
-              options={pilots.map((pilot) => ({ value: pilot.id, label: pilot.name }))}
-              value={selectedPilotId}
-              onValueChange={(value) => handlePilotChange(value as string | undefined)}
-              placeholder='Piloto'
-              searchPlaceholder='Buscar piloto...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingPilots}
-            />
-            <SearchableSelectQuery
-              options={products.map((product) => ({ value: product.id, label: product.name }))}
-              value={selectedProductId}
-              onValueChange={(value) => handleProductChange(value as string | undefined)}
-              placeholder='Produto'
-              searchPlaceholder='Buscar produto...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingProducts}
-            />
-            <SearchableSelectQuery
-              options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
-              value={selectedAssistantId}
-              onValueChange={(value) => handleAssistantChange(value as string | undefined)}
-              placeholder='Ajudante'
-              searchPlaceholder='Buscar ajudante...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingAssistants}
-            />
-            <SearchableSelectQuery
-              options={SERVICE_ORDER_STATUS_OPTIONS}
-              value={selectedServiceOrderStatus}
-              onValueChange={(value) =>
-                handleServiceOrderStatusChange(value as ServiceOrderStatus | undefined)
-              }
-              placeholder='Status da OS'
-              searchPlaceholder='Buscar status...'
-              className='w-[150px] min-w-0'
-              clearable
-            />
-            <SearchableSelectQuery
-              options={APPLICATION_ISSUE_OPTIONS}
-              value={selectedApplicationIssue}
-              onValueChange={(value) =>
-                handleApplicationIssueChange(value as ApplicationIssueFilter | undefined)
-              }
-              placeholder='Tipo de aplicacao'
-              searchPlaceholder='Buscar tipo...'
-              className='w-[150px] min-w-0'
-              clearable
-            />
-            <SearchableSelectQuery
-              options={drones.map((drone) => ({ value: drone.id, label: drone.name }))}
-              value={selectedDroneId}
-              onValueChange={(value) => handleDroneChange(value as string | undefined)}
-              placeholder='Drone'
-              searchPlaceholder='Buscar drone...'
-              className='w-[150px] min-w-0'
-              clearable
-              isLoading={isLoadingDrones}
-            />
-            <Button type='button' variant='outline' onClick={clearFilters} className='justify-self-start'>
-              Limpar Filtros
-            </Button>
           </div>
         </CardContent>
       </Card>
