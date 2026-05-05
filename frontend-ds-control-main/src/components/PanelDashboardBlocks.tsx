@@ -12,7 +12,7 @@ import {
   Sprout,
   UserCheck,
 } from 'lucide-react';
-import { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -92,6 +92,7 @@ type ApplicationsNavigationFilters = {
   serviceOrderStatus?: ServiceOrderStatus;
   applicationIssue?: ApplicationIssueFilter;
 };
+type DashboardDateRange = { startDate: string; endDate: string };
 
 function getCropSeasonIdsFromSearchParams(searchParams: URLSearchParams | null): string[] {
   if (!searchParams) return [];
@@ -209,6 +210,42 @@ type WrappedXAxisTickProps = {
 
 function areDateRangesEqual(a: ComparableDateRange, b: ComparableDateRange) {
   return a?.startDate === b?.startDate && a?.endDate === b?.endDate;
+}
+
+function isValidDateParam(value: string | null | undefined): value is string {
+  return Boolean(value && parseDateParam(value));
+}
+
+function isCompleteDateRange(
+  range: ComparableDateRange
+): range is DashboardDateRange {
+  return Boolean(range?.startDate && range?.endDate);
+}
+
+function getCivilDateRangeDays(range: DashboardDateRange | undefined): number {
+  if (!range) return 0;
+  const start = parseDateParam(range.startDate);
+  const end = parseDateParam(range.endDate);
+  if (!start || !end || end < start) return 0;
+  return differenceInCalendarDays(end, start) + 1;
+}
+
+function getIntersectingCropSeasonIds(
+  cropSeasons: CropSeason[],
+  range: DashboardDateRange | undefined
+): string[] {
+  if (!range) return [];
+  return cropSeasons
+    .filter(
+      (cropSeason) =>
+        cropSeason.startDate <= range.endDate && cropSeason.endDate >= range.startDate
+    )
+    .map((cropSeason) => cropSeason.id);
+}
+
+function areStringArraysEqual(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }
 
 function parseDateParam(value: string): Date | undefined {
@@ -453,7 +490,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           }
         : undefined
   );
+  const [hasManualDateRange, setHasManualDateRange] = useState(
+    () =>
+      isValidDateParam(searchParams?.get('startDate')) &&
+      isValidDateParam(searchParams?.get('endDate'))
+  );
   const [datePickerResetKey, setDatePickerResetKey] = useState(0);
+  const hasProcessedInitialDatePickerChange = useRef(false);
   const [pilotEntityMode, setPilotEntityMode] = useState<'pilots' | 'assistants'>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('total');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('total');
@@ -500,34 +543,78 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const todayDate = toOperationalDateYMDOrToday();
   const effectiveStartDate = dateRange?.startDate;
   const effectiveEndDate = dateRange?.endDate;
-  const hasDateFilter = Boolean(effectiveStartDate && effectiveEndDate);
+  const manualDateRange =
+    hasManualDateRange && isCompleteDateRange(dateRange) ? dateRange : undefined;
   const pilotChartRange = getRangeByMode(pilotPeriodMode, effectiveStartDate, todayDate, yesterday);
   const customerChartRange = getRangeByMode(customerPeriodMode, effectiveStartDate, todayDate, yesterday);
   const currentMonthStartDate = formatDateParam(
     startOfMonth(parseDateParam(todayDate) ?? new Date())
   );
-  const kpiBaseFilters = {
+  const panelBaseFilters = useMemo<ApplicationService.GetStatsApplicationsParams>(
+    () => ({
     search: search || undefined,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
+    productId: selectedProductId,
+    assistantId: selectedAssistantId,
+    droneId: selectedDroneId,
+    serviceOrderStatus: selectedServiceOrderStatus,
+    applicationIssue: selectedApplicationIssue,
     cropSeasonId: selectedCropSeasonId,
     cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
-  };
-  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
-    useGetStatsApplications({
-      ...kpiBaseFilters,
-      ...(selectedCropSeasonIds.length > 0 ? {} : { currentSeason: true }),
-    });
-  const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } = useGetStatsApplications({
-    ...kpiBaseFilters,
+    ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
+    ...(manualDateRange
+      ? {
+          startDate: manualDateRange.startDate,
+          endDate: manualDateRange.endDate,
+        }
+      : {}),
+    }),
+    [
+      manualDateRange,
+      search,
+      selectedApplicationIssue,
+      selectedAssistantId,
+      selectedCropSeasonId,
+      selectedCropSeasonIds,
+      selectedCustomerId,
+      selectedDroneId,
+      selectedFarmId,
+      selectedPilotId,
+      selectedProductId,
+      selectedServiceOrderStatus,
+    ]
+  );
+  const buildPanelStatsFilters = useCallback(
+    (rangeOverride?: DashboardDateRange): ApplicationService.GetStatsApplicationsParams => ({
+      ...panelBaseFilters,
+      ...(rangeOverride
+        ? {
+            currentSeason: undefined,
+            startDate: rangeOverride.startDate,
+            endDate: rangeOverride.endDate,
+          }
+        : {}),
+    }),
+    [panelBaseFilters]
+  );
+  const cardRangeFilters = buildPanelStatsFilters();
+  const currentMonthCardRange = manualDateRange ?? {
     startDate: currentMonthStartDate,
     endDate: todayDate,
-  });
-  const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } = useGetStatsApplications({
-    ...kpiBaseFilters,
+  };
+  const yesterdayCardRange = manualDateRange ?? {
     startDate: yesterday,
     endDate: yesterday,
+  };
+  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
+    useGetStatsApplications(cardRangeFilters);
+  const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } = useGetStatsApplications({
+    ...buildPanelStatsFilters(currentMonthCardRange),
+  });
+  const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } = useGetStatsApplications({
+    ...buildPanelStatsFilters(yesterdayCardRange),
   });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
     startDate: effectiveStartDate ?? todayDate,
@@ -535,11 +622,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     farmIds: selectedFarmId ? [selectedFarmId] : undefined,
     pilotId: selectedPilotId,
     search: search || undefined,
-    ...(selectedCropSeasonIds.length > 0 ? {} : { currentSeason: true }),
+    ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
     cropSeasonId: selectedCropSeasonId,
     cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
   }, {
-    enabled: selectedCropSeasonIds.length === 0,
+    enabled: selectedCropSeasonIds.length === 0 && !manualDateRange,
   });
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
@@ -569,8 +656,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       assistantId: selectedAssistantId,
       droneId: selectedDroneId,
       applicationIssue: selectedApplicationIssue,
-      startDate: yesterday,
-      endDate: yesterday,
+      startDate: yesterdayCardRange.startDate,
+      endDate: yesterdayCardRange.endDate,
     });
 
   const { data: customersData, isPending: isLoadingCustomers } = useGetAllCustomers({
@@ -698,21 +785,33 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     (cropSeasonsData as unknown as InfiniteData<{ data: CropSeason[] }>)?.pages?.flatMap(
       (page) => page.data
     ) || [];
-  const selectedCropSeasons = useMemo(() => {
-    if (selectedCropSeasonIds.length === 0) return [];
+  const cropSeasonsWithCurrent = useMemo(() => {
     const seasonsById = new Map(cropSeasons.map((cropSeason) => [cropSeason.id, cropSeason]));
     const currentSeason = currentCropSeasonData?.cropSeason;
     if (currentSeason) {
       seasonsById.set(currentSeason.id, currentSeason);
     }
+    return Array.from(seasonsById.values());
+  }, [cropSeasons, currentCropSeasonData?.cropSeason]);
+  const selectedCropSeasons = useMemo(() => {
+    if (selectedCropSeasonIds.length === 0) return [];
+    const seasonsById = new Map(
+      cropSeasonsWithCurrent.map((cropSeason) => [cropSeason.id, cropSeason])
+    );
     return selectedCropSeasonIds
       .map((cropSeasonId) => seasonsById.get(cropSeasonId))
       .filter((cropSeason): cropSeason is CropSeason => Boolean(cropSeason));
-  }, [cropSeasons, currentCropSeasonData?.cropSeason, selectedCropSeasonIds]);
+  }, [cropSeasonsWithCurrent, selectedCropSeasonIds]);
   const seasonElapsedDays = getCombinedSeasonElapsedDays(selectedCropSeasons, todayDate);
+  const manualRangeDays = getCivilDateRangeDays(manualDateRange);
+  const elapsedDaysForCards = manualDateRange
+    ? manualRangeDays
+    : selectedCropSeasonIds.length > 0
+      ? seasonElapsedDays
+      : dashboardMetrics?.metrics?.daysSinceStart;
   const seasonAverageDailyArea =
-    seasonElapsedDays > 0
-      ? Number(totalSeasonStats?.stats?.totalAreaHectares || 0) / seasonElapsedDays
+    Number(elapsedDaysForCards || 0) > 0
+      ? Number(totalSeasonStats?.stats?.totalAreaHectares || 0) / Number(elapsedDaysForCards || 0)
       : 0;
   const openServiceOrders =
     selectedServiceOrderStatus && selectedServiceOrderStatus !== 'open'
@@ -972,18 +1071,30 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     {
       title: 'Média Diária Safra',
       value: formatHectares(
-        selectedCropSeasonIds.length > 0 ? seasonAverageDailyArea : dashboardMetrics?.metrics?.averageDailyArea
+        manualDateRange || selectedCropSeasonIds.length > 0
+          ? seasonAverageDailyArea
+          : dashboardMetrics?.metrics?.averageDailyArea
       ),
       icon: BarChart3,
-      isLoading: selectedCropSeasonIds.length > 0 ? isLoadingTotalSeasonStats : isLoadingDashboardMetrics,
+      isLoading:
+        manualDateRange || selectedCropSeasonIds.length > 0
+          ? isLoadingTotalSeasonStats
+          : isLoadingDashboardMetrics,
     },
     {
       title: 'Dias corridos',
       value: formatInteger(
-        selectedCropSeasonIds.length > 0 ? seasonElapsedDays : dashboardMetrics?.metrics?.daysSinceStart
+        manualDateRange || selectedCropSeasonIds.length > 0
+          ? elapsedDaysForCards
+          : dashboardMetrics?.metrics?.daysSinceStart
       ),
       icon: CalendarClock,
-      isLoading: selectedCropSeasonIds.length > 0 ? isLoadingCropSeasons : isLoadingDashboardMetrics,
+      isLoading:
+        manualDateRange || selectedCropSeasonIds.length > 0
+          ? manualDateRange
+            ? false
+            : isLoadingCropSeasons
+          : isLoadingDashboardMetrics,
     },
     {
       title: 'Pilotos Ativos Ontem',
@@ -1027,13 +1138,18 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       } else if (cropSeasonIds.length > 1) {
         cropSeasonIds.forEach((cropSeasonId) => nextParams.append('cropSeasonIds', cropSeasonId));
       }
+      if (manualDateRange) {
+        nextParams.set('startDate', manualDateRange.startDate);
+        nextParams.set('endDate', manualDateRange.endDate);
+      }
       const nextQuery = nextParams.toString();
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     },
-    [pathname, router, searchParams]
+    [manualDateRange, pathname, router, searchParams]
   );
 
   useEffect(() => {
+    if (manualDateRange) return;
     if (selectedCropSeasonIds.length > 0 || isLoadingCurrentCropSeason) return;
     const currentId = currentCropSeasonData?.cropSeason?.id;
     if (!currentId) return;
@@ -1043,7 +1159,25 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   }, [
     currentCropSeasonData?.cropSeason?.id,
     isLoadingCurrentCropSeason,
+    manualDateRange,
     selectedCropSeasonIds.length,
+    syncCropSeasonIdsInUrl,
+  ]);
+
+  useEffect(() => {
+    if (!manualDateRange) return;
+    if (isLoadingCropSeasons && cropSeasonsWithCurrent.length === 0) return;
+
+    const nextSelectedIds = getIntersectingCropSeasonIds(cropSeasonsWithCurrent, manualDateRange);
+    if (areStringArraysEqual(selectedCropSeasonIds, nextSelectedIds)) return;
+
+    setSelectedCropSeasonIds(nextSelectedIds);
+    syncCropSeasonIdsInUrl(nextSelectedIds);
+  }, [
+    cropSeasonsWithCurrent,
+    isLoadingCropSeasons,
+    manualDateRange,
+    selectedCropSeasonIds,
     syncCropSeasonIdsInUrl,
   ]);
 
@@ -1059,6 +1193,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     setSelectedServiceOrderStatus(undefined);
     setSelectedApplicationIssue(undefined);
     setDateRange(undefined);
+    setHasManualDateRange(false);
+    hasProcessedInitialDatePickerChange.current = false;
     setDatePickerResetKey((prev) => prev + 1);
 
     const nextParams = new URLSearchParams(searchParams?.toString() || '');
@@ -1081,14 +1217,23 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   };
   const handleDateRangeChange = useCallback(
     (range: { startDate?: string; endDate?: string } | undefined) => {
-      if (range?.startDate && range?.endDate) {
-        removeClearedFlagFromUrl();
-      }
-
       const nextRange =
         range?.startDate && range?.endDate
           ? { startDate: range.startDate, endDate: range.endDate }
           : undefined;
+
+      if (!hasProcessedInitialDatePickerChange.current) {
+        hasProcessedInitialDatePickerChange.current = true;
+        setDateRange((prev) => {
+          if (areDateRangesEqual(prev, nextRange)) {
+            return prev;
+          }
+          return nextRange;
+        });
+        return;
+      }
+
+      setHasManualDateRange(Boolean(nextRange));
 
       setDateRange((prev) => {
         if (areDateRangesEqual(prev, nextRange)) {
@@ -1096,8 +1241,20 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         }
         return nextRange;
       });
+
+      const nextParams = new URLSearchParams(searchParams?.toString() || '');
+      nextParams.delete('cleared');
+      if (nextRange) {
+        nextParams.set('startDate', nextRange.startDate);
+        nextParams.set('endDate', nextRange.endDate);
+      } else {
+        nextParams.delete('startDate');
+        nextParams.delete('endDate');
+      }
+      const nextQuery = nextParams.toString();
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     },
-    [removeClearedFlagFromUrl]
+    [pathname, router, searchParams]
   );
 
   const handleSearchChange = useCallback(
