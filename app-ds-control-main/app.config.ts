@@ -1,4 +1,4 @@
-export const appVersion = '1.9.0';
+export const appVersion = '1.9.1';
 
 export default {
   expo: {
@@ -76,7 +76,7 @@ export default {
       [
         '@rnmapbox/maps',
         {
-          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_DOWNLOADS_TOKEN,
+          RNMapboxMapsDownloadToken: process.env.MAPBOX_DOWNLOADS_TOKEN,
         },
       ],
       [

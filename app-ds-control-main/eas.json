@@ -11,19 +11,18 @@
     "abstract-production": {
       "developmentClient": false,
       "distribution": "store",
+      "autoIncrement": true,
       "android": {
-        "autoIncrement": "versionCode"
+        "autoIncrement": true
       },
       "ios": {
-        "autoIncrement": "buildNumber"
-      },
-      "env": {
-        "EXPO_PUBLIC_DS_CONTROL_API_URL": "https://api.dstechbrasil.com.br/v1"
+        "autoIncrement": true
       }
     },
     "preview": {
       "extends": "abstract-production",
       "channel": "develop",
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
@@ -32,6 +31,7 @@
       "extends": "abstract-production",
       "credentialsSource": "remote",
       "channel": "main",
+      "environment": "production",
       "android": {
         "buildType": "app-bundle"
       }
