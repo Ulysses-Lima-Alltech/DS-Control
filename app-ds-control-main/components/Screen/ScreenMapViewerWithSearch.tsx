@@ -1,7 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as turf from '@turf/turf';
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import MapNavigationButton from '@/components/Map/MapNavigationButton';
@@ -9,90 +8,107 @@ import MapViewer from '@/components/Map/MapViewer';
 import TextInputSearchMultipleFarms from '@/components/TextInputSearchMultipleFarms';
 import { useGetFarmById } from '@/queries/farm.query';
 import { useGetRouteByFarmId } from '@/queries/route.query';
+import { getMapboxDrivingDirections } from '@/services/mapboxDirections.service';
 import { Farm } from '@/types/farm.type';
+import { MapboxDirectionsError, MapNavigationCoordinate } from '@/types/mapNavigation.type';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
-import { NavigationCoordinate, openExternalNavigation } from '@/utils/navigationExternal';
+import { extractRouteStartCoordinate } from '@/utils/routeNavigationGeometry';
 
 interface ScreenMapViewerWithSearchProps {
   customerId?: string;
   initialFarmId?: string | string[];
 }
 
-type LngLatCoordinate = [number, number];
-
-const isValidLngLatCoordinate = (value: unknown): value is LngLatCoordinate => {
-  if (!Array.isArray(value) || value.length < 2) return false;
-
-  const longitude = Number(value[0]);
-  const latitude = Number(value[1]);
-
-  return (
-    Number.isFinite(longitude) &&
-    Number.isFinite(latitude) &&
-    Math.abs(longitude) <= 180 &&
-    Math.abs(latitude) <= 90
-  );
-};
-
-const getDestinationFromGeometry = (geometry: any): LngLatCoordinate | null => {
-  if (!geometry) return null;
-
-  if (geometry.type === 'Point' && isValidLngLatCoordinate(geometry.coordinates)) {
-    return geometry.coordinates;
-  }
-
-  if (geometry.type === 'LineString' && Array.isArray(geometry.coordinates)) {
-    const lastCoordinate = geometry.coordinates[geometry.coordinates.length - 1];
-    return isValidLngLatCoordinate(lastCoordinate) ? lastCoordinate : null;
-  }
-
-  if (geometry.type === 'MultiLineString' && Array.isArray(geometry.coordinates)) {
-    const lastLine = geometry.coordinates[geometry.coordinates.length - 1];
-    if (!Array.isArray(lastLine) || lastLine.length === 0) return null;
-    const lastCoordinate = lastLine[lastLine.length - 1];
-    return isValidLngLatCoordinate(lastCoordinate) ? lastCoordinate : null;
-  }
-
-  return null;
-};
-
-const getDestinationFromRouteGeoJson = (routeGeoJson: unknown): LngLatCoordinate | null => {
-  const geoJson = routeGeoJson as any;
-  if (!geoJson) return null;
-
-  if (geoJson.type === 'Feature' && geoJson.geometry) {
-    return getDestinationFromGeometry(geoJson.geometry);
-  }
-
-  if (
-    geoJson.type === 'FeatureCollection' &&
-    Array.isArray(geoJson.features) &&
-    geoJson.features.length > 0
-  ) {
-    const lineFeature = geoJson.features.find(
-      (feature: any) => feature?.geometry?.type === 'LineString'
-    );
-    if (lineFeature) {
-      return getDestinationFromGeometry(lineFeature.geometry);
-    }
-
-    const firstFeatureWithGeometry = geoJson.features.find((feature: any) => feature?.geometry);
-    if (firstFeatureWithGeometry) {
-      return getDestinationFromGeometry(firstFeatureWithGeometry.geometry);
-    }
-  }
-
-  if (geoJson.type && geoJson.coordinates) {
-    return getDestinationFromGeometry(geoJson);
-  }
-
-  return null;
-};
-
 const buildRouteLabel = (route: Route, index: number) => {
   if (route.name && route.name.trim()) return route.name.trim();
   return `Rota ${index + 1}`;
+};
+
+const LOCATION_TIMEOUT_MS = 15000;
+const ROUTE_START_INVALID_MESSAGE =
+  'A rota selecionada não possui um ponto inicial válido para navegação.';
+const ROUTE_CALCULATION_GENERIC_MESSAGE =
+  'Não foi possível calcular a rota até o início da operação. Verifique sua localização e tente novamente.';
+const MAPBOX_NO_ROUTE_MESSAGE =
+  'A Mapbox não encontrou uma rota viária até o início da operação. Tente ajustar sua localização ou selecione outra rota.';
+
+const logIrAgoraDev = (message: string, data?: Record<string, unknown>) => {
+  if (__DEV__) {
+    console.warn('[IrAgora][DEV]', message, data);
+  }
+};
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error('location-timeout'));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
+const getCurrentUserCoordinate = async (): Promise<MapNavigationCoordinate | null> => {
+  const isLocationEnabled = await Location.hasServicesEnabledAsync();
+
+  if (!isLocationEnabled) {
+    Alert.alert(
+      'Localizacao desativada',
+      'Ative a localizacao do dispositivo para calcular a rota ate o inicio da operacao.'
+    );
+    return null;
+  }
+
+  const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+  const permission =
+    existingStatus === 'granted'
+      ? { status: existingStatus }
+      : await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== 'granted') {
+    Alert.alert(
+      'Permissao de localizacao',
+      'Permita o acesso a sua localizacao para calcular a rota dentro do DS Control.'
+    );
+    return null;
+  }
+
+  const location = await withTimeout(
+    Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    }),
+    LOCATION_TIMEOUT_MS
+  );
+
+  return {
+    longitude: location.coords.longitude,
+    latitude: location.coords.latitude,
+  };
+};
+
+const getNavigationAlertMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'location-timeout') {
+    return ROUTE_CALCULATION_GENERIC_MESSAGE;
+  }
+
+  if (error instanceof MapboxDirectionsError && error.code === 'no-route') {
+    return MAPBOX_NO_ROUTE_MESSAGE;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return ROUTE_CALCULATION_GENERIC_MESSAGE;
 };
 
 export default function ScreenMapViewerWithSearch({
@@ -101,9 +117,7 @@ export default function ScreenMapViewerWithSearch({
 }: ScreenMapViewerWithSearchProps) {
   const [selectedFarms, setSelectedFarms] = useState<Farm[]>([]);
   const [navigationRoute, setNavigationRoute] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [destinationCoordinate, setDestinationCoordinate] = useState<NavigationCoordinate | null>(
-    null
-  );
+  const [navigationRouteError, setNavigationRouteError] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [isFetchingNavigation, setIsFetchingNavigation] = useState(false);
   const [isNavigationMode, setIsNavigationMode] = useState(false);
@@ -190,130 +204,70 @@ export default function ScreenMapViewerWithSearch({
     return [selectedRoute];
   }, [allRoutes, selectedRoute]);
 
+  const selectedRouteStartCoordinate = useMemo(() => {
+    return selectedRoute ? extractRouteStartCoordinate(selectedRoute) : null;
+  }, [selectedRoute]);
+
   useEffect(() => {
-    const fetchNavigationRoute = async () => {
-      // Only proceed if exactly 1 farm is selected
-      if (selectedFarms.length !== 1) {
-        setNavigationRoute(null);
-        setDestinationCoordinate(null);
-        return;
-      }
+    setNavigationRoute(null);
+    setNavigationRouteError(null);
+    setIsNavigationMode(false);
+  }, [selectedFarmId, selectedRoute?.id]);
 
-      try {
-        setIsFetchingNavigation(true);
-
-        let destinationCoordinate: [number, number] | null = null;
-
-        if (selectedRoute?.geoJson) {
-          destinationCoordinate = getDestinationFromRouteGeoJson(selectedRoute.geoJson);
-        }
-
-        if (!destinationCoordinate && selectedFarms[0].plots && selectedFarms[0].plots.length > 0) {
-          try {
-            const plotFeatures: GeoJSON.Feature[] = [];
-
-            selectedFarms[0].plots.forEach((plot) => {
-              if (plot.geoJson) {
-                const geoJson = plot.geoJson as any;
-                if (geoJson.type === 'FeatureCollection') {
-                  plotFeatures.push(...geoJson.features);
-                } else if (geoJson.type === 'Feature') {
-                  plotFeatures.push(geoJson);
-                }
-              }
-            });
-
-            if (plotFeatures.length > 0) {
-              const farmFeatureCollection: GeoJSON.FeatureCollection = {
-                type: 'FeatureCollection',
-                features: plotFeatures,
-              };
-
-              const centroid = turf.centroid(farmFeatureCollection);
-              destinationCoordinate = centroid.geometry.coordinates as [number, number];
-            }
-          } catch (error) {
-            console.error('Error calculating farm centroid:', error);
-          }
-        }
-
-        if (!destinationCoordinate) {
-          console.error('Could not determine destination coordinate (no route and no plots)');
-          setDestinationCoordinate(null);
-          setNavigationRoute(null);
-          return;
-        }
-
-        setDestinationCoordinate({
-          longitude: destinationCoordinate[0],
-          latitude: destinationCoordinate[1],
-        });
-
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setNavigationRoute(null);
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({});
-        const userCoords: LngLatCoordinate = [location.coords.longitude, location.coords.latitude];
-
-        const accessToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
-        const coordinates = `${userCoords[0].toFixed(6)},${userCoords[1].toFixed(6)};${destinationCoordinate[0].toFixed(6)},${destinationCoordinate[1].toFixed(6)}`;
-        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?geometries=geojson&access_token=${accessToken}`;
-
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch navigation route');
-        }
-
-        const data = await response.json();
-
-        if (data.routes && data.routes.length > 0) {
-          const navigationGeoJson: GeoJSON.FeatureCollection = {
-            type: 'FeatureCollection',
-            features: [
-              {
-                type: 'Feature',
-                properties: {
-                  type: 'navigation',
-                  distance: data.routes[0].distance,
-                  duration: data.routes[0].duration,
-                },
-                geometry: data.routes[0].geometry,
-              },
-            ],
-          };
-          setNavigationRoute(navigationGeoJson);
-        }
-      } catch (error) {
-        console.error('Error fetching navigation route:', error);
-        setNavigationRoute(null);
-      } finally {
-        setIsFetchingNavigation(false);
-      }
-    };
-
-    fetchNavigationRoute();
-  }, [selectedRoute, selectedFarms]);
-
-  const handleOpenExternalNavigation = useCallback(async () => {
-    if (!destinationCoordinate) {
-      Alert.alert(
-        'Destino indisponível',
-        'Selecione uma fazenda com rota ou talhões válidos para iniciar a navegação.'
-      );
+  const handleStartNavigationToRoute = async () => {
+    if (!selectedRouteStartCoordinate) {
+      logIrAgoraDev('Route start coordinate unavailable', {
+        selectedRouteId: selectedRoute?.id,
+      });
+      Alert.alert('Início da rota indisponível', ROUTE_START_INVALID_MESSAGE);
       return;
     }
 
-    const result = await openExternalNavigation(destinationCoordinate);
-    if (!result.success) {
-      Alert.alert(
-        'Não foi possível abrir a navegação',
-        'Nenhum app de mapas compatível foi encontrado. Tente novamente.'
+    try {
+      setIsFetchingNavigation(true);
+      setNavigationRouteError(null);
+      setNavigationRoute(null);
+
+      logIrAgoraDev('Navigation calculation started', {
+        selectedRouteId: selectedRoute?.id,
+        destinationY: selectedRouteStartCoordinate,
+      });
+
+      const originCoordinate = await getCurrentUserCoordinate();
+      if (!originCoordinate) {
+        setNavigationRoute(null);
+        logIrAgoraDev('Origin coordinate unavailable');
+        return;
+      }
+
+      logIrAgoraDev('Current location captured', {
+        originX: originCoordinate,
+        destinationY: selectedRouteStartCoordinate,
+      });
+
+      const directionsRoute = await getMapboxDrivingDirections(
+        originCoordinate,
+        selectedRouteStartCoordinate
       );
+
+      setNavigationRoute(directionsRoute.geoJson);
+      setIsNavigationMode(true);
+      logIrAgoraDev('Navigation route applied to map', {
+        distance: directionsRoute.distance,
+        duration: directionsRoute.duration,
+      });
+    } catch (error) {
+      const message = getNavigationAlertMessage(error);
+
+      logIrAgoraDev('Handled navigation error', { error, message });
+      setNavigationRoute(null);
+      setNavigationRouteError(message);
+      Alert.alert('Não foi possível calcular a rota', message);
+    } finally {
+      setIsFetchingNavigation(false);
+      logIrAgoraDev('Navigation loading finished');
     }
-  }, [destinationCoordinate]);
+  };
 
   const handleToggleNavigationMode = () => {
     setIsNavigationMode((prev) => !prev);
@@ -322,6 +276,7 @@ export default function ScreenMapViewerWithSearch({
   const showMapTools = selectedFarms.length <= 1;
   const showNavigationButton = selectedFarms.length === 1;
   const showRouteSelector = selectedFarms.length === 1 && allRoutes.length > 0 && !isNavigationMode;
+  const canStartNavigation = Boolean(selectedRouteStartCoordinate) && !isFetchingRoute;
 
   return (
     <View style={{ flex: 1, flexDirection: 'column' }}>
@@ -333,7 +288,7 @@ export default function ScreenMapViewerWithSearch({
         navigationRoute={navigationRoute}
         showMapTools={showMapTools}
         showRoute={selectedFarms.length === 1}
-        showNavigationRoute={selectedFarms.length === 1}
+        showNavigationRoute={Boolean(navigationRoute)}
         isNavigationMode={isNavigationMode}
       />
       {!isNavigationMode && (
@@ -382,9 +337,16 @@ export default function ScreenMapViewerWithSearch({
           isNavigationMode={isNavigationMode}
           onToggleNavigationMode={handleToggleNavigationMode}
           disabled={selectedFarms.length === 0}
-          showGoNow={showNavigationButton}
-          onGoNow={handleOpenExternalNavigation}
+          showGoNow={canStartNavigation}
+          goNowDisabled={!canStartNavigation}
+          goNowLoading={isFetchingNavigation}
+          onGoNow={handleStartNavigationToRoute}
         />
+      )}
+      {navigationRouteError && !isFetchingNavigation && (
+        <View style={styles.navigationErrorContainer}>
+          <Text style={styles.navigationErrorText}>{navigationRouteError}</Text>
+        </View>
       )}
     </View>
   );
@@ -444,5 +406,21 @@ const styles = StyleSheet.create({
   },
   routeChipTextSelected: {
     color: '#0D6EFD',
+  },
+  navigationErrorContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 58,
+    zIndex: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(127, 29, 29, 0.94)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  navigationErrorText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

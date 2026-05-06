@@ -17,15 +17,27 @@ import {
 
 import MapNavigationButton from '@/components/Map/MapNavigationButton';
 import MapViewer from '@/components/Map/MapViewer';
+import NavigationMapFullscreen from '@/components/Map/NavigationMapFullscreen';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import { COLORS } from '@/constants/colors';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
 import { useGetAllRoutes } from '@/queries/route.query';
+import { getMapboxDirections } from '@/services/mapboxDirections.service';
 import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
+import {
+  MapboxDirectionsError,
+  MapboxDirectionsRoute,
+  MapboxNavigationStep,
+  MapNavigationCoordinate,
+} from '@/types/mapNavigation.type';
 import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
-import { NavigationCoordinate, openExternalNavigation } from '@/utils/navigationExternal';
+import { convertDatabaseRoutesToMapViewerRoutesFeatureCollection } from '@/utils/map-utils';
+import {
+  OperationalRouteDirection,
+  resolveOperationalRouteDirection,
+} from '@/utils/routeNavigationGeometry';
 
 type LngLatCoordinate = [number, number];
 
@@ -66,6 +78,15 @@ const routeLimitOptions: { id: string; label: string }[] = [
   { id: '10', label: '10 por pagina' },
   { id: '20', label: '20 por pagina' },
 ];
+
+const LAST_KNOWN_LOCATION_TIMEOUT_MS = 3000;
+const CURRENT_LOCATION_TIMEOUT_MS = 10000;
+const ROUTE_START_INVALID_MESSAGE =
+  'A rota selecionada não possui um ponto inicial válido para navegação.';
+const ROUTE_CALCULATION_GENERIC_MESSAGE =
+  'Não foi possível calcular a rota até o início da operação. Verifique sua localização e tente novamente.';
+const MAPBOX_NO_ROUTE_MESSAGE =
+  'A Mapbox não encontrou uma rota viária até o início da operação. Tente ajustar sua localização ou selecione outra rota.';
 
 const ROUTE_GEOMETRY_CANDIDATE_FIELDS = [
   'geoJson',
@@ -405,6 +426,180 @@ const buildRouteLabel = (route: RouteWithRelations, index: number) => {
   return `Rota ${index + 1}`;
 };
 
+const logIrAgoraDev = (message: string, data?: Record<string, unknown>) => {
+  if (__DEV__) {
+    console.warn('[IrAgora][DEV]', message, data);
+  }
+};
+
+const withTimeout = async <T,>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutErrorMessage = 'location-timeout'
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutErrorMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
+const isValidNavigationCoordinate = (coordinate: MapNavigationCoordinate) => {
+  return (
+    Number.isFinite(coordinate.longitude) &&
+    Number.isFinite(coordinate.latitude) &&
+    coordinate.longitude >= -180 &&
+    coordinate.longitude <= 180 &&
+    coordinate.latitude >= -90 &&
+    coordinate.latitude <= 90
+  );
+};
+
+const toNavigationCoordinate = (location: Location.LocationObject | null) => {
+  if (!location?.coords) return null;
+
+  const coordinate: MapNavigationCoordinate = {
+    longitude: location.coords.longitude,
+    latitude: location.coords.latitude,
+  };
+
+  return isValidNavigationCoordinate(coordinate) ? coordinate : null;
+};
+
+const getCurrentNavigationLocationWithTimeout = async (): Promise<MapNavigationCoordinate> => {
+  console.warn('[IrAgora][DEV] checking foreground location permission');
+  const currentPermission = await withTimeout(
+    Location.getForegroundPermissionsAsync(),
+    5000,
+    'location-permission-check-timeout'
+  );
+
+  console.warn('[IrAgora][DEV] foreground permission status', currentPermission);
+
+  let permissionStatus = currentPermission.status;
+
+  if (permissionStatus !== 'granted') {
+    console.warn('[IrAgora][DEV] location permission request started');
+    const requestResult = await withTimeout(
+      Location.requestForegroundPermissionsAsync(),
+      10000,
+      'location-permission-denied'
+    );
+
+    console.warn('[IrAgora][DEV] foreground permission request result', requestResult);
+    permissionStatus = requestResult.status;
+  }
+
+  if (permissionStatus !== 'granted') {
+    throw new Error('location-permission-denied');
+  }
+
+  console.warn('[IrAgora][DEV] requesting last known location');
+  const lastKnownLocation = await withTimeout(
+    Location.getLastKnownPositionAsync({
+      maxAge: 120000,
+      requiredAccuracy: 2000,
+    }),
+    LAST_KNOWN_LOCATION_TIMEOUT_MS,
+    'last-known-location-timeout'
+  );
+
+  console.warn('[IrAgora][DEV] last known location result', lastKnownLocation);
+  const lastKnownCoordinate = toNavigationCoordinate(lastKnownLocation);
+
+  if (lastKnownCoordinate) {
+    return lastKnownCoordinate;
+  }
+
+  console.warn('[IrAgora][DEV] requesting current GPS location');
+  const currentLocation = await withTimeout(
+    Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Lowest,
+    }),
+    CURRENT_LOCATION_TIMEOUT_MS,
+    'location-timeout'
+  );
+
+  console.warn('[IrAgora][DEV] current GPS location result', currentLocation);
+  const currentCoordinate = toNavigationCoordinate(currentLocation);
+
+  if (!currentCoordinate) {
+    throw new Error('location-timeout');
+  }
+
+  return currentCoordinate;
+};
+
+const getNavigationAlertMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'location-permission-denied') {
+    return 'Permissão de localização negada. Ative a localização para calcular a rota.';
+  }
+
+  if (error instanceof Error && error.message === 'location-timeout') {
+    return 'Não foi possível obter sua localização atual. Verifique se o GPS está ativo e tente novamente.';
+  }
+
+  if (error instanceof MapboxDirectionsError && error.code === 'no-route') {
+    return MAPBOX_NO_ROUTE_MESSAGE;
+  }
+
+  if (error instanceof Error) {
+    return ROUTE_CALCULATION_GENERIC_MESSAGE;
+  }
+
+  return ROUTE_CALCULATION_GENERIC_MESSAGE;
+};
+
+const getRouteComparisonMetric = (route: MapboxDirectionsRoute) => {
+  return (
+    route.durationSeconds ?? route.duration ?? route.distanceMeters ?? route.distance ?? Infinity
+  );
+};
+
+const buildOperationalRouteMarkerGeoJson = (
+  direction: OperationalRouteDirection | null
+): GeoJSON.FeatureCollection<GeoJSON.Point> | null => {
+  if (!direction) return null;
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          label: 'Início',
+          type: 'operational-start',
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [direction.start.longitude, direction.start.latitude],
+        },
+      },
+      {
+        type: 'Feature',
+        properties: {
+          label: 'Fim',
+          type: 'operational-end',
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [direction.end.longitude, direction.end.latitude],
+        },
+      },
+    ],
+  };
+};
+
 const formatDistance = (distanceKm: number | null) => {
   if (!distanceKm || distanceKm <= 0) return 'N/A';
 
@@ -424,19 +619,6 @@ const formatCoordinate = (coordinate: LngLatCoordinate | null) => {
   const [longitude, latitude] = coordinate;
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 };
-
-const buildNavigationRouteGeoJson = (geometry: GeoJSON.LineString): GeoJSON.FeatureCollection => ({
-  type: 'FeatureCollection',
-  features: [
-    {
-      type: 'Feature',
-      properties: {
-        type: 'navigation',
-      },
-      geometry,
-    },
-  ],
-});
 
 function DetailsField({ label, value }: { label: string; value: string }) {
   return (
@@ -478,6 +660,14 @@ export default function BackofficeRoutesMap() {
 
   const [isNavigationMode, setIsNavigationMode] = useState(false);
   const [navigationRoute, setNavigationRoute] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [navigationSteps, setNavigationSteps] = useState<MapboxNavigationStep[]>([]);
+  const [navigationOriginCoordinate, setNavigationOriginCoordinate] =
+    useState<MapNavigationCoordinate | null>(null);
+  const [isNavigationFullscreenVisible, setIsNavigationFullscreenVisible] = useState(false);
+  const [activeOperationalRouteDirection, setActiveOperationalRouteDirection] =
+    useState<OperationalRouteDirection | null>(null);
+  const [operationalRouteMarkerGeoJson, setOperationalRouteMarkerGeoJson] =
+    useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
   const [navigationErrorMessage, setNavigationErrorMessage] = useState<string | null>(null);
   const [isFetchingNavigationRoute, setIsFetchingNavigationRoute] = useState(false);
 
@@ -683,7 +873,7 @@ export default function BackofficeRoutesMap() {
     [selectedFarm]
   );
 
-  const destinationCoordinate = useMemo<NavigationCoordinate | null>(() => {
+  const destinationCoordinate = useMemo<MapNavigationCoordinate | null>(() => {
     const routeDestination = selectedRouteStats.destinationCoordinate;
     if (routeDestination) {
       return {
@@ -702,107 +892,143 @@ export default function BackofficeRoutesMap() {
     return null;
   }, [fallbackFarmDestination, selectedRouteStats.destinationCoordinate]);
 
+  const operationalRouteDirection = useMemo<OperationalRouteDirection | null>(() => {
+    if (!selectedRoute) return null;
+    return resolveOperationalRouteDirection(selectedRoute);
+  }, [selectedRoute]);
+
+  useEffect(() => {
+    setActiveOperationalRouteDirection(operationalRouteDirection);
+    setOperationalRouteMarkerGeoJson(buildOperationalRouteMarkerGeoJson(operationalRouteDirection));
+  }, [operationalRouteDirection]);
+
   const routesForMap = useMemo<RouteWithRelations[]>(() => {
     if (selectedRoute) return [selectedRoute];
     return routeRecords;
   }, [selectedRoute, routeRecords]);
 
-  useEffect(() => {
-    if (!isNavigationMode || !destinationCoordinate || !hasMapboxToken) {
-      setNavigationRoute(null);
-      setNavigationErrorMessage(null);
+  const operationalRouteGeoJson = useMemo(() => {
+    return convertDatabaseRoutesToMapViewerRoutesFeatureCollection(routesForMap);
+  }, [routesForMap]);
+
+  const handleStartNavigationToRoute = useCallback(async () => {
+    const routeDirection = operationalRouteDirection;
+    const destinationY = routeDirection?.start;
+
+    if (!routeDirection || !destinationY) {
+      logIrAgoraDev('Route start coordinate unavailable', {
+        selectedRouteId: selectedRoute?.id,
+      });
+      Alert.alert('Início da rota indisponível', ROUTE_START_INVALID_MESSAGE);
       return;
     }
 
-    let isMounted = true;
+    try {
+      setIsFetchingNavigationRoute(true);
+      setNavigationRoute(null);
+      setNavigationSteps([]);
+      setNavigationOriginCoordinate(null);
+      setIsNavigationFullscreenVisible(false);
+      setNavigationErrorMessage(null);
 
-    const fetchNavigationRoute = async () => {
-      try {
-        setIsFetchingNavigationRoute(true);
-        setNavigationErrorMessage(null);
+      console.warn('[IrAgora][DEV] Navigation calculation started', {
+        selectedRouteId,
+        destinationY,
+      });
 
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          if (!isMounted) return;
-          setNavigationRoute(null);
-          setNavigationErrorMessage('Permissao de localizacao negada para navegacao assistida.');
-          return;
-        }
+      console.warn('[IrAgora][DEV] destination resolved', {
+        destinationY,
+      });
 
-        const location = await Location.getCurrentPositionAsync({});
-        const origin: LngLatCoordinate = [location.coords.longitude, location.coords.latitude];
-        const destination: LngLatCoordinate = [
-          destinationCoordinate.longitude,
-          destinationCoordinate.latitude,
-        ];
+      console.warn('[IrAgora][DEV] requesting current location');
 
-        const accessToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
-        const coordinates = `${origin[0].toFixed(6)},${origin[1].toFixed(6)};${destination[0].toFixed(6)},${destination[1].toFixed(6)}`;
-        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?geometries=geojson&access_token=${accessToken}`;
+      const originX = await getCurrentNavigationLocationWithTimeout();
+      setNavigationOriginCoordinate(originX);
 
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Falha ao buscar rota de navegacao');
-        }
+      console.warn('[IrAgora][DEV] current location resolved', {
+        originX,
+      });
 
-        const data = (await response.json()) as {
-          routes?: {
-            geometry?: GeoJSON.LineString;
-          }[];
+      console.warn('[IrAgora][DEV] requesting mapbox directions');
+
+      let mapboxRoute: MapboxDirectionsRoute;
+
+      if (routeDirection.reason === 'explicit-field') {
+        mapboxRoute = await getMapboxDirections({
+          origin: originX,
+          destination: destinationY,
+        });
+      } else {
+        const firstCandidate = await getMapboxDirections({
+          origin: originX,
+          destination: routeDirection.endpoints.firstEndpoint,
+        });
+
+        console.warn('[RouteNavigation][DEV] endpoint candidate route calculated', {
+          endpointName: 'firstEndpoint',
+          distanceMeters: firstCandidate.distanceMeters,
+          durationSeconds: firstCandidate.durationSeconds,
+        });
+
+        const lastCandidate = await getMapboxDirections({
+          origin: originX,
+          destination: routeDirection.endpoints.lastEndpoint,
+        });
+
+        console.warn('[RouteNavigation][DEV] endpoint candidate route calculated', {
+          endpointName: 'lastEndpoint',
+          distanceMeters: lastCandidate.distanceMeters,
+          durationSeconds: lastCandidate.durationSeconds,
+        });
+
+        const shouldUseFirst =
+          getRouteComparisonMetric(firstCandidate) <= getRouteComparisonMetric(lastCandidate);
+
+        const resolvedStart = shouldUseFirst
+          ? routeDirection.endpoints.firstEndpoint
+          : routeDirection.endpoints.lastEndpoint;
+        const resolvedEnd = shouldUseFirst
+          ? routeDirection.endpoints.lastEndpoint
+          : routeDirection.endpoints.firstEndpoint;
+        const resolvedDirection: OperationalRouteDirection = {
+          ...routeDirection,
+          start: resolvedStart,
+          end: resolvedEnd,
         };
 
-        if (!isMounted) return;
+        console.warn('[RouteNavigation][DEV] operational start resolved', {
+          selectedStartEndpoint: resolvedStart,
+          selectedEndEndpoint: resolvedEnd,
+          reason: 'shortest-mapbox-route',
+        });
 
-        const firstRouteGeometry = data.routes?.[0]?.geometry;
-        if (!firstRouteGeometry) {
-          setNavigationRoute(null);
-          setNavigationErrorMessage('Rota de navegacao indisponivel para o destino atual.');
-          return;
-        }
-
-        setNavigationRoute(buildNavigationRouteGeoJson(firstRouteGeometry));
-      } catch (error) {
-        if (!isMounted) return;
-        console.error('[Backoffice Routes] Failed to fetch navigation route', error);
-        setNavigationRoute(null);
-        setNavigationErrorMessage('Nao foi possivel calcular a navegacao assistida no mapa.');
-      } finally {
-        if (isMounted) {
-          setIsFetchingNavigationRoute(false);
-        }
+        setActiveOperationalRouteDirection(resolvedDirection);
+        setOperationalRouteMarkerGeoJson(buildOperationalRouteMarkerGeoJson(resolvedDirection));
+        mapboxRoute = shouldUseFirst ? firstCandidate : lastCandidate;
       }
-    };
 
-    fetchNavigationRoute();
+      console.warn('[IrAgora][DEV] mapbox route resolved', {
+        distanceMeters: mapboxRoute.distanceMeters,
+        durationSeconds: mapboxRoute.durationSeconds,
+      });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    destinationCoordinate,
-    hasMapboxToken,
-    isNavigationMode,
-    destinationCoordinate?.latitude,
-    destinationCoordinate?.longitude,
-  ]);
+      setNavigationRoute(mapboxRoute.geoJson);
+      setNavigationSteps(mapboxRoute.steps);
+      setIsNavigationMode(true);
+      setIsNavigationFullscreenVisible(true);
+    } catch (error) {
+      const message = getNavigationAlertMessage(error);
 
-  const handleOpenExternalNavigation = useCallback(async () => {
-    if (!destinationCoordinate) {
-      Alert.alert(
-        'Destino indisponivel',
-        'Selecione uma fazenda e uma rota com coordenadas validas para abrir a navegacao externa.'
-      );
-      return;
+      setNavigationRoute(null);
+      setNavigationSteps([]);
+      setNavigationErrorMessage(message);
+      console.warn('[IrAgora][DEV] navigation calculation failed', error);
+      Alert.alert('Não foi possível calcular a rota', message);
+    } finally {
+      console.warn('[IrAgora][DEV] navigation calculation finished');
+      setIsFetchingNavigationRoute(false);
     }
-
-    const result = await openExternalNavigation(destinationCoordinate);
-    if (!result.success) {
-      Alert.alert(
-        'Nao foi possivel abrir a navegacao',
-        'Nenhum app de mapas compativel foi encontrado no dispositivo.'
-      );
-    }
-  }, [destinationCoordinate]);
+  }, [operationalRouteDirection, selectedRoute?.id, selectedRouteId]);
 
   const handleCustomerSelect = (value?: string) => {
     const nextCustomerId = !value || value === 'all' ? undefined : value;
@@ -813,6 +1039,9 @@ export default function BackofficeRoutesMap() {
     setCurrentPage(1);
     setIsNavigationMode(false);
     setNavigationRoute(null);
+    setNavigationSteps([]);
+    setNavigationOriginCoordinate(null);
+    setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
   };
 
@@ -824,6 +1053,9 @@ export default function BackofficeRoutesMap() {
     setCurrentPage(1);
     setIsNavigationMode(false);
     setNavigationRoute(null);
+    setNavigationSteps([]);
+    setNavigationOriginCoordinate(null);
+    setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
   };
 
@@ -841,6 +1073,9 @@ export default function BackofficeRoutesMap() {
     setFarmSearchTerm('');
     setIsNavigationMode(false);
     setNavigationRoute(null);
+    setNavigationSteps([]);
+    setNavigationOriginCoordinate(null);
+    setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
   };
 
@@ -895,7 +1130,7 @@ export default function BackofficeRoutesMap() {
       <View style={styles.headerCard}>
         <Text style={styles.headerTitle}>Rotas e mapa - Backoffice</Text>
         <Text style={styles.headerSubtitle}>
-          Selecione cliente/fazenda, visualize rotas operacionais e use navegacao externa.
+          Selecione cliente/fazenda, visualize rotas operacionais e use navegação interna.
         </Text>
       </View>
 
@@ -1068,6 +1303,7 @@ export default function BackofficeRoutesMap() {
                 plots={selectedFarmPlots}
                 routes={routesForMap}
                 navigationRoute={navigationRoute}
+                operationalRouteMarkers={operationalRouteMarkerGeoJson}
                 showMapTools={Boolean(selectedFarmId)}
                 showRoute={routesForMap.length > 0}
                 showNavigationRoute={Boolean(navigationRoute)}
@@ -1076,10 +1312,11 @@ export default function BackofficeRoutesMap() {
               <MapNavigationButton
                 isNavigationMode={isNavigationMode}
                 onToggleNavigationMode={() => setIsNavigationMode((previous) => !previous)}
-                disabled={!destinationCoordinate}
-                showGoNow={Boolean(destinationCoordinate)}
-                goNowDisabled={!destinationCoordinate}
-                onGoNow={handleOpenExternalNavigation}
+                disabled={!operationalRouteDirection}
+                showGoNow={Boolean(operationalRouteDirection)}
+                goNowDisabled={!operationalRouteDirection}
+                goNowLoading={isFetchingNavigationRoute}
+                onGoNow={handleStartNavigationToRoute}
               />
             </View>
           ) : (
@@ -1327,6 +1564,17 @@ export default function BackofficeRoutesMap() {
           </>
         )}
       </View>
+
+      <NavigationMapFullscreen
+        visible={isNavigationFullscreenVisible}
+        onClose={() => setIsNavigationFullscreenVisible(false)}
+        navigationRoute={navigationRoute as GeoJSON.FeatureCollection<GeoJSON.LineString> | null}
+        operationalRoute={operationalRouteGeoJson}
+        operationalRouteMarkers={operationalRouteMarkerGeoJson}
+        steps={navigationSteps}
+        originCoordinate={navigationOriginCoordinate}
+        startCoordinate={activeOperationalRouteDirection?.start ?? null}
+      />
     </ScrollView>
   );
 }

@@ -1,23 +1,23 @@
 import Mapbox, {
-  MapView,
   Camera,
+  CircleLayer,
   FillLayer,
+  LineLayer,
+  MapView,
   ShapeSource,
   SymbolLayer,
-  LineLayer,
+  UserTrackingMode,
 } from '@rnmapbox/maps';
-import { useRef, useEffect, useMemo } from 'react';
-import { UserTrackingMode } from '@rnmapbox/maps';
+import * as turf from '@turf/turf';
+import { usePathname } from 'expo-router';
+import { useEffect, useMemo, useRef } from 'react';
+
+import { MapToolsHookReturn } from '@/components/Map/MapTools';
 import {
   createFillColorExpression,
   createFillOpacityExpression,
   createStrokeColorExpression,
 } from '@/utils/map-utils';
-import * as turf from '@turf/turf';
-import { usePathname } from 'expo-router';
-
-import { MapToolsHookReturn } from '@/components/Map/MapTools';
-import { FeatureCollection } from 'geojson';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '');
 
@@ -26,6 +26,7 @@ export type MapContentProps = {
   geoDataRoute?: GeoJSON.FeatureCollection | null;
   showGeoDataRoute?: boolean;
   navigationRoute?: GeoJSON.FeatureCollection | null;
+  operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
   showNavigationRoute?: boolean;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
@@ -33,7 +34,7 @@ export type MapContentProps = {
   isCameraLockedOnUserLocation?: boolean;
   setIsCameraLockedOnUserLocation?: (isCameraLockedOnUserLocation: boolean) => void;
   moveCameraToGeodataBbox: number;
-  plotForCameraMovingToIstBbbox: FeatureCollection | null;
+  plotForCameraMovingToIstBbbox: GeoJSON.FeatureCollection | null;
   mapToolsHookReturn: MapToolsHookReturn;
   isNavigationMode?: boolean;
 };
@@ -43,6 +44,7 @@ export default function MapContent({
   geoDataRoute,
   showGeoDataRoute = true,
   navigationRoute,
+  operationalRouteMarkers,
   showNavigationRoute = true,
   selectedPlotId,
   onPlotPress,
@@ -293,14 +295,45 @@ export default function MapContent({
         </ShapeSource>
       )}
       {showNavigationRoute && navigationRoute && (
-        <ShapeSource id='navigation-route' shape={navigationRoute}>
+        <ShapeSource id='navigation-route-source' shape={navigationRoute}>
           <LineLayer
             id='navigation-route-line'
             style={{
-              lineColor: '#4A90E2',
-              lineWidth: 4,
+              lineColor: '#0D6EFD',
+              lineWidth: 5,
+              lineOpacity: 0.95,
               lineCap: 'round',
               lineJoin: 'round',
+            }}
+          />
+        </ShapeSource>
+      )}
+      {operationalRouteMarkers && (
+        <ShapeSource id='operational-route-markers-source' shape={operationalRouteMarkers}>
+          <CircleLayer
+            id='operational-route-markers-circle'
+            style={{
+              circleRadius: 7,
+              circleColor: [
+                'case',
+                ['==', ['get', 'type'], 'operational-start'],
+                '#EAAE07',
+                '#DC2626',
+              ],
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 2,
+            }}
+          />
+          <SymbolLayer
+            id='operational-route-markers-label'
+            style={{
+              textField: ['get', 'label'],
+              textSize: 12,
+              textColor: '#FFFFFF',
+              textHaloColor: '#000000',
+              textHaloWidth: 2,
+              textOffset: [0, 1.4],
+              textAnchor: 'top',
             }}
           />
         </ShapeSource>

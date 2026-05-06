@@ -29,6 +29,7 @@ export type MapViewerProps = {
   plots: Plot[];
   routes?: Route[];
   navigationRoute?: GeoJSON.FeatureCollection | null;
+  operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
   showMapControls?: boolean;
@@ -45,6 +46,7 @@ export default function MapViewer({
   plots,
   routes = [],
   navigationRoute = null,
+  operationalRouteMarkers = null,
   selectedPlotId,
   onPlotPress,
   showMapControls = true,
@@ -136,7 +138,8 @@ export default function MapViewer({
         geoDataRoute={geoDataRoute}
         showGeoDataRoute={showRoute || isNavigationMode}
         navigationRoute={navigationRoute}
-        showNavigationRoute={showNavigationRoute && isNavigationMode}
+        operationalRouteMarkers={operationalRouteMarkers}
+        showNavigationRoute={showNavigationRoute}
         selectedPlotId={selectedPlotId}
         onPlotPress={handlePlotPress}
         isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}

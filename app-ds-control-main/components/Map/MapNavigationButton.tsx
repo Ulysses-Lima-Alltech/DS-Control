@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
 interface MapNavigationButtonProps {
   isNavigationMode: boolean;
@@ -8,6 +8,7 @@ interface MapNavigationButtonProps {
   onGoNow?: () => void;
   showGoNow?: boolean;
   goNowDisabled?: boolean;
+  goNowLoading?: boolean;
 }
 
 export default function MapNavigationButton({
@@ -17,23 +18,32 @@ export default function MapNavigationButton({
   onGoNow,
   showGoNow = false,
   goNowDisabled = false,
+  goNowLoading = false,
 }: MapNavigationButtonProps) {
+  const isGoNowDisabled = goNowDisabled || goNowLoading;
+
   return (
     <View style={styles.container}>
       {showGoNow && (
         <TouchableOpacity
           style={[
             styles.goNowButton,
-            goNowDisabled && {
+            isGoNowDisabled && {
               opacity: 0.5,
               backgroundColor: '#666666',
             },
           ]}
           onPress={onGoNow}
-          disabled={goNowDisabled}
+          disabled={isGoNowDisabled}
         >
-          <MaterialCommunityIcons name='navigation-variant' size={16} color='white' />
-          <Text style={styles.goNowButtonText}>Ir agora</Text>
+          {goNowLoading ? (
+            <ActivityIndicator size='small' color='white' />
+          ) : (
+            <MaterialCommunityIcons name='navigation-variant' size={16} color='white' />
+          )}
+          <Text style={styles.goNowButtonText}>
+            {goNowLoading ? 'Calculando rota...' : 'Ir agora'}
+          </Text>
         </TouchableOpacity>
       )}
 
