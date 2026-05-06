@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { InfiniteData, useQueries, UseQueryResult } from '@tanstack/react-query';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -24,6 +24,7 @@ import {
   useGetStatsApplications,
 } from '@/queries/application.query';
 import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
+import { useGetAllCropSeasonsInfinite, useGetCurrentCropSeason } from '@/queries/crop-season.query';
 import { useGetAllCustomers } from '@/queries/customer.query';
 import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
@@ -38,6 +39,7 @@ import {
   ApplicationOrderType,
 } from '@/types/applications.type';
 import { Assistant } from '@/types/assistant.type';
+import { CropSeason } from '@/types/crop-season.type';
 import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
 import { Product } from '@/types/product.type';
@@ -48,6 +50,7 @@ import { isAndroid } from '@/utils/isAndroid';
 type RangeMode = 'month' | 'day';
 type PilotEntityMode = 'pilots' | 'assistants';
 type PilotLaunchStatus = 'launched' | 'pending';
+type DashboardDateRange = { startDate: string; endDate: string };
 
 type PilotLaunchRow = {
   id: string;
@@ -105,6 +108,61 @@ const parseCivilDate = (value?: string) => {
   }
 
   return new Date();
+};
+
+const parseStrictCivilDate = (value?: string) => {
+  if (!value || !DATE_PARAM_REGEX.test(value)) {
+    return undefined;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
+const getCivilDateRangeDays = (range?: DashboardDateRange) => {
+  if (!range) return 0;
+
+  const start = parseStrictCivilDate(range.startDate);
+  const end = parseStrictCivilDate(range.endDate);
+
+  if (!start || !end || end < start) {
+    return 0;
+  }
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
+};
+
+const getCropSeasonElapsedDays = (
+  cropSeason: { startDate: string; endDate: string } | undefined,
+  todayYmd: string
+) => {
+  if (!cropSeason) return 0;
+
+  const today = parseStrictCivilDate(todayYmd);
+  const start = parseStrictCivilDate(cropSeason.startDate);
+  const end = parseStrictCivilDate(cropSeason.endDate);
+
+  if (!today || !start || !end || today < start) {
+    return 0;
+  }
+
+  const effectiveEnd = today <= end ? today : end;
+  return getCivilDateRangeDays({
+    startDate: cropSeason.startDate,
+    endDate: toCivilDateParam(effectiveEnd),
+  });
 };
 
 const getTodayCivilDate = () => toCivilDateParam(new Date());
@@ -263,6 +321,7 @@ export default function BackofficeDashboard() {
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedPilotId, setSelectedPilotId] = useState<string | undefined>(undefined);
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
+  const [selectedCropSeasonId, setSelectedCropSeasonId] = useState<string | undefined>(undefined);
   const [selectedAssistantId, setSelectedAssistantId] = useState<string | undefined>(undefined);
   const [selectedServiceOrderStatus, setSelectedServiceOrderStatus] = useState<
     ServiceOrderStatus | undefined
@@ -276,8 +335,10 @@ export default function BackofficeDashboard() {
   const [farmSearchTerm, setFarmSearchTerm] = useState('');
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [cropSeasonSearchTerm, setCropSeasonSearchTerm] = useState('');
   const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
   const [droneSearchTerm, setDroneSearchTerm] = useState('');
+  const cropSeasonDefaultAppliedRef = useRef(false);
 
   const [pilotEntityMode, setPilotEntityMode] = useState<PilotEntityMode>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
@@ -289,11 +350,34 @@ export default function BackofficeDashboard() {
     }
   }, [isTablet]);
 
+  const { data: currentCropSeasonData } = useGetCurrentCropSeason();
+
+  useEffect(() => {
+    if (cropSeasonDefaultAppliedRef.current) {
+      return;
+    }
+
+    if (currentCropSeasonData?.cropSeason?.id) {
+      setSelectedCropSeasonId(currentCropSeasonData.cropSeason.id);
+      cropSeasonDefaultAppliedRef.current = true;
+    }
+  }, [currentCropSeasonData?.cropSeason?.id]);
+
   const todayDate = getTodayCivilDate();
   const yesterdayDate = getYesterdayCivilDate();
   const currentMonthStartDate = getMonthStartCivilDate(todayDate);
 
   const hasDateFilter = Boolean(startDate && endDate);
+  const manualDateRange = useMemo(
+    () =>
+      startDate && endDate
+        ? {
+            startDate,
+            endDate,
+          }
+        : undefined,
+    [endDate, startDate]
+  );
   const hasAnyPanelFilter = Boolean(
     search.trim() ||
     hasDateFilter ||
@@ -301,6 +385,7 @@ export default function BackofficeDashboard() {
     selectedFarmId ||
     selectedPilotId ||
     selectedProductId ||
+    selectedCropSeasonId ||
     selectedAssistantId ||
     selectedDroneId ||
     selectedServiceOrderStatus ||
@@ -349,6 +434,17 @@ export default function BackofficeDashboard() {
     search: productSearchTerm || undefined,
   });
   const {
+    data: cropSeasonsData,
+    hasNextPage: hasNextPageCropSeasons,
+    fetchNextPage: fetchNextPageCropSeasons,
+    isFetchingNextPage: isFetchingNextPageCropSeasons,
+    isFetching: isFetchingCropSeasons,
+  } = useGetAllCropSeasonsInfinite({
+    limit: '100',
+    search: cropSeasonSearchTerm || undefined,
+    status: 'active',
+  });
+  const {
     data: assistantsData,
     hasNextPage: hasNextPageAssistants,
     fetchNextPage: fetchNextPageAssistants,
@@ -369,65 +465,120 @@ export default function BackofficeDashboard() {
     search: droneSearchTerm || undefined,
   });
 
-  const kpiBaseFilters = {
-    search: search || undefined,
-    customerId: selectedCustomerId,
-    farmId: selectedFarmId,
-    pilotId: selectedPilotId,
+  const panelBaseFilters = useMemo<ApplicationService.GetStatsApplicationsParams>(
+    () => ({
+      search: search || undefined,
+      customerId: selectedCustomerId,
+      farmId: selectedFarmId,
+      pilotId: selectedPilotId,
+      productId: selectedProductId,
+      assistantId: selectedAssistantId,
+      droneId: selectedDroneId,
+      serviceOrderStatus: selectedServiceOrderStatus,
+      applicationIssue: selectedApplicationIssue,
+      cropSeasonId: selectedCropSeasonId,
+      currentSeason: selectedCropSeasonId || manualDateRange ? undefined : true,
+      ...(manualDateRange
+        ? {
+            startDate: manualDateRange.startDate,
+            endDate: manualDateRange.endDate,
+          }
+        : {}),
+    }),
+    [
+      manualDateRange,
+      search,
+      selectedApplicationIssue,
+      selectedAssistantId,
+      selectedCropSeasonId,
+      selectedCustomerId,
+      selectedDroneId,
+      selectedFarmId,
+      selectedPilotId,
+      selectedProductId,
+      selectedServiceOrderStatus,
+    ]
+  );
+
+  const buildPanelStatsFilters = useCallback(
+    (rangeOverride?: DashboardDateRange): ApplicationService.GetStatsApplicationsParams => ({
+      ...panelBaseFilters,
+      ...(rangeOverride
+        ? {
+            currentSeason: undefined,
+            startDate: rangeOverride.startDate,
+            endDate: rangeOverride.endDate,
+          }
+        : {}),
+    }),
+    [panelBaseFilters]
+  );
+
+  const cardRangeFilters = buildPanelStatsFilters();
+  const currentMonthCardRange = manualDateRange ?? {
+    startDate: currentMonthStartDate,
+    endDate: todayDate,
+  };
+  const yesterdayCardRange = manualDateRange ?? {
+    startDate: yesterdayDate,
+    endDate: yesterdayDate,
   };
 
-  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } = useGetStatsApplications({
-    ...kpiBaseFilters,
-    currentSeason: true,
-  });
+  useEffect(() => {
+    if (__DEV__) {
+      console.warn('[BackofficeDashboard][DEV] dashboard filters applied', {
+        startDate: cardRangeFilters.startDate,
+        endDate: cardRangeFilters.endDate,
+        cropSeasonId: cardRangeFilters.cropSeasonId,
+        currentSeason: cardRangeFilters.currentSeason,
+        customerId: cardRangeFilters.customerId,
+        farmId: cardRangeFilters.farmId,
+        pilotId: cardRangeFilters.pilotId,
+        productId: cardRangeFilters.productId,
+        assistantId: cardRangeFilters.assistantId,
+        droneId: cardRangeFilters.droneId,
+        serviceOrderStatus: cardRangeFilters.serviceOrderStatus,
+        applicationIssue: cardRangeFilters.applicationIssue,
+      });
+    }
+  }, [cardRangeFilters]);
+
+  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
+    useGetStatsApplications(cardRangeFilters);
   const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } =
-    useGetStatsApplications({
-      ...kpiBaseFilters,
-      startDate: currentMonthStartDate,
-      endDate: todayDate,
-    });
+    useGetStatsApplications(buildPanelStatsFilters(currentMonthCardRange));
   const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } =
-    useGetStatsApplications({
-      ...kpiBaseFilters,
-      startDate: yesterdayDate,
-      endDate: yesterdayDate,
-    });
-  const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
-    startDate: startDate || todayDate,
-    customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
-    farmIds: selectedFarmId ? [selectedFarmId] : undefined,
-    pilotId: selectedPilotId,
-    search: search || undefined,
-    currentSeason: true,
-  });
+    useGetStatsApplications(buildPanelStatsFilters(yesterdayCardRange));
+  const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics(
+    {
+      startDate: startDate || todayDate,
+      customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
+      farmIds: selectedFarmId ? [selectedFarmId] : undefined,
+      pilotId: selectedPilotId,
+      search: search || undefined,
+      cropSeasonId: selectedCropSeasonId,
+      currentSeason: selectedCropSeasonId || manualDateRange ? undefined : true,
+    },
+    {
+      enabled: !manualDateRange && !selectedCropSeasonId,
+    }
+  );
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
     customerId: selectedCustomerId,
     farmId: selectedFarmId,
     pilotId: selectedPilotId,
     productId: selectedProductId,
+    assistantId: selectedAssistantId,
+    droneId: selectedDroneId,
+    applicationIssue: selectedApplicationIssue,
     serviceOrderStatus: selectedServiceOrderStatus,
+    cropSeasonId: selectedCropSeasonId,
+    currentSeason: selectedCropSeasonId || pilotChartRange ? undefined : true,
     startDate: pilotChartRange?.startDate,
     endDate: pilotChartRange?.endDate,
     limit: 10,
   });
-  const { data: byPilotYesterdayStats, isPending: isLoadingByPilotYesterdayStats } =
-    useGetAllApplications({
-      page: '1',
-      limit: '1000',
-      search: search || undefined,
-      customerId: selectedCustomerId,
-      farmId: selectedFarmId,
-      pilotId: selectedPilotId,
-      productId: selectedProductId,
-      serviceOrderStatus: selectedServiceOrderStatus,
-      assistantId: selectedAssistantId,
-      droneId: selectedDroneId,
-      applicationIssue: selectedApplicationIssue,
-      startDate: yesterdayDate,
-      endDate: yesterdayDate,
-    });
-
   const { data: pilotLaunchesData, isPending: isLoadingPilotLaunches } = useGetAllApplications({
     page: '1',
     limit: '1000',
@@ -440,10 +591,12 @@ export default function BackofficeDashboard() {
     assistantId: selectedAssistantId,
     droneId: selectedDroneId,
     applicationIssue: selectedApplicationIssue,
-    ...(startDate && endDate
+    cropSeasonId: selectedCropSeasonId,
+    currentSeason: selectedCropSeasonId || manualDateRange ? undefined : true,
+    ...(manualDateRange
       ? {
-          startDate,
-          endDate,
+          startDate: manualDateRange.startDate,
+          endDate: manualDateRange.endDate,
         }
       : {}),
     orderBy: ApplicationOrderBy.DATE,
@@ -464,6 +617,8 @@ export default function BackofficeDashboard() {
         assistantId: selectedAssistantId,
         droneId: selectedDroneId,
         applicationIssue: selectedApplicationIssue,
+        cropSeasonId: selectedCropSeasonId,
+        currentSeason: selectedCropSeasonId || pilotChartRange ? undefined : true,
         ...(pilotChartRange?.startDate && pilotChartRange?.endDate
           ? {
               startDate: pilotChartRange.startDate,
@@ -485,6 +640,12 @@ export default function BackofficeDashboard() {
       customerId: selectedCustomerId,
       farmId: selectedFarmId,
       pilotId: selectedPilotId,
+      ...(manualDateRange
+        ? {
+            startDate: manualDateRange.startDate,
+            endDate: manualDateRange.endDate,
+          }
+        : {}),
       includePlots: 'true',
       includeFarms: 'true',
       includePilots: 'true',
@@ -500,6 +661,27 @@ export default function BackofficeDashboard() {
     (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
       (page) => page.data
     ) || [];
+  const cropSeasons =
+    (cropSeasonsData as unknown as InfiniteData<{ data: CropSeason[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
+  const cropSeasonsWithCurrent = useMemo(() => {
+    const seasonsById = new Map(cropSeasons.map((cropSeason) => [cropSeason.id, cropSeason]));
+    const currentSeason = currentCropSeasonData?.cropSeason;
+
+    if (currentSeason) {
+      seasonsById.set(currentSeason.id, currentSeason);
+    }
+
+    return Array.from(seasonsById.values());
+  }, [cropSeasons, currentCropSeasonData?.cropSeason]);
+  const selectedCropSeason = useMemo(() => {
+    if (!selectedCropSeasonId) {
+      return undefined;
+    }
+
+    return cropSeasonsWithCurrent.find((cropSeason) => cropSeason.id === selectedCropSeasonId);
+  }, [cropSeasonsWithCurrent, selectedCropSeasonId]);
   const assistants =
     (assistantsData as unknown as InfiniteData<{ data: Assistant[] }>)?.pages?.flatMap(
       (page) => page.data
@@ -528,6 +710,7 @@ export default function BackofficeDashboard() {
         selectedProductId,
         selectedServiceOrderStatus,
         search,
+        selectedCropSeasonId,
       ],
       queryFn: () => {
         const statsParams: ApplicationService.GetStatsApplicationsParams = {
@@ -537,6 +720,11 @@ export default function BackofficeDashboard() {
           pilotId: selectedPilotId,
           productId: selectedProductId,
           serviceOrderStatus: selectedServiceOrderStatus,
+          assistantId: selectedAssistantId,
+          droneId: selectedDroneId,
+          applicationIssue: selectedApplicationIssue,
+          cropSeasonId: selectedCropSeasonId,
+          currentSeason: selectedCropSeasonId ? undefined : true,
           ...(customerChartRange?.startDate && customerChartRange?.endDate
             ? {
                 startDate: customerChartRange.startDate,
@@ -565,6 +753,7 @@ export default function BackofficeDashboard() {
         selectedDroneId,
         selectedServiceOrderStatus,
         selectedApplicationIssue,
+        selectedCropSeasonId,
       ],
       queryFn: () =>
         ApplicationService.getStatsApplications({
@@ -576,6 +765,8 @@ export default function BackofficeDashboard() {
           assistantId: selectedAssistantId,
           droneId: selectedDroneId,
           applicationIssue: selectedApplicationIssue,
+          cropSeasonId: selectedCropSeasonId,
+          currentSeason: selectedCropSeasonId ? undefined : true,
           startDate: yesterdayDate,
           endDate: yesterdayDate,
         }),
@@ -596,6 +787,7 @@ export default function BackofficeDashboard() {
         selectedDroneId,
         selectedServiceOrderStatus,
         selectedApplicationIssue,
+        selectedCropSeasonId,
       ],
       queryFn: () =>
         ApplicationService.getAllApplications({
@@ -609,6 +801,8 @@ export default function BackofficeDashboard() {
           droneId: selectedDroneId,
           serviceOrderStatus: selectedServiceOrderStatus,
           applicationIssue: selectedApplicationIssue,
+          cropSeasonId: selectedCropSeasonId,
+          currentSeason: selectedCropSeasonId ? undefined : true,
         }),
       staleTime: 1000 * 60 * 3,
     })),
@@ -719,16 +913,6 @@ export default function BackofficeDashboard() {
     selectedPilotId,
   ]);
 
-  const pilotsActiveYesterdayCount = useMemo(() => {
-    const applications = byPilotYesterdayStats?.data || [];
-    const uniquePilotIds = new Set(
-      applications
-        .map((application) => application.pilotId)
-        .filter((pilotId): pilotId is string => Boolean(pilotId))
-    );
-    return uniquePilotIds.size;
-  }, [byPilotYesterdayStats?.data]);
-
   const launches = pilotLaunchesData?.data || [];
   const pilotLaunchRows = useMemo<PilotLaunchRow[]>(() => {
     const applicationsByOrderPilot = new Map<string, typeof launches>();
@@ -830,6 +1014,18 @@ export default function BackofficeDashboard() {
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
     orderApplicationsQueries.some((query) => query.isPending);
 
+  const manualRangeDays = getCivilDateRangeDays(manualDateRange);
+  const cropSeasonElapsedDays = getCropSeasonElapsedDays(selectedCropSeason, todayDate);
+  const elapsedDaysForCards = manualDateRange
+    ? manualRangeDays
+    : selectedCropSeasonId
+      ? cropSeasonElapsedDays
+      : dashboardMetrics?.metrics?.daysSinceStart;
+  const averageDailyAreaForCards =
+    Number(elapsedDaysForCards || 0) > 0
+      ? Number(totalSeasonStats?.stats?.totalAreaHectares || 0) / Number(elapsedDaysForCards || 0)
+      : 0;
+
   const kpiCards = [
     {
       title: 'Area total aplicada',
@@ -854,24 +1050,36 @@ export default function BackofficeDashboard() {
     },
     {
       title: 'Media diaria safra',
-      value: formatHectares(dashboardMetrics?.metrics?.averageDailyArea),
+      value: formatHectares(
+        manualDateRange || selectedCropSeasonId
+          ? averageDailyAreaForCards
+          : dashboardMetrics?.metrics?.averageDailyArea
+      ),
       icon: 'bar-chart-outline' as const,
       accentColor: '#0EA5E9',
-      isLoading: isLoadingDashboardMetrics,
+      isLoading:
+        manualDateRange || selectedCropSeasonId
+          ? isLoadingTotalSeasonStats
+          : isLoadingDashboardMetrics,
     },
     {
       title: 'Dias corridos',
-      value: formatInteger(dashboardMetrics?.metrics?.daysSinceStart),
+      value: formatInteger(
+        manualDateRange || selectedCropSeasonId
+          ? elapsedDaysForCards
+          : dashboardMetrics?.metrics?.daysSinceStart
+      ),
       icon: 'trending-up-outline' as const,
       accentColor: '#9333EA',
-      isLoading: isLoadingDashboardMetrics,
+      isLoading:
+        manualDateRange || selectedCropSeasonId ? isFetchingCropSeasons : isLoadingDashboardMetrics,
     },
     {
-      title: 'Pilotos ativos ontem',
-      value: formatInteger(pilotsActiveYesterdayCount),
-      icon: 'people-outline' as const,
+      title: 'OS em aberto',
+      value: formatInteger(openServiceOrdersData?.totalCount ?? openServiceOrders.length),
+      icon: 'document-text-outline' as const,
       accentColor: '#2563EB',
-      isLoading: isLoadingByPilotYesterdayStats,
+      isLoading: isLoadingOpenServiceOrders,
     },
   ];
 
@@ -883,6 +1091,7 @@ export default function BackofficeDashboard() {
     setSelectedFarmId(undefined);
     setSelectedPilotId(undefined);
     setSelectedProductId(undefined);
+    setSelectedCropSeasonId(currentCropSeasonData?.cropSeason?.id);
     setSelectedAssistantId(undefined);
     setSelectedServiceOrderStatus(undefined);
     setSelectedApplicationIssue(undefined);
@@ -892,6 +1101,7 @@ export default function BackofficeDashboard() {
     setFarmSearchTerm('');
     setPilotSearchTerm('');
     setProductSearchTerm('');
+    setCropSeasonSearchTerm('');
     setAssistantSearchTerm('');
     setDroneSearchTerm('');
   };
@@ -911,6 +1121,10 @@ export default function BackofficeDashboard() {
   const allProductOptions = useMemo(
     () => [{ id: 'all', name: 'Todos os produtos' }, ...products],
     [products]
+  );
+  const allCropSeasonOptions = useMemo(
+    () => [{ id: 'all', name: 'Todas as safras' }, ...cropSeasons],
+    [cropSeasons]
   );
   const allAssistantOptions = useMemo(
     () => [{ id: 'all', name: 'Todos os ajudantes' }, ...assistants],
@@ -1040,6 +1254,25 @@ export default function BackofficeDashboard() {
                   disabled={false}
                 />
               )}
+            </View>
+
+            <View style={[styles.filterField, { width: itemColumnWidth }]}>
+              <Text style={styles.filterLabel}>Safra</Text>
+              <SearchableSelectQuery
+                value={selectedCropSeasonId || 'all'}
+                listedData={allCropSeasonOptions}
+                onSearchChange={setCropSeasonSearchTerm}
+                onItemSelect={(value: string | undefined) => {
+                  cropSeasonDefaultAppliedRef.current = true;
+                  setSelectedCropSeasonId(!value || value === 'all' ? undefined : value);
+                }}
+                itemKey='name'
+                hasNextPage={hasNextPageCropSeasons}
+                fetchNextPage={fetchNextPageCropSeasons}
+                isFetchingNextPage={isFetchingNextPageCropSeasons}
+                isFetching={isFetchingCropSeasons}
+                disabled={false}
+              />
             </View>
 
             <View style={[styles.filterField, { width: itemColumnWidth }]}>

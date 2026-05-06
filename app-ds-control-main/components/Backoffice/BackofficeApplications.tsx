@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { InfiniteData } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -18,6 +18,7 @@ import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import { COLORS } from '@/constants/colors';
 import { useGetAllApplications, useGetStatsApplications } from '@/queries/application.query';
 import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
+import { useGetAllCropSeasonsInfinite, useGetCurrentCropSeason } from '@/queries/crop-season.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllDronesInfinite } from '@/queries/drone.query';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
@@ -32,6 +33,7 @@ import {
   ApplicationOrderType,
 } from '@/types/applications.type';
 import { Assistant } from '@/types/assistant.type';
+import { CropSeason } from '@/types/crop-season.type';
 import { Customer } from '@/types/customer.type';
 import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
@@ -182,6 +184,7 @@ export default function BackofficeApplications() {
   const [pilotId, setPilotId] = useState<string | undefined>(undefined);
   const [assistantId, setAssistantId] = useState<string | undefined>(undefined);
   const [productId, setProductId] = useState<string | undefined>(undefined);
+  const [cropSeasonId, setCropSeasonId] = useState<string | undefined>(undefined);
   const [droneId, setDroneId] = useState<string | undefined>(undefined);
   const [serviceOrderStatus, setServiceOrderStatus] = useState<ServiceOrderStatus | undefined>(
     undefined
@@ -196,13 +199,28 @@ export default function BackofficeApplications() {
   const [pilotSearchTerm, setPilotSearchTerm] = useState('');
   const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [cropSeasonSearchTerm, setCropSeasonSearchTerm] = useState('');
   const [droneSearchTerm, setDroneSearchTerm] = useState('');
+  const cropSeasonDefaultAppliedRef = useRef(false);
 
   useEffect(() => {
     if (isTablet) {
       setShowFilters(true);
     }
   }, [isTablet]);
+
+  const { data: currentCropSeasonData } = useGetCurrentCropSeason();
+
+  useEffect(() => {
+    if (cropSeasonDefaultAppliedRef.current) {
+      return;
+    }
+
+    if (currentCropSeasonData?.cropSeason?.id) {
+      setCropSeasonId(currentCropSeasonData.cropSeason.id);
+      cropSeasonDefaultAppliedRef.current = true;
+    }
+  }, [currentCropSeasonData?.cropSeason?.id]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -215,6 +233,7 @@ export default function BackofficeApplications() {
     pilotId,
     assistantId,
     productId,
+    cropSeasonId,
     droneId,
     serviceOrderStatus,
     applicationIssue,
@@ -278,6 +297,17 @@ export default function BackofficeApplications() {
     search: productSearchTerm || undefined,
   });
   const {
+    data: cropSeasonsData,
+    hasNextPage: hasNextPageCropSeasons,
+    isFetchingNextPage: isFetchingNextPageCropSeasons,
+    fetchNextPage: fetchNextPageCropSeasons,
+    isFetching: isFetchingCropSeasons,
+  } = useGetAllCropSeasonsInfinite({
+    limit: '10',
+    search: cropSeasonSearchTerm || undefined,
+    status: 'active',
+  });
+  const {
     data: dronesData,
     hasNextPage: hasNextPageDrones,
     isFetchingNextPage: isFetchingNextPageDrones,
@@ -323,6 +353,13 @@ export default function BackofficeApplications() {
       ) as Product[]) || [],
     [productsData]
   );
+  const listedCropSeasons: CropSeason[] = useMemo(
+    () =>
+      ((
+        cropSeasonsData as unknown as InfiniteData<{ data: CropSeason[] }> | undefined
+      )?.pages?.flatMap((page) => page.data) as CropSeason[]) || [],
+    [cropSeasonsData]
+  );
   const listedDrones: Drone[] = useMemo(
     () =>
       ((dronesData as unknown as InfiniteData<{ data: Drone[] }> | undefined)?.pages?.flatMap(
@@ -351,6 +388,10 @@ export default function BackofficeApplications() {
     () => [{ id: 'all', name: 'Todos os produtos' }, ...listedProducts],
     [listedProducts]
   );
+  const allCropSeasonOptions = useMemo(
+    () => [{ id: 'all', name: 'Todas as safras' }, ...listedCropSeasons],
+    [listedCropSeasons]
+  );
   const allDroneOptions = useMemo(
     () => [{ id: 'all', name: 'Todos os drones' }, ...listedDrones],
     [listedDrones]
@@ -365,6 +406,7 @@ export default function BackofficeApplications() {
     pilotId,
     assistantId,
     productId,
+    cropSeasonId,
     droneId,
     serviceOrderStatus,
     applicationIssue,
@@ -395,6 +437,7 @@ export default function BackofficeApplications() {
     pilotId,
     assistantId,
     productId,
+    cropSeasonId,
     droneId,
     serviceOrderStatus,
     applicationIssue,
@@ -413,6 +456,7 @@ export default function BackofficeApplications() {
       !!pilotId && 'Piloto',
       !!assistantId && 'Ajudante',
       !!productId && 'Produto',
+      !!cropSeasonId && 'Safra',
       !!droneId && 'Drone',
       !!serviceOrderStatus && 'Status OS',
       !!applicationIssue && 'Tipo',
@@ -448,6 +492,7 @@ export default function BackofficeApplications() {
     setPilotId(undefined);
     setAssistantId(undefined);
     setProductId(undefined);
+    setCropSeasonId(currentCropSeasonData?.cropSeason?.id);
     setDroneId(undefined);
     setServiceOrderStatus(undefined);
     setApplicationIssue(undefined);
@@ -460,6 +505,7 @@ export default function BackofficeApplications() {
     setPilotSearchTerm('');
     setAssistantSearchTerm('');
     setProductSearchTerm('');
+    setCropSeasonSearchTerm('');
     setDroneSearchTerm('');
     setCurrentPage(1);
   };
@@ -647,6 +693,25 @@ export default function BackofficeApplications() {
                   disabled={false}
                 />
               )}
+            </View>
+
+            <View style={[styles.filterField, { width: filterColumnWidth }]}>
+              <Text style={styles.filterLabel}>Safra</Text>
+              <SearchableSelectQuery
+                value={cropSeasonId || 'all'}
+                listedData={allCropSeasonOptions}
+                onSearchChange={setCropSeasonSearchTerm}
+                onItemSelect={(value: string | undefined) => {
+                  cropSeasonDefaultAppliedRef.current = true;
+                  setCropSeasonId(!value || value === 'all' ? undefined : value);
+                }}
+                itemKey='name'
+                hasNextPage={hasNextPageCropSeasons}
+                fetchNextPage={fetchNextPageCropSeasons}
+                isFetchingNextPage={isFetchingNextPageCropSeasons}
+                isFetching={isFetchingCropSeasons}
+                disabled={false}
+              />
             </View>
 
             <View style={[styles.filterField, { width: filterColumnWidth }]}>

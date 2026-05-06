@@ -69,6 +69,7 @@ export default function ScreenLayoutAdminAndFarmers() {
         <Tabs.Screen name='applications' options={{ href: null }} />
         <Tabs.Screen name='service-orders' options={{ href: null }} />
         <Tabs.Screen name='routes' options={{ href: null }} />
+        <Tabs.Screen name='configurations' options={{ href: null }} />
       </Tabs>
 
       {user?.type === 'backoffice' && (

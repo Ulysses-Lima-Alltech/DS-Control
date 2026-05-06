@@ -29,6 +29,9 @@ export type GetAllApplicationsParams = {
   serviceOrderStatus?: ServiceOrderStatus;
   applicationIssue?: ApplicationIssueFilter;
   invalidApplication?: string;
+  currentSeason?: boolean;
+  cropSeasonId?: string;
+  cropSeasonIds?: string[];
   includePlots?: string;
   includeCustomer?: string;
   includeServiceOrder?: string;
@@ -76,6 +79,7 @@ export async function getAllApplications(
   if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
   if (params?.invalidApplication)
     searchParams.append('invalidApplication', params.invalidApplication);
+  appendCropSeasonParams(searchParams, params);
   if (params?.includePlots) searchParams.append('includePlots', params.includePlots);
   if (params?.includeCustomer) searchParams.append('includeCustomer', params.includeCustomer);
   if (params?.includeServiceOrder)
@@ -419,6 +423,8 @@ export type GetStatsApplicationsParams = {
   invalidApplication?: boolean;
   applicationIssue?: ApplicationIssueFilter;
   currentSeason?: boolean;
+  cropSeasonId?: string;
+  cropSeasonIds?: string[];
   startDate?: string;
   endDate?: string;
   ignoreFilters?: boolean;
@@ -453,6 +459,8 @@ export type GetDashboardMetricsParams = {
   pilotId?: string;
   search?: string;
   currentSeason?: boolean;
+  cropSeasonId?: string;
+  cropSeasonIds?: string[];
   startDate: string;
 };
 
@@ -488,6 +496,23 @@ const toStatsCivilYYYYMMDD = (value: string) => {
   return toOperationalDateYMD(value) ?? '';
 };
 
+const appendCropSeasonParams = (
+  searchParams: URLSearchParams,
+  params?: { currentSeason?: boolean; cropSeasonId?: string; cropSeasonIds?: string[] }
+) => {
+  if (params?.currentSeason !== undefined) {
+    searchParams.append('currentSeason', params.currentSeason.toString());
+  }
+
+  if (params?.cropSeasonId) {
+    searchParams.append('cropSeasonId', params.cropSeasonId);
+  }
+
+  if (params?.cropSeasonIds && params.cropSeasonIds.length > 0) {
+    params.cropSeasonIds.forEach((id) => searchParams.append('cropSeasonIds', id));
+  }
+};
+
 export async function getStatsApplications(
   params?: GetStatsApplicationsParams
 ): Promise<GetStatsApplicationsResponse> {
@@ -505,8 +530,7 @@ export async function getStatsApplications(
   if (params?.invalidApplication !== undefined)
     searchParams.append('invalidApplication', params.invalidApplication.toString());
   if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
-  if (params?.currentSeason !== undefined)
-    searchParams.append('currentSeason', params.currentSeason.toString());
+  appendCropSeasonParams(searchParams, params);
   if (params?.startDate) {
     const normalizedStartDate = toStatsCivilYYYYMMDD(params.startDate);
     if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
@@ -544,12 +568,14 @@ export async function getByPilotApplications(
   if (params?.farmId) searchParams.append('farmId', params.farmId);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.productId) searchParams.append('productId', params.productId);
+  if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
+  if (params?.droneId) searchParams.append('droneId', params.droneId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.invalidApplication !== undefined)
     searchParams.append('invalidApplication', params.invalidApplication.toString());
-  if (params?.currentSeason !== undefined)
-    searchParams.append('currentSeason', params.currentSeason.toString());
+  if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
+  appendCropSeasonParams(searchParams, params);
   if (params?.startDate) {
     const normalizedStartDate = toStatsCivilYYYYMMDD(params.startDate);
     if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
@@ -604,6 +630,10 @@ export async function getDashboardMetrics(
   if (params.currentSeason !== undefined) {
     searchParams.append('currentSeason', params.currentSeason.toString());
   }
+  appendCropSeasonParams(searchParams, {
+    cropSeasonId: params.cropSeasonId,
+    cropSeasonIds: params.cropSeasonIds,
+  });
 
   const url = `/applications/dashboard-metrics?${searchParams.toString()}`;
 

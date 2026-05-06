@@ -62,6 +62,13 @@ const menuItems: AdminMenuItem[] = [
     enabled: true,
   },
   {
+    id: 'configurations',
+    title: 'Configurações',
+    icon: 'settings-outline',
+    route: '/backoffice/configurations',
+    enabled: true,
+  },
+  {
     id: 'profile',
     title: 'Perfil',
     icon: 'person-outline',
