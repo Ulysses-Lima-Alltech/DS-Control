@@ -12,6 +12,7 @@ export type User = {
 };
 
 export const UserType = {
+  ADMIN: { value: 'admin', label: 'ADM' },
   BACKOFFICE: { value: 'backoffice', label: 'Administrativo' },
   PILOT: { value: 'pilot', label: 'Piloto' },
   FARMER: { value: 'farmer', label: 'Fazendeiro' },

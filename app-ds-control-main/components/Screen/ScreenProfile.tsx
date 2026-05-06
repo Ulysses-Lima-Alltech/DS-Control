@@ -1,25 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Linking,
 } from 'react-native';
 
 import ModalChangeCurrentUserPassword from '@/components/Modal/ModalChangeCurrentUserPassword';
-import { useLogout } from '@/mutations/auth.mutation';
-import { useAuth } from '@/providers/auth.provider';
-import { UserType } from '@/types/user.type';
-import Constants from 'expo-constants';
-import * as Updates from 'expo-updates';
 import { COLORS } from '@/constants/colors';
 import { OTA_VERSION_TEXT } from '@/constants/version';
+import { useLogout } from '@/mutations/auth.mutation';
+import { useAuth } from '@/providers/auth.provider';
+import { getUserTypeLabel } from '@/utils/user-role';
 
 interface MenuItem {
   id: string;
@@ -44,7 +42,7 @@ type UpdateStatus =
 export default function Profile() {
   const { user, refreshUser, setUser } = useAuth();
   const { mutate: logout, isPending } = useLogout({
-    onError: async (error) => {
+    onError: async (_error) => {
       try {
         setUser(undefined);
         await refreshUser();
@@ -366,7 +364,7 @@ export default function Profile() {
               marginBottom: 5,
             }}
           >
-            {Object.values(UserType).find((t) => t.value === user.type)?.label || ''}
+            {getUserTypeLabel(user.type)}
           </Text>
         )}
         <Text

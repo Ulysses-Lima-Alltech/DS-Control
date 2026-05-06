@@ -1,21 +1,16 @@
-import { useLocalSearchParams } from 'expo-router';
-
 import { StyleSheet, Text, View } from 'react-native';
 
+import LoadingDSIcon from '@/components/IconLoadingDS';
 import PlotMapViewer from '@/components/PlotMapViewer';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarms } from '@/queries/farm.query';
-import { Plot } from '@/types/plot.type';
 import { Farm } from '@/types/farm.type';
-import LoadingDSIcon from '@/components/IconLoadingDS';
+import { Plot } from '@/types/plot.type';
+import { isAdministrativeRole } from '@/utils/user-role';
 
 export default function ScreenPlotMapViewer() {
   const { user } = useAuth();
-  const { plotId } = useLocalSearchParams<{ plotId?: string }>();
-
-  if (!user) {
-    return null;
-  }
+  const customerIdFilter = user && !isAdministrativeRole(user.type) ? user.customerId : undefined;
 
   const {
     data: farmsFromQuery,
@@ -23,11 +18,15 @@ export default function ScreenPlotMapViewer() {
     refetch,
     error: farmsError,
     isError: isErrorFarms,
-  } = useGetAllFarms(user.type === 'backoffice' ? undefined : user.customerId, {
-    includePlots: 'true',
-    includeGeoJson: 'true',
-    includeCustomer: 'true',
-  });
+  } = useGetAllFarms(
+    customerIdFilter,
+    {
+      includePlots: 'true',
+      includeGeoJson: 'true',
+      includeCustomer: 'true',
+    },
+    { enabled: !!user }
+  );
 
   const farms: Farm[] = farmsFromQuery?.farms ?? [];
   const plots: Plot[] = farms
@@ -37,7 +36,7 @@ export default function ScreenPlotMapViewer() {
   const renderHeaderContent = () => (
     <>
       <View style={styles.customerHeader}>
-        <Text style={styles.customerTitle}>{user.name ?? 'N/A'}</Text>
+        <Text style={styles.customerTitle}>{user?.name ?? 'N/A'}</Text>
       </View>
 
       <Text style={styles.customerInfo}>Total de fazendas: {farms.length}</Text>
@@ -58,6 +57,10 @@ export default function ScreenPlotMapViewer() {
   const handleRefresh = async () => {
     await refetch();
   };
+
+  if (!user) {
+    return null;
+  }
 
   if (isLoadingFarms) {
     return (

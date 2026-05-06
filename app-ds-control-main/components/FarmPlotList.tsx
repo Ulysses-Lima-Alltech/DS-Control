@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 
+import { useAuth } from '@/providers/auth.provider';
 import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
-
-import { useAuth } from '../providers/auth.provider';
+import { isAdministrativeRole } from '@/utils/user-role';
 
 export type FarmPlotListProps = {
   farms: Farm[];
@@ -22,6 +22,7 @@ export default function FarmPlotList({
   defaultExpanded = false,
 }: FarmPlotListProps) {
   const { user } = useAuth();
+  const isAdministrativeUser = isAdministrativeRole(user?.type);
   const [expandedFarms, setExpandedFarms] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -97,7 +98,7 @@ export default function FarmPlotList({
               onPress={() => toggleFarmExpansion(farm.id)}
             >
               <Text style={styles.farmTitle}>
-                {user?.type === 'backoffice' ? `${farm.customer.name} - ` : 'Fazenda: '} {farm.name}
+                {isAdministrativeUser ? `${farm.customer.name} - ` : 'Fazenda: '} {farm.name}
               </Text>
               <Text style={styles.chevron}>{isExpanded ? '▼' : '▶'}</Text>
             </TouchableOpacity>

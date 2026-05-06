@@ -29,6 +29,7 @@ import {
 import { User } from '@/types/user.type';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
 import { isAndroid } from '@/utils/isAndroid';
+import { isAdministrativeRole, isFarmerRole } from '@/utils/user-role';
 
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -80,8 +81,8 @@ const limitOptions: { id: string; label: string }[] = [
 export default function ServiceOrders() {
   const router = useRouter();
   const { user } = useAuth();
-  const routeGroup = user?.type === 'backoffice' ? 'backoffice' : 'farmer';
-  const customerIdFilter = user?.type === 'farmer' ? user?.customerId : undefined;
+  const routeGroup = isAdministrativeRole(user?.type) ? 'backoffice' : 'farmer';
+  const customerIdFilter = isFarmerRole(user?.type) ? user?.customerId : undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);

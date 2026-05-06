@@ -1,14 +1,15 @@
 import { Foundation, Ionicons, FontAwesome6 } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { View, Text } from 'react-native';
 
 import LoginScreen from '@/app/auth/login';
 import LoadingDSIcon from '@/components/IconLoadingDS';
-import { useAuth } from '@/providers/auth.provider';
-import { useOfflineSync } from '@/hooks/useOfflineSync';
-import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
-import { useEffect } from 'react';
 import { COLORS } from '@/constants/colors';
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
+import { useAuth } from '@/providers/auth.provider';
+import { isPilotRole } from '@/utils/user-role';
 
 export default function RootLayout() {
   const { isAuthenticated, loading, user } = useAuth();
@@ -17,7 +18,7 @@ export default function RootLayout() {
     useOfflineSync();
 
   useEffect(() => {
-    if (isConnected && user?.type === 'pilot') {
+    if (isConnected && isPilotRole(user?.type)) {
       syncOfflineApplications();
 
       downloadOfflineData();

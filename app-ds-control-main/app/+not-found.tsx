@@ -2,6 +2,7 @@ import { Stack, useRouter, usePathname } from 'expo-router';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 
 import { useAuth } from '@/providers/auth.provider';
+import { getDefaultRouteByUserType } from '@/utils/user-role';
 
 export default function NotFoundScreen() {
   const { user } = useAuth();
@@ -14,11 +15,7 @@ export default function NotFoundScreen() {
       <View style={styles.container}>
         <Text>Esta tela não existe.</Text>
         <Text>{pathname}</Text>
-        <TouchableOpacity
-          onPress={() =>
-            router.push(`/${user?.type}/map` as `/farmer/map` | `/pilot/map` | `/backoffice/map`)
-          }
-        >
+        <TouchableOpacity onPress={() => router.push(getDefaultRouteByUserType(user?.type) as any)}>
           <Text>Voltar para o início!</Text>
         </TouchableOpacity>
       </View>

@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { InfiniteData } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { debounce } from 'lodash';
 import React, { useState } from 'react';
 import {
   ScrollView,
@@ -12,16 +14,16 @@ import {
 } from 'react-native';
 
 import LoadingDSIcon from '@/components/IconLoadingDS';
+import StatsFarms from '@/components/StatsFarms';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import { Farm } from '@/types/farm.type';
-import { InfiniteData } from '@tanstack/react-query';
-import { debounce } from 'lodash';
-import StatsFarms from '@/components/StatsFarms';
+import { isAdministrativeRole } from '@/utils/user-role';
 
 export default function ScreenDashboardFarms() {
   const { user } = useAuth();
   const router = useRouter();
+  const isAdministrativeUser = isAdministrativeRole(user?.type);
   const [farmSearchInput, setFarmSearchInput] = React.useState('');
   const [farmSearch, setFarmSearch] = React.useState('');
 
@@ -35,7 +37,7 @@ export default function ScreenDashboardFarms() {
     isLoading: isLoadingFarms,
     refetch,
     error: farmsError,
-  } = useGetAllFarmsInfinite(user?.type === 'backoffice' ? undefined : user?.customerId, {
+  } = useGetAllFarmsInfinite(isAdministrativeUser ? undefined : user?.customerId, {
     includePlots: 'true',
     includeGeoJson: 'false',
     includeCustomer: 'false',
@@ -65,7 +67,7 @@ export default function ScreenDashboardFarms() {
   const handleFarmPress = (farm: Farm) => {
     if (farm) {
       router.replace(
-        `/${user?.type === 'backoffice' ? 'backoffice' : 'farmer'}/map?initialFarmId=${farm.id}`
+        `/${isAdministrativeUser ? 'backoffice' : 'farmer'}/map?initialFarmId=${farm.id}`
       );
     }
   };
@@ -84,7 +86,7 @@ export default function ScreenDashboardFarms() {
       <View style={styles.header}>
         <Text style={styles.title}>DS Control</Text>
         <Text style={styles.subtitle}>
-          {user?.type === 'backoffice' ? 'Painel Administrativo' : 'Painel do Fazendeiro'}
+          {isAdministrativeUser ? 'Painel Administrativo' : 'Painel do Fazendeiro'}
         </Text>
         <Text style={styles.welcomeText}>Olá, {user?.name}!</Text>
       </View>
@@ -94,7 +96,7 @@ export default function ScreenDashboardFarms() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {user?.type === 'backoffice' ? 'Fazendas' : 'Suas Fazendas'}
+              {isAdministrativeUser ? 'Fazendas' : 'Suas Fazendas'}
             </Text>
             <Ionicons name='business-outline' size={20} color='#007AFF' />
           </View>

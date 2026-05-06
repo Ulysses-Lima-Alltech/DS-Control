@@ -8,12 +8,14 @@ import LoginScreen from '@/app/auth/login';
 import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import { useAuth } from '@/providers/auth.provider';
+import { isAdministrativeRole } from '@/utils/user-role';
 
 export default function ScreenLayoutAdminAndFarmers() {
   const { isAuthenticated, loading, user } = useAuth();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const isAdministrativeUser = isAdministrativeRole(user?.type);
 
   if (loading) {
     return (
@@ -72,7 +74,7 @@ export default function ScreenLayoutAdminAndFarmers() {
         <Tabs.Screen name='configurations' options={{ href: null }} />
       </Tabs>
 
-      {user?.type === 'backoffice' && (
+      {isAdministrativeUser && (
         <TouchableOpacity
           onPress={() => setIsMenuVisible(true)}
           style={{

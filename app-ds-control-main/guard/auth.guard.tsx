@@ -5,9 +5,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import LoadingDSIcon from '@/components/IconLoadingDS';
-import { useAuth } from '@/providers/auth.provider';
 import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import { useAuth } from '@/providers/auth.provider';
 import { getOfflineDataCache } from '@/utils/offline-storage';
+import {
+  getDefaultRouteByUserType,
+  isAdministrativeRole,
+  isFarmerRole,
+  isPilotRole,
+} from '@/utils/user-role';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -55,7 +61,7 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     if (
       !loading &&
       !isLoadingConnectivity &&
-      user?.type === 'pilot' &&
+      isPilotRole(user?.type) &&
       isConnected === false &&
       hasOfflineData &&
       path !== '/pilot'
@@ -69,10 +75,29 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     }
 
     if (!loading && isAuthenticated && isLoginRoute) {
-      if (user?.type === 'pilot' || user?.type === 'farmer') {
-        router.replace(`/${user?.type}/map`);
-      } else {
-        router.replace(`/backoffice/dashboard`);
+      router.replace(getDefaultRouteByUserType(user?.type) as any);
+      return;
+    }
+
+    if (!loading && isAuthenticated && !isLoginRoute) {
+      if (isAdministrativeRole(user?.type) && (path === '/farmer' || path === '/pilot')) {
+        router.replace('/backoffice/dashboard');
+        return;
+      }
+
+      if (isFarmerRole(user?.type) && (path === '/backoffice' || path === '/pilot')) {
+        router.replace('/farmer/map');
+        return;
+      }
+
+      if (isPilotRole(user?.type) && (path === '/backoffice' || path === '/farmer')) {
+        router.replace('/pilot/map');
+        return;
+      }
+
+      if (getDefaultRouteByUserType(user?.type) === '/auth/login' && isPrivateRoute) {
+        router.replace('/auth/login');
+        return;
       }
     }
   }, [

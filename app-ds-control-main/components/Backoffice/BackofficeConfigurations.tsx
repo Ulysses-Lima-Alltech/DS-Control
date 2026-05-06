@@ -22,6 +22,7 @@ import { useGetAllCropSeasons } from '@/queries/crop-season.query';
 import { useGetAllProducts } from '@/queries/product.query';
 import { CropSeason } from '@/types/crop-season.type';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
+import { isAdminRole } from '@/utils/user-role';
 
 type CropSeasonFormState = {
   id?: string;
@@ -67,7 +68,7 @@ export default function BackofficeConfigurations() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<CropSeasonFormState>(emptyForm);
 
-  const isAdmin = user?.type === 'backoffice';
+  const isAdmin = isAdminRole(user?.type);
 
   const {
     data: cropSeasonsData,

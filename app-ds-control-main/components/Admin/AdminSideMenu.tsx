@@ -15,7 +15,7 @@ import {
 import { COLORS } from '@/constants/colors';
 import { useLogout } from '@/mutations/auth.mutation';
 import { useAuth } from '@/providers/auth.provider';
-import { UserType } from '@/types/user.type';
+import { getUserTypeLabel as getNormalizedUserTypeLabel, isAdminRole } from '@/utils/user-role';
 
 type AdminSideMenuProps = {
   visible: boolean;
@@ -80,7 +80,7 @@ const menuItems: AdminMenuItem[] = [
 const getUserTypeLabel = (userType?: string) => {
   if (!userType) return 'Usuário';
 
-  const typedEntries = Object.values(UserType);
+  const typedEntries = [{ value: userType, label: getNormalizedUserTypeLabel(userType) }];
   const found = typedEntries.find((entry) => entry.value === userType);
   return found?.label ?? 'Usuário';
 };
@@ -89,6 +89,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
   const router = useRouter();
   const { user, refreshUser, setUser } = useAuth();
   const slideAnimation = useRef(new Animated.Value(0)).current;
+  const isAdminUser = isAdminRole(user?.type);
 
   const { mutate: logout, isPending: isLoggingOut } = useLogout({
     onError: async () => {
@@ -182,52 +183,54 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
             contentContainerStyle={{ gap: 8, paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
           >
-            {menuItems.map((item) => {
-              const isActive = !!item.route && activeRoute.startsWith(item.route);
-              const isDisabled = !item.enabled;
+            {menuItems
+              .filter((item) => item.id !== 'configurations' || isAdminUser)
+              .map((item) => {
+                const isActive = !!item.route && activeRoute.startsWith(item.route);
+                const isDisabled = !item.enabled;
 
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  onPress={() => handleNavigate(item)}
-                  disabled={isDisabled}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                    borderRadius: 10,
-                    paddingVertical: 12,
-                    paddingHorizontal: 10,
-                    backgroundColor: isActive ? COLORS.lightblue : COLORS.white,
-                    borderWidth: 1,
-                    borderColor: isActive ? COLORS.blue : COLORS.lightgray,
-                    opacity: isDisabled ? 0.6 : 1,
-                  }}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={18}
-                    color={isDisabled ? COLORS.gray : isActive ? COLORS.blue : COLORS.black}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: isActive ? '700' : '600',
-                        color: isDisabled ? COLORS.gray : COLORS.black,
-                      }}
-                    >
-                      {item.title}
-                    </Text>
-                    {!item.enabled && (
-                      <Text style={{ fontSize: 11, color: COLORS.gray, marginTop: 2 }}>
-                        Em breve
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => handleNavigate(item)}
+                    disabled={isDisabled}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      borderRadius: 10,
+                      paddingVertical: 12,
+                      paddingHorizontal: 10,
+                      backgroundColor: isActive ? COLORS.lightblue : COLORS.white,
+                      borderWidth: 1,
+                      borderColor: isActive ? COLORS.blue : COLORS.lightgray,
+                      opacity: isDisabled ? 0.6 : 1,
+                    }}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={18}
+                      color={isDisabled ? COLORS.gray : isActive ? COLORS.blue : COLORS.black}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: isActive ? '700' : '600',
+                          color: isDisabled ? COLORS.gray : COLORS.black,
+                        }}
+                      >
+                        {item.title}
                       </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                      {!item.enabled && (
+                        <Text style={{ fontSize: 11, color: COLORS.gray, marginTop: 2 }}>
+                          Em breve
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
           </ScrollView>
 
           <TouchableOpacity
