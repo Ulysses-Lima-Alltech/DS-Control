@@ -1,6 +1,7 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { InfiniteData } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -159,6 +160,7 @@ function DataField({ label, value }: { label: string; value: string }) {
 }
 
 export default function BackofficeApplications() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 900;
@@ -538,6 +540,13 @@ export default function BackofficeApplications() {
   const handlePreviousPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
   const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   const handleLastPage = () => setCurrentPage(totalPages);
+  const navigateToServiceOrder = (serviceOrderId?: string) => {
+    if (!serviceOrderId) return;
+    router.push({
+      pathname: '/backoffice/service-orders',
+      params: { selectedServiceOrderId: serviceOrderId },
+    });
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -1006,6 +1015,7 @@ export default function BackofficeApplications() {
             const productName = application.product?.name || 'N/A';
             const droneName = application.drone?.name || 'N/A';
             const serviceOrderNumber = application.serviceOrder?.number;
+            const linkedServiceOrderId = application.serviceOrderId || application.serviceOrder?.id;
             const serviceOrderStatusLabel = getServiceOrderStatusLabel(
               application.serviceOrder?.status
             );
@@ -1078,6 +1088,16 @@ export default function BackofficeApplications() {
                     }
                   />
                 </View>
+                {linkedServiceOrderId ? (
+                  <TouchableOpacity
+                    onPress={() => navigateToServiceOrder(linkedServiceOrderId)}
+                    style={styles.serviceOrderActionButton}
+                  >
+                    <Text style={styles.serviceOrderActionButtonText}>
+                      Abrir OS #{serviceOrderNumber || '-'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             );
           })}
@@ -1497,6 +1517,22 @@ const styles = StyleSheet.create({
   badgeIssueText: {
     color: '#1D4ED8',
     fontSize: 11,
+    fontWeight: '700',
+  },
+  serviceOrderActionButton: {
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: COLORS.blue,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+  },
+  serviceOrderActionButtonText: {
+    color: COLORS.blue,
+    fontSize: 12,
     fontWeight: '700',
   },
   dataGrid: {

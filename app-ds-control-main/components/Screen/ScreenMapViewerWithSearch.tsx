@@ -25,13 +25,35 @@ const buildRouteLabel = (route: Route, index: number) => {
   return `Rota ${index + 1}`;
 };
 
+const normalizeFarm = (farm: Farm | null | undefined): Farm | null => {
+  if (!farm || typeof farm !== 'object') return null;
+
+  const normalizedId = farm.id == null ? '' : String(farm.id);
+  if (!normalizedId) return null;
+
+  return {
+    id: normalizedId,
+    name: typeof farm.name === 'string' && farm.name.trim() ? farm.name : 'Fazenda sem nome',
+    customer: {
+      id: farm.customer?.id == null ? '-' : String(farm.customer.id),
+      name:
+        typeof farm.customer?.name === 'string' && farm.customer.name.trim()
+          ? farm.customer.name
+          : '-',
+    },
+    plots: Array.isArray(farm.plots) ? farm.plots.filter((plot) => Boolean(plot)) : [],
+    createdAt: typeof farm.createdAt === 'string' ? farm.createdAt : '',
+    updatedAt: typeof farm.updatedAt === 'string' ? farm.updatedAt : '',
+  };
+};
+
 const LOCATION_TIMEOUT_MS = 15000;
 const ROUTE_START_INVALID_MESSAGE =
-  'A rota selecionada não possui um ponto inicial válido para navegação.';
+  'A rota selecionada nao possui um ponto inicial valido para navegacao.';
 const ROUTE_CALCULATION_GENERIC_MESSAGE =
-  'Não foi possível calcular a rota até o início da operação. Verifique sua localização e tente novamente.';
+  'Nao foi possivel calcular a rota ate o inicio da operacao. Verifique sua localizacao e tente novamente.';
 const MAPBOX_NO_ROUTE_MESSAGE =
-  'A Mapbox não encontrou uma rota viária até o início da operação. Tente ajustar sua localização ou selecione outra rota.';
+  'A Mapbox nao encontrou uma rota viaria ate o inicio da operacao. Tente ajustar sua localizacao ou selecione outra rota.';
 
 const logIrAgoraDev = (message: string, data?: Record<string, unknown>) => {
   if (__DEV__) {
@@ -148,36 +170,48 @@ export default function ScreenMapViewerWithSearch({
 
     if (!initialFarmData?.farm) return;
     if (appliedInitialFarmIdRef.current === normalizedInitialFarmId) return;
+    const normalizedFarm = normalizeFarm(initialFarmData.farm);
+    if (!normalizedFarm) return;
 
     setSelectedFarms((previousSelectedFarms) => {
       if (
         previousSelectedFarms.length === 1 &&
-        previousSelectedFarms[0].id === initialFarmData.farm.id
+        previousSelectedFarms[0].id === normalizedFarm.id
       ) {
         return previousSelectedFarms;
       }
 
-      return [initialFarmData.farm];
+      return [normalizedFarm];
     });
     appliedInitialFarmIdRef.current = normalizedInitialFarmId;
   }, [initialFarmData?.farm, normalizedInitialFarmId]);
 
-  const allPlots = useMemo<Plot[]>(() => {
-    return selectedFarms.flatMap((farm) => farm.plots || []);
+  const safeSelectedFarms = useMemo<Farm[]>(() => {
+    if (!Array.isArray(selectedFarms)) return [];
+    return selectedFarms
+      .map((farm) => normalizeFarm(farm))
+      .filter((farm): farm is Farm => Boolean(farm));
   }, [selectedFarms]);
 
-  const selectedFarmId = selectedFarms.length === 1 ? selectedFarms[0].id : null;
+  const primarySelectedFarm = safeSelectedFarms.length > 0 ? safeSelectedFarms[0] : null;
+
+  const allPlots = useMemo<Plot[]>(() => {
+    return safeSelectedFarms.flatMap((farm) => (Array.isArray(farm.plots) ? farm.plots : []));
+  }, [safeSelectedFarms]);
+
+  const selectedFarmId =
+    safeSelectedFarms.length === 1 ? String(primarySelectedFarm?.id ?? '') : null;
 
   const { data: routeData, isFetching: isFetchingRoute } = useGetRouteByFarmId(selectedFarmId, {
     includeGeoJson: 'true',
   });
 
   const allRoutes = useMemo<Route[]>(() => {
-    if (selectedFarms.length === 1 && routeData?.routes) {
+    if (safeSelectedFarms.length === 1 && routeData?.routes) {
       return routeData.routes;
     }
     return [];
-  }, [selectedFarms.length, routeData]);
+  }, [safeSelectedFarms.length, routeData]);
 
   useEffect(() => {
     if (allRoutes.length === 0) {
@@ -219,7 +253,7 @@ export default function ScreenMapViewerWithSearch({
       logIrAgoraDev('Route start coordinate unavailable', {
         selectedRouteId: selectedRoute?.id,
       });
-      Alert.alert('Início da rota indisponível', ROUTE_START_INVALID_MESSAGE);
+      Alert.alert('Inicio da rota indisponivel', ROUTE_START_INVALID_MESSAGE);
       return;
     }
 
@@ -262,7 +296,7 @@ export default function ScreenMapViewerWithSearch({
       logIrAgoraDev('Handled navigation error', { error, message });
       setNavigationRoute(null);
       setNavigationRouteError(message);
-      Alert.alert('Não foi possível calcular a rota', message);
+      Alert.alert('Nao foi possivel calcular a rota', message);
     } finally {
       setIsFetchingNavigation(false);
       logIrAgoraDev('Navigation loading finished');
@@ -273,21 +307,22 @@ export default function ScreenMapViewerWithSearch({
     setIsNavigationMode((prev) => !prev);
   };
 
-  const showMapTools = selectedFarms.length <= 1;
-  const showNavigationButton = selectedFarms.length === 1;
-  const showRouteSelector = selectedFarms.length === 1 && allRoutes.length > 0 && !isNavigationMode;
+  const showMapTools = safeSelectedFarms.length <= 1;
+  const showNavigationButton = safeSelectedFarms.length === 1;
+  const showRouteSelector =
+    safeSelectedFarms.length === 1 && allRoutes.length > 0 && !isNavigationMode;
   const canStartNavigation = Boolean(selectedRouteStartCoordinate) && !isFetchingRoute;
 
   return (
     <View style={{ flex: 1, flexDirection: 'column' }}>
       <MapViewer
         isFetching={isFetchingRoute || isFetchingNavigation}
-        selectedFarmId={selectedFarms.length > 0 ? selectedFarms[0].id : null}
+        selectedFarmId={primarySelectedFarm?.id ?? null}
         plots={allPlots}
         routes={routesForMap}
         navigationRoute={navigationRoute}
         showMapTools={showMapTools}
-        showRoute={selectedFarms.length === 1}
+        showRoute={safeSelectedFarms.length === 1}
         showNavigationRoute={Boolean(navigationRoute)}
         isNavigationMode={isNavigationMode}
       />
@@ -296,7 +331,7 @@ export default function ScreenMapViewerWithSearch({
           placeholder='Buscar fazenda... '
           onFarmsSelect={setSelectedFarms}
           customerId={customerId}
-          selectedFarmsExternal={selectedFarms}
+          selectedFarmsExternal={safeSelectedFarms}
         />
       )}
       {showRouteSelector && (
@@ -336,7 +371,7 @@ export default function ScreenMapViewerWithSearch({
         <MapNavigationButton
           isNavigationMode={isNavigationMode}
           onToggleNavigationMode={handleToggleNavigationMode}
-          disabled={selectedFarms.length === 0}
+          disabled={safeSelectedFarms.length === 0}
           showGoNow={canStartNavigation}
           goNowDisabled={!canStartNavigation}
           goNowLoading={isFetchingNavigation}

@@ -5,8 +5,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { FlashList } from '@shopify/flash-list';
 import { InfiniteData } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import ServiceOrdersEmptyState from '@/components/ServiceOrdersEmptyState';
@@ -18,7 +18,7 @@ import TextInputSearch from '@/components/ui/TextInputSearch';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
-import { useGetAllServiceOrders } from '@/queries/service-order.query';
+import { useGetAllServiceOrders, useGetServiceOrderById } from '@/queries/service-order.query';
 import { Farm } from '@/types/farm.type';
 import {
   ServiceOrder,
@@ -57,7 +57,7 @@ const parseCivilDate = (value?: string) => {
 const statusOptions: { id: string; label: string }[] = [
   { id: 'all', label: 'Todos os status' },
   { id: 'open', label: 'Aberta' },
-  { id: 'completed', label: 'ConcluÃ­da' },
+  { id: 'completed', label: 'Concluída' },
   { id: 'cancelled', label: 'Cancelada' },
 ];
 
@@ -73,16 +73,29 @@ const orderTypeOptions: { id: string; label: string }[] = [
 ];
 
 const limitOptions: { id: string; label: string }[] = [
-  { id: '5', label: '5 por pÃ¡gina' },
-  { id: '10', label: '10 por pÃ¡gina' },
-  { id: '20', label: '20 por pÃ¡gina' },
+  { id: '5', label: '5 por página' },
+  { id: '10', label: '10 por página' },
+  { id: '20', label: '20 por página' },
 ];
 
 export default function ServiceOrders() {
   const router = useRouter();
+  const { selectedServiceOrderId: selectedServiceOrderIdParam } = useLocalSearchParams<{
+    selectedServiceOrderId?: string | string[];
+  }>();
   const { user } = useAuth();
   const routeGroup = isAdministrativeRole(user?.type) ? 'backoffice' : 'farmer';
   const customerIdFilter = isFarmerRole(user?.type) ? user?.customerId : undefined;
+  const selectedServiceOrderId = useMemo(() => {
+    const normalized = Array.isArray(selectedServiceOrderIdParam)
+      ? selectedServiceOrderIdParam[0]
+      : selectedServiceOrderIdParam;
+    if (!normalized) return undefined;
+    const trimmed = normalized.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, [selectedServiceOrderIdParam]);
+  const serviceOrdersListRef = useRef<FlashList<ServiceOrder>>(null);
+  const lastAutoScrollServiceOrderIdRef = useRef<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -171,7 +184,7 @@ export default function ServiceOrders() {
       !!pilotId && 'Piloto',
       !!startDate && 'Data inicial',
       !!endDate && 'Data final',
-      orderBy !== ServiceOrderBy.PLANNED_DATE && 'OrdenaÃ§Ã£o',
+      orderBy !== ServiceOrderBy.PLANNED_DATE && 'Ordenação',
       orderType !== ServiceOrderType.DESC && 'Ordem',
       pageSize !== '5' && 'Limite',
     ].filter(Boolean) as string[];
@@ -218,6 +231,53 @@ export default function ServiceOrders() {
   });
 
   const serviceOrdersList: ServiceOrder[] = data?.data ?? [];
+  const selectedServiceOrderInCurrentPage = useMemo(
+    () => serviceOrdersList.find((serviceOrder) => serviceOrder.id === selectedServiceOrderId),
+    [selectedServiceOrderId, serviceOrdersList]
+  );
+
+  const { data: selectedServiceOrderFromApi } = useGetServiceOrderById(
+    {
+      serviceOrderId: selectedServiceOrderId || '',
+      includeFarms: 'true',
+      includeCustomers: 'true',
+      includePilots: 'true',
+      includePlots: 'false',
+      includeContracts: 'false',
+      includeGeoJson: 'false',
+    },
+    {
+      enabled: Boolean(selectedServiceOrderId && !selectedServiceOrderInCurrentPage),
+      retry: 1,
+    }
+  );
+
+  const serviceOrdersListToRender = useMemo(() => {
+    if (!selectedServiceOrderId) return serviceOrdersList;
+
+    if (selectedServiceOrderInCurrentPage) {
+      return serviceOrdersList;
+    }
+
+    if (!selectedServiceOrderFromApi) {
+      return serviceOrdersList;
+    }
+
+    return [selectedServiceOrderFromApi, ...serviceOrdersList];
+  }, [
+    selectedServiceOrderId,
+    selectedServiceOrderFromApi,
+    selectedServiceOrderInCurrentPage,
+    serviceOrdersList,
+  ]);
+
+  const selectedServiceOrderIndex = useMemo(
+    () =>
+      selectedServiceOrderId
+        ? serviceOrdersListToRender.findIndex((serviceOrder) => serviceOrder.id === selectedServiceOrderId)
+        : -1,
+    [selectedServiceOrderId, serviceOrdersListToRender]
+  );
 
   const totalPages = data?.totalPages ?? 1;
   const totalCount = data?.totalCount ?? 0;
@@ -233,8 +293,36 @@ export default function ServiceOrders() {
     setRefreshing(false);
   };
 
+  useEffect(() => {
+    if (!selectedServiceOrderId) {
+      lastAutoScrollServiceOrderIdRef.current = null;
+      return;
+    }
+
+    if (selectedServiceOrderIndex < 0) return;
+    if (lastAutoScrollServiceOrderIdRef.current === selectedServiceOrderId) return;
+
+    const timer = setTimeout(() => {
+      try {
+        serviceOrdersListRef.current?.scrollToIndex({
+          index: selectedServiceOrderIndex,
+          animated: true,
+          viewPosition: 0.3,
+        });
+      } catch {
+        serviceOrdersListRef.current?.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+      }
+      lastAutoScrollServiceOrderIdRef.current = selectedServiceOrderId;
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [selectedServiceOrderId, selectedServiceOrderIndex]);
+
   if (error) {
-    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviÃ§o')} />;
+    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviço')} />;
   }
 
   if (isFetchingServiceOrders) {
@@ -256,7 +344,9 @@ export default function ServiceOrders() {
       }}
     >
       <FlashList
-        data={serviceOrdersList}
+        ref={serviceOrdersListRef}
+        data={serviceOrdersListToRender}
+        extraData={selectedServiceOrderId}
         ListHeaderComponent={() => {
           return (
             <View style={{ gap: 12, marginBottom: 12 }}>
@@ -582,6 +672,7 @@ export default function ServiceOrders() {
         }}
         renderItem={({ item }: { item: ServiceOrder }) => {
           const { id, number, customer, plannedDate, farms, status } = item;
+          const isSelectedServiceOrder = selectedServiceOrderId === id;
           return (
             <TouchableOpacity
               key={id}
@@ -590,6 +681,8 @@ export default function ServiceOrders() {
                 borderRadius: 12,
                 padding: 16,
                 marginBottom: 12,
+                borderWidth: isSelectedServiceOrder ? 2 : 0,
+                borderColor: isSelectedServiceOrder ? COLORS.blue : 'transparent',
                 shadowColor: COLORS.black,
                 shadowOffset: {
                   width: 0,
@@ -625,8 +718,28 @@ export default function ServiceOrders() {
                       marginRight: 10,
                     }}
                   >
-                    #{number} - Ordem de serviÃ§o
+                    #{number} - Ordem de serviço
                   </Text>
+                  {isSelectedServiceOrder && (
+                    <View
+                      style={{
+                        backgroundColor: COLORS.lightblue,
+                        borderRadius: 8,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: '700',
+                          color: COLORS.blue,
+                        }}
+                      >
+                        Selecionada
+                      </Text>
+                    </View>
+                  )}
                   <StatusBadge status={status} />
                 </View>
                 <TouchableOpacity
@@ -786,7 +899,10 @@ export default function ServiceOrders() {
                   gap: 8,
                 }}
                 onPress={() => {
-                  router.push(`/farmer/service-orders/${id}`);
+                  router.push({
+                    pathname: `/${routeGroup}/service-orders/[serviceOrderId]` as any,
+                    params: { serviceOrderId: id },
+                  });
                 }}
               >
                 <MaterialCommunityIcons name='eye' size={20} color={COLORS.blue} />
@@ -813,8 +929,8 @@ export default function ServiceOrders() {
         onRefresh={handleRefresh}
         ListEmptyComponent={
           <ServiceOrdersEmptyState
-            title='Nenhuma ordem de serviÃ§o encontrada'
-            description='Contate o administrador para acompanhar as ordens de serviÃ§o.'
+            title='Nenhuma ordem de serviço encontrada'
+            description='Contate o administrador para acompanhar as ordens de serviço.'
             iconName='clipboard-list-outline'
             primaryActionLabel='Atualizar'
             onPrimaryAction={handleRefresh}
@@ -838,7 +954,7 @@ export default function ServiceOrders() {
               {/* Pagination Info */}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, color: COLORS.gray }}>
-                  PÃ¡gina {currentPage} de {totalPages} â€¢ {totalCount} ordens
+                  Página {currentPage} de {totalPages} • {totalCount} ordens
                 </Text>
               </View>
 
@@ -934,7 +1050,7 @@ const SkeletonError = ({ error }: { error: Error }) => {
         paddingHorizontal: 20,
       }}
     >
-      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviÃ§o</Text>
+      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviço</Text>
       <Text style={{ color: COLORS.red }}>{error.message}</Text>
     </View>
   );
@@ -986,7 +1102,7 @@ const StatusBadge = ({ status }: { status: ServiceOrder['status'] }) => {
         };
       case 'completed':
         return {
-          label: 'ConcluÃ­da',
+          label: 'Concluída',
           backgroundColor: COLORS.lightblue,
           textColor: COLORS.blue,
         };

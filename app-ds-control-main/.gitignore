@@ -56,3 +56,12 @@ credentials.json
 credentials/
 .cursor/settings.json
 .vscode/settings.json
+node_modules
+.expo
+android/.gradle
+android/build
+android/app/build
+ios/build
+dist
+web-build
+

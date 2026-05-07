@@ -1,21 +1,17 @@
-import { FontAwesome6, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname } from 'expo-router';
 import { useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LoginScreen from '@/app/auth/login';
 import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import { useAuth } from '@/providers/auth.provider';
-import { isAdministrativeRole } from '@/utils/user-role';
 
 export default function ScreenLayoutAdminAndFarmers() {
-  const { isAuthenticated, loading, user } = useAuth();
-  const insets = useSafeAreaInsets();
+  const { isAuthenticated, loading } = useAuth();
   const pathname = usePathname();
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const isAdministrativeUser = isAdministrativeRole(user?.type);
 
   if (loading) {
     return (
@@ -32,6 +28,7 @@ export default function ScreenLayoutAdminAndFarmers() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
+        initialRouteName='dashboard'
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#EAAE07',
@@ -46,9 +43,29 @@ export default function ScreenLayoutAdminAndFarmers() {
         <Tabs.Screen
           name='map'
           options={{
-            title: 'Fazendas',
+            title: 'Menu',
+            tabBarIcon: ({ color, size }) => <Ionicons name='menu' size={size} color={color} />,
+            tabBarButton: ({ children, style, accessibilityLabel, accessibilityState, testID }) => (
+              <TouchableOpacity
+                accessibilityLabel={accessibilityLabel}
+                accessibilityState={accessibilityState}
+                testID={testID}
+                style={style}
+                onPress={() => {
+                  setIsMenuVisible(true);
+                }}
+              >
+                {children}
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name='applications'
+          options={{
+            title: 'Aplicações',
             tabBarIcon: ({ color, size }) => (
-              <FontAwesome6 name='tractor' size={size} color={color} />
+              <MaterialCommunityIcons name='format-list-bulleted' size={size} color={color} />
             ),
           }}
         />
@@ -62,38 +79,17 @@ export default function ScreenLayoutAdminAndFarmers() {
           }}
         />
         <Tabs.Screen
-          name='profile'
+          name='routes'
           options={{
-            title: 'Perfil',
-            tabBarIcon: ({ color, size }) => <Ionicons name='person' size={size} color={color} />,
+            title: 'Rotas',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons name='map-marker-path' size={size} color={color} />
+            ),
           }}
         />
-        <Tabs.Screen name='applications' options={{ href: null }} />
+        <Tabs.Screen name='profile' options={{ href: null }} />
         <Tabs.Screen name='service-orders' options={{ href: null }} />
-        <Tabs.Screen name='routes' options={{ href: null }} />
-        <Tabs.Screen name='configurations' options={{ href: null }} />
       </Tabs>
-
-      {isAdministrativeUser && (
-        <TouchableOpacity
-          onPress={() => setIsMenuVisible(true)}
-          style={{
-            position: 'absolute',
-            top: insets.top + 10,
-            left: 12,
-            width: 42,
-            height: 42,
-            borderRadius: 21,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 90,
-          }}
-        >
-          <Ionicons name='menu' size={24} color='#FFFFFF' />
-        </TouchableOpacity>
-      )}
-
       <AdminSideMenu
         visible={isMenuVisible}
         onClose={() => setIsMenuVisible(false)}

@@ -14,6 +14,8 @@ export type FarmPlotListProps = {
   defaultExpanded?: boolean;
 };
 
+const toSearchableText = (value: unknown) => (typeof value === 'string' ? value : '');
+
 export default function FarmPlotList({
   farms,
   plots,
@@ -26,31 +28,43 @@ export default function FarmPlotList({
   const [expandedFarms, setExpandedFarms] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
 
+  const safeFarms = useMemo(() => (Array.isArray(farms) ? farms : []), [farms]);
+  const safePlots = useMemo(() => (Array.isArray(plots) ? plots : []), [plots]);
+
   useEffect(() => {
     if (defaultExpanded) {
-      setExpandedFarms(new Set(farms.map((farm) => farm.id)));
+      setExpandedFarms(
+        new Set(
+          safeFarms
+            .map((farm) => (farm?.id == null ? '' : String(farm.id)))
+            .filter((farmId) => Boolean(farmId))
+        )
+      );
     } else {
       setExpandedFarms(new Set());
     }
-  }, [farms, defaultExpanded]);
+  }, [safeFarms, defaultExpanded]);
 
   const { filteredFarms, filteredPlots } = useMemo(() => {
     if (!searchTerm.trim()) {
-      return { filteredFarms: farms, filteredPlots: plots };
+      return { filteredFarms: safeFarms, filteredPlots: safePlots };
     }
 
     const searchLower = searchTerm.toLowerCase();
 
-    const matchingPlots = plots.filter((plot) => plot.name.toLowerCase().includes(searchLower));
+    const matchingPlots = safePlots.filter((plot) =>
+      toSearchableText(plot?.name).toLowerCase().includes(searchLower)
+    );
 
-    const matchingFarms = farms.filter((farm) => {
-      const farmNameMatches = farm.name.toLowerCase().includes(searchLower);
-      const hasMatchingPlots = matchingPlots.some((plot) => plot.farmId === farm.id);
+    const matchingFarms = safeFarms.filter((farm) => {
+      const farmNameMatches = toSearchableText(farm?.name).toLowerCase().includes(searchLower);
+      const farmId = farm?.id == null ? '' : String(farm.id);
+      const hasMatchingPlots = matchingPlots.some((plot) => String(plot?.farmId ?? '') === farmId);
       return farmNameMatches || hasMatchingPlots;
     });
 
     return { filteredFarms: matchingFarms, filteredPlots: matchingPlots };
-  }, [farms, plots, searchTerm]);
+  }, [safeFarms, safePlots, searchTerm]);
 
   const toggleFarmExpansion = (farmId: string) => {
     setExpandedFarms((prev) => {
@@ -63,15 +77,18 @@ export default function FarmPlotList({
       return newSet;
     });
   };
-  const renderPlotBadge = (plot: Plot) => {
+
+  const renderPlotBadge = (plot: Plot, index: number) => {
     const isSelected = selectedPlot?.id === plot.id;
     return (
       <TouchableOpacity
-        key={plot.id}
+        key={String(plot?.id ?? `${plot?.farmId ?? 'plot'}-${index}`)}
         style={[styles.plotCard, isSelected && styles.selectedPlotCard]}
         onPress={() => onPlotPress(plot)}
       >
-        <Text style={[styles.plotName, isSelected && styles.selectedPlotName]}>{plot.name}</Text>
+        <Text style={[styles.plotName, isSelected && styles.selectedPlotName]}>
+          {toSearchableText(plot?.name) || 'Talhao sem nome'}
+        </Text>
       </TouchableOpacity>
     );
   };
@@ -82,25 +99,26 @@ export default function FarmPlotList({
     const farmsToRender = filteredFarms
       .map((farm) => {
         const farmNameMatches =
-          !searchTerm.trim() || farm.name.toLowerCase().includes(searchTerm.toLowerCase());
+          !searchTerm.trim() ||
+          toSearchableText(farm?.name).toLowerCase().includes(searchTerm.toLowerCase());
+        const farmId = farm?.id == null ? '' : String(farm.id);
+
         const farmPlots = farmNameMatches
-          ? plots.filter((p) => p.farmId === farm.id)
-          : filteredPlots.filter((p) => p.farmId === farm.id);
+          ? safePlots.filter((p) => String(p?.farmId ?? '') === farmId)
+          : filteredPlots.filter((p) => String(p?.farmId ?? '') === farmId);
 
         if (farmPlots.length === 0) return null;
 
-        const isExpanded = expandedFarms.has(farm.id);
+        const isExpanded = expandedFarms.has(farmId);
 
         return (
-          <View key={farm.id} style={styles.farmSection}>
-            <TouchableOpacity
-              style={styles.farmHeader}
-              onPress={() => toggleFarmExpansion(farm.id)}
-            >
+          <View key={farmId} style={styles.farmSection}>
+            <TouchableOpacity style={styles.farmHeader} onPress={() => toggleFarmExpansion(farmId)}>
               <Text style={styles.farmTitle}>
-                {isAdministrativeUser ? `${farm.customer.name} - ` : 'Fazenda: '} {farm.name}
+                {isAdministrativeUser ? `${farm?.customer?.name ?? '-'} - ` : 'Fazenda: '}
+                {toSearchableText(farm?.name) || 'Fazenda sem nome'}
               </Text>
-              <Text style={styles.chevron}>{isExpanded ? '▼' : '▶'}</Text>
+              <Text style={styles.chevron}>{isExpanded ? 'v' : '>'}</Text>
             </TouchableOpacity>
             {isExpanded && (
               <View style={styles.plotsContainer}>{farmPlots.map(renderPlotBadge)}</View>
@@ -118,7 +136,7 @@ export default function FarmPlotList({
       <View style={styles.emptyState}>
         <Text style={styles.emptyStateTitle}>Nenhum resultado encontrado</Text>
         <Text style={styles.emptyStateSubtitle}>
-          Tente buscar por outro nome de fazenda ou talhão
+          Tente buscar por outro nome de fazenda ou talhao
         </Text>
       </View>
     );
@@ -132,7 +150,7 @@ export default function FarmPlotList({
     <View>
       <TextInput
         style={styles.searchInput}
-        placeholder='Buscar fazenda ou talhão...'
+        placeholder='Buscar fazenda ou talhao...'
         value={searchTerm}
         onChangeText={setSearchTerm}
         placeholderTextColor='gray'

@@ -1,18 +1,19 @@
-import TextInputSearch from '@/components/ui/TextInputSearch';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { InfiniteData } from '@tanstack/react-query';
+import debounce from 'lodash/debounce';
+import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Text,
-  View,
-  TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+
+import TextInputSearch from '@/components/ui/TextInputSearch';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
-import { RefObject, useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { InfiniteData } from '@tanstack/react-query';
-import { Farm } from '../types/farm.type';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import debounce from 'lodash/debounce';
+import { Farm } from '@/types/farm.type';
 
 interface TextInputSearchMultipleFarmsProps {
   placeholder?: string;
@@ -20,6 +21,40 @@ interface TextInputSearchMultipleFarmsProps {
   customerId?: string;
   selectedFarmsExternal?: Farm[];
 }
+
+type FarmLike = Partial<Farm> & {
+  id?: unknown;
+  name?: unknown;
+  customer?: {
+    id?: unknown;
+    name?: unknown;
+  } | null;
+  plots?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
+const normalizeFarm = (farm: FarmLike | null | undefined): Farm | null => {
+  if (!farm || typeof farm !== 'object') return null;
+
+  const normalizedId = farm.id == null ? '' : String(farm.id);
+  if (!normalizedId) return null;
+
+  return {
+    id: normalizedId,
+    name: typeof farm.name === 'string' && farm.name.trim() ? farm.name : 'Fazenda sem nome',
+    customer: {
+      id: farm.customer?.id == null || farm.customer?.id === '' ? '-' : String(farm.customer.id),
+      name:
+        typeof farm.customer?.name === 'string' && farm.customer.name.trim()
+          ? farm.customer.name
+          : '-',
+    },
+    plots: Array.isArray(farm.plots) ? farm.plots : [],
+    createdAt: typeof farm.createdAt === 'string' ? farm.createdAt : '',
+    updatedAt: typeof farm.updatedAt === 'string' ? farm.updatedAt : '',
+  };
+};
 
 export default function TextInputSearchMultipleFarms({
   placeholder = 'Buscar fazenda... ',
@@ -42,6 +77,8 @@ export default function TextInputSearchMultipleFarms({
     fetchNextPage,
     isFetchingNextPage,
     isFetching: isFetchingInfinite,
+    isError: isFarmsError,
+    error: farmsError,
   } = useGetAllFarmsInfinite(
     customerId ?? undefined,
     {
@@ -54,12 +91,16 @@ export default function TextInputSearchMultipleFarms({
     { enabled: isFarmsListVisible }
   );
 
-  const queriedFarms = useMemo(() => {
-    return (
-      (infiniteData as unknown as InfiniteData<{ data: Farm[] }>)?.pages?.flatMap(
-        (page) => page.data
-      ) || []
-    );
+  const queriedFarms = useMemo<Farm[]>(() => {
+    const pages = (infiniteData as unknown as InfiniteData<{ data?: unknown }>)?.pages;
+    if (!Array.isArray(pages)) return [];
+
+    return pages.flatMap((page) => {
+      const data = Array.isArray(page?.data) ? page.data : [];
+      return data
+        .map((farm) => normalizeFarm(farm as FarmLike))
+        .filter((farm): farm is Farm => Boolean(farm));
+    });
   }, [infiniteData]);
 
   const listedFarms = useMemo(() => {
@@ -69,9 +110,13 @@ export default function TextInputSearchMultipleFarms({
   }, [selectedFarms, queriedFarms]);
 
   useEffect(() => {
-    if (!selectedFarmsExternal) return;
+    if (!Array.isArray(selectedFarmsExternal)) return;
 
-    const externalSelectedIds = selectedFarmsExternal
+    const normalizedExternal = selectedFarmsExternal
+      .map((farm) => normalizeFarm(farm))
+      .filter((farm): farm is Farm => Boolean(farm));
+
+    const externalSelectedIds = normalizedExternal
       .map((farm) => farm.id)
       .sort()
       .join(',');
@@ -81,7 +126,7 @@ export default function TextInputSearchMultipleFarms({
       .join(',');
 
     if (externalSelectedIds !== internalSelectedIds) {
-      setSelectedFarms(selectedFarmsExternal);
+      setSelectedFarms(normalizedExternal);
     }
   }, [selectedFarmsExternal, selectedFarms]);
 
@@ -304,9 +349,9 @@ export default function TextInputSearchMultipleFarms({
             </View>
           ) : (
             <>
-              {listedFarms.map((farm) => (
+              {listedFarms.map((farm, index) => (
                 <TouchableOpacity
-                  key={farm.id}
+                  key={String(farm?.id ?? farm?.customer?.id ?? index)}
                   style={{
                     backgroundColor: isFarmSelected(farm.id) ? '#e8f5e9' : 'white',
                     flexDirection: 'row',
@@ -328,9 +373,11 @@ export default function TextInputSearchMultipleFarms({
                       }}
                       numberOfLines={1}
                     >
-                      {farm.name}
+                      {farm?.name ?? 'Fazenda sem nome'}
                     </Text>
-                    <Text style={{ color: 'gray', fontSize: 10 }}>{farm.customer.name}</Text>
+                    <Text style={{ color: 'gray', fontSize: 10 }}>
+                      {farm?.customer?.name ?? '-'}
+                    </Text>
                   </View>
                   <MaterialCommunityIcons
                     name={isFarmSelected(farm.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
@@ -339,6 +386,21 @@ export default function TextInputSearchMultipleFarms({
                   />
                 </TouchableOpacity>
               ))}
+
+              {isFarmsError && (
+                <View
+                  style={{
+                    paddingVertical: 10,
+                    alignItems: 'center',
+                    backgroundColor: 'white',
+                    paddingHorizontal: 8,
+                  }}
+                >
+                  <Text style={{ color: '#c62828', fontSize: 12, textAlign: 'center' }}>
+                    {farmsError?.message || 'Nao foi possivel carregar as fazendas.'}
+                  </Text>
+                </View>
+              )}
 
               {isFetchingNextPage && (
                 <View

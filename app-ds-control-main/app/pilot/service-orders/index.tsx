@@ -58,9 +58,9 @@ const orderTypeOptions: { id: string; label: string }[] = [
 ];
 
 const limitOptions: { id: string; label: string }[] = [
-  { id: '5', label: '5 por pÃ¡gina' },
-  { id: '10', label: '10 por pÃ¡gina' },
-  { id: '20', label: '20 por pÃ¡gina' },
+  { id: '5', label: '5 por página' },
+  { id: '10', label: '10 por página' },
+  { id: '20', label: '20 por página' },
 ];
 
 export default function ServiceOrders() {
@@ -112,7 +112,7 @@ export default function ServiceOrders() {
       !!farmId && 'Fazenda',
       !!startDate && 'Data inicial',
       !!endDate && 'Data final',
-      orderBy !== ServiceOrderBy.PLANNED_DATE && 'OrdenaÃ§Ã£o',
+      orderBy !== ServiceOrderBy.PLANNED_DATE && 'Ordenação',
       orderType !== ServiceOrderType.DESC && 'Ordem',
       pageSize !== '5' && 'Limite',
     ].filter(Boolean) as string[];
@@ -170,7 +170,7 @@ export default function ServiceOrders() {
   };
 
   if (error) {
-    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviÃ§o')} />;
+    return <SkeletonError error={error ?? new Error('Erro ao carregar ordens de serviço')} />;
   }
 
   if (isFetchingServiceOrders) {
@@ -520,7 +520,7 @@ export default function ServiceOrders() {
                       marginRight: 10,
                     }}
                   >
-                    #{number} - Ordem de serviÃ§o
+                    #{number} - Ordem de serviço
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -704,8 +704,8 @@ export default function ServiceOrders() {
         onRefresh={handleRefresh}
         ListEmptyComponent={
           <ServiceOrdersEmptyState
-            title='Nenhuma ordem de serviÃ§o encontrada'
-            description='Contate o administrador para solicitar uma ordem de serviÃ§o.'
+            title='Nenhuma ordem de serviço encontrada'
+            description='Contate o administrador para solicitar uma ordem de serviço.'
             iconName='clipboard-list-outline'
             primaryActionLabel='Atualizar'
             onPrimaryAction={handleRefresh}
@@ -729,7 +729,7 @@ export default function ServiceOrders() {
               {/* Pagination Info */}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, color: COLORS.gray }}>
-                  PÃ¡gina {currentPage} de {totalPages} â€¢ {totalCount} ordens
+                  Página {currentPage} de {totalPages} • {totalCount} ordens
                 </Text>
               </View>
 
@@ -825,7 +825,7 @@ const SkeletonError = ({ error }: { error: Error }) => {
         paddingHorizontal: 20,
       }}
     >
-      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviÃ§o</Text>
+      <Text style={{ color: COLORS.black }}>Erro ao carregar ordens de serviço</Text>
       <Text style={{ color: COLORS.red }}>{error.message}</Text>
     </View>
   );

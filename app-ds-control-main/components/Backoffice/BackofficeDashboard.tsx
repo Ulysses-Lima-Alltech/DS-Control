@@ -1,5 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { InfiniteData, useQueries, UseQueryResult } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -54,6 +55,7 @@ type DashboardDateRange = { startDate: string; endDate: string };
 
 type PilotLaunchRow = {
   id: string;
+  serviceOrderId: string;
   date?: string;
   pilotName: string;
   customerName: string;
@@ -301,6 +303,7 @@ function ModeToggle({ label, active, onPress }: ModeToggleProps) {
 }
 
 export default function BackofficeDashboard() {
+  const router = useRouter();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
 
@@ -343,6 +346,14 @@ export default function BackofficeDashboard() {
   const [pilotEntityMode, setPilotEntityMode] = useState<PilotEntityMode>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
   const [customerPeriodMode, setCustomerPeriodMode] = useState<RangeMode>('month');
+
+  const navigateToServiceOrder = (serviceOrderId?: string) => {
+    if (!serviceOrderId) return;
+    router.push({
+      pathname: '/backoffice/service-orders',
+      params: { selectedServiceOrderId: serviceOrderId },
+    });
+  };
 
   useEffect(() => {
     if (isTablet) {
@@ -950,6 +961,7 @@ export default function BackofficeDashboard() {
 
         rows.push({
           id: `${serviceOrder.id}:${pilot.id}`,
+          serviceOrderId: serviceOrder.id,
           date: latestDate,
           pilotName: pilot.name || 'Nao informado',
           customerName,
@@ -1464,7 +1476,11 @@ export default function BackofficeDashboard() {
             </Text>
             <View style={{ marginTop: 10, gap: 8 }}>
               {pilotLaunchRows.map((row) => (
-                <View key={row.id} style={styles.launchRow}>
+                <TouchableOpacity
+                  key={row.id}
+                  style={styles.launchRow}
+                  onPress={() => navigateToServiceOrder(row.serviceOrderId)}
+                >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.launchCustomer} numberOfLines={1}>
                       {row.customerName}
@@ -1499,7 +1515,7 @@ export default function BackofficeDashboard() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </>
@@ -1615,12 +1631,13 @@ export default function BackofficeDashboard() {
               const serviceOrderObservation = serviceOrder.observation?.trim();
 
               return (
-                <View
+                <TouchableOpacity
                   key={serviceOrder.id}
                   style={[
                     styles.serviceOrderCard,
                     { width: shouldUseTwoColumns ? '48.6%' : '100%' },
                   ]}
+                  onPress={() => navigateToServiceOrder(serviceOrder.id)}
                 >
                   <View style={styles.serviceOrderHeader}>
                     <View style={{ flex: 1 }}>
@@ -1672,7 +1689,7 @@ export default function BackofficeDashboard() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

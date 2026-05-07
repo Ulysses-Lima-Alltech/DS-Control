@@ -1,24 +1,59 @@
-import TextInputSearch from '@/components/ui/TextInputSearch';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { InfiniteData } from '@tanstack/react-query';
+import debounce from 'lodash/debounce';
+import { RefObject, useRef, useState } from 'react';
 import {
-  Text,
-  View,
-  TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+
+import TextInputSearch from '@/components/ui/TextInputSearch';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
-import { RefObject, useRef, useState } from 'react';
-import { InfiniteData } from '@tanstack/react-query';
-import { Farm } from '../types/farm.type';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import debounce from 'lodash/debounce';
+import { Farm } from '@/types/farm.type';
 
 interface TextInputSearchFarmsProps {
   placeholder?: string;
   onFarmSelect?: (farmId: string | null) => void;
   customerId?: string;
 }
+
+type FarmLike = Partial<Farm> & {
+  id?: unknown;
+  name?: unknown;
+  customer?: {
+    id?: unknown;
+    name?: unknown;
+  } | null;
+  plots?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
+const normalizeFarm = (farm: FarmLike | null | undefined): Farm | null => {
+  if (!farm || typeof farm !== 'object') return null;
+
+  const normalizedId = farm.id == null ? '' : String(farm.id);
+  if (!normalizedId) return null;
+
+  return {
+    id: normalizedId,
+    name: typeof farm.name === 'string' && farm.name.trim() ? farm.name : 'Fazenda sem nome',
+    customer: {
+      id: farm.customer?.id == null || farm.customer?.id === '' ? '-' : String(farm.customer.id),
+      name:
+        typeof farm.customer?.name === 'string' && farm.customer.name.trim()
+          ? farm.customer.name
+          : '-',
+    },
+    plots: Array.isArray(farm.plots) ? farm.plots : [],
+    createdAt: typeof farm.createdAt === 'string' ? farm.createdAt : '',
+    updatedAt: typeof farm.updatedAt === 'string' ? farm.updatedAt : '',
+  };
+};
 
 export default function TextInputSearchFarms({
   placeholder = 'Buscar fazenda... ',
@@ -29,23 +64,37 @@ export default function TextInputSearchFarms({
   const [isFarmsListVisible, setIsFarmsListVisible] = useState<boolean>(false);
   const inputRef = useRef<TextInput>(null);
 
-  const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isFetching } =
-    useGetAllFarmsInfinite(
-      customerId ?? undefined,
-      {
-        search: searchTerm,
-        includeCustomer: 'true',
-        includePlots: 'true',
-        includeGeoJson: 'false',
-      },
-      { enabled: searchTerm.trim().length > 0 }
-    );
+  const {
+    data,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isFetching,
+    isError: isFarmsError,
+    error: farmsError,
+  } = useGetAllFarmsInfinite(
+    customerId ?? undefined,
+    {
+      search: searchTerm,
+      includeCustomer: 'true',
+      includePlots: 'true',
+      includeGeoJson: 'false',
+    },
+    { enabled: searchTerm.trim().length > 0 }
+  );
 
-  const listedFarms =
-    (data as unknown as InfiniteData<{ data: Farm[] }>)?.pages?.flatMap((page) => page.data) || [];
+  const listedFarms = ((data as unknown as InfiniteData<{ data?: unknown }>)?.pages?.flatMap(
+    (page) => {
+      const farms = Array.isArray(page?.data) ? page.data : [];
+      return farms
+        .map((farm) => normalizeFarm(farm as FarmLike))
+        .filter((farm): farm is Farm => Boolean(farm));
+    }
+  ) || []) as Farm[];
 
-  const onFarmPress = (farmId: string) => {
-    onFarmSelect?.(farmId);
+  const onFarmPress = (farmId: string | null | undefined) => {
+    const normalizedFarmId = farmId == null ? null : String(farmId);
+    onFarmSelect?.(normalizedFarmId);
     setIsFarmsListVisible(false);
   };
 
@@ -130,9 +179,9 @@ export default function TextInputSearchFarms({
             </View>
           ) : (
             <>
-              {listedFarms.map((farm) => (
+              {listedFarms.map((farm, index) => (
                 <TouchableOpacity
-                  key={farm.id}
+                  key={String(farm?.id ?? farm?.customer?.id ?? index)}
                   style={{
                     backgroundColor: 'white',
                     flexDirection: 'row',
@@ -150,11 +199,20 @@ export default function TextInputSearchFarms({
                       fontSize: 14,
                     }}
                   >
-                    {farm.name}
+                    {farm?.name ?? 'Fazenda sem nome'}
                   </Text>
-                  <Text style={{ color: 'gray', fontSize: 10 }}>{farm.customer.name}</Text>
+                  <Text style={{ color: 'gray', fontSize: 10 }}>{farm?.customer?.name ?? '-'}</Text>
                 </TouchableOpacity>
               ))}
+              {isFarmsError && (
+                <View
+                  style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: 'white' }}
+                >
+                  <Text style={{ color: '#c62828', fontSize: 12, textAlign: 'center' }}>
+                    {farmsError?.message || 'Nao foi possivel carregar as fazendas.'}
+                  </Text>
+                </View>
+              )}
               {isFetchingNextPage && (
                 <View
                   style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: 'white' }}

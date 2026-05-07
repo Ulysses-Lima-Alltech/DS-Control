@@ -9,19 +9,55 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
     features: [],
   };
 
-  geoData.forEach((plot) => {
-    const plotFeatureCollection = plot.geoJson as GeoJSON.FeatureCollection;
-    if (plotFeatureCollection.features && Array.isArray(plotFeatureCollection.features)) {
-      const featuresWithPlotId = plotFeatureCollection.features.map((feature) => ({
-        ...feature,
-        properties: {
-          ...feature.properties,
-          plot_id: plot.id,
-          plot_name: plot.name,
-          hectare: plot.hectare,
-        },
-      }));
+  const safePlots = Array.isArray(geoData) ? geoData : [];
+
+  safePlots.forEach((plot) => {
+    const plotGeoJson = plot?.geoJson as any;
+    if (!plotGeoJson || typeof plotGeoJson !== 'object') return;
+
+    const plotId = String(plot?.id ?? '');
+    const plotName = plot?.name ?? 'Talhao sem nome';
+    const plotHectare = Number.isFinite(Number(plot?.hectare)) ? Number(plot.hectare) : 0;
+
+    if (plotGeoJson.type === 'FeatureCollection' && Array.isArray(plotGeoJson.features)) {
+      const featuresWithPlotId = plotGeoJson.features
+        .filter((feature: any) => feature?.geometry)
+        .map((feature: any) => ({
+          ...feature,
+          properties: {
+            ...(feature?.properties ?? {}),
+            plot_id: plotId,
+            plot_name: plotName,
+            hectare: plotHectare,
+          },
+        }));
       formattedPlots.features.push(...featuresWithPlotId);
+      return;
+    }
+
+    if (plotGeoJson.type === 'Feature' && plotGeoJson.geometry) {
+      formattedPlots.features.push({
+        ...plotGeoJson,
+        properties: {
+          ...(plotGeoJson?.properties ?? {}),
+          plot_id: plotId,
+          plot_name: plotName,
+          hectare: plotHectare,
+        },
+      });
+      return;
+    }
+
+    if (plotGeoJson.type && plotGeoJson.coordinates) {
+      formattedPlots.features.push({
+        type: 'Feature',
+        geometry: plotGeoJson,
+        properties: {
+          plot_id: plotId,
+          plot_name: plotName,
+          hectare: plotHectare,
+        },
+      });
     }
   });
 
