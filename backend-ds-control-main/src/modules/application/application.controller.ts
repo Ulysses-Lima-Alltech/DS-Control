@@ -141,7 +141,15 @@ export class ApplicationController {
       const orderBy = request.query.orderBy;
       const orderType = request.query.orderType;
 
-      const result = await this.service.listApplications(page, limit, search, filters, orderBy, orderType);
+      const result = await this.service.listApplications(
+        page,
+        limit,
+        search,
+        filters,
+        orderBy,
+        orderType,
+        request.payload?.userId,
+      );
 
       app.log.info("[ApplicationController] - Successfully listed applications");
       return reply.status(200).send({
@@ -244,6 +252,7 @@ export class ApplicationController {
         request.params.pilotId,
         page,
         limit,
+        request.payload?.userId,
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for pilot");

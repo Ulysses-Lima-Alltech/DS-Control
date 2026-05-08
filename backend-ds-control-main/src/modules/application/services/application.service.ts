@@ -20,6 +20,7 @@ import { FarmRepository } from "@repositories/farms/farm.repository";
 import { PlotRepository } from "@repositories/plots/plot.repository";
 import { ServiceOrderRepository } from "@repositories/service-order/service-order.repository";
 import { UserRepository } from "@repositories/users/user.repository";
+import { UserType } from "@repositories/users/user.types";
 import { CropSeasonRepository } from "@repositories/crop-seasons/crop-season.repository";
 import type { CreateApplicationDTO } from "../dto/create-application.dto";
 import type { ApplicationIssueFilter } from "../dto/get-all-application.dto";
@@ -222,6 +223,61 @@ export class ApplicationService {
     };
   }
 
+  private async getAuthenticatedUserType(requestUserId?: string): Promise<UserType | null> {
+    if (!requestUserId) return null;
+
+    const authenticatedUser = await this.pilotRepository.getUserById(requestUserId);
+    if (!authenticatedUser) {
+      throw new AppError("Usuário autenticado não encontrado", HTTP_STATUS_CODES.UNAUTHORIZED);
+    }
+
+    return authenticatedUser.type;
+  }
+
+  private async applyPilotScopeToFilters<T extends { pilotId?: string }>(
+    requestUserId: string | undefined,
+    filters?: T,
+  ): Promise<T | undefined> {
+    const authenticatedUserType = await this.getAuthenticatedUserType(requestUserId);
+    if (authenticatedUserType !== UserType.PILOT || !requestUserId) {
+      return filters;
+    }
+
+    if (filters?.pilotId && filters.pilotId !== requestUserId) {
+      app.log.warn(
+        "[ApplicationService] - Ignoring external pilotId %s for authenticated pilot %s",
+        filters.pilotId,
+        requestUserId,
+      );
+    }
+
+    if (!filters) {
+      return { pilotId: requestUserId } as T;
+    }
+
+    return {
+      ...filters,
+      pilotId: requestUserId,
+    };
+  }
+
+  private async enforcePilotOwnershipScope(
+    requestUserId: string | undefined,
+    targetPilotId: string,
+  ): Promise<void> {
+    const authenticatedUserType = await this.getAuthenticatedUserType(requestUserId);
+    if (authenticatedUserType !== UserType.PILOT || !requestUserId) {
+      return;
+    }
+
+    if (requestUserId !== targetPilotId) {
+      throw new AppError(
+        "Você não tem permissão para acessar aplicações de outro piloto",
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+  }
+
   private async getOperationalDayCount(filters?: ApplicationStatsQueryString): Promise<number> {
     if (filters?.startDate && filters?.endDate) {
       return diffOperationalDaysInclusive(filters.startDate, filters.endDate);
@@ -320,10 +376,12 @@ export class ApplicationService {
     },
     orderBy?: ApplicationOrderBy,
     orderType?: ApplicationOrderType,
+    requestUserId?: string,
   ): Promise<PaginatedApplicationsListResponse> {
     app.log.info("[ApplicationService] - Listing all applications");
 
-    const resolvedFilters = await this.resolveCropSeasonFilters(filters);
+    const scopedFilters = await this.applyPilotScopeToFilters(requestUserId, filters);
+    const resolvedFilters = await this.resolveCropSeasonFilters(scopedFilters);
 
     const [queryResult, totalCount, summary] = await Promise.all([
       this.applicationRepository.getAllApplications(page, limit, search, resolvedFilters, orderBy, orderType),
@@ -414,8 +472,10 @@ export class ApplicationService {
     pilotId: string,
     page: number,
     limit: number,
+    requestUserId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for pilot %s", pilotId);
+    await this.enforcePilotOwnershipScope(requestUserId, pilotId);
 
     const pilot = await this.pilotRepository.getUserById(pilotId);
 
