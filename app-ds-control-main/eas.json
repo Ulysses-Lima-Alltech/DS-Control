@@ -32,6 +32,10 @@
       "credentialsSource": "remote",
       "channel": "main",
       "environment": "production",
+      "ios": {
+        "image": "latest",
+        "autoIncrement": true
+      },
       "android": {
         "buildType": "app-bundle"
       }
