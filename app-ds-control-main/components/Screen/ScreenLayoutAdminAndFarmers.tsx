@@ -12,7 +12,6 @@ export default function ScreenLayoutAdminAndFarmers() {
   const { isAuthenticated, loading } = useAuth();
   const pathname = usePathname();
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const hiddenTabRoutes = new Set(['profile', 'service-orders', 'configurations']);
 
   if (loading) {
     return (
@@ -30,20 +29,15 @@ export default function ScreenLayoutAdminAndFarmers() {
     <View style={{ flex: 1 }}>
       <Tabs
         initialRouteName='dashboard'
-        screenOptions={({ route }) => {
-          const isHiddenRoute = hiddenTabRoutes.has(route.name);
-
-          return {
-            headerShown: false,
-            tabBarActiveTintColor: '#EAAE07',
-            tabBarInactiveTintColor: '#8E8E93',
-            tabBarStyle: {
-              backgroundColor: '#FFFFFF',
-              borderTopWidth: 1,
-              borderTopColor: '#E5E5EA',
-            },
-            href: isHiddenRoute ? null : undefined,
-          };
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: '#EAAE07',
+          tabBarInactiveTintColor: '#8E8E93',
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E5EA',
+          },
         }}
       >
         <Tabs.Screen

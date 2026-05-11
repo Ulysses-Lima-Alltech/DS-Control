@@ -1,7 +1,6 @@
 'use client';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { AUTH_ACCESS_TOKEN_KEY } from '@/services/api.service';
@@ -21,32 +20,40 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   const refreshUser = useCallback(async () => {
-    const token = await AsyncStorage.getItem(AUTH_ACCESS_TOKEN_KEY);
-
-    if (!token) {
-      setLoading(false);
-      return;
+    if (__DEV__) {
+      console.log('[AuthProvider] bootstrap start');
     }
 
     try {
+      const token = await AsyncStorage.getItem(AUTH_ACCESS_TOKEN_KEY);
+
+      if (!token) {
+        setUser(undefined);
+        return;
+      }
+
       const userData = await getMe();
       setUser(userData);
     } catch (error) {
+      if (__DEV__) {
+        console.log('[AuthProvider] bootstrap error', error);
+      }
       console.error('[Auth Provider] Error fetching user data:', error);
       await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
-
-      router.replace('/auth/login');
+      setUser(undefined);
     } finally {
       setLoading(false);
+      if (__DEV__) {
+        console.log('[AuthProvider] bootstrap done');
+      }
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     refreshUser();
-  }, [refreshUser, router]);
+  }, [refreshUser]);
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, setUser, refreshUser }}>
