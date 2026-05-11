@@ -20,6 +20,7 @@ import MapViewer from '@/components/Map/MapViewer';
 import NavigationMapFullscreen from '@/components/Map/NavigationMapFullscreen';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/providers/auth.provider';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
 import { useGetAllRoutes } from '@/queries/route.query';
@@ -38,6 +39,13 @@ import {
   OperationalRouteDirection,
   resolveOperationalRouteDirection,
 } from '@/utils/routeNavigationGeometry';
+import { isPilotRole } from '@/utils/user-role';
+
+type RoutesAudience = 'backoffice' | 'pilot';
+
+type BackofficeRoutesMapProps = {
+  audience?: RoutesAudience;
+};
 
 type LngLatCoordinate = [number, number];
 
@@ -631,9 +639,12 @@ function DetailsField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function BackofficeRoutesMap() {
+export default function BackofficeRoutesMap({ audience = 'backoffice' }: BackofficeRoutesMapProps) {
   const { width } = useWindowDimensions();
+  const { user } = useAuth();
 
+  const isPilotAudience = audience === 'pilot' || isPilotRole(user?.type);
+  const pilotCustomerId = isPilotAudience ? user?.customerId : undefined;
   const isTablet = width >= 900;
   const shouldUseTwoColumns = width >= 760;
   const mapCardWidth = isTablet ? '64%' : '100%';
@@ -651,7 +662,9 @@ export default function BackofficeRoutesMap() {
   const [orderBy, setOrderBy] = useState<RouteOrderBy>(RouteOrderBy.CREATEDAT);
   const [orderType, setOrderType] = useState<RouteOrderType>(RouteOrderType.DESC);
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(
+    pilotCustomerId || undefined
+  );
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
@@ -676,6 +689,11 @@ export default function BackofficeRoutesMap() {
       setShowFilters(true);
     }
   }, [isTablet]);
+
+  useEffect(() => {
+    if (!isPilotAudience || !pilotCustomerId) return;
+    setSelectedCustomerId(pilotCustomerId);
+  }, [isPilotAudience, pilotCustomerId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1031,6 +1049,8 @@ export default function BackofficeRoutesMap() {
   }, [operationalRouteDirection, selectedRoute?.id, selectedRouteId]);
 
   const handleCustomerSelect = (value?: string) => {
+    if (isPilotAudience && pilotCustomerId) return;
+
     const nextCustomerId = !value || value === 'all' ? undefined : value;
 
     setSelectedCustomerId(nextCustomerId);
@@ -1062,7 +1082,7 @@ export default function BackofficeRoutesMap() {
   const clearFilters = () => {
     setRouteSearch('');
     setDebouncedRouteSearch('');
-    setSelectedCustomerId(undefined);
+    setSelectedCustomerId(pilotCustomerId || undefined);
     setSelectedFarmId(undefined);
     setSelectedRouteId(null);
     setCurrentPage(1);
@@ -1082,13 +1102,22 @@ export default function BackofficeRoutesMap() {
   const activeFilters = useMemo(() => {
     return [
       !!routeSearch.trim() && 'Busca',
-      !!selectedCustomerId && 'Cliente',
+      !!selectedCustomerId && (!isPilotAudience || !pilotCustomerId) && 'Cliente',
       !!selectedFarmId && 'Fazenda',
       orderBy !== RouteOrderBy.CREATEDAT && 'Ordenacao',
       orderType !== RouteOrderType.DESC && 'Direcao',
       limit !== '10' && 'Limite',
     ].filter(Boolean) as string[];
-  }, [routeSearch, selectedCustomerId, selectedFarmId, orderBy, orderType, limit]);
+  }, [
+    routeSearch,
+    selectedCustomerId,
+    selectedFarmId,
+    orderBy,
+    orderType,
+    limit,
+    isPilotAudience,
+    pilotCustomerId,
+  ]);
 
   const selectedRouteCustomerName =
     selectedRoute?.customer?.name || selectedFarm?.customer?.name || 'Cliente nao informado';
@@ -1128,9 +1157,13 @@ export default function BackofficeRoutesMap() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerCard}>
-        <Text style={styles.headerTitle}>Rotas e mapa - Backoffice</Text>
+        <Text style={styles.headerTitle}>
+          {isPilotAudience ? 'Rotas e mapa' : 'Rotas e mapa - Backoffice'}
+        </Text>
         <Text style={styles.headerSubtitle}>
-          Selecione cliente/fazenda, visualize rotas operacionais e use navegação interna.
+          {isPilotAudience
+            ? 'Visualize suas rotas operacionais e use navegacao interna.'
+            : 'Selecione cliente/fazenda, visualize rotas operacionais e use navegacao interna.'}
         </Text>
       </View>
 
@@ -1167,21 +1200,23 @@ export default function BackofficeRoutesMap() {
               </View>
             </View>
 
-            <View style={[styles.filterField, { width: gridItemWidth }]}>
-              <Text style={styles.filterLabel}>Cliente</Text>
-              <SearchableSelectQuery
-                value={selectedCustomerId || 'all'}
-                listedData={customerOptions}
-                onSearchChange={setCustomerSearchTerm}
-                onItemSelect={(value) => handleCustomerSelect(value)}
-                itemKey='name'
-                hasNextPage={hasNextPageCustomers}
-                fetchNextPage={fetchNextPageCustomers}
-                isFetchingNextPage={isFetchingNextPageCustomers}
-                isFetching={isFetchingCustomers}
-                disabled={false}
-              />
-            </View>
+            {(!isPilotAudience || !pilotCustomerId) && (
+              <View style={[styles.filterField, { width: gridItemWidth }]}>
+                <Text style={styles.filterLabel}>Cliente</Text>
+                <SearchableSelectQuery
+                  value={selectedCustomerId || 'all'}
+                  listedData={customerOptions}
+                  onSearchChange={setCustomerSearchTerm}
+                  onItemSelect={(value) => handleCustomerSelect(value)}
+                  itemKey='name'
+                  hasNextPage={hasNextPageCustomers}
+                  fetchNextPage={fetchNextPageCustomers}
+                  isFetchingNextPage={isFetchingNextPageCustomers}
+                  isFetching={isFetchingCustomers}
+                  disabled={false}
+                />
+              </View>
+            )}
 
             <View style={[styles.filterField, { width: gridItemWidth }]}>
               <Text style={styles.filterLabel}>Fazenda</Text>
@@ -1394,7 +1429,9 @@ export default function BackofficeRoutesMap() {
 
       <View style={styles.routesListCard}>
         <View style={styles.routesListHeader}>
-          <Text style={styles.routesListTitle}>Rotas backoffice</Text>
+          <Text style={styles.routesListTitle}>
+            {isPilotAudience ? 'Minhas rotas' : 'Rotas backoffice'}
+          </Text>
           <Text style={styles.routesListCount}>{totalCount.toLocaleString('pt-BR')} rotas</Text>
         </View>
         <Text style={styles.routesListSubtitle}>

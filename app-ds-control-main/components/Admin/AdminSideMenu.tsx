@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
+import { getSideMenuItemsByUserType, type SideMenuItem } from '@/constants/navigation-items';
 import { useLogout } from '@/mutations/auth.mutation';
 import { useAuth } from '@/providers/auth.provider';
-import { getUserTypeLabel as getNormalizedUserTypeLabel, isAdminRole } from '@/utils/user-role';
+import { getUserTypeLabel as getNormalizedUserTypeLabel } from '@/utils/user-role';
 
 type AdminSideMenuProps = {
   visible: boolean;
@@ -23,73 +24,16 @@ type AdminSideMenuProps = {
   pathname?: string;
 };
 
-type AdminMenuItem = {
-  id: string;
-  title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  route?: string;
-  enabled: boolean;
-};
-
-const menuItems: AdminMenuItem[] = [
-  {
-    id: 'dashboard',
-    title: 'Painel',
-    icon: 'grid-outline',
-    route: '/backoffice/dashboard',
-    enabled: true,
-  },
-  { id: 'map', title: 'Fazendas', icon: 'map-outline', route: '/backoffice/map', enabled: true },
-  {
-    id: 'applications',
-    title: 'Aplicações',
-    icon: 'flask-outline',
-    route: '/backoffice/applications',
-    enabled: true,
-  },
-  {
-    id: 'service-orders',
-    title: 'Ordens de Serviço',
-    icon: 'document-text-outline',
-    route: '/backoffice/service-orders',
-    enabled: true,
-  },
-  {
-    id: 'routes',
-    title: 'Rotas',
-    icon: 'navigate-outline',
-    route: '/backoffice/routes',
-    enabled: true,
-  },
-  {
-    id: 'configurations',
-    title: 'Configurações',
-    icon: 'settings-outline',
-    route: '/backoffice/configurations',
-    enabled: true,
-  },
-  {
-    id: 'profile',
-    title: 'Perfil',
-    icon: 'person-outline',
-    route: '/backoffice/profile',
-    enabled: true,
-  },
-];
-
 const getUserTypeLabel = (userType?: string) => {
-  if (!userType) return 'Usuário';
-
-  const typedEntries = [{ value: userType, label: getNormalizedUserTypeLabel(userType) }];
-  const found = typedEntries.find((entry) => entry.value === userType);
-  return found?.label ?? 'Usuário';
+  if (!userType) return 'Usuario';
+  return getNormalizedUserTypeLabel(userType);
 };
 
 export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideMenuProps) {
   const router = useRouter();
   const { user, refreshUser, setUser } = useAuth();
   const slideAnimation = useRef(new Animated.Value(0)).current;
-  const isAdminUser = isAdminRole(user?.type);
+  const menuItems = useMemo(() => getSideMenuItemsByUserType(user?.type), [user?.type]);
 
   const { mutate: logout, isPending: isLoggingOut } = useLogout({
     onError: async () => {
@@ -120,13 +64,9 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
     }).start();
   }, [slideAnimation, visible]);
 
-  const handleNavigate = (item: AdminMenuItem) => {
+  const handleNavigate = (item: SideMenuItem) => {
     if (!item.enabled) {
-      Alert.alert('Em breve', `O módulo "${item.title}" ainda não está disponível no mobile.`);
-      return;
-    }
-
-    if (!item.route) {
+      Alert.alert('Em breve', `O modulo "${item.title}" ainda nao esta disponivel no mobile.`);
       return;
     }
 
@@ -171,7 +111,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.black }}>DS Control</Text>
             <Text style={{ fontSize: 13, color: COLORS.gray, marginTop: 4 }}>
-              {user?.name || 'Usuário'}
+              {user?.name || 'Usuario'}
             </Text>
             <Text style={{ fontSize: 12, color: COLORS.blue, marginTop: 2 }}>
               {getUserTypeLabel(user?.type)}
@@ -183,54 +123,52 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
             contentContainerStyle={{ gap: 8, paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
           >
-            {menuItems
-              .filter((item) => item.id !== 'configurations' || isAdminUser)
-              .map((item) => {
-                const isActive = !!item.route && activeRoute.startsWith(item.route);
-                const isDisabled = !item.enabled;
+            {menuItems.map((item) => {
+              const isActive = activeRoute.startsWith(item.route);
+              const isDisabled = !item.enabled;
 
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => handleNavigate(item)}
-                    disabled={isDisabled}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                      borderRadius: 10,
-                      paddingVertical: 12,
-                      paddingHorizontal: 10,
-                      backgroundColor: isActive ? COLORS.lightblue : COLORS.white,
-                      borderWidth: 1,
-                      borderColor: isActive ? COLORS.blue : COLORS.lightgray,
-                      opacity: isDisabled ? 0.6 : 1,
-                    }}
-                  >
-                    <Ionicons
-                      name={item.icon}
-                      size={18}
-                      color={isDisabled ? COLORS.gray : isActive ? COLORS.blue : COLORS.black}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: isActive ? '700' : '600',
-                          color: isDisabled ? COLORS.gray : COLORS.black,
-                        }}
-                      >
-                        {item.title}
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => handleNavigate(item)}
+                  disabled={isDisabled}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                    borderRadius: 10,
+                    paddingVertical: 12,
+                    paddingHorizontal: 10,
+                    backgroundColor: isActive ? COLORS.lightblue : COLORS.white,
+                    borderWidth: 1,
+                    borderColor: isActive ? COLORS.blue : COLORS.lightgray,
+                    opacity: isDisabled ? 0.6 : 1,
+                  }}
+                >
+                  <Ionicons
+                    name={item.icon}
+                    size={18}
+                    color={isDisabled ? COLORS.gray : isActive ? COLORS.blue : COLORS.black}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: isActive ? '700' : '600',
+                        color: isDisabled ? COLORS.gray : COLORS.black,
+                      }}
+                    >
+                      {item.title}
+                    </Text>
+                    {!item.enabled && (
+                      <Text style={{ fontSize: 11, color: COLORS.gray, marginTop: 2 }}>
+                        Em breve
                       </Text>
-                      {!item.enabled && (
-                        <Text style={{ fontSize: 11, color: COLORS.gray, marginTop: 2 }}>
-                          Em breve
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           <TouchableOpacity

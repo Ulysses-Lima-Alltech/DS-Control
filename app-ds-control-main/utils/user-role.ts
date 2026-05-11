@@ -16,7 +16,7 @@ export const isFarmerRole = (userType?: string | null) => normalizeUserType(user
 export const isPilotRole = (userType?: string | null) => normalizeUserType(userType) === 'pilot';
 
 export const getDefaultRouteByUserType = (userType?: string | null) => {
-  if (isPilotRole(userType)) return '/pilot/map';
+  if (isPilotRole(userType)) return '/pilot/routes';
   if (isFarmerRole(userType)) return '/farmer/map';
   if (isAdministrativeRole(userType)) return '/backoffice/dashboard';
 

@@ -1,9 +1,10 @@
-import { Foundation, Ionicons, FontAwesome6 } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import { useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from '@expo/vector-icons';
+import { Tabs, usePathname } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 
 import LoginScreen from '@/app/auth/login';
+import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import { COLORS } from '@/constants/colors';
 import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
@@ -13,6 +14,8 @@ import { isPilotRole } from '@/utils/user-role';
 
 export default function RootLayout() {
   const { isAuthenticated, loading, user } = useAuth();
+  const pathname = usePathname();
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
   const { isConnected } = useNetworkConnectivity();
   const { syncOfflineApplications, downloadOfflineData, pendingCount, isSyncing } =
     useOfflineSync();
@@ -20,10 +23,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (isConnected && isPilotRole(user?.type)) {
       syncOfflineApplications();
-
       downloadOfflineData();
     }
-  }, [isConnected, user]);
+  }, [isConnected, user, syncOfflineApplications, downloadOfflineData]);
 
   if (loading) {
     return (
@@ -44,78 +46,103 @@ export default function RootLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#EAAE07',
-        tabBarInactiveTintColor: '#8E8E93',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E5EA',
-        },
-      }}
-    >
-      <Tabs.Screen
-        name='map'
-        options={{
-          title: 'Mapa',
-          tabBarIcon: ({ color, size }) => <Foundation name='map' size={size} color={color} />,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        initialRouteName='routes'
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: '#EAAE07',
+          tabBarInactiveTintColor: '#8E8E93',
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E5EA',
+          },
         }}
-      />
-      <Tabs.Screen
-        name='service-orders'
-        options={{
-          title: 'Ordens de Serviço',
-          tabBarIcon: ({ color, size }) => (
-            <Foundation name='clipboard-notes' size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name='applications'
-        options={{
-          title: 'Aplicações',
-          tabBarIcon: ({ color, size }) => (
-            <View style={{ position: 'relative' }}>
-              <FontAwesome6 name='droplet' size={size} color={color} />
-              {pendingCount > 0 && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    right: -6,
-                    top: -3,
-                    backgroundColor: getBadgeColor(),
-                    borderRadius: 10,
-                    minWidth: 16,
-                    height: 16,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingHorizontal: 4,
-                  }}
-                >
-                  <Text
+      >
+        <Tabs.Screen
+          name='map'
+          options={{
+            title: 'Menu',
+            tabBarIcon: ({ color, size }) => <Ionicons name='menu' size={size} color={color} />,
+            tabBarButton: ({ children, style, accessibilityLabel, accessibilityState, testID }) => (
+              <TouchableOpacity
+                accessibilityLabel={accessibilityLabel}
+                accessibilityState={accessibilityState}
+                testID={testID}
+                style={style}
+                onPress={() => {
+                  setIsMenuVisible(true);
+                }}
+              >
+                {children}
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name='routes'
+          options={{
+            title: 'Rotas',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons name='map-marker-path' size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name='service-orders'
+          options={{
+            title: 'Ordens de Servico',
+            tabBarLabel: 'OS',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons name='clipboard-list-outline' size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name='applications'
+          options={{
+            title: 'Aplicacoes',
+            tabBarIcon: ({ color, size }) => (
+              <View style={{ position: 'relative' }}>
+                <FontAwesome6 name='droplet' size={size} color={color} />
+                {pendingCount > 0 && (
+                  <View
                     style={{
-                      color: '#FFFFFF',
-                      fontSize: 10,
-                      fontWeight: 'bold',
+                      position: 'absolute',
+                      right: -6,
+                      top: -3,
+                      backgroundColor: getBadgeColor(),
+                      borderRadius: 10,
+                      minWidth: 16,
+                      height: 16,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingHorizontal: 4,
                     }}
                   >
-                    {pendingCount}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ),
-        }}
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {pendingCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ),
+          }}
+        />
+        <Tabs.Screen name='profile' options={{ href: null }} />
+      </Tabs>
+      <AdminSideMenu
+        visible={isMenuVisible}
+        onClose={() => setIsMenuVisible(false)}
+        pathname={pathname}
       />
-      <Tabs.Screen
-        name='profile'
-        options={{
-          title: 'Perfil',
-          tabBarIcon: ({ color, size }) => <Ionicons name='person' size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+    </View>
   );
 }

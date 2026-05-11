@@ -34,10 +34,10 @@ const LOGIN_ROUTES = ['/auth', '/auth/login'];
 export const AuthGuard = ({ children }: AuthGuardProps) => {
   const { isAuthenticated, loading, user } = useAuth();
   const router = useRouter();
-  const path = '/' + usePathname().split('/')[1];
+  const pathname = usePathname();
+  const path = '/' + pathname.split('/')[1];
   const { isConnected, isLoading: isLoadingConnectivity } = useNetworkConnectivity();
   const [hasOfflineData, setHasOfflineData] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
@@ -57,66 +57,69 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
 
     const isPrivateRoute = PRIVATE_ROUTES.includes(path);
     const isLoginRoute = LOGIN_ROUTES.includes(path);
+    const isAuthRoute = pathname.startsWith('/auth');
+
+    const replaceIfNeeded = (targetPath: string) => {
+      if (!targetPath || pathname === targetPath) return false;
+      router.replace(targetPath as any);
+      return true;
+    };
 
     if (loading || isLoadingConnectivity) {
       return;
     }
 
-    setIsRedirecting(false);
-
     if (path === '/') {
       if (__DEV__) {
         console.log('[AuthGuard] redirect login');
       }
-      setIsRedirecting(true);
-      router.replace('/auth/login');
+      const targetPath = isAuthenticated ? getDefaultRouteByUserType(user?.type) : '/auth/login';
+      replaceIfNeeded(targetPath);
       return;
     }
 
     // If pilot is offline but has cached data, redirect to offline mode
-    if (isPilotRole(user?.type) && isConnected === false && hasOfflineData && path !== '/pilot') {
-      router.replace('/pilot/applications/offline');
-      setIsRedirecting(true);
+    if (
+      isPilotRole(user?.type) &&
+      isConnected === false &&
+      hasOfflineData &&
+      pathname !== '/pilot/applications/offline'
+    ) {
+      replaceIfNeeded('/pilot/applications/offline');
       return;
     }
 
-    if (!isAuthenticated && isPrivateRoute) {
+    if (!isAuthenticated && isPrivateRoute && !isAuthRoute) {
       if (__DEV__) {
         console.log('[AuthGuard] redirect login');
       }
-      setIsRedirecting(true);
-      router.replace('/auth/login');
+      replaceIfNeeded('/auth/login');
       return;
     }
 
-    if (isAuthenticated && isLoginRoute) {
-      setIsRedirecting(true);
-      router.replace(getDefaultRouteByUserType(user?.type) as any);
+    if (isAuthenticated && (isLoginRoute || isAuthRoute)) {
+      replaceIfNeeded(getDefaultRouteByUserType(user?.type));
       return;
     }
 
     if (isAuthenticated && !isLoginRoute) {
       if (isAdministrativeRole(user?.type) && (path === '/farmer' || path === '/pilot')) {
-        setIsRedirecting(true);
-        router.replace('/backoffice/dashboard');
+        replaceIfNeeded('/backoffice/dashboard');
         return;
       }
 
       if (isFarmerRole(user?.type) && (path === '/backoffice' || path === '/pilot')) {
-        setIsRedirecting(true);
-        router.replace('/farmer/map');
+        replaceIfNeeded('/farmer/map');
         return;
       }
 
       if (isPilotRole(user?.type) && (path === '/backoffice' || path === '/farmer')) {
-        setIsRedirecting(true);
-        router.replace('/pilot/map');
+        replaceIfNeeded('/pilot/routes');
         return;
       }
 
       if (getDefaultRouteByUserType(user?.type) === '/auth/login' && isPrivateRoute) {
-        setIsRedirecting(true);
-        router.replace('/auth/login');
+        replaceIfNeeded('/auth/login');
         return;
       }
     }
@@ -129,6 +132,7 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     loading,
     router,
     path,
+    pathname,
     user,
     isConnected,
     isLoadingConnectivity,
@@ -164,7 +168,7 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     };
   }, []);
 
-  if (loading || isLoadingConnectivity || loadingRoute || isRedirecting) {
+  if (loading || isLoadingConnectivity || loadingRoute) {
     if (__DEV__) {
       console.log('[AuthGuard] loading');
     }

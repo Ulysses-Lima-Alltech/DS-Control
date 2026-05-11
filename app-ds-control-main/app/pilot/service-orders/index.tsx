@@ -16,6 +16,7 @@ import Separator from '@/components/ui/Separator';
 import Skeleton from '@/components/ui/Skeleton';
 import TextInputSearch from '@/components/ui/TextInputSearch';
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import { useGetAllMyOpenServiceOrders } from '@/queries/service-order.query';
 import { Farm } from '@/types/farm.type';
@@ -65,6 +66,7 @@ const limitOptions: { id: string; label: string }[] = [
 
 export default function ServiceOrders() {
   const router = useRouter();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,6 +140,7 @@ export default function ServiceOrders() {
   } = useGetAllMyOpenServiceOrders({
     search: search || undefined,
     status: 'open',
+    pilotId: user?.id,
     farmId,
     startDate,
     endDate,
