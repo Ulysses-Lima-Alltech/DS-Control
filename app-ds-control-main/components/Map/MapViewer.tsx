@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import MapContent from '@/components/Map/MapContent';
@@ -62,6 +62,7 @@ export default function MapViewer({
     useState<GeoJSON.FeatureCollection | null>(null);
   const [isPlotModalVisible, setIsPlotModalVisible] = useState(false);
   const [selectedPlotIdForModal, setSelectedPlotIdForModal] = useState<string | null>(null);
+  const lastCameraMoveSignatureRef = useRef<string>('');
 
   const geoData = useMemo(() => {
     return convertDatabasePlotsToMapViewerPlotsFeatureCollection(plots);
@@ -100,8 +101,16 @@ export default function MapViewer({
   }
 
   useEffect(() => {
+    const plotsSignature = plots.map((plot) => plot.id).join(',');
+    const nextSignature = `${selectedFarmId ?? ''}|${plotsSignature}`;
+
+    if (lastCameraMoveSignatureRef.current === nextSignature) {
+      return;
+    }
+
+    lastCameraMoveSignatureRef.current = nextSignature;
     handleMoveCameraToGeodataBbox();
-  }, [plots]);
+  }, [plots, selectedFarmId]);
 
   useEffect(() => {
     if (isNavigationMode) {

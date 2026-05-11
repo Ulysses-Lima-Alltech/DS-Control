@@ -215,7 +215,7 @@ export default function ScreenMapViewerWithSearch({
 
   useEffect(() => {
     if (allRoutes.length === 0) {
-      setSelectedRouteId(null);
+      setSelectedRouteId((previousRouteId) => (previousRouteId === null ? previousRouteId : null));
       return;
     }
 
@@ -243,9 +243,9 @@ export default function ScreenMapViewerWithSearch({
   }, [selectedRoute]);
 
   useEffect(() => {
-    setNavigationRoute(null);
-    setNavigationRouteError(null);
-    setIsNavigationMode(false);
+    setNavigationRoute((previousRoute) => (previousRoute ? null : previousRoute));
+    setNavigationRouteError((previousError) => (previousError ? null : previousError));
+    setIsNavigationMode((previousValue) => (previousValue ? false : previousValue));
   }, [selectedFarmId, selectedRoute?.id]);
 
   const handleStartNavigationToRoute = async () => {

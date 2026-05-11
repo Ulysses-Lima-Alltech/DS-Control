@@ -32,17 +32,28 @@ export default function FarmPlotList({
   const safePlots = useMemo(() => (Array.isArray(plots) ? plots : []), [plots]);
 
   useEffect(() => {
-    if (defaultExpanded) {
-      setExpandedFarms(
-        new Set(
+    const nextExpandedFarmIds = defaultExpanded
+      ? new Set(
           safeFarms
             .map((farm) => (farm?.id == null ? '' : String(farm.id)))
             .filter((farmId) => Boolean(farmId))
         )
-      );
-    } else {
-      setExpandedFarms(new Set());
-    }
+      : new Set<string>();
+
+    setExpandedFarms((previousExpandedFarmIds) => {
+      if (previousExpandedFarmIds.size === nextExpandedFarmIds.size) {
+        let isSame = true;
+        for (const farmId of previousExpandedFarmIds) {
+          if (!nextExpandedFarmIds.has(farmId)) {
+            isSame = false;
+            break;
+          }
+        }
+        if (isSame) return previousExpandedFarmIds;
+      }
+
+      return nextExpandedFarmIds;
+    });
   }, [safeFarms, defaultExpanded]);
 
   const { filteredFarms, filteredPlots } = useMemo(() => {

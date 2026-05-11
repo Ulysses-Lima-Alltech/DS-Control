@@ -342,6 +342,7 @@ export default function BackofficeDashboard() {
   const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
   const [droneSearchTerm, setDroneSearchTerm] = useState('');
   const cropSeasonDefaultAppliedRef = useRef(false);
+  const lastLoggedCardRangeFiltersRef = useRef<string | null>(null);
 
   const [pilotEntityMode, setPilotEntityMode] = useState<PilotEntityMode>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
@@ -525,7 +526,7 @@ export default function BackofficeDashboard() {
     [panelBaseFilters]
   );
 
-  const cardRangeFilters = buildPanelStatsFilters();
+  const cardRangeFilters = useMemo(() => buildPanelStatsFilters(), [buildPanelStatsFilters]);
   const currentMonthCardRange = manualDateRange ?? {
     startDate: currentMonthStartDate,
     endDate: todayDate,
@@ -535,9 +536,9 @@ export default function BackofficeDashboard() {
     endDate: yesterdayDate,
   };
 
-  useEffect(() => {
-    if (__DEV__) {
-      console.warn('[BackofficeDashboard][DEV] dashboard filters applied', {
+  const cardRangeFiltersSnapshot = useMemo(
+    () =>
+      JSON.stringify({
         startDate: cardRangeFilters.startDate,
         endDate: cardRangeFilters.endDate,
         cropSeasonId: cardRangeFilters.cropSeasonId,
@@ -550,9 +551,17 @@ export default function BackofficeDashboard() {
         droneId: cardRangeFilters.droneId,
         serviceOrderStatus: cardRangeFilters.serviceOrderStatus,
         applicationIssue: cardRangeFilters.applicationIssue,
-      });
-    }
-  }, [cardRangeFilters]);
+      }),
+    [cardRangeFilters]
+  );
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    if (lastLoggedCardRangeFiltersRef.current === cardRangeFiltersSnapshot) return;
+
+    lastLoggedCardRangeFiltersRef.current = cardRangeFiltersSnapshot;
+    console.warn('[BackofficeDashboard][DEV] dashboard filters applied', cardRangeFilters);
+  }, [cardRangeFilters, cardRangeFiltersSnapshot]);
 
   const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
     useGetStatsApplications(cardRangeFilters);

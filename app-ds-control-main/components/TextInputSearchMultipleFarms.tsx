@@ -116,19 +116,19 @@ export default function TextInputSearchMultipleFarms({
       .map((farm) => normalizeFarm(farm))
       .filter((farm): farm is Farm => Boolean(farm));
 
-    const externalSelectedIds = normalizedExternal
-      .map((farm) => farm.id)
-      .sort()
-      .join(',');
-    const internalSelectedIds = selectedFarms
-      .map((farm) => farm.id)
-      .sort()
-      .join(',');
+    setSelectedFarms((previousSelectedFarms) => {
+      const previousIds = previousSelectedFarms
+        .map((farm) => farm.id)
+        .sort()
+        .join(',');
+      const nextIds = normalizedExternal
+        .map((farm) => farm.id)
+        .sort()
+        .join(',');
 
-    if (externalSelectedIds !== internalSelectedIds) {
-      setSelectedFarms(normalizedExternal);
-    }
-  }, [selectedFarmsExternal, selectedFarms]);
+      return previousIds === nextIds ? previousSelectedFarms : normalizedExternal;
+    });
+  }, [selectedFarmsExternal]);
 
   const isFarmSelected = useCallback(
     (farmId: string) => {
@@ -177,6 +177,9 @@ export default function TextInputSearchMultipleFarms({
       setSelectedFarms((prev) => {
         const existingIds = new Set(prev.map((f) => f.id));
         const newFarms = queriedFarms.filter((farm) => !existingIds.has(farm.id));
+        if (newFarms.length === 0) {
+          return prev;
+        }
         return [...prev, ...newFarms];
       });
     }

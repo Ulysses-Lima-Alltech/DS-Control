@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+﻿import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname } from 'expo-router';
 import { useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
@@ -12,6 +12,7 @@ export default function ScreenLayoutAdminAndFarmers() {
   const { isAuthenticated, loading } = useAuth();
   const pathname = usePathname();
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const hiddenTabRoutes = new Set(['profile', 'service-orders', 'configurations']);
 
   if (loading) {
     return (
@@ -29,15 +30,20 @@ export default function ScreenLayoutAdminAndFarmers() {
     <View style={{ flex: 1 }}>
       <Tabs
         initialRouteName='dashboard'
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: '#EAAE07',
-          tabBarInactiveTintColor: '#8E8E93',
-          tabBarStyle: {
-            backgroundColor: '#FFFFFF',
-            borderTopWidth: 1,
-            borderTopColor: '#E5E5EA',
-          },
+        screenOptions={({ route }) => {
+          const isHiddenRoute = hiddenTabRoutes.has(route.name);
+
+          return {
+            headerShown: false,
+            tabBarActiveTintColor: '#EAAE07',
+            tabBarInactiveTintColor: '#8E8E93',
+            tabBarStyle: {
+              backgroundColor: '#FFFFFF',
+              borderTopWidth: 1,
+              borderTopColor: '#E5E5EA',
+            },
+            href: isHiddenRoute ? null : undefined,
+          };
         }}
       >
         <Tabs.Screen
@@ -89,6 +95,7 @@ export default function ScreenLayoutAdminAndFarmers() {
         />
         <Tabs.Screen name='profile' options={{ href: null }} />
         <Tabs.Screen name='service-orders' options={{ href: null }} />
+        <Tabs.Screen name='configurations' options={{ href: null }} />
       </Tabs>
       <AdminSideMenu
         visible={isMenuVisible}
@@ -98,3 +105,4 @@ export default function ScreenLayoutAdminAndFarmers() {
     </View>
   );
 }
+
