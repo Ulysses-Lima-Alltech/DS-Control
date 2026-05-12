@@ -953,16 +953,16 @@ export const TableApplications = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant='destructive'
+              variant='outline'
               size='icon'
-              className='h-8 w-8'
+              className='h-8 w-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700'
               onClick={() => handleDeleteClick(application)}
               disabled={isDeletingApplication}
             >
               <Trash className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Deletar aplicação</TooltipContent>
+          <TooltipContent>Excluir aplicação</TooltipContent>
         </Tooltip>
       </>
     )),

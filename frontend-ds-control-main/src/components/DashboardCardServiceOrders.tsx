@@ -1,7 +1,8 @@
 'use client';
 
-import { ArrowRight, CheckCircle, Clock, FileText, User, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle, Clock, FileText, Map, Sprout, User, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,6 @@ export const DashboardCardServiceOrders = ({
   showButton = true,
   stats,
   isLoadingStats,
-  isErrorOnStats,
 }: DashboardCardServiceOrdersProps) => {
   const router = useRouter();
 
@@ -32,166 +32,77 @@ export const DashboardCardServiceOrders = ({
     return <ServiceOrdersPageSkeleton />;
   }
 
-  if (isErrorOnStats || !stats) {
-    return (
-      <Card>
-        <CardHeader className='pb-3'>
-          <CardTitle className='flex items-center gap-2'>
-            <FileText className='w-5 h-5 text-red-500' />
-            Ordens de Serviço
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-4'>
-            <div className='text-sm text-muted-foreground'>Erro ao carregar dados</div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const openOrdersCount = stats?.openOrdersCount ?? 0;
+  const completedOrdersCount = stats?.completedOrdersCount ?? 0;
+  const cancelledOrdersCount = stats?.cancelledOrdersCount ?? 0;
+  const totalOrders = openOrdersCount + completedOrdersCount + cancelledOrdersCount;
+
+  const openOrdersAreaHectares = stats?.openOrdersAreaHectares ?? 0;
+  const completedOrdersAreaHectares = stats?.completedOrdersAreaHectares ?? 0;
+  const cancelledOrdersAreaHectares = stats?.cancelledOrdersAreaHectares ?? 0;
+
+  const totalAreaHectares =
+    stats?.totalAreaHectares ??
+    openOrdersAreaHectares + completedOrdersAreaHectares + cancelledOrdersAreaHectares;
+
+  const totalAppliedHectares =
+    (stats?.openOrdersAppliedHectares ?? 0) +
+    (stats?.completedOrdersAppliedHectares ?? 0) +
+    (stats?.cancelledOrdersAppliedHectares ?? 0);
+
+  const pilotsWithOpenOrders = stats?.pilotsWithOpenOrders ?? 0;
+
+  const formatCount = (value: number) => value.toLocaleString('pt-BR');
+  const formatHectare = (value: number) =>
+    `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
 
   return (
     <Card className='w-full max-w-none min-w-0 border-border/70 shadow-sm bg-card/95'>
       <CardHeader className='pb-3'>
         <CardTitle className='flex items-center gap-2 min-w-0'>
           <FileText className='w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0' />
-          <span className='truncate'>Ordens de Serviço</span>
+          <span className='truncate'>Ordens de Servico</span>
         </CardTitle>
 
-        <CardDescription className='truncate'>Visão geral das ordens de serviço</CardDescription>
+        <CardDescription className='truncate'>Visao geral das ordens de servico</CardDescription>
       </CardHeader>
-      <CardContent className='flex flex-col h-full'>
-        <div className='flex-1 space-y-5'>
-          <div className='flex items-center justify-between gap-2 min-w-0 pb-4 border-b border-border/70'>
-            <span className='text-sm font-medium text-muted-foreground'>
-              Total de Ordens
-            </span>
-            <span className='text-3xl font-semibold text-foreground flex-shrink-0'>
-              {(
-                stats?.openOrdersCount +
-                stats?.completedOrdersCount +
-                stats?.cancelledOrdersCount
-              ).toString()}
-            </span>
-          </div>
-
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-            <div className='rounded-lg p-3.5 border border-blue-200/80 dark:border-blue-900/70 bg-blue-50/70 dark:bg-blue-950/20'>
-              <div className='flex items-center justify-between mb-2 gap-2 min-w-0'>
-                <div className='flex items-center gap-2 min-w-0'>
-                  <div className='p-1.5 rounded-md bg-blue-100/90 dark:bg-blue-900/60 flex-shrink-0'>
-                    <Clock className='w-3.5 h-3.5 text-blue-600 dark:text-blue-400' />
-                  </div>
-                  <span className='text-sm font-semibold text-foreground truncate'>Abertas</span>
-                </div>
-                <span className='text-lg font-bold text-blue-600 dark:text-blue-400 flex-shrink-0'>
-                  {stats.openOrdersCount}
-                </span>
-              </div>
-              <div className='space-y-1 pl-8 pt-1'>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Total</span>
-                  <span className='text-xs font-medium text-blue-700 dark:text-blue-300 flex-shrink-0'>
-                    {(stats.openOrdersAreaHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Aplicada</span>
-                  <span className='text-xs font-medium text-blue-600 dark:text-blue-400 flex-shrink-0'>
-                    {(stats.openOrdersAppliedHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className='rounded-lg p-3.5 border border-green-200/80 dark:border-green-900/70 bg-green-50/70 dark:bg-green-950/20'>
-              <div className='flex items-center justify-between mb-2 gap-2 min-w-0'>
-                <div className='flex items-center gap-2 min-w-0'>
-                  <div className='p-1.5 rounded-md bg-green-100/90 dark:bg-green-900/60 flex-shrink-0'>
-                    <CheckCircle className='w-3.5 h-3.5 text-green-600 dark:text-green-400' />
-                  </div>
-                  <span className='text-sm font-semibold text-foreground truncate'>Concluídas</span>
-                </div>
-                <span className='text-lg font-bold text-green-600 dark:text-green-400 flex-shrink-0'>
-                  {stats.completedOrdersCount}
-                </span>
-              </div>
-              <div className='space-y-1 pl-8 pt-1'>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Total</span>
-                  <span className='text-xs font-medium text-green-700 dark:text-green-300 flex-shrink-0'>
-                    {(stats.completedOrdersAreaHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Aplicada</span>
-                  <span className='text-xs font-medium text-green-600 dark:text-green-400 flex-shrink-0'>
-                    {(stats.completedOrdersAppliedHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className='rounded-lg p-3.5 border border-red-200/80 dark:border-red-900/70 bg-red-50/70 dark:bg-red-950/20'>
-              <div className='flex items-center justify-between mb-2 gap-2 min-w-0'>
-                <div className='flex items-center gap-2 min-w-0'>
-                  <div className='p-1.5 rounded-md bg-red-100/90 dark:bg-red-900/60 flex-shrink-0'>
-                    <XCircle className='w-3.5 h-3.5 text-red-600 dark:text-red-400' />
-                  </div>
-                  <span className='text-sm font-semibold text-foreground truncate'>Canceladas</span>
-                </div>
-                <span className='text-lg font-bold text-red-600 dark:text-red-400 flex-shrink-0'>
-                  {stats.cancelledOrdersCount}
-                </span>
-              </div>
-              <div className='space-y-1 pl-8 pt-1'>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Total</span>
-                  <span className='text-xs font-medium text-red-700 dark:text-red-300 flex-shrink-0'>
-                    {(stats.cancelledOrdersAreaHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-                <div className='flex items-center justify-between gap-2 min-w-0'>
-                  <span className='text-xs text-muted-foreground truncate'>Área Aplicada</span>
-                  <span className='text-xs font-medium text-red-600 dark:text-red-400 flex-shrink-0'>
-                    {(stats.cancelledOrdersAppliedHectares || 0).toLocaleString('pt-BR', {
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ha
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className='md:col-span-3 pt-2 border-t border-border/70'>
-              <div className='flex items-center justify-between gap-2 min-w-0'>
-                <div className='flex items-center gap-2 min-w-0'>
-                  <User className='w-4 h-4 text-amber-500 flex-shrink-0' />
-                  <span className='text-xs font-medium text-muted-foreground truncate'>
-                    Pilotos com Ordens Abertas
-                  </span>
-                </div>
-                <span className='text-sm font-semibold text-amber-600 dark:text-amber-400 flex-shrink-0'>
-                  {stats.pilotsWithOpenOrders}
-                </span>
-              </div>
-            </div>
-          </div>
+      <CardContent className='flex flex-col h-full pt-0'>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7'>
+          <SummaryItem
+            icon={<FileText className='h-4 w-4 text-blue-600 dark:text-blue-400' />}
+            label='Total de Ordens'
+            value={formatCount(totalOrders)}
+          />
+          <SummaryItem
+            icon={<Clock className='h-4 w-4 text-sky-600 dark:text-sky-400' />}
+            label='Abertas'
+            value={formatCount(openOrdersCount)}
+          />
+          <SummaryItem
+            icon={<CheckCircle className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />}
+            label='Concluídas'
+            value={formatCount(completedOrdersCount)}
+          />
+          <SummaryItem
+            icon={<XCircle className='h-4 w-4 text-rose-600 dark:text-rose-400' />}
+            label='Canceladas'
+            value={formatCount(cancelledOrdersCount)}
+          />
+          <SummaryItem
+            icon={<Map className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />}
+            label='Área Total'
+            value={formatHectare(totalAreaHectares)}
+          />
+          <SummaryItem
+            icon={<Sprout className='h-4 w-4 text-teal-600 dark:text-teal-400' />}
+            label='Área Aplicada'
+            value={formatHectare(totalAppliedHectares)}
+          />
+          <SummaryItem
+            icon={<User className='h-4 w-4 text-amber-600 dark:text-amber-400' />}
+            label='Pilotos com Ordens Abertas'
+            value={formatCount(pilotsWithOpenOrders)}
+          />
         </div>
 
         {showButton && (
@@ -201,7 +112,7 @@ export const DashboardCardServiceOrders = ({
             onClick={handleViewServiceOrders}
             className='w-full flex items-center justify-center gap-2 mt-4'
           >
-            Ver Ordens de Serviço
+            Ver Ordens de Servico
             <ArrowRight className='w-4 h-4' />
           </Button>
         )}
@@ -210,33 +121,43 @@ export const DashboardCardServiceOrders = ({
   );
 };
 
+function SummaryItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className='rounded-lg border border-border bg-background/70 p-3'>
+      <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+        {icon}
+        <span className='truncate'>{label}</span>
+      </div>
+      <p className='mt-2 text-lg font-semibold text-foreground truncate'>{value}</p>
+    </div>
+  );
+}
+
 const ServiceOrdersPageSkeleton = () => {
   return (
     <Card>
       <CardHeader className='pb-3'>
         <CardTitle className='flex items-center gap-2'>
           <FileText className='w-5 h-5 text-blue-500' />
-          Ordens de Serviço
+          Ordens de Servico
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className='space-y-4'>
-          <div className='flex items-center justify-between'>
-            <Skeleton className='w-24 h-4' />
-            <Skeleton className='w-24 h-8' />
-          </div>
-          <div className='flex items-center justify-between'>
-            <Skeleton className='w-24 h-4' />
-            <Skeleton className='w-24 h-8' />
-          </div>
-          <div className='flex items-center justify-between'>
-            <Skeleton className='w-24 h-4' />
-            <Skeleton className='w-24 h-8' />
-          </div>
-          <div className='flex items-center justify-between'>
-            <Skeleton className='w-24 h-4' />
-            <Skeleton className='w-24 h-8' />
-          </div>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7'>
+          {Array.from({ length: 7 }).map((_, index) => (
+            <div key={index} className='rounded-lg border border-border bg-background/70 p-3'>
+              <Skeleton className='h-4 w-28' />
+              <Skeleton className='mt-2 h-6 w-24' />
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

@@ -15,7 +15,6 @@ import { ServiceOrderStatus } from '@/types/service-order.type';
 export default function ServiceOrdersPage() {
   const [isDialogNewServiceOrderOpen, setIsDialogNewServiceOrderOpen] = useState(false);
 
-  // Filter state lifted to page level
   const [statusFilter, setStatusFilter] = useState<ServiceOrderStatus | undefined>(undefined);
   const [farmFilter, setFarmFilter] = useState<string | undefined>(undefined);
   const [pilotFilter, setPilotFilter] = useState<string | undefined>(undefined);
@@ -24,7 +23,6 @@ export default function ServiceOrdersPage() {
     { startDate: string; endDate: string } | undefined
   >(undefined);
 
-  // Prepare filter params for stats
   const statsParams = {
     status: statusFilter,
     farmId: farmFilter,
@@ -41,23 +39,21 @@ export default function ServiceOrdersPage() {
   } = useGetStatsServiceorders(statsParams);
 
   return (
-    <div className='p-6 space-y-6 min-h-full max-w-screen'>
-      <div className='flex items-center justify-between'>
+    <div className='min-h-full max-w-screen space-y-6 p-6'>
+      <div className='flex items-center justify-between gap-3'>
         <div>
           <h1 className='text-2xl font-bold'>Ordens de Serviço</h1>
-          <p>Gerencie todas as ordens de serviço do sistema</p>
+          <p className='text-muted-foreground'>Gerencie todas as ordens de serviço do sistema</p>
         </div>
         <DialogForm
           form={
-            <FormRegisterNewServiceOrder
-              closeDialog={() => setIsDialogNewServiceOrderOpen(false)}
-            />
+            <FormRegisterNewServiceOrder closeDialog={() => setIsDialogNewServiceOrderOpen(false)} />
           }
           isOpen={isDialogNewServiceOrderOpen}
           setIsOpen={setIsDialogNewServiceOrderOpen}
           trigger={
             <Button variant='default' onClick={() => setIsDialogNewServiceOrderOpen(true)}>
-              <Plus className='w-4 h-4 mr-2' />
+              <Plus className='mr-2 h-4 w-4' />
               Nova OS
             </Button>
           }
@@ -75,7 +71,7 @@ export default function ServiceOrdersPage() {
       </div>
 
       <Card className='max-w-full overflow-auto p-0'>
-        <CardContent className='ph-6'>
+        <CardContent className='p-6'>
           <TableServiceOrders
             customerId={undefined}
             statusFilter={statusFilter}

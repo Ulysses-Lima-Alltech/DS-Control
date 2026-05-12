@@ -3,7 +3,7 @@
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type CellContext } from '@tanstack/react-table';
 import { debounce } from 'lodash';
-import { CheckCircle, Clock, Edit, Eye, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, Edit, Eye, X, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,11 +15,11 @@ import { Button } from '@/components/ui/button';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import { DataTable, type ColumnDefWithId } from '@/components/ui/table-data';
 import {
-    createActionsColumn,
-    createBadgesColumn,
-    createColumn,
-    createDateColumn,
-    createOperationalDateColumn,
+  createActionsColumn,
+  createBadgesColumn,
+  createColumn,
+  createDateColumn,
+  createOperationalDateColumn,
 } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
@@ -28,8 +28,15 @@ import { useGetAllServiceOrders } from '@/queries/service-order.query';
 import { useGetAllUsersInfinite } from '@/queries/user.query';
 import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
-import { ServiceOrder, ServiceOrderBy, ServiceOrderStatus, ServiceOrderType } from '@/types/service-order.type';
+import {
+  ServiceOrder,
+  ServiceOrderBy,
+  ServiceOrderStatus,
+  ServiceOrderType,
+} from '@/types/service-order.type';
 import { User } from '@/types/user.type';
+
+type PlannedDateFilter = { startDate: string; endDate: string };
 
 type TableServiceOrdersProps = {
   customerId: string | undefined;
@@ -37,12 +44,12 @@ type TableServiceOrdersProps = {
   farmFilter?: string;
   pilotFilter?: string;
   customerFilter?: string;
-  plannedDateFilter?: {startDate: string, endDate: string};
+  plannedDateFilter?: PlannedDateFilter;
   onStatusFilterChange: (status: ServiceOrderStatus | undefined) => void;
   onFarmFilterChange: (farmId: string | undefined) => void;
   onPilotFilterChange: (pilotId: string | undefined) => void;
   onCustomerFilterChange: (customerId: string | undefined) => void;
-  onPlannedDateFilterChange: (dateFilter: {startDate: string, endDate: string} | undefined) => void;
+  onPlannedDateFilterChange: (dateFilter: PlannedDateFilter | undefined) => void;
 };
 
 export const TableServiceOrders = ({
@@ -56,7 +63,7 @@ export const TableServiceOrders = ({
   onFarmFilterChange,
   onPilotFilterChange,
   onCustomerFilterChange,
-  onPlannedDateFilterChange
+  onPlannedDateFilterChange,
 }: TableServiceOrdersProps) => {
   const queryClient = useQueryClient();
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
@@ -71,19 +78,19 @@ export const TableServiceOrders = ({
   const [farmSearchValue, setFarmSearchValue] = React.useState('');
   const [pilotSearchValue, setPilotSearchValue] = React.useState('');
 
-  const [orderBy, setOrderBy] = React.useState<ServiceOrderBy | undefined>(undefined)
-  const [orderType, setOrderType] = React.useState<ServiceOrderType | undefined>(undefined)
+  const [orderBy, setOrderBy] = React.useState<ServiceOrderBy | undefined>(undefined);
+  const [orderType, setOrderType] = React.useState<ServiceOrderType | undefined>(undefined);
 
   const orderByOptions = [
-    { value: 'name' as ServiceOrderBy, label: 'Nome' },
-    { value: 'customer' as ServiceOrderBy, label: 'Cliente' },
-    { value: 'planned_date' as ServiceOrderBy, label: 'Data planejada' },
-  ]
+    { value: ServiceOrderBy.NUMBER, label: 'Numero' },
+    { value: ServiceOrderBy.CUSTOMER, label: 'Cliente' },
+    { value: ServiceOrderBy.PLANNED_DATE, label: 'Data planejada' },
+  ];
 
   const orderTypeOptions = [
-    { value: 'asc' as ServiceOrderType, label: 'Ascendente'},
-    { value: 'desc' as ServiceOrderType, label: 'Descendente'},
-  ]
+    { value: ServiceOrderType.ASC, label: 'Ascendente' },
+    { value: ServiceOrderType.DESC, label: 'Descendente' },
+  ];
 
   const {
     data: serviceOrdersData,
@@ -107,7 +114,7 @@ export const TableServiceOrders = ({
     includePilots: 'true',
     includeCustomers: 'true',
     orderBy,
-    orderType
+    orderType,
   });
 
   const {
@@ -181,17 +188,6 @@ export const TableServiceOrders = ({
     [debouncedSearch]
   );
 
-  {
-    /* const handleGenerateStrategicMap = async (serviceOrder: ServiceOrder) => {
-    try {
-      await generateStrategicMap(serviceOrder);
-      toast('Mapa estratégico gerado com sucesso');
-    } catch (error) {
-      toast((error as Error).message || 'Erro ao gerar mapa estratégico');
-    }
-  }; */
-  }
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -208,25 +204,25 @@ export const TableServiceOrders = ({
   const getStatusTooltip = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'Concluído';
+        return 'Concluido';
       case 'cancelled':
         return 'Cancelado';
       case 'open':
         return 'Aberto';
       default:
-        return 'ERROR: Status desconhecido';
+        return 'Status desconhecido';
     }
   };
 
-  const handleOrderByChange = (orderBy: ServiceOrderBy | undefined) => {
-    setOrderBy(orderBy)
-    setCurrentPage(1)
-  }
+  const handleOrderByChange = (nextOrderBy: ServiceOrderBy | undefined) => {
+    setOrderBy(nextOrderBy);
+    setCurrentPage(1);
+  };
 
-  const handleOrderTypeChange = (orderType: ServiceOrderType | undefined) => {
-    setOrderType(orderType)
-    setCurrentPage(1)
-  }
+  const handleOrderTypeChange = (nextOrderType: ServiceOrderType | undefined) => {
+    setOrderType(nextOrderType);
+    setCurrentPage(1);
+  };
 
   type ServiceOrderColumnId =
     | 'number'
@@ -248,15 +244,16 @@ export const TableServiceOrders = ({
   };
 
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
   const toggleRow = (id: string) => {
-    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const columns: ColumnDefWithId<ServiceOrder>[] = [
     createColumn<ServiceOrder>(
       'number',
       'number',
-      'Número',
+      'Numero',
       ({ row }: CellContext<ServiceOrder, unknown>) => (
         <div className='flex items-center gap-2 min-w-0'>
           <Tooltip>
@@ -280,12 +277,12 @@ export const TableServiceOrders = ({
       width: 200,
       maxItems: 3,
     }),
-    createBadgesColumn<ServiceOrder>('plots', 'plots', 'Talhões', (row) => row.plots || [], {
+    createBadgesColumn<ServiceOrder>('plots', 'plots', 'Talhoes', (row) => row.plots || [], {
       width: 200,
       maxItems: 3,
     }),
     createBadgesColumn<ServiceOrder>('pilots', 'pilots', 'Pilotos', (row) => row.pilots || [], {
-      width: 200,
+      width: 220,
       maxItems: 3,
       onClick: (row) => toggleRow(row.id),
       isExpanded: (row) => !!expandedRows[row.id],
@@ -293,16 +290,16 @@ export const TableServiceOrders = ({
     {
       id: 'observation',
       accessorKey: 'observation',
-      label: 'Observação',
-      header: 'Observação',
+      label: 'Observacao',
+      header: 'Observacao',
       cell: ({ row }) => (
-        <div className='text-foreground max-w-[200px] truncate'>
+        <div className='text-foreground max-w-[260px] truncate'>
           {row.original.observation || 'N/A'}
         </div>
       ),
     },
     createOperationalDateColumn<ServiceOrder>('plannedDate', 'plannedDate', 'Data Planejada'),
-    createDateColumn<ServiceOrder>('createdAt', 'createdAt', 'Data de Criação'),
+    createDateColumn<ServiceOrder>('createdAt', 'createdAt', 'Data de Criacao'),
     createActionsColumn<ServiceOrder>((serviceOrder) => (
       <div className='flex justify-center gap-2'>
         <Tooltip>
@@ -384,15 +381,42 @@ export const TableServiceOrders = ({
     if (serviceOrdersData?.totalPages && currentPage > serviceOrdersData.totalPages) {
       setCurrentPage(1);
     }
-  }, [serviceOrdersData?.totalPages, currentPage, setCurrentPage]);
+  }, [serviceOrdersData?.totalPages, currentPage]);
 
   React.useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearchValue]);
 
+  const clearAllFilters = () => {
+    debouncedSearch.cancel();
+    setInputSearchValue('');
+    setDebouncedSearchValue('');
+    onStatusFilterChange(undefined);
+    onFarmFilterChange(undefined);
+    onPilotFilterChange(undefined);
+    if (!customerId) {
+      onCustomerFilterChange(undefined);
+    }
+    onPlannedDateFilterChange(undefined);
+    setOrderBy(undefined);
+    setOrderType(undefined);
+    setCurrentPage(1);
+  };
+
+  const hasAnyFilterActive =
+    inputSearchValue.trim().length > 0 ||
+    !!statusFilter ||
+    !!farmFilter ||
+    !!pilotFilter ||
+    !!customerFilter ||
+    !!plannedDateFilter?.startDate ||
+    !!plannedDateFilter?.endDate ||
+    !!orderBy ||
+    !!orderType;
+
   const statusOptions = [
     { value: 'open' as ServiceOrderStatus, label: 'Aberto' },
-    { value: 'completed' as ServiceOrderStatus, label: 'Concluído' },
+    { value: 'completed' as ServiceOrderStatus, label: 'Concluido' },
     { value: 'cancelled' as ServiceOrderStatus, label: 'Cancelado' },
   ];
 
@@ -401,33 +425,60 @@ export const TableServiceOrders = ({
   const pilots = allPilots;
 
   return (
-    <>
-      <DataTable
-        columns={columns}
-        data={serviceOrdersData?.data || []}
-        isLoading={isLoading}
-        isError={isError}
-        error={error}
-        onRetry={() => queryClient.invalidateQueries({ queryKey: ['service-orders'] })}
-        searchConfig={{
-          placeholder: 'Buscar ordens de serviço...',
-          searchValue: inputSearchValue,
-          onSearchChange: handleSearchChange,
-        }}
-        filters={
-          <div className='flex gap-2'>
+    <DataTable
+      columns={columns}
+      data={serviceOrdersData?.data || []}
+      isLoading={isLoading}
+      isError={isError}
+      error={error}
+      onRetry={() => queryClient.invalidateQueries({ queryKey: ['service-orders'] })}
+      searchConfig={{
+        placeholder: 'Buscar ordens de servico...',
+        searchValue: inputSearchValue,
+        onSearchChange: handleSearchChange,
+      }}
+      renderToolbar={({ searchInput, filters, columnsControl }) => (
+        <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+          <div className='flex w-full flex-col gap-3'>
+            <div className='grid w-full grid-cols-1 gap-2 xl:grid-cols-[minmax(220px,1fr)_auto]'>
+              <div className='min-w-0'>{searchInput}</div>
+              <div className='flex flex-wrap items-center gap-2 xl:justify-end'>
+                {columnsControl}
+                {hasAnyFilterActive && (
+                  <Button
+                    variant='outline'
+                    className='h-9 border-red-200 bg-red-50 px-3 text-sm text-red-600 hover:bg-red-100 hover:text-red-700'
+                    onClick={clearAllFilters}
+                  >
+                    <X className='mr-1 h-4 w-4' />
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className='flex w-full min-w-0 flex-wrap items-center gap-2'>{filters}</div>
+          </div>
+        </div>
+      )}
+      filters={
+        <>
+          <SearchableSelectQuery
+            options={statusOptions}
+            value={statusFilter}
+            onValueChange={(value) => handleStatusChange(value as ServiceOrderStatus | undefined)}
+            placeholder='Status'
+            searchPlaceholder='Buscar status...'
+            clearable
+            className='h-9 w-full sm:w-[140px]'
+          />
+          <DateRangePicker
+            onChange={onPlannedDateFilterChange}
+            initialValue={plannedDateFilter}
+            className='h-9 w-full sm:w-[250px]'
+            placeholder='Periodo'
+          />
+          {!customerId && (
             <SearchableSelectQuery
-              options={statusOptions}
-              value={statusFilter}
-              onValueChange={(value) => handleStatusChange(value as ServiceOrderStatus | undefined)}
-              placeholder='Status'
-              searchPlaceholder='Buscar status...'
-              clearable
-              className='w-[120px]'
-            />
-            <DateRangePicker onChange={onPlannedDateFilterChange} initialValue={plannedDateFilter} className='w-[300px]'/>
-            {!customerId &&
-              <SearchableSelectQuery
               options={customers.map((customer: Customer) => ({
                 value: customer.id,
                 label: customer.name,
@@ -443,80 +494,77 @@ export const TableServiceOrders = ({
               hasNextPage={hasNextPage}
               isFetchingNextPage={isFetchingNextPage}
               isLoading={isLoadingCustomers}
-              className='w-[120px]'
-              popoverClassName='w-[250px]'
-            />}
-            <SearchableSelectQuery
-              options={farms.map((farm: Farm) => ({
-                value: farm.id,
-                label: farm.name,
-              }))}
-              value={farmFilter}
-              onValueChange={(value) => handleFarmChange(value as string | undefined)}
-              placeholder='Fazenda'
-              searchPlaceholder='Buscar fazenda...'
-              clearable
-              onSearchChange={setFarmSearchValue}
-              onScrollEnd={fetchNextPageFarms}
-              hasNextPage={hasNextPageFarms}
-              isFetchingNextPage={isFetchingNextPageFarms}
-              isLoading={isLoadingFarms}
-              className='w-[120px]'
+              className='h-9 w-full sm:w-[150px]'
               popoverClassName='w-[250px]'
             />
-            <SearchableSelectQuery
-              options={pilots.map((pilot: User) => ({
-                value: pilot.id,
-                label: pilot.name,
-              }))}
-              value={pilotFilter}
-              onValueChange={(value) => handlePilotChange(value as string | undefined)}
-              placeholder='Piloto'
-              searchPlaceholder='Buscar piloto...'
-              clearable
-              onSearchChange={setPilotSearchValue}
-              onScrollEnd={fetchNextPagePilots}
-              hasNextPage={hasNextPagePilots}
-              isFetchingNextPage={isFetchingNextPagePilots}
-              isLoading={isLoadingPilots}
-              className='w-[120px]'
-              popoverClassName='w-[250px]'
-            />
-
-            <SearchableSelectQuery
-              options={orderByOptions}
-              value={orderBy}
-              onValueChange={(value) => handleOrderByChange(value as ServiceOrderBy | undefined)}
-              placeholder='Ordenar por'
-              searchPlaceholder='Buscar...'
-              className='w-[150px]'
-              clearable
-            />
-
-            <SearchableSelectQuery
-              options={orderTypeOptions}
-              value={orderType}
-              onValueChange={(value) => handleOrderTypeChange(value as ServiceOrderType | undefined)}
-              placeholder='Ordenação'
-              searchPlaceholder='Buscar...'
-              className='w-[150px]'
-              clearable
-            />
-          </div>
-        }
-        pagination={{
-          manual: true,
-          currentPage,
-          pageSize,
-          totalPages: serviceOrdersData?.totalPages || 1,
-          totalCount: serviceOrdersData?.totalCount,
-          onPageChange: setCurrentPage,
-          onPageSizeChange: setPageSize,
-        }}
-        initialColumnVisibility={initialColumnVisibility}
-        renderEmptyState={() => 'Nenhuma ordem de serviço encontrada.'}
-      />
-    </>
-
+          )}
+          <SearchableSelectQuery
+            options={farms.map((farm: Farm) => ({
+              value: farm.id,
+              label: farm.name,
+            }))}
+            value={farmFilter}
+            onValueChange={(value) => handleFarmChange(value as string | undefined)}
+            placeholder='Fazenda'
+            searchPlaceholder='Buscar fazenda...'
+            clearable
+            onSearchChange={setFarmSearchValue}
+            onScrollEnd={fetchNextPageFarms}
+            hasNextPage={hasNextPageFarms}
+            isFetchingNextPage={isFetchingNextPageFarms}
+            isLoading={isLoadingFarms}
+            className='h-9 w-full sm:w-[150px]'
+            popoverClassName='w-[250px]'
+          />
+          <SearchableSelectQuery
+            options={pilots.map((pilot: User) => ({
+              value: pilot.id,
+              label: pilot.name,
+            }))}
+            value={pilotFilter}
+            onValueChange={(value) => handlePilotChange(value as string | undefined)}
+            placeholder='Piloto'
+            searchPlaceholder='Buscar piloto...'
+            clearable
+            onSearchChange={setPilotSearchValue}
+            onScrollEnd={fetchNextPagePilots}
+            hasNextPage={hasNextPagePilots}
+            isFetchingNextPage={isFetchingNextPagePilots}
+            isLoading={isLoadingPilots}
+            className='h-9 w-full sm:w-[150px]'
+            popoverClassName='w-[250px]'
+          />
+          <SearchableSelectQuery
+            options={orderByOptions}
+            value={orderBy}
+            onValueChange={(value) => handleOrderByChange(value as ServiceOrderBy | undefined)}
+            placeholder='Ordenar por'
+            searchPlaceholder='Buscar...'
+            className='h-9 w-full sm:w-[160px]'
+            clearable
+          />
+          <SearchableSelectQuery
+            options={orderTypeOptions}
+            value={orderType}
+            onValueChange={(value) => handleOrderTypeChange(value as ServiceOrderType | undefined)}
+            placeholder='Ordenacao'
+            searchPlaceholder='Buscar...'
+            className='h-9 w-full sm:w-[150px]'
+            clearable
+          />
+        </>
+      }
+      pagination={{
+        manual: true,
+        currentPage,
+        pageSize,
+        totalPages: serviceOrdersData?.totalPages || 1,
+        totalCount: serviceOrdersData?.totalCount,
+        onPageChange: setCurrentPage,
+        onPageSizeChange: setPageSize,
+      }}
+      initialColumnVisibility={initialColumnVisibility}
+      renderEmptyState={() => 'Nenhuma ordem de servico encontrada.'}
+    />
   );
 };
