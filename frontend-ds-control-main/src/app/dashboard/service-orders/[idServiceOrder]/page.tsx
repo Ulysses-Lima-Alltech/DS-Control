@@ -422,13 +422,24 @@ export default function ServiceOrderPage({
             <CardTitle className='text-lg'>Detalhes da OS</CardTitle>
           </CardHeader>
           <CardContent className='space-y-3'>
-            <InfoRow label='Número' value={`#${serviceOrderData.number}`} />
-            <InfoRow
-              label='Status'
-              value={<Badge variant={statusMap[serviceOrderData.status].variant}>{statusMap[serviceOrderData.status].label}</Badge>}
-            />
-            <InfoRow label='Cliente' value={serviceOrderData.customer?.name || 'N/A'} />
-            <InfoRow label='Contrato' value={serviceOrderData.contract?.name || 'N/A'} />
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+              <InfoRow label='Número' value={`#${serviceOrderData.number}`} />
+              <InfoRow
+                label='Status'
+                value={
+                  <Badge variant={statusMap[serviceOrderData.status].variant}>
+                    {statusMap[serviceOrderData.status].label}
+                  </Badge>
+                }
+              />
+              <InfoRow label='Cliente' value={serviceOrderData.customer?.name || 'N/A'} />
+              <InfoRow label='Contrato' value={serviceOrderData.contract?.name || 'N/A'} />
+              <InfoRow
+                label='Data Planejada'
+                value={formatOperationalDateBR(serviceOrderData.plannedDate)}
+              />
+              <InfoRow label='Criado em' value={formatTimestamp(serviceOrderData.createdAt)} />
+            </div>
             <InfoRow
               label='Fazendas'
               value={
@@ -461,12 +472,7 @@ export default function ServiceOrderPage({
                 )
               }
             />
-            <InfoRow
-              label='Data Planejada'
-              value={formatOperationalDateBR(serviceOrderData.plannedDate)}
-            />
             <InfoRow label='Observação' value={serviceOrderData.observation || 'N/A'} />
-            <InfoRow label='Criado em' value={formatTimestamp(serviceOrderData.createdAt)} />
           </CardContent>
         </Card>
       </div>
@@ -608,7 +614,7 @@ export default function ServiceOrderPage({
       </Dialog>
 
       <Dialog open={isMapsModalOpen} onOpenChange={setIsMapsModalOpen}>
-        <DialogContent className='flex h-[90vh] w-[95vw] max-w-[95vw] flex-col p-0'>
+        <DialogContent className='flex h-[94vh] w-[96vw] max-w-6xl flex-col overflow-hidden p-0 xl:max-w-7xl'>
           <DialogHeader className='space-y-2 border-b px-6 py-4'>
             <DialogTitle>Visualização do Mapa - OS #{serviceOrderData.number}</DialogTitle>
             <DialogDescription>
@@ -666,10 +672,12 @@ export default function ServiceOrderPage({
             </div>
           </div>
 
-          <div className='grid flex-1 grid-cols-1 gap-0 lg:grid-cols-[1fr_300px]'>
-            <div className='relative min-h-[360px] border-r'>
+          <div className='grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]'>
+            <div className='relative h-[55vh] min-h-[500px] lg:h-[600px] lg:min-h-[600px] lg:border-r'>
               {filteredMapGeoData && filteredMapGeoData.features.length > 0 ? (
-                <MapViewer geoData={filteredMapGeoData} />
+                <div className='h-full w-full'>
+                  <MapViewer geoData={filteredMapGeoData} />
+                </div>
               ) : (
                 <div className='flex h-full items-center justify-center p-8'>
                   <div className='rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center'>
@@ -682,7 +690,7 @@ export default function ServiceOrderPage({
               )}
             </div>
 
-            <div className='space-y-4 overflow-y-auto p-4'>
+            <div className='space-y-4 overflow-y-auto border-t p-4 lg:border-t-0'>
               <h3 className='text-sm font-semibold text-foreground'>Legenda de hectares por fazenda</h3>
               <div className='space-y-2'>
                 {legendData.farms.length > 0 ? (
@@ -756,3 +764,4 @@ function ServiceOrderDetailsSkeleton() {
     </div>
   );
 }
+
