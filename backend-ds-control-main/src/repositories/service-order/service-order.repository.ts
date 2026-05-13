@@ -25,6 +25,43 @@ const EXCLUDED_SERVICE_ORDER_IDS = [
 ];
 
 export class ServiceOrderRepository {
+  private filterActivePlots<T extends { deletedAt?: Date | null }>(items?: T[] | null): T[] {
+    if (!items || items.length === 0) return [];
+    return items.filter((item) => !item.deletedAt);
+  }
+
+  private mapFarmsWithActivePlots(serviceOrderFarms?: Array<Record<string, unknown>>) {
+    if (!serviceOrderFarms || serviceOrderFarms.length === 0) {
+      return [];
+    }
+
+    return serviceOrderFarms
+      .map((sof) => {
+        if (!('farm' in sof)) return null;
+        return (sof as { farm?: Record<string, unknown> | null }).farm ?? null;
+      })
+      .filter(Boolean)
+      .map((farm) => ({
+        ...farm,
+        plots: this.filterActivePlots(
+          (farm as { plots?: Array<{ deletedAt?: Date | null }> }).plots,
+        ),
+      }));
+  }
+
+  private mapActiveServiceOrderPlots(serviceOrderPlots?: Array<Record<string, unknown>>) {
+    if (!serviceOrderPlots || serviceOrderPlots.length === 0) {
+      return [];
+    }
+
+    return serviceOrderPlots
+      .map((sop) => {
+        if (!('plot' in sop)) return null;
+        return (sop as { plot?: { deletedAt?: Date | null } | null }).plot ?? null;
+      })
+      .filter(Boolean)
+      .filter((plot) => !(plot as { deletedAt?: Date | null }).deletedAt);
+  }
   /**
    * Creates a new service order and associates it with farms, pilots and plots.
    * @param {CreateServiceOrderDTO} dto - The data transfer object containing service order details.
@@ -153,9 +190,9 @@ export class ServiceOrderRepository {
       ...serviceOrder,
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
-      farms: serviceOrder.serviceOrderFarms?.map(sof => 'farm' in sof ? sof.farm : null).filter(Boolean) || [],
+      farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
       pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
-      plots: serviceOrder.serviceOrderPlots?.map(sop => 'plot' in sop ? sop.plot : null).filter(Boolean) || [],
+      plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
     } as unknown as ServiceOrderWithDetails;
   }
 
@@ -387,9 +424,9 @@ export class ServiceOrderRepository {
         ...serviceOrder,
         contract: serviceOrder.contract ?? null,
         customer: serviceOrder.customer ?? null,
-        farms: serviceOrder.serviceOrderFarms?.map(sof => 'farm' in sof ? sof.farm : null).filter(Boolean) || [],
+        farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
         pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
-        plots: serviceOrder.serviceOrderPlots?.map(sop => 'plot' in sop ? sop.plot : null).filter(Boolean) || [],
+        plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
       };
     }) as unknown as ServiceOrderWithDetails[];
   }
@@ -688,9 +725,9 @@ export class ServiceOrderRepository {
       ...serviceOrder,
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
-      farms: serviceOrder.serviceOrderFarms?.map(sof => 'farm' in sof ? sof.farm : null).filter(Boolean) || [],
+      farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
       pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
-      plots: serviceOrder.serviceOrderPlots?.map(sop => 'plot' in sop ? sop.plot : null).filter(Boolean) || [],
+      plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
     })) as unknown as ServiceOrderWithDetails[];
   }
 

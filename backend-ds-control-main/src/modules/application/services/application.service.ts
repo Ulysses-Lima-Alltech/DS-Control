@@ -310,6 +310,11 @@ export class ApplicationService {
 
     // Validate all required foreign key relationships
     await this.validateForeignKeys(data);
+    await this.validateServiceOrderFarmAndPlotScope(
+      data.serviceOrderId ?? null,
+      data.farmId ?? null,
+      data.plotId ?? null,
+    );
 
     // Create the application
     const applicationData = {
@@ -624,6 +629,28 @@ export class ApplicationService {
 
       // Validate foreign keys for update data
       await this.validateForeignKeys(data, true);
+
+      const effectiveServiceOrderId =
+        data.serviceOrderId !== undefined ? data.serviceOrderId : existingApplication.serviceOrderId;
+      const effectivePlotId = data.plotId !== undefined ? data.plotId : existingApplication.plotId;
+
+      let effectiveFarmId =
+        data.farmId !== undefined ? data.farmId : existingApplication.farmId;
+
+      // Keep validation aligned with repository behavior: when plotId exists, farmId is derived from plot.
+      if (effectivePlotId) {
+        const activePlot = await db.query.plots.findFirst({
+          columns: { farmId: true },
+          where: and(eq(plots.id, effectivePlotId), isNull(plots.deletedAt)),
+        });
+        effectiveFarmId = activePlot?.farmId ?? null;
+      }
+
+      await this.validateServiceOrderFarmAndPlotScope(
+        effectiveServiceOrderId ?? null,
+        effectiveFarmId ?? null,
+        effectivePlotId ?? null,
+      );
 
       // Clean up the data for update
       const updateData = {
@@ -1822,6 +1849,57 @@ export class ApplicationService {
     }
 
     await Promise.all(validationPromises);
+  }
+
+  private async validateServiceOrderFarmAndPlotScope(
+    serviceOrderId: string | null | undefined,
+    farmId: string | null | undefined,
+    plotId: string | null | undefined,
+  ): Promise<void> {
+    if (!serviceOrderId) {
+      return;
+    }
+
+    const serviceOrder = await this.serviceOrdersRepository.getServiceOrderById(
+      serviceOrderId,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+    );
+
+    if (!serviceOrder) {
+      throw new AppError("Ordem de servico nao encontrada", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    const validFarmIds = new Set((serviceOrder.farms || []).map((farm) => farm.id));
+    const validPlotIds = new Set((serviceOrder.plots || []).map((plot) => plot.id));
+
+    if (farmId && !validFarmIds.has(farmId)) {
+      throw new AppError(
+        "Fazenda ou talhao nao pertence a Ordem de Servico selecionada.",
+        HTTP_STATUS_CODES.BAD_REQUEST,
+      );
+    }
+
+    if (plotId && !validPlotIds.has(plotId)) {
+      throw new AppError(
+        "Fazenda ou talhao nao pertence a Ordem de Servico selecionada.",
+        HTTP_STATUS_CODES.BAD_REQUEST,
+      );
+    }
+
+    if (plotId && farmId) {
+      const scopedPlot = serviceOrder.plots.find((plot) => plot.id === plotId);
+      if (scopedPlot && scopedPlot.farmId !== farmId) {
+        throw new AppError(
+          "Fazenda ou talhao nao pertence a Ordem de Servico selecionada.",
+          HTTP_STATUS_CODES.BAD_REQUEST,
+        );
+      }
+    }
   }
 
   private async validateServiceOrder(serviceOrderId: string): Promise<void> {

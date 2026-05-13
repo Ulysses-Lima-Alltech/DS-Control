@@ -123,15 +123,23 @@ export default function ServiceOrderPage({
     [serviceOrderData?.plots]
   );
 
+  const validPlotIdsSet = useMemo(() => new Set(plotIds), [plotIds]);
+
+  const applicationsWithValidPlotId = useMemo(() => {
+    return applicationWithPlotData.filter((application) => {
+      return Boolean(application.plotId && validPlotIdsSet.has(application.plotId));
+    });
+  }, [applicationWithPlotData, validPlotIdsSet]);
+
   const completedPlotIds = useMemo(() => {
     const ids = new Set<string>();
-    applicationWithPlotData.forEach((application) => {
+    applicationsWithValidPlotId.forEach((application) => {
       if (application.plotId) {
         ids.add(application.plotId);
       }
     });
     return Array.from(ids);
-  }, [applicationWithPlotData]);
+  }, [applicationsWithValidPlotId]);
 
   const pendingPlotIds = useMemo(
     () => plotIds.filter((plotId) => !completedPlotIds.includes(plotId)),
@@ -146,7 +154,7 @@ export default function ServiceOrderPage({
       return sum + (Number.parseFloat(plot.hectare || '0') || 0);
     }, 0);
 
-    const areaConcluida = applicationWithPlotData.reduce((sum, application) => {
+    const areaConcluida = applicationsWithValidPlotId.reduce((sum, application) => {
       return sum + (Number.parseFloat(application.hectares || '0') || 0);
     }, 0);
 
@@ -159,7 +167,7 @@ export default function ServiceOrderPage({
       areaConcluida,
       percentual,
     };
-  }, [applicationWithPlotData, completedPlotIds.length, serviceOrderData?.plots]);
+  }, [applicationsWithValidPlotId, completedPlotIds.length, serviceOrderData?.plots]);
 
   const mapsGeoData = useMemo<GeoJSON.FeatureCollection | undefined>(() => {
     if (!serviceOrderData?.plots?.length) {
