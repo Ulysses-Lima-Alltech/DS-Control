@@ -1,16 +1,16 @@
 FROM node:24
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 RUN mkdir -p /var/www/app
 
 COPY . /var/www/app
 WORKDIR /var/www/app
 
-RUN pnpm install
-RUN pnpm build
+RUN pnpm install --ignore-workspace --no-frozen-lockfile
+RUN pnpm --ignore-workspace build
 
 EXPOSE 3000
 EXPOSE 3001
 
-CMD ["pnpm", "start"]
+CMD ["node", "build/src/server.js"]
