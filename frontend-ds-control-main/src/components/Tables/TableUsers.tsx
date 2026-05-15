@@ -74,7 +74,7 @@ export const TableUsers = ({
   );
   const [userToStatusAction, setUserToStatusAction] = React.useState<{
     user: User;
-    action: 'disable' | 'activate';
+    action: 'disable' | 'activate' | 'delete';
   } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [userToEdit, setUserToEdit] = React.useState<User | null>(null);
@@ -170,6 +170,10 @@ export const TableUsers = ({
     setUserToStatusAction({ user, action });
   };
 
+  const handleDeleteClick = (user: User) => {
+    setUserToStatusAction({ user, action: 'delete' });
+  };
+
   const handleConfirmStatusAction = () => {
     if (!userToStatusAction) return;
 
@@ -181,6 +185,8 @@ export const TableUsers = ({
         toast('Piloto desativado com sucesso');
       } else if (isPilotList && action === 'activate') {
         toast('Piloto reativado com sucesso');
+      } else if (isPilotList && action === 'delete') {
+        toast('Piloto excluído com sucesso');
       } else {
         toast(`${title} deletado com sucesso`);
       }
@@ -194,6 +200,8 @@ export const TableUsers = ({
         toast(`Erro ao desativar piloto: ${error.message}`);
       } else if (isPilotList && action === 'activate') {
         toast(`Erro ao reativar piloto: ${error.message}`);
+      } else if (isPilotList && action === 'delete') {
+        toast(`Erro ao excluir piloto: ${error.message}`);
       } else {
         toast(error.message);
       }
@@ -313,16 +321,23 @@ export const TableUsers = ({
             >
               Redefinir senha
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleStatusActionClick(user)}
-              className={userType === 'pilot' && user.deletedAt ? '' : 'text-destructive'}
-            >
-              {userType === 'pilot'
-                ? user.deletedAt
-                  ? 'Reativar piloto'
-                  : 'Desativar piloto'
-                : `Deletar ${title.toLowerCase()}`}
-            </DropdownMenuItem>
+            {userType === 'pilot' ? (
+              <>
+                <DropdownMenuItem
+                  onClick={() => handleStatusActionClick(user)}
+                  className={user.deletedAt ? '' : 'text-destructive'}
+                >
+                  {user.deletedAt ? 'Reativar piloto' : 'Desativar piloto'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDeleteClick(user)} className='text-destructive'>
+                  Excluir piloto
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuItem onClick={() => handleDeleteClick(user)} className='text-destructive'>
+                Deletar {title.toLowerCase()}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </>
@@ -429,14 +444,18 @@ export const TableUsers = ({
               {userType === 'pilot'
                 ? userToStatusAction?.action === 'activate'
                   ? 'Confirmar reativação'
-                  : 'Confirmar desativação'
+                  : userToStatusAction?.action === 'disable'
+                    ? 'Confirmar desativação'
+                    : 'Confirmar exclusão'
                 : 'Confirmar exclusão'}
             </DialogTitle>
             <DialogDescription>
               {userType === 'pilot'
                 ? userToStatusAction?.action === 'activate'
                   ? `Tem certeza que deseja reativar o piloto ${userToStatusAction?.user.name}?`
-                  : `Tem certeza que deseja desativar o piloto ${userToStatusAction?.user.name}?`
+                  : userToStatusAction?.action === 'disable'
+                    ? `Tem certeza que deseja desativar o piloto ${userToStatusAction?.user.name}?`
+                    : `Tem certeza que deseja excluir o piloto ${userToStatusAction?.user.name}? A exclusão de pilotos é lógica (soft delete) e mantém o histórico.`
                 : `Tem certeza que deseja excluir o ${title.toLowerCase()} ${userToStatusAction?.user.name}? Esta ação não pode ser desfeita.`}
             </DialogDescription>
           </DialogHeader>
@@ -456,12 +475,12 @@ export const TableUsers = ({
               {isDeletingUser || isActivatingUser
                 ? userType === 'pilot' && userToStatusAction?.action === 'activate'
                   ? 'Reativando...'
-                  : userType === 'pilot'
+                  : userType === 'pilot' && userToStatusAction?.action === 'disable'
                     ? 'Desativando...'
                     : 'Excluindo...'
                 : userType === 'pilot' && userToStatusAction?.action === 'activate'
                   ? 'Reativar'
-                  : userType === 'pilot'
+                  : userType === 'pilot' && userToStatusAction?.action === 'disable'
                     ? 'Desativar'
                     : 'Excluir'}
             </Button>
