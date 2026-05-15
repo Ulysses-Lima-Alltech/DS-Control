@@ -133,7 +133,7 @@ export class UserRepository {
     search?: string,
     filters?: {
       type?: "backoffice" | "pilot" | "farmer";
-      status?: "active" | "inactive";
+      status?: "active" | "inactive" | "all";
     },
     orderBy?: UserOrderBy,
     orderType?: UserOrderType,
@@ -156,12 +156,12 @@ export class UserRepository {
       whereConditions.push(eq(users.type, filters.type));
     }
 
-    if (filters?.status) {
-      if (filters.status === "active") {
-        whereConditions.push(isNull(users.deletedAt));
-      } else if (filters.status === "inactive") {
-        whereConditions.push(isNotNull(users.deletedAt));
-      }
+    if (filters?.status === "active") {
+      whereConditions.push(isNull(users.deletedAt));
+    } else if (filters?.status === "inactive") {
+      whereConditions.push(isNotNull(users.deletedAt));
+    } else if (filters?.status === "all") {
+      // Keep both active and inactive users.
     } else {
       // Default behavior: only show active users if no status filter is specified
       whereConditions.push(isNull(users.deletedAt));
@@ -202,7 +202,7 @@ export class UserRepository {
     search?: string,
     filters?: {
       type?: "backoffice" | "pilot" | "farmer";
-      status?: "active" | "inactive";
+      status?: "active" | "inactive" | "all";
     }
   ): Promise<number> {
     // Build where conditions
@@ -223,12 +223,12 @@ export class UserRepository {
       whereConditions.push(eq(users.type, filters.type));
     }
 
-    if (filters?.status) {
-      if (filters.status === "active") {
-        whereConditions.push(isNull(users.deletedAt));
-      } else if (filters.status === "inactive") {
-        whereConditions.push(isNotNull(users.deletedAt));
-      }
+    if (filters?.status === "active") {
+      whereConditions.push(isNull(users.deletedAt));
+    } else if (filters?.status === "inactive") {
+      whereConditions.push(isNotNull(users.deletedAt));
+    } else if (filters?.status === "all") {
+      // Keep both active and inactive users.
     } else {
       // Default behavior: only count active users if no status filter is specified
       whereConditions.push(isNull(users.deletedAt));

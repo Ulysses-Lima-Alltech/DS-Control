@@ -257,13 +257,24 @@ export class ServiceOrderService {
    * @throws {AppError} Throws if any user is not a pilot.
    */
   private async validatePilots(pilotsIds: string[]): Promise<void> {
-    const isAllUsersPilots = await db
-      .select()
+    const pilots = await db
+      .select({
+        id: users.id,
+        deletedAt: users.deletedAt,
+      })
       .from(users)
       .where(and(inArray(users.id, pilotsIds), eq(users.type, 'pilot')));
 
-    if (isAllUsersPilots.length !== pilotsIds.length) {
+    if (pilots.length !== pilotsIds.length) {
       throw new AppError('Todos os usuários devem ser pilotos', HTTP_STATUS_CODES.BAD_REQUEST);
+    }
+
+    const hasInactivePilot = pilots.some((pilot) => pilot.deletedAt !== null);
+    if (hasInactivePilot) {
+      throw new AppError(
+        'Piloto inativo não pode ser vinculado a uma Ordem de Serviço.',
+        HTTP_STATUS_CODES.BAD_REQUEST,
+      );
     }
   }
 
@@ -360,7 +371,10 @@ export class ServiceOrderService {
    */
   private async validatePilot(pilotId: string): Promise<void> {
     const pilot = await db
-      .select()
+      .select({
+        id: users.id,
+        deletedAt: users.deletedAt,
+      })
       .from(users)
       .where(and(eq(users.id, pilotId), eq(users.type, 'pilot')));
 
@@ -368,6 +382,13 @@ export class ServiceOrderService {
       throw new AppError(
         'Piloto não encontrado ou não é do tipo piloto',
         HTTP_STATUS_CODES.NOT_FOUND,
+      );
+    }
+
+    if (pilot[0]?.deletedAt) {
+      throw new AppError(
+        'Piloto inativo não pode ser vinculado a uma Ordem de Serviço.',
+        HTTP_STATUS_CODES.BAD_REQUEST,
       );
     }
   }

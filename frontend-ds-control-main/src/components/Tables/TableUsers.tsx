@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import DialogForm from '@/components/DialogForm';
 import FormEditUser from '@/components/Forms/FormEditUser';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -36,7 +37,11 @@ import {
 import { DataTable, type ColumnDefWithId } from '@/components/ui/table-data';
 import { createActionsColumn, createColumn, createTextColumn } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useDeleteUserById, useRequestResetUserPasswordByEmail } from '@/mutations/user.mutation';
+import {
+  useActivateUserById,
+  useDeleteUserById,
+  useRequestResetUserPasswordByEmail,
+} from '@/mutations/user.mutation';
 import { useGetAllUsers } from '@/queries/user.query';
 import { User, UserOrderBy, UserOrderType, UserType } from '@/types/user.type';
 
@@ -64,8 +69,13 @@ export const TableUsers = ({
   const [selectedUserType, setSelectedUserType] = React.useState<
     'backoffice' | 'pilot' | 'farmer' | undefined
   >(userType);
-  const [selectedStatus, setSelectedStatus] = React.useState<'active' | 'inactive'>('active');
-  const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
+  const [selectedStatus, setSelectedStatus] = React.useState<'active' | 'inactive' | 'all'>(
+    'active'
+  );
+  const [userToStatusAction, setUserToStatusAction] = React.useState<{
+    user: User;
+    action: 'disable' | 'activate';
+  } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [userToEdit, setUserToEdit] = React.useState<User | null>(null);
 
@@ -98,15 +108,8 @@ export const TableUsers = ({
 
   });
 
-  const { mutate: deleteUserById, isPending: isDeletingUser } = useDeleteUserById({
-    onSuccess: () => {
-      toast(`${title} deletado com sucesso`);
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-    onError: (error) => {
-      toast(error.message);
-    },
-  });
+  const { mutate: deleteUserById, isPending: isDeletingUser } = useDeleteUserById();
+  const { mutate: activateUserById, isPending: isActivatingUser } = useActivateUserById();
 
   const { mutate: requestResetUserPasswordByEmail, isPending: isRequestingResetPassword } =
     useRequestResetUserPasswordByEmail({
@@ -157,19 +160,57 @@ export const TableUsers = ({
   }, []);
 
   const handleStatusChange = useCallback((status: string) => {
-    setSelectedStatus(status as 'active' | 'inactive');
+    setSelectedStatus(status as 'active' | 'inactive' | 'all');
     setCurrentPage(1);
   }, []);
 
-  const handleDeleteClick = (user: User) => {
-    setUserToDelete(user);
+  const handleStatusActionClick = (user: User) => {
+    const isPilotList = userType === 'pilot';
+    const action = isPilotList && user.deletedAt ? 'activate' : 'disable';
+    setUserToStatusAction({ user, action });
   };
 
-  const handleConfirmDelete = () => {
-    if (userToDelete) {
-      deleteUserById(userToDelete.id);
-      setUserToDelete(null);
+  const handleConfirmStatusAction = () => {
+    if (!userToStatusAction) return;
+
+    const { user, action } = userToStatusAction;
+    const isPilotList = userType === 'pilot';
+
+    const handleSuccess = () => {
+      if (isPilotList && action === 'disable') {
+        toast('Piloto desativado com sucesso');
+      } else if (isPilotList && action === 'activate') {
+        toast('Piloto reativado com sucesso');
+      } else {
+        toast(`${title} deletado com sucesso`);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setUserToStatusAction(null);
+    };
+
+    const handleError = (error: Error) => {
+      if (isPilotList && action === 'disable') {
+        toast(`Erro ao desativar piloto: ${error.message}`);
+      } else if (isPilotList && action === 'activate') {
+        toast(`Erro ao reativar piloto: ${error.message}`);
+      } else {
+        toast(error.message);
+      }
+    };
+
+    if (action === 'activate') {
+      activateUserById(user.id, {
+        onSuccess: handleSuccess,
+        onError: handleError,
+      });
+      return;
     }
+
+    deleteUserById(user.id, {
+      onSuccess: handleSuccess,
+      onError: handleError,
+    });
   };
 
   const handleOrderByChange = (orderBy: UserOrderBy | undefined) => {
@@ -182,9 +223,9 @@ export const TableUsers = ({
     setCurrentPage(1)
   }
 
-  const isPending = isDeletingUser || isRequestingResetPassword;
+  const isPending = isDeletingUser || isActivatingUser || isRequestingResetPassword;
 
-  type UserColumnId = 'name' | 'email' | 'type' | 'actions';
+  type UserColumnId = 'name' | 'email' | 'type' | 'status' | 'actions';
 
   const initialColumnVisibility: Partial<Record<UserColumnId, boolean>> = {};
 
@@ -210,6 +251,21 @@ export const TableUsers = ({
         </div>
       );
     }),
+    ...(userType === 'pilot'
+      ? [
+          createColumn<User>('status', 'deletedAt', 'Status', ({ row }) => {
+            const isInactive = !!row.original.deletedAt;
+            return (
+              <Badge
+                variant={isInactive ? 'destructive' : 'secondary'}
+                className={isInactive ? '' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'}
+              >
+                {isInactive ? 'Inativo' : 'Ativo'}
+              </Badge>
+            );
+          }),
+        ]
+      : []),
     createActionsColumn<User>((user) => (
       <>
         <Tooltip>
@@ -257,8 +313,15 @@ export const TableUsers = ({
             >
               Redefinir senha
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDeleteClick(user)} className='text-destructive'>
-              Deletar {title.toLowerCase()}
+            <DropdownMenuItem
+              onClick={() => handleStatusActionClick(user)}
+              className={userType === 'pilot' && user.deletedAt ? '' : 'text-destructive'}
+            >
+              {userType === 'pilot'
+                ? user.deletedAt
+                  ? 'Reativar piloto'
+                  : 'Desativar piloto'
+                : `Deletar ${title.toLowerCase()}`}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -312,8 +375,9 @@ export const TableUsers = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='active'>Ativo</SelectItem>
-                  <SelectItem value='inactive'>Inativo</SelectItem>
+                  <SelectItem value='active'>Ativos</SelectItem>
+                  <SelectItem value='inactive'>Inativos</SelectItem>
+                  <SelectItem value='all'>Todos</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -355,21 +419,51 @@ export const TableUsers = ({
         renderEmptyState={() => emptyMessage || `Nenhum ${title.toLowerCase()} encontrado.`}
       />
 
-      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+      <Dialog
+        open={!!userToStatusAction}
+        onOpenChange={(open) => !open && setUserToStatusAction(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogTitle>
+              {userType === 'pilot'
+                ? userToStatusAction?.action === 'activate'
+                  ? 'Confirmar reativação'
+                  : 'Confirmar desativação'
+                : 'Confirmar exclusão'}
+            </DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir o {title.toLowerCase()} {userToDelete?.name}? Esta ação
-              não pode ser desfeita.
+              {userType === 'pilot'
+                ? userToStatusAction?.action === 'activate'
+                  ? `Tem certeza que deseja reativar o piloto ${userToStatusAction?.user.name}?`
+                  : `Tem certeza que deseja desativar o piloto ${userToStatusAction?.user.name}?`
+                : `Tem certeza que deseja excluir o ${title.toLowerCase()} ${userToStatusAction?.user.name}? Esta ação não pode ser desfeita.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setUserToDelete(null)}>
+            <Button variant='outline' onClick={() => setUserToStatusAction(null)}>
               Cancelar
             </Button>
-            <Button variant='destructive' onClick={handleConfirmDelete} disabled={isDeletingUser}>
-              {isDeletingUser ? 'Excluindo...' : 'Excluir'}
+            <Button
+              variant={
+                userType === 'pilot' && userToStatusAction?.action === 'activate'
+                  ? 'default'
+                  : 'destructive'
+              }
+              onClick={handleConfirmStatusAction}
+              disabled={isDeletingUser || isActivatingUser}
+            >
+              {isDeletingUser || isActivatingUser
+                ? userType === 'pilot' && userToStatusAction?.action === 'activate'
+                  ? 'Reativando...'
+                  : userType === 'pilot'
+                    ? 'Desativando...'
+                    : 'Excluindo...'
+                : userType === 'pilot' && userToStatusAction?.action === 'activate'
+                  ? 'Reativar'
+                  : userType === 'pilot'
+                    ? 'Desativar'
+                    : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

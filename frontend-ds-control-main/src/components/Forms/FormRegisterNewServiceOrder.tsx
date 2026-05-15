@@ -188,6 +188,7 @@ export default function FormRegisterNewServiceOrder({
   } = useGetAllUsersInfinite(
     {
       type: 'pilot',
+      status: 'active',
       limit: '10',
       search: pilotSearch || undefined,
     },
@@ -197,6 +198,7 @@ export default function FormRegisterNewServiceOrder({
         'FormRegisterNewServiceOrder',
         'infinite',
         'pilot',
+        'active',
         '10',
         pilotSearch || '',
       ],

@@ -41,6 +41,7 @@ export const useGetAllUsersInfinite = (
     'users',
     'infinite',
     params?.type,
+    params?.status,
     params?.limit,
     params?.search,
   ];

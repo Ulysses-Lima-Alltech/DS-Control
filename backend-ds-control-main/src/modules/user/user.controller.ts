@@ -131,7 +131,7 @@ export class UserController {
         orderBy?: UserOrderBy;
         orderType?: UserOrderType;
         type?: "backoffice" | "pilot" | "farmer";
-        status?: "active" | "inactive";
+        status?: "active" | "inactive" | "all";
       };
     }>,
     reply: FastifyReply,

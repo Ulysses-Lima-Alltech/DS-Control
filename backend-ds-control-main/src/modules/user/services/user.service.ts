@@ -199,7 +199,7 @@ export class UserService {
     search?: string,
     filters?: {
       type?: "backoffice" | "pilot" | "farmer";
-      status?: "active" | "inactive";
+      status?: "active" | "inactive" | "all";
     },
     orderBy?: UserOrderBy,
     orderType?: UserOrderType,

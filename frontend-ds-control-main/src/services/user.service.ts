@@ -42,7 +42,7 @@ export type GetAllUsersParams = {
   limit?: string;
   search?: string;
   type?: 'backoffice' | 'pilot' | 'farmer';
-  status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive' | 'all';
   orderBy?: UserOrderBy;
   orderType?: UserOrderType
 };
@@ -136,6 +136,17 @@ export async function deleteUserById(userId: string): Promise<void> {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(`[User Service] Erro ao deletar usuário: ${error.message}`);
+  }
+}
+
+export async function activateUserById(userId: string): Promise<void> {
+  const response = await api(`/users/${userId}/activate`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`[User Service] Erro ao ativar usuário: ${error.message}`);
   }
 }
 

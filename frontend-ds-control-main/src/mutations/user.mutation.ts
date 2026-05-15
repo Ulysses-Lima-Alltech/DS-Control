@@ -22,6 +22,13 @@ export const useDeleteUserById = (options?: UseMutationOptions<void, Error, stri
   });
 };
 
+export const useActivateUserById = (options?: UseMutationOptions<void, Error, string>) => {
+  return useMutation({
+    mutationFn: (userId: string) => UserService.activateUserById(userId),
+    ...options,
+  });
+};
+
 export const useRequestResetUserPasswordByEmail = (
   options?: UseMutationOptions<void, Error, UserService.RequestResetUserPasswordByEmailParams>
 ) => {

@@ -12,9 +12,9 @@ export const GetUserQueryStringSchema = PaginatedRequestQueryStringSchema.extend
     .optional()
     .describe("Filter by user type"),
   status: z
-    .enum(["active", "inactive"])
+    .enum(["active", "inactive", "all"])
     .optional()
-    .describe("Filter by user status (active = not deleted, inactive = deleted)"),
+    .describe("Filter by user status (active = not deleted, inactive = deleted, all = both)"),
     orderBy: z
         .nativeEnum(UserOrderBy)
         .optional()

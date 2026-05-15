@@ -183,11 +183,12 @@ export default function FormApplication({
   } = useGetAllUsersInfinite(
     {
       type: 'pilot',
+      status: 'active',
       limit: '10',
       search: pilotSearch || undefined,
     },
     {
-      queryKey: ['users', 'FormApplication', 'infinite', 'pilot', '10', pilotSearch || ''],
+      queryKey: ['users', 'FormApplication', 'infinite', 'pilot', 'active', '10', pilotSearch || ''],
     }
   );
 
