@@ -1,7 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { InfiniteData, useQueries, UseQueryResult } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -160,25 +160,64 @@ const getIntersectingCropSeasonIds = (
     .map((cropSeason) => cropSeason.id);
 };
 
-const getCropSeasonElapsedDays = (
-  cropSeason: { startDate: string; endDate: string } | undefined,
+const getCombinedCropSeasonElapsedDays = (
+  cropSeasons: Array<{ startDate: string; endDate: string }>,
   todayYmd: string
 ) => {
-  if (!cropSeason) return 0;
-
   const today = parseStrictCivilDate(todayYmd);
-  const start = parseStrictCivilDate(cropSeason.startDate);
-  const end = parseStrictCivilDate(cropSeason.endDate);
+  if (!today || cropSeasons.length === 0) return 0;
 
-  if (!today || !start || !end || today < start) {
-    return 0;
+  const ranges = cropSeasons
+    .map((cropSeason) => {
+      const start = parseStrictCivilDate(cropSeason.startDate);
+      const end = parseStrictCivilDate(cropSeason.endDate);
+      if (!start || !end || today < start) return undefined;
+
+      const effectiveEnd = today <= end ? today : end;
+      if (effectiveEnd < start) return undefined;
+
+      return { start, end: effectiveEnd };
+    })
+    .filter((range): range is { start: Date; end: Date } => Boolean(range))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  if (ranges.length === 0) return 0;
+
+  const mergedRanges: Array<{ start: Date; end: Date }> = [];
+
+  for (const range of ranges) {
+    const lastRange = mergedRanges[mergedRanges.length - 1];
+
+    if (!lastRange) {
+      mergedRanges.push(range);
+      continue;
+    }
+
+    const nextDayAfterLastRangeEnd = new Date(
+      lastRange.end.getFullYear(),
+      lastRange.end.getMonth(),
+      lastRange.end.getDate() + 1
+    );
+
+    if (range.start <= nextDayAfterLastRangeEnd) {
+      if (range.end > lastRange.end) {
+        lastRange.end = range.end;
+      }
+      continue;
+    }
+
+    mergedRanges.push(range);
   }
 
-  const effectiveEnd = today <= end ? today : end;
-  return getCivilDateRangeDays({
-    startDate: cropSeason.startDate,
-    endDate: toCivilDateParam(effectiveEnd),
-  });
+  return mergedRanges.reduce(
+    (totalDays, range) =>
+      totalDays +
+      getCivilDateRangeDays({
+        startDate: toCivilDateParam(range.start),
+        endDate: toCivilDateParam(range.end),
+      }),
+    0
+  );
 };
 
 const getTodayCivilDate = () => toCivilDateParam(new Date());
@@ -355,7 +394,6 @@ export default function BackofficeDashboard() {
   const [cropSeasonSearchTerm, setCropSeasonSearchTerm] = useState('');
   const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
   const [droneSearchTerm, setDroneSearchTerm] = useState('');
-  const cropSeasonDefaultAppliedRef = useRef(false);
 
   const [pilotEntityMode, setPilotEntityMode] = useState<PilotEntityMode>('pilots');
   const [pilotPeriodMode, setPilotPeriodMode] = useState<RangeMode>('month');
@@ -375,18 +413,24 @@ export default function BackofficeDashboard() {
     }
   }, [isTablet]);
 
-  const { data: currentCropSeasonData } = useGetCurrentCropSeason();
+  const { data: currentCropSeasonData, isLoading: isLoadingCurrentCropSeason } =
+    useGetCurrentCropSeason();
 
   useEffect(() => {
-    if (cropSeasonDefaultAppliedRef.current) {
-      return;
-    }
+    if (startDate && endDate) return;
+    if (selectedCropSeasonId || isLoadingCurrentCropSeason) return;
 
-    if (currentCropSeasonData?.cropSeason?.id) {
-      setSelectedCropSeasonId(currentCropSeasonData.cropSeason.id);
-      cropSeasonDefaultAppliedRef.current = true;
-    }
-  }, [currentCropSeasonData?.cropSeason?.id]);
+    const currentCropSeasonId = currentCropSeasonData?.cropSeason?.id;
+    if (!currentCropSeasonId) return;
+
+    setSelectedCropSeasonId(currentCropSeasonId);
+  }, [
+    currentCropSeasonData?.cropSeason?.id,
+    endDate,
+    isLoadingCurrentCropSeason,
+    selectedCropSeasonId,
+    startDate,
+  ]);
 
   const todayDate = getTodayCivilDate();
   const yesterdayDate = getYesterdayCivilDate();
@@ -581,9 +625,10 @@ export default function BackofficeDashboard() {
     useGetStatsApplications(buildPanelStatsFilters(currentMonthCardRange));
   const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } =
     useGetStatsApplications(buildPanelStatsFilters(yesterdayCardRange));
+  const dashboardMetricsStartDate = startDate || yesterdayDate;
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics(
     {
-      startDate: startDate || todayDate,
+      startDate: dashboardMetricsStartDate,
       customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
       farmIds: selectedFarmId ? [selectedFarmId] : undefined,
       pilotId: selectedPilotId,
@@ -704,15 +749,19 @@ export default function BackofficeDashboard() {
     (productsData as unknown as InfiniteData<{ data: Product[] }>)?.pages?.flatMap(
       (page) => page.data
     ) || [];
-  const selectedCropSeason = useMemo(() => {
-    if (!effectiveSelectedCropSeasonId) {
-      return undefined;
+  const selectedCropSeasons = useMemo(() => {
+    if (effectiveCropSeasonIds.length === 0) {
+      return [];
     }
 
-    return cropSeasonsWithCurrent.find(
-      (cropSeason) => cropSeason.id === effectiveSelectedCropSeasonId
+    const seasonsById = new Map(
+      cropSeasonsWithCurrent.map((cropSeason) => [cropSeason.id, cropSeason])
     );
-  }, [cropSeasonsWithCurrent, effectiveSelectedCropSeasonId]);
+
+    return effectiveCropSeasonIds
+      .map((cropSeasonId) => seasonsById.get(cropSeasonId))
+      .filter((cropSeason): cropSeason is CropSeason => Boolean(cropSeason));
+  }, [cropSeasonsWithCurrent, effectiveCropSeasonIds]);
   const assistants =
     (assistantsData as unknown as InfiniteData<{ data: Assistant[] }>)?.pages?.flatMap(
       (page) => page.data
@@ -1053,7 +1102,7 @@ export default function BackofficeDashboard() {
     orderApplicationsQueries.some((query) => query.isPending);
 
   const manualRangeDays = getCivilDateRangeDays(manualDateRange);
-  const cropSeasonElapsedDays = getCropSeasonElapsedDays(selectedCropSeason, todayDate);
+  const cropSeasonElapsedDays = getCombinedCropSeasonElapsedDays(selectedCropSeasons, todayDate);
   const elapsedDaysForCards = manualDateRange
     ? manualRangeDays
     : effectiveCropSeasonIds.length > 0
@@ -1302,10 +1351,9 @@ export default function BackofficeDashboard() {
                 value={selectedCropSeasonId || 'all'}
                 listedData={allCropSeasonOptions}
                 onSearchChange={setCropSeasonSearchTerm}
-                onItemSelect={(value: string | undefined) => {
-                  cropSeasonDefaultAppliedRef.current = true;
-                  setSelectedCropSeasonId(!value || value === 'all' ? undefined : value);
-                }}
+                onItemSelect={(value: string | undefined) =>
+                  setSelectedCropSeasonId(!value || value === 'all' ? undefined : value)
+                }
                 itemKey='name'
                 hasNextPage={hasNextPageCropSeasons}
                 fetchNextPage={fetchNextPageCropSeasons}
