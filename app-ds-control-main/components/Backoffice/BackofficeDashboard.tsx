@@ -378,6 +378,7 @@ export default function BackofficeDashboard() {
   const [selectedPilotId, setSelectedPilotId] = useState<string | undefined>(undefined);
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
   const [selectedCropSeasonId, setSelectedCropSeasonId] = useState<string | undefined>(undefined);
+  const [isAllCropSeasonsSelected, setIsAllCropSeasonsSelected] = useState(false);
   const [selectedAssistantId, setSelectedAssistantId] = useState<string | undefined>(undefined);
   const [selectedServiceOrderStatus, setSelectedServiceOrderStatus] = useState<
     ServiceOrderStatus | undefined
@@ -418,7 +419,7 @@ export default function BackofficeDashboard() {
 
   useEffect(() => {
     if (startDate && endDate) return;
-    if (selectedCropSeasonId || isLoadingCurrentCropSeason) return;
+    if (selectedCropSeasonId || isAllCropSeasonsSelected || isLoadingCurrentCropSeason) return;
 
     const currentCropSeasonId = currentCropSeasonData?.cropSeason?.id;
     if (!currentCropSeasonId) return;
@@ -427,6 +428,7 @@ export default function BackofficeDashboard() {
   }, [
     currentCropSeasonData?.cropSeason?.id,
     endDate,
+    isAllCropSeasonsSelected,
     isLoadingCurrentCropSeason,
     selectedCropSeasonId,
     startDate,
@@ -548,13 +550,34 @@ export default function BackofficeDashboard() {
 
     return Array.from(seasonsById.values());
   }, [cropSeasons, currentCropSeasonData?.cropSeason]);
+  const currentCropSeasonId = currentCropSeasonData?.cropSeason?.id;
+  const shouldWaitForCropSeason =
+    !manualDateRange &&
+    !selectedCropSeasonId &&
+    !isAllCropSeasonsSelected &&
+    (isLoadingCurrentCropSeason || !currentCropSeasonId);
+  const canLoadDashboardCards = !shouldWaitForCropSeason;
   const effectiveCropSeasonIds = useMemo(() => {
     if (manualDateRange) {
       return getIntersectingCropSeasonIds(cropSeasonsWithCurrent, manualDateRange);
     }
 
-    return selectedCropSeasonId ? [selectedCropSeasonId] : [];
-  }, [cropSeasonsWithCurrent, manualDateRange, selectedCropSeasonId]);
+    if (selectedCropSeasonId) {
+      return [selectedCropSeasonId];
+    }
+
+    if (isAllCropSeasonsSelected) {
+      return [];
+    }
+
+    return currentCropSeasonId ? [currentCropSeasonId] : [];
+  }, [
+    cropSeasonsWithCurrent,
+    currentCropSeasonId,
+    isAllCropSeasonsSelected,
+    manualDateRange,
+    selectedCropSeasonId,
+  ]);
   const effectiveSelectedCropSeasonId =
     effectiveCropSeasonIds.length === 1 ? effectiveCropSeasonIds[0] : undefined;
 
@@ -618,27 +641,31 @@ export default function BackofficeDashboard() {
     startDate: yesterdayDate,
     endDate: yesterdayDate,
   };
+  const totalStatsParams = cardRangeFilters;
+  const currentMonthStatsParams = buildPanelStatsFilters(currentMonthCardRange);
+  const yesterdayStatsParams = buildPanelStatsFilters(yesterdayCardRange);
+  const dashboardMetricsStartDate = startDate || yesterdayDate;
+  const dashboardMetricsParams: ApplicationService.GetDashboardMetricsParams = {
+    startDate: dashboardMetricsStartDate,
+    customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
+    farmIds: selectedFarmId ? [selectedFarmId] : undefined,
+    pilotId: selectedPilotId,
+    search: search || undefined,
+    cropSeasonId: effectiveSelectedCropSeasonId,
+    cropSeasonIds: effectiveCropSeasonIds.length > 0 ? effectiveCropSeasonIds : undefined,
+    currentSeason: effectiveCropSeasonIds.length === 0 && !manualDateRange ? true : undefined,
+  };
 
   const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
-    useGetStatsApplications(cardRangeFilters);
+    useGetStatsApplications(totalStatsParams, { enabled: canLoadDashboardCards });
   const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } =
-    useGetStatsApplications(buildPanelStatsFilters(currentMonthCardRange));
+    useGetStatsApplications(currentMonthStatsParams, { enabled: canLoadDashboardCards });
   const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } =
-    useGetStatsApplications(buildPanelStatsFilters(yesterdayCardRange));
-  const dashboardMetricsStartDate = startDate || yesterdayDate;
+    useGetStatsApplications(yesterdayStatsParams, { enabled: canLoadDashboardCards });
   const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics(
+    dashboardMetricsParams,
     {
-      startDate: dashboardMetricsStartDate,
-      customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
-      farmIds: selectedFarmId ? [selectedFarmId] : undefined,
-      pilotId: selectedPilotId,
-      search: search || undefined,
-      cropSeasonId: effectiveSelectedCropSeasonId,
-      cropSeasonIds: effectiveCropSeasonIds.length > 0 ? effectiveCropSeasonIds : undefined,
-      currentSeason: effectiveCropSeasonIds.length === 0 && !manualDateRange ? true : undefined,
-    },
-    {
-      enabled: !manualDateRange && effectiveCropSeasonIds.length === 0,
+      enabled: canLoadDashboardCards && !manualDateRange && effectiveCropSeasonIds.length === 0,
     }
   );
 
@@ -1103,11 +1130,13 @@ export default function BackofficeDashboard() {
 
   const manualRangeDays = getCivilDateRangeDays(manualDateRange);
   const cropSeasonElapsedDays = getCombinedCropSeasonElapsedDays(selectedCropSeasons, todayDate);
-  const elapsedDaysForCards = manualDateRange
-    ? manualRangeDays
-    : effectiveCropSeasonIds.length > 0
-      ? cropSeasonElapsedDays
-      : dashboardMetrics?.metrics?.daysSinceStart;
+  const elapsedDaysForCards = shouldWaitForCropSeason
+    ? undefined
+    : manualDateRange
+      ? manualRangeDays
+      : effectiveCropSeasonIds.length > 0
+        ? cropSeasonElapsedDays
+        : dashboardMetrics?.metrics?.daysSinceStart;
   const averageDailyAreaForCards =
     Number(elapsedDaysForCards || 0) > 0
       ? Number(totalSeasonStats?.stats?.totalAreaHectares || 0) / Number(elapsedDaysForCards || 0)
@@ -1119,21 +1148,21 @@ export default function BackofficeDashboard() {
       value: formatHectares(totalSeasonStats?.stats?.totalAreaHectares),
       icon: 'leaf-outline' as const,
       accentColor: '#16A34A',
-      isLoading: isLoadingTotalSeasonStats,
+      isLoading: shouldWaitForCropSeason || isLoadingTotalSeasonStats,
     },
     {
       title: 'Este mes',
       value: formatHectares(currentMonthStats?.stats?.totalAreaHectares),
       icon: 'calendar-outline' as const,
       accentColor: '#CA8A04',
-      isLoading: isLoadingCurrentMonthStats,
+      isLoading: shouldWaitForCropSeason || isLoadingCurrentMonthStats,
     },
     {
       title: 'Aplicacao de ontem',
       value: formatHectares(yesterdayAreaStats?.stats?.totalAreaHectares),
       icon: 'time-outline' as const,
       accentColor: '#EA580C',
-      isLoading: isLoadingYesterdayAreaStats,
+      isLoading: shouldWaitForCropSeason || isLoadingYesterdayAreaStats,
     },
     {
       title: 'Media diaria safra',
@@ -1145,7 +1174,9 @@ export default function BackofficeDashboard() {
       icon: 'bar-chart-outline' as const,
       accentColor: '#0EA5E9',
       isLoading:
-        manualDateRange || effectiveCropSeasonIds.length > 0
+        shouldWaitForCropSeason
+          ? true
+          : manualDateRange || effectiveCropSeasonIds.length > 0
           ? isLoadingTotalSeasonStats
           : isLoadingDashboardMetrics,
     },
@@ -1159,7 +1190,9 @@ export default function BackofficeDashboard() {
       icon: 'trending-up-outline' as const,
       accentColor: '#9333EA',
       isLoading:
-        manualDateRange || effectiveCropSeasonIds.length > 0
+        shouldWaitForCropSeason
+          ? true
+          : manualDateRange || effectiveCropSeasonIds.length > 0
           ? isFetchingCropSeasons
           : isLoadingDashboardMetrics,
     },
@@ -1181,6 +1214,7 @@ export default function BackofficeDashboard() {
     setSelectedPilotId(undefined);
     setSelectedProductId(undefined);
     setSelectedCropSeasonId(currentCropSeasonData?.cropSeason?.id);
+    setIsAllCropSeasonsSelected(false);
     setSelectedAssistantId(undefined);
     setSelectedServiceOrderStatus(undefined);
     setSelectedApplicationIssue(undefined);
@@ -1348,12 +1382,19 @@ export default function BackofficeDashboard() {
             <View style={[styles.filterField, { width: itemColumnWidth }]}>
               <Text style={styles.filterLabel}>Safra</Text>
               <SearchableSelectQuery
-                value={selectedCropSeasonId || 'all'}
+                value={isAllCropSeasonsSelected ? 'all' : selectedCropSeasonId || 'all'}
                 listedData={allCropSeasonOptions}
                 onSearchChange={setCropSeasonSearchTerm}
-                onItemSelect={(value: string | undefined) =>
-                  setSelectedCropSeasonId(!value || value === 'all' ? undefined : value)
-                }
+                onItemSelect={(value: string | undefined) => {
+                  if (!value || value === 'all') {
+                    setSelectedCropSeasonId(undefined);
+                    setIsAllCropSeasonsSelected(true);
+                    return;
+                  }
+
+                  setSelectedCropSeasonId(value);
+                  setIsAllCropSeasonsSelected(false);
+                }}
                 itemKey='name'
                 hasNextPage={hasNextPageCropSeasons}
                 fetchNextPage={fetchNextPageCropSeasons}
