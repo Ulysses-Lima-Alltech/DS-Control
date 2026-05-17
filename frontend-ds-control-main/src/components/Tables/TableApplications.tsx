@@ -1250,6 +1250,11 @@ export const TableApplications = ({
   const enableCropSeasonControls = !simpleMode && !propCustomerId && !propServiceOrderId;
   const showOverviewCards = enableCropSeasonControls;
   const overviewSummary = data?.summary;
+  const formatTotalFilteredHectares = (value: number | undefined) =>
+    `${new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value || 0))} ha`;
   const formatSummaryHectares = (value: number | undefined) =>
     value === undefined ? '-- ha' : `${value.toFixed(2).replace('.', ',')} ha`;
   const formatSummaryCount = (value: number | undefined) =>
@@ -1262,7 +1267,7 @@ export const TableApplications = ({
           <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
             <p className='text-sm text-muted-foreground'>Total filtrado</p>
             <p className='mt-8 text-4xl font-semibold text-emerald-500'>
-              {formatSummaryHectares(overviewSummary?.totalFilteredHectares)}
+              {formatTotalFilteredHectares(overviewSummary?.totalFilteredHectares)}
             </p>
           </div>
           <div className='rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
