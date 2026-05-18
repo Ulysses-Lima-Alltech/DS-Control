@@ -40,10 +40,9 @@ import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import {
   buildReportMapboxStaticUrl,
-  getReportMapPlaceholderMessage,
+  parsePlotGeoJson,
 } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR, toOperationalDateYMD } from '@/utils/operational-date';
-import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -62,6 +61,7 @@ type DialogPlotDetailsProps = {
 };
 
 type ReportSections = typeof DEFAULT_REPORT_SECTIONS;
+const REPORT_MAP_UNAVAILABLE_MESSAGE = 'Imagem do talhao indisponivel para este registro.';
 
 function parseNumericValue(value: string | number | null | undefined) {
   if (typeof value === 'number') {
@@ -126,6 +126,56 @@ function getApplicationOperationType(application: Application): string | null {
     'method',
     'type',
   ]);
+}
+
+function buildStaticGeoJsonOverlayUrl(
+  plot: Plot,
+  width: number,
+  height: number,
+  accessToken: string
+): string | null {
+  const parsedGeoJson = parsePlotGeoJson(plot);
+  if (!parsedGeoJson) {
+    return null;
+  }
+
+  const mapResult = buildReportMapboxStaticUrl({
+    plot,
+    mapWidth: width,
+    mapHeight: height,
+    accessToken,
+  });
+
+  if (!mapResult.url) {
+    return null;
+  }
+
+  const bboxMatch = mapResult.url.match(/\/static\/\[(.*?)\]\//);
+  if (!bboxMatch?.[1]) {
+    return null;
+  }
+
+  const overlayGeoJson =
+    parsedGeoJson.type === 'FeatureCollection'
+      ? {
+          ...parsedGeoJson,
+          features: parsedGeoJson.features.map((feature) => ({
+            ...feature,
+            properties: {
+              ...feature.properties,
+              fill: '#EAAE07',
+              'fill-opacity': 0.3,
+              stroke: '#EAAE07',
+              'stroke-width': 3,
+              'stroke-opacity': 1,
+            },
+          })),
+        }
+      : parsedGeoJson;
+
+  const overlayParam = encodeURIComponent(JSON.stringify(overlayGeoJson));
+  const bboxParam = bboxMatch[1];
+  return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/geojson(${overlayParam})/[${bboxParam}]/${width}x${height}?access_token=${encodeURIComponent(accessToken)}`;
 }
 
 export default function DialogPlotDetails({
@@ -305,37 +355,28 @@ export default function DialogPlotDetails({
   }, [reportFilteredApplications]);
 
   const geoData = useMemo(() => {
-    if (!farmPlots.length) return undefined;
-    return convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmPlots);
-  }, [farmPlots]);
+    if (!activePlot) return undefined;
+    return convertDatabasePlotsToMapViewerPlotsFeatureCollection([activePlot]);
+  }, [activePlot]);
 
   const reportPreviewMap = useMemo(() => {
     if (!activePlot) {
       return {
         url: null as string | null,
-        polygonPaths: null as string[] | null,
-        unavailableMessage: 'Imagem do talhao indisponivel para este registro.',
+        unavailableMessage: REPORT_MAP_UNAVAILABLE_MESSAGE,
       };
     }
 
     const mapWidth = 1280;
     const mapHeight = 520;
-    const polygonPaths = buildPlotPolygonSvgPathDs(activePlot, mapWidth, mapHeight);
-    const mapResult = buildReportMapboxStaticUrl({
-      plot: activePlot,
-      mapWidth,
-      mapHeight,
-      accessToken:
-        process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-        'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
-    });
+    const accessToken =
+      process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+      'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
+    const mapUrl = buildStaticGeoJsonOverlayUrl(activePlot, mapWidth, mapHeight, accessToken);
 
     return {
-      url: mapResult.url,
-      polygonPaths,
-      unavailableMessage: mapResult.unavailableReason
-        ? getReportMapPlaceholderMessage(mapResult.unavailableReason)
-        : 'Imagem do talhao indisponivel para este registro.',
+      url: mapUrl,
+      unavailableMessage: REPORT_MAP_UNAVAILABLE_MESSAGE,
     };
   }, [activePlot]);
 
@@ -512,26 +553,6 @@ export default function DialogPlotDetails({
                             className='block h-[300px] w-full object-cover'
                             onError={() => setHasReportMapLoadError(true)}
                           />
-                          {reportPreviewMap.polygonPaths?.length ? (
-                            <svg
-                              viewBox='0 0 1280 520'
-                              className='pointer-events-none absolute inset-0 h-full w-full'
-                              preserveAspectRatio='none'
-                              aria-hidden='true'
-                            >
-                              {reportPreviewMap.polygonPaths.map((pathData, index) => (
-                                <path
-                                  key={`plot-print-path-${index}`}
-                                  d={pathData}
-                                  fill='rgba(234, 174, 7, 0.28)'
-                                  stroke='#EAAE07'
-                                  strokeWidth={2.5}
-                                  vectorEffect='non-scaling-stroke'
-                                  fillRule='evenodd'
-                                />
-                              ))}
-                            </svg>
-                          ) : null}
                         </div>
                       ) : (
                         <div className='flex h-[300px] items-center justify-center rounded-md border border-dashed bg-background px-6 text-center'>
@@ -539,9 +560,8 @@ export default function DialogPlotDetails({
                             <p className='text-base font-semibold'>{activePlot?.name || 'Talhao'}</p>
                             <p className='text-sm text-muted-foreground'>
                               {hasReportMapLoadError
-                                ? 'Imagem do talhao indisponivel para este registro.'
-                                : reportPreviewMap.unavailableMessage ||
-                                  'Imagem do talhao indisponivel para este registro.'}
+                                ? REPORT_MAP_UNAVAILABLE_MESSAGE
+                                : reportPreviewMap.unavailableMessage || REPORT_MAP_UNAVAILABLE_MESSAGE}
                             </p>
                           </div>
                         </div>
@@ -622,36 +642,6 @@ export default function DialogPlotDetails({
               </div>
             ) : (
               <div className='grid grid-cols-1 gap-4 lg:grid-cols-12'>
-              <Card className='order-1 lg:order-2 lg:col-span-8 lg:row-span-2 overflow-hidden'>
-                <CardHeader>
-                  <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
-                  <CardDescription>
-                    {activePlot
-                      ? `Talhao em destaque: ${activePlot.name}`
-                      : 'Selecione um talhao para visualizar'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='p-0'>
-                  <div className='h-[320px] sm:h-[380px] lg:h-[560px]'>
-                    {isLoadingFarm ? (
-                      <Skeleton className='h-full w-full' />
-                    ) : (
-                      <MapViewer
-                        layerNameToHighlight={activePlot?.name}
-                        layerPlotIdsToHighlight={activePlot?.id ? [activePlot.id] : undefined}
-                        geoData={geoData}
-                        onPlotClick={(clickedPlotId) => {
-                          const clickedPlot = farmPlots.find((plot) => plot.id === clickedPlotId);
-                          if (clickedPlot?.id) {
-                            setSelectedPlotFilter(clickedPlot.id);
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
               <Card className='order-2 lg:order-1 lg:col-span-12'>
                 <CardHeader className='pb-3'>
                   <CardTitle className='text-base'>Resumo do Talhao</CardTitle>
@@ -684,51 +674,76 @@ export default function DialogPlotDetails({
                 </CardContent>
               </Card>
 
-              <Card className='order-3 lg:order-3 lg:col-span-4'>
+              <Card className='order-1 lg:order-2 lg:col-span-8 overflow-hidden'>
+                <CardHeader>
+                  <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
+                  <CardDescription>
+                    {activePlot
+                      ? `Talhao em destaque: ${activePlot.name}`
+                      : 'Selecione um talhao para visualizar'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='p-0'>
+                  <div className='h-[320px] sm:h-[380px] lg:h-[420px] min-h-[320px]'>
+                    {isLoadingFarm ? (
+                      <Skeleton className='h-full w-full' />
+                    ) : (
+                      <MapViewer
+                        key={`plot-map-${isOpen ? 'open' : 'closed'}-${activePlot?.id || 'none'}`}
+                        layerNameToHighlight={activePlot?.name}
+                        layerPlotIdsToHighlight={activePlot?.id ? [activePlot.id] : undefined}
+                        geoData={geoData}
+                        onPlotClick={(clickedPlotId) => {
+                          const clickedPlot = farmPlots.find((plot) => plot.id === clickedPlotId);
+                          if (clickedPlot?.id) {
+                            setSelectedPlotFilter(clickedPlot.id);
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className='order-3 lg:order-3 lg:col-span-8'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Informacoes do Talhao</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className='space-y-3 text-sm'>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Fazenda</span>
-                      <span className='text-right font-medium'>{data?.farm?.name || 'N/A'}</span>
+                  <div className='grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3'>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Fazenda</p>
+                      <p className='mt-1 font-medium'>{data?.farm?.name || 'N/A'}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Cliente</span>
-                      <span className='text-right font-medium'>
-                        {data?.farm?.customer?.name || 'N/A'}
-                      </span>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Cliente</p>
+                      <p className='mt-1 font-medium'>{data?.farm?.customer?.name || 'N/A'}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Area do Talhao</span>
-                      <span className='text-right font-medium'>
-                        {formatPlotArea(activePlot?.hectare)}
-                      </span>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Area do Talhao</p>
+                      <p className='mt-1 font-medium'>{formatPlotArea(activePlot?.hectare)}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Data de Cadastro</span>
-                      <span className='text-right font-medium'>
-                        {formatTimestamp(activePlot?.createdAt)}
-                      </span>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Data de Cadastro</p>
+                      <p className='mt-1 font-medium'>{formatTimestamp(activePlot?.createdAt)}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Cultura Mais Recente</span>
-                      <span className='text-right font-medium'>{historySummary.latestCulture}</span>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Cultura Mais Recente</p>
+                      <p className='mt-1 font-medium'>{historySummary.latestCulture}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Identificador</span>
-                      <span className='text-right font-mono text-xs'>{activePlot?.id || 'N/A'}</span>
+                    <div className='rounded-sm bg-muted/25 p-3'>
+                      <p className='text-xs text-muted-foreground'>Identificador</p>
+                      <p className='mt-1 font-mono text-xs'>{activePlot?.id || 'N/A'}</p>
                     </div>
-                    <div className='flex items-start justify-between gap-3'>
-                      <span className='text-muted-foreground'>Nome do Talhao</span>
-                      <span className='text-right font-medium'>{activePlot?.name || 'N/A'}</span>
+                    <div className='rounded-sm bg-muted/25 p-3 md:col-span-2 xl:col-span-1'>
+                      <p className='text-xs text-muted-foreground'>Nome do Talhao</p>
+                      <p className='mt-1 font-medium'>{activePlot?.name || 'N/A'}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className='order-4 lg:order-4 lg:col-span-4 lg:max-h-[560px] overflow-hidden'>
+              <Card className='order-4 lg:order-4 lg:col-span-4 lg:row-span-2 overflow-hidden flex flex-col lg:h-[760px]'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Historico de Aplicacoes</CardTitle>
                   <CardDescription>
@@ -737,7 +752,7 @@ export default function DialogPlotDetails({
                       : `${sortedApplications.length} aplicacoes registradas`}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='space-y-3 overflow-y-auto max-h-[440px] pr-1'>
+                <CardContent className='space-y-3 overflow-y-auto pr-1 flex-1 min-h-0'>
                   {isLoadingApplications &&
                     Array.from({ length: 3 }).map((_, index) => (
                       <Skeleton key={`app-loading-${index}`} className='h-28 w-full rounded-md' />
