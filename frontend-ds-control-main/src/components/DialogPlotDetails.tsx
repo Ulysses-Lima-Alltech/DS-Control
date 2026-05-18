@@ -38,7 +38,12 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
+import {
+  buildReportMapboxStaticUrl,
+  getReportMapPlaceholderMessage,
+} from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR, toOperationalDateYMD } from '@/utils/operational-date';
+import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -137,6 +142,7 @@ export default function DialogPlotDetails({
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [hasReportMapLoadError, setHasReportMapLoadError] = useState(false);
   const [printOptions, setPrintOptions] = useState<{
     productFilter: string;
     startDate: string;
@@ -303,6 +309,36 @@ export default function DialogPlotDetails({
     return convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmPlots);
   }, [farmPlots]);
 
+  const reportPreviewMap = useMemo(() => {
+    if (!activePlot) {
+      return {
+        url: null as string | null,
+        polygonPaths: null as string[] | null,
+        unavailableMessage: 'Imagem do talhao indisponivel para este registro.',
+      };
+    }
+
+    const mapWidth = 1280;
+    const mapHeight = 520;
+    const polygonPaths = buildPlotPolygonSvgPathDs(activePlot, mapWidth, mapHeight);
+    const mapResult = buildReportMapboxStaticUrl({
+      plot: activePlot,
+      mapWidth,
+      mapHeight,
+      accessToken:
+        process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+        'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
+    });
+
+    return {
+      url: mapResult.url,
+      polygonPaths,
+      unavailableMessage: mapResult.unavailableReason
+        ? getReportMapPlaceholderMessage(mapResult.unavailableReason)
+        : 'Imagem do talhao indisponivel para este registro.',
+    };
+  }, [activePlot]);
+
   function updateReportSection(
     key: keyof ReportSections,
     checked: boolean | 'indeterminate'
@@ -323,6 +359,7 @@ export default function DialogPlotDetails({
     setReportStartDate('');
     setReportEndDate('');
     setReportSections(DEFAULT_REPORT_SECTIONS);
+    setHasReportMapLoadError(false);
     setIsReportOptionsOpen(true);
   }
 
@@ -343,6 +380,7 @@ export default function DialogPlotDetails({
         endDate: reportEndDate,
         sections: reportSections,
       });
+      setHasReportMapLoadError(false);
       setIsPrintPreviewOpen(true);
       setIsReportOptionsOpen(false);
     } catch {
@@ -466,12 +504,48 @@ export default function DialogPlotDetails({
 
                   {printOptions?.sections.includeMap ? (
                     <section className='rounded-md border bg-muted/20 p-4'>
-                      <div className='flex h-56 items-center justify-center rounded-md border border-dashed bg-background text-center'>
-                        <div>
-                          <p className='text-base font-semibold'>{activePlot?.name || 'Talhão'}</p>
-                          <p className='text-sm text-muted-foreground'>Visualização do talhão</p>
+                      {reportPreviewMap.url && !hasReportMapLoadError ? (
+                        <div className='relative overflow-hidden rounded-md border bg-black/5'>
+                          <img
+                            src={reportPreviewMap.url}
+                            alt={`Visualizacao do talhao ${activePlot?.name || ''}`}
+                            className='block h-[300px] w-full object-cover'
+                            onError={() => setHasReportMapLoadError(true)}
+                          />
+                          {reportPreviewMap.polygonPaths?.length ? (
+                            <svg
+                              viewBox='0 0 1280 520'
+                              className='pointer-events-none absolute inset-0 h-full w-full'
+                              preserveAspectRatio='none'
+                              aria-hidden='true'
+                            >
+                              {reportPreviewMap.polygonPaths.map((pathData, index) => (
+                                <path
+                                  key={`plot-print-path-${index}`}
+                                  d={pathData}
+                                  fill='rgba(234, 174, 7, 0.28)'
+                                  stroke='#EAAE07'
+                                  strokeWidth={2.5}
+                                  vectorEffect='non-scaling-stroke'
+                                  fillRule='evenodd'
+                                />
+                              ))}
+                            </svg>
+                          ) : null}
                         </div>
-                      </div>
+                      ) : (
+                        <div className='flex h-[300px] items-center justify-center rounded-md border border-dashed bg-background px-6 text-center'>
+                          <div>
+                            <p className='text-base font-semibold'>{activePlot?.name || 'Talhao'}</p>
+                            <p className='text-sm text-muted-foreground'>
+                              {hasReportMapLoadError
+                                ? 'Imagem do talhao indisponivel para este registro.'
+                                : reportPreviewMap.unavailableMessage ||
+                                  'Imagem do talhao indisponivel para este registro.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </section>
                   ) : null}
 
@@ -869,3 +943,4 @@ export default function DialogPlotDetails({
     </>
   );
 }
+
