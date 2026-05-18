@@ -1,11 +1,26 @@
 import { Entypo, Octicons, Ionicons, Feather } from '@expo/vector-icons';
 import { View, Text, Modal, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { useMemo } from 'react';
 import { COLORS } from '@/constants/colors';
 import { useGetPlotById } from '@/queries/plot.query';
 import { useGetApplicationsByPlotId } from '@/queries/application.query';
 import Toast from 'react-native-toast-message';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
 import { Application } from '@/types/applications.type';
+
+function parseNumericValue(value: string | number | null | undefined) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
 
 interface ModalPlotViewerProps {
   plotId: string | null;
@@ -14,19 +29,21 @@ interface ModalPlotViewerProps {
 }
 
 export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPlotViewerProps) {
+  const effectivePlotId = visible ? plotId : null;
+
   const {
     data: plotData,
     isFetching: isFetchingPlot,
     isError: isPlotError,
-  } = useGetPlotById(plotId ?? '', {
-    enabled: !!plotId && visible,
+  } = useGetPlotById(effectivePlotId ?? '', {
+    enabled: !!effectivePlotId && visible,
   });
 
   const {
     data: applicationsData,
     isFetching: isFetchingApplications,
     isError: isApplicationsError,
-  } = useGetApplicationsByPlotId(plotId ?? '');
+  } = useGetApplicationsByPlotId(effectivePlotId ?? '');
 
   if (isPlotError) {
     Toast.show({
@@ -37,6 +54,27 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
   }
 
   const applications: Application[] = applicationsData?.data ?? [];
+
+  const sortedApplications = useMemo(() => {
+    return [...applications].sort((a, b) => {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }, [applications]);
+
+  const totalAppliedArea = useMemo(() => {
+    return sortedApplications.reduce((sum, application) => {
+      return sum + parseNumericValue(application.hectares);
+    }, 0);
+  }, [sortedApplications]);
+
+  const latestApplication = sortedApplications[0] ?? null;
+
+  const formatAreaValue = (value: number) => {
+    return `${value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ha`;
+  };
 
   const renderApplication = (item: Application) => (
     <View
@@ -231,7 +269,7 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
               textOverflow: 'ellipsis',
             }}
           >
-            {isFetchingPlot ? 'Carregando talhão...' : `TALHÃO - ${plotData?.plot?.name}`}
+            {isFetchingPlot ? 'Carregando talhão...' : `HISTÓRICO - TALHÃO ${plotData?.plot?.name}`}
           </Text>
         </View>
         {/* Close button */}
@@ -299,6 +337,18 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
                     </View>
                   </View>
                 )}
+
+                {plotData?.plot?.createdAt && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Feather name='calendar' size={14} color={COLORS.gray} />
+                    <View>
+                      <Text style={{ fontSize: 12, color: COLORS.gray }}>Data de cadastro</Text>
+                      <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: '600' }}>
+                        {formatDateToDDMMYYYY(plotData.plot.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -341,10 +391,68 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
                     }}
                   >
                     <Text style={{ fontSize: 12, color: COLORS.blue }}>
-                      {applications.length} aplicações
+                      {sortedApplications.length} aplicações
                     </Text>
                   </View>
                 )}
+              </View>
+
+              <View
+                style={{
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 96,
+                    backgroundColor: '#F2F7FF',
+                    borderRadius: 10,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#D6E8FF',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: COLORS.gray }}>Total de ha aplicados</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.blue, fontWeight: '700' }}>
+                    {formatAreaValue(totalAppliedArea)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 96,
+                    backgroundColor: '#F4FBF6',
+                    borderRadius: 10,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#D8F0DE',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: COLORS.gray }}>Aplicações totais</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.green, fontWeight: '700' }}>
+                    {sortedApplications.length}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 96,
+                    backgroundColor: '#FFF8F1',
+                    borderRadius: 10,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#F6E4CC',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: COLORS.gray }}>Última aplicação</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.orange, fontWeight: '700' }}>
+                    {latestApplication ? formatDateToDDMMYYYY(latestApplication.date) : 'N/A'}
+                  </Text>
+                </View>
               </View>
 
               {isFetchingApplications ? (
@@ -355,14 +463,14 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
                 <Text style={{ fontSize: 14, color: COLORS.red, textAlign: 'center' }}>
                   Erro ao carregar aplicações
                 </Text>
-              ) : applications.length === 0 ? (
+              ) : sortedApplications.length === 0 ? (
                 <Text
                   style={{ fontSize: 14, color: COLORS.gray, textAlign: 'center', padding: 20 }}
                 >
                   Nenhuma aplicação encontrada para esse talhão
                 </Text>
               ) : (
-                applications.map(renderApplication)
+                sortedApplications.map(renderApplication)
               )}
             </View>
           </>

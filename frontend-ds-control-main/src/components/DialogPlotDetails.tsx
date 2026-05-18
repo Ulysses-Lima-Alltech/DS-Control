@@ -35,6 +35,20 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Separator } from './ui/separator';
 import { Skeleton } from './ui/skeleton';
 
+function parseNumericValue(value: string | number | null | undefined) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
 type DialogPlotDetailsProps = {
   farmId: string;
   plotId?: string;
@@ -108,6 +122,28 @@ export default function DialogPlotDetails({
     return applicationData.data.filter((app) => app.plotId === selectedPlotFilter);
   }, [applicationData?.data, selectedPlotFilter]);
 
+  const sortedApplications = useMemo(() => {
+    return [...filteredApplications].sort((a, b) => {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }, [filteredApplications]);
+
+  const historySummary = useMemo(() => {
+    const totalApplications = sortedApplications.length;
+    const totalAppliedArea = sortedApplications.reduce((sum, application) => {
+      return sum + parseNumericValue(application.hectares);
+    }, 0);
+    const latestApplication = sortedApplications[0] ?? null;
+    const latestCulture = latestApplication?.culture?.name || 'N/A';
+
+    return {
+      totalApplications,
+      totalAppliedArea,
+      latestApplication,
+      latestCulture,
+    };
+  }, [sortedApplications]);
+
   const plotStats = useMemo(() => {
     if (!filteredPlotForDetails?.geoJson) return null;
 
@@ -175,6 +211,13 @@ export default function DialogPlotDetails({
       : `${numValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ha`;
   };
 
+  const formatAreaValue = (value: number) => {
+    return `${value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ha`;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <Tooltip>
@@ -192,7 +235,7 @@ export default function DialogPlotDetails({
         <DialogHeader className='flex-shrink-0'>
           <DialogTitle className='text-2xl font-semibold flex items-center gap-2'>
             <MapPin className='h-6 w-6 text-primary' />
-            {selectedPlot ? `Talhão: ${selectedPlot.name}` : 'Detalhes do Talhão'}
+            {selectedPlot ? `Histórico do Talhão: ${selectedPlot.name}` : 'Histórico do Talhão'}
           </DialogTitle>
           {data?.farm && (
             <CardDescription className='text-base'>
@@ -220,7 +263,10 @@ export default function DialogPlotDetails({
                     </div>
                   ) : (
                     <MapViewer
-                      layerNameToHighlight={selectedPlot?.name}
+                      layerNameToHighlight={filteredPlotForDetails?.name}
+                      layerPlotIdsToHighlight={
+                        filteredPlotForDetails?.id ? [filteredPlotForDetails.id] : undefined
+                      }
                       geoData={
                         data?.farm?.plots
                           ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(
@@ -284,7 +330,7 @@ export default function DialogPlotDetails({
                       {isLoadingApplications
                         ? 'Carregando aplicações...'
                         : selectedPlotFilter
-                          ? `${filteredApplications.length} aplicações encontradas para o talhão selecionado`
+                          ? `${historySummary.totalApplications} aplicações | ${formatAreaValue(historySummary.totalAppliedArea)} aplicados`
                           : `${applicationData?.data?.length || 0} aplicações encontradas para esta fazenda`}
                     </CardDescription>
                   </CardHeader>
@@ -307,7 +353,61 @@ export default function DialogPlotDetails({
                       </div>
                     ) : (
                       <div className='space-y-3'>
-                        {filteredApplications.map((application) => (
+                        <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
+                          <Card className='border-muted'>
+                            <CardContent className='px-3 py-3'>
+                              <p className='text-xs text-muted-foreground'>Total de ha aplicados</p>
+                              <p className='text-sm font-semibold'>
+                                {formatAreaValue(historySummary.totalAppliedArea)}
+                              </p>
+                            </CardContent>
+                          </Card>
+                          <Card className='border-muted'>
+                            <CardContent className='px-3 py-3'>
+                              <p className='text-xs text-muted-foreground'>Aplicações totais</p>
+                              <p className='text-sm font-semibold'>
+                                {historySummary.totalApplications}
+                              </p>
+                            </CardContent>
+                          </Card>
+                          <Card className='border-muted'>
+                            <CardContent className='px-3 py-3'>
+                              <p className='text-xs text-muted-foreground'>Última aplicação</p>
+                              <p className='text-sm font-semibold break-words'>
+                                {historySummary.latestApplication
+                                  ? historySummary.latestApplication.product.name
+                                  : 'N/A'}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        <Card className='border-muted'>
+                          <CardContent className='px-3 py-3'>
+                            <div className='grid grid-cols-1 gap-2 text-xs sm:grid-cols-3'>
+                              <div>
+                                <p className='text-muted-foreground'>Área do talhão</p>
+                                <p className='font-medium'>
+                                  {formatHectares(filteredPlotForDetails?.hectare)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className='text-muted-foreground'>Cultura mais recente</p>
+                                <p className='font-medium'>{historySummary.latestCulture}</p>
+                              </div>
+                              <div>
+                                <p className='text-muted-foreground'>Data de cadastro</p>
+                                <p className='font-medium'>
+                                  {filteredPlotForDetails?.createdAt
+                                    ? formatTimestamp(filteredPlotForDetails.createdAt)
+                                    : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {sortedApplications.map((application) => (
                           <Card
                             key={application.id}
                             className='border-muted from-background to-muted/20'
@@ -395,6 +495,22 @@ export default function DialogPlotDetails({
                                       </div>
                                     </div>
                                   </div>
+
+                                  {application.serviceOrder?.number ? (
+                                    <div className='bg-zinc-50 dark:bg-zinc-950/20 rounded-lg p-2.5 border border-zinc-200 dark:border-zinc-900'>
+                                      <div className='flex items-center gap-2'>
+                                        <div className='p-1 rounded bg-zinc-100 dark:bg-zinc-900/50 flex-shrink-0'>
+                                          <SprayCan className='w-3 h-3 text-zinc-600 dark:text-zinc-400' />
+                                        </div>
+                                        <div className='flex-1'>
+                                          <p className='text-xs text-muted-foreground'>OS</p>
+                                          <p className='text-sm font-semibold text-zinc-600 dark:text-zinc-400 break-words'>
+                                            #{application.serviceOrder.number}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 {application.observations && (
