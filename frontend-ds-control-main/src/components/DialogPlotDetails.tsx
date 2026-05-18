@@ -5,6 +5,7 @@ import {
   SprayCan,
   X,
 } from 'lucide-react';
+import type * as GeoJSON from 'geojson';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -134,7 +135,7 @@ function buildStaticGeoJsonOverlayUrl(
   height: number,
   accessToken: string
 ): string | null {
-  const parsedGeoJson = parsePlotGeoJson(plot);
+  const parsedGeoJson = extractPlotGeoJson(plot);
   if (!parsedGeoJson) {
     return null;
   }
@@ -176,6 +177,51 @@ function buildStaticGeoJsonOverlayUrl(
   const overlayParam = encodeURIComponent(JSON.stringify(overlayGeoJson));
   const bboxParam = bboxMatch[1];
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/geojson(${overlayParam})/[${bboxParam}]/${width}x${height}?access_token=${encodeURIComponent(accessToken)}`;
+}
+
+function extractPlotGeoJson(plot: Plot): GeoJSON.GeoJSON | null {
+  const fromDefault = parsePlotGeoJson(plot);
+  if (fromDefault) {
+    return fromDefault;
+  }
+
+  const rawPlot = plot as unknown as Record<string, unknown>;
+  const candidates = [
+    rawPlot.geoJson,
+    rawPlot.geojson,
+    rawPlot.geometry,
+    rawPlot.coordinates,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    let parsed: unknown = candidate;
+    if (typeof candidate === 'string') {
+      try {
+        parsed = JSON.parse(candidate);
+      } catch {
+        continue;
+      }
+    }
+
+    if (!parsed || typeof parsed !== 'object') continue;
+    const geo = parsed as Record<string, unknown>;
+    const type = geo.type;
+
+    if (type === 'FeatureCollection' || type === 'Feature' || type === 'Polygon' || type === 'MultiPolygon') {
+      return geo as unknown as GeoJSON.GeoJSON;
+    }
+
+    if ((type === undefined || type === null) && Array.isArray(geo.coordinates)) {
+      return {
+        type: 'Polygon',
+        coordinates: geo.coordinates as number[][][],
+      } as GeoJSON.Polygon;
+    }
+  }
+
+  return null;
 }
 
 export default function DialogPlotDetails({
@@ -554,6 +600,17 @@ export default function DialogPlotDetails({
                             onError={() => setHasReportMapLoadError(true)}
                           />
                         </div>
+                      ) : geoData ? (
+                        <div className='overflow-hidden rounded-md border bg-black/5'>
+                          <div className='h-[300px]'>
+                            <MapViewer
+                              key={`plot-print-map-${activePlot?.id || 'none'}`}
+                              layerNameToHighlight={activePlot?.name}
+                              layerPlotIdsToHighlight={activePlot?.id ? [activePlot.id] : undefined}
+                              geoData={geoData}
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <div className='flex h-[300px] items-center justify-center rounded-md border border-dashed bg-background px-6 text-center'>
                           <div>
@@ -642,7 +699,7 @@ export default function DialogPlotDetails({
               </div>
             ) : (
               <div className='grid grid-cols-1 gap-4 lg:grid-cols-12'>
-              <Card className='order-2 lg:order-1 lg:col-span-12'>
+              <Card className='order-1 lg:col-span-12'>
                 <CardHeader className='pb-3'>
                   <CardTitle className='text-base'>Resumo do Talhao</CardTitle>
                 </CardHeader>
@@ -674,7 +731,8 @@ export default function DialogPlotDetails({
                 </CardContent>
               </Card>
 
-              <Card className='order-1 lg:order-2 lg:col-span-8 overflow-hidden'>
+              <div className='order-2 lg:col-span-8 space-y-4'>
+              <Card className='overflow-hidden'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
                   <CardDescription>
@@ -705,7 +763,7 @@ export default function DialogPlotDetails({
                 </CardContent>
               </Card>
 
-              <Card className='order-3 lg:order-3 lg:col-span-8'>
+              <Card>
                 <CardHeader>
                   <CardTitle className='text-lg'>Informacoes do Talhao</CardTitle>
                 </CardHeader>
@@ -742,8 +800,10 @@ export default function DialogPlotDetails({
                   </div>
                 </CardContent>
               </Card>
+              </div>
 
-              <Card className='order-4 lg:order-4 lg:col-span-4 lg:row-span-2 overflow-hidden flex flex-col lg:h-[760px]'>
+              <div className='order-3 lg:col-span-4'>
+              <Card className='overflow-hidden flex flex-col lg:h-[760px]'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Historico de Aplicacoes</CardTitle>
                   <CardDescription>
@@ -834,6 +894,7 @@ export default function DialogPlotDetails({
                     })}
                 </CardContent>
               </Card>
+              </div>
               </div>
             )}
           </div>
