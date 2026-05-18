@@ -1,5 +1,6 @@
 import {
   FileText,
+  Printer,
   MapPin,
   SprayCan,
   X,
@@ -36,22 +37,11 @@ import { useGetFarmById } from '@/queries/farm.query';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
-import {
-  buildReportMapboxStaticUrl,
-  getReportMapPlaceholderMessage,
-} from '@/utils/mapboxStaticReportMap';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR, toOperationalDateYMD } from '@/utils/operational-date';
-import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MAPBOX_FALLBACK_TOKEN =
-  'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
-
-const REPORT_MAP_WIDTH = 1400;
-const REPORT_MAP_HEIGHT = 620;
 
 const DEFAULT_REPORT_SECTIONS = {
   includeMap: true,
@@ -94,15 +84,6 @@ function formatPlotArea(hectare: string | undefined) {
   const parsed = parseNumericValue(hectare);
   if (!parsed) return '0,00 ha';
   return formatAreaValue(parsed);
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 function firstStringFromKeys(
@@ -155,6 +136,13 @@ export default function DialogPlotDetails({
   const [reportProductFilter, setReportProductFilter] = useState('all');
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printOptions, setPrintOptions] = useState<{
+    productFilter: string;
+    startDate: string;
+    endDate: string;
+    sections: ReportSections;
+  } | null>(null);
   const [reportSections, setReportSections] = useState<ReportSections>(DEFAULT_REPORT_SECTIONS);
 
   const isOpen = externalOpen !== undefined ? externalOpen : internalIsOpen;
@@ -306,6 +294,10 @@ export default function DialogPlotDetails({
     };
   }, [reportFilteredApplications, historySummary.latestCulture]);
 
+  const hasOperationTypeInReport = useMemo(() => {
+    return reportFilteredApplications.some((application) => Boolean(getApplicationOperationType(application)));
+  }, [reportFilteredApplications]);
+
   const geoData = useMemo(() => {
     if (!farmPlots.length) return undefined;
     return convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmPlots);
@@ -335,334 +327,31 @@ export default function DialogPlotDetails({
   }
 
   function generatePrintPreview() {
-    if (!activePlot) {
-      toast.error('Nenhum talhao selecionado para gerar relatorio.');
-      return;
+    try {
+      if (!activePlot) {
+        throw new Error('missing_plot');
+      }
+
+      if (reportStartDate && reportEndDate && reportStartDate > reportEndDate) {
+        toast.error('Periodo invalido. Ajuste as datas inicial e final.');
+        return;
+      }
+
+      setPrintOptions({
+        productFilter: reportProductFilter,
+        startDate: reportStartDate,
+        endDate: reportEndDate,
+        sections: reportSections,
+      });
+      setIsPrintPreviewOpen(true);
+      setIsReportOptionsOpen(false);
+    } catch {
+      toast.error('Não foi possível gerar a visualização de impressão. Tente novamente.');
     }
+  }
 
-    if (reportStartDate && reportEndDate && reportStartDate > reportEndDate) {
-      toast.error('Periodo invalido. Ajuste as datas inicial e final.');
-      return;
-    }
-
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1280,height=900');
-
-    if (!printWindow) {
-      toast.error('Bloqueador de pop-up ativo. Permita a abertura da visualizacao para imprimir.');
-      return;
-    }
-
-    const mapResult = buildReportMapboxStaticUrl({
-      plot: activePlot,
-      mapWidth: REPORT_MAP_WIDTH,
-      mapHeight: REPORT_MAP_HEIGHT,
-      accessToken: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || MAPBOX_FALLBACK_TOKEN,
-    });
-
-    const polygonPaths =
-      buildPlotPolygonSvgPathDs(activePlot, REPORT_MAP_WIDTH, REPORT_MAP_HEIGHT) ?? [];
-
-    const mapSection = reportSections.includeMap
-      ? mapResult.url
-        ? `
-        <section class="report-map-section">
-          <div class="map-wrapper">
-            <img src="${mapResult.url}" alt="Mapa do Talhao" class="map-image" />
-            ${
-              polygonPaths.length
-                ? `
-              <svg viewBox="0 0 ${REPORT_MAP_WIDTH} ${REPORT_MAP_HEIGHT}" preserveAspectRatio="none" class="map-overlay">
-                ${polygonPaths
-                  .map(
-                    (path) =>
-                      `<path d="${path}" fill="#EAAE07" fill-opacity="0.28" stroke="#B8860B" stroke-width="2" fill-rule="evenodd" />`
-                  )
-                  .join('')}
-              </svg>
-            `
-                : ''
-            }
-          </div>
-        </section>
-      `
-        : `
-        <section class="report-map-section map-placeholder">
-          ${escapeHtml(getReportMapPlaceholderMessage(mapResult.unavailableReason))}
-        </section>
-      `
-      : '';
-
-    const detailRows = reportFilteredApplications.length
-      ? reportFilteredApplications
-          .map((application) => {
-            const operationType = getApplicationOperationType(application) || '-';
-
-            return `
-            <tr>
-              <td>${escapeHtml(formatApplicationDate(application.date))}</td>
-              <td>${escapeHtml(operationType)}</td>
-              <td>${escapeHtml(application.product?.name || '-')}</td>
-              <td>${escapeHtml(application.pilot?.name || '-')}</td>
-              <td>${escapeHtml(application.drone?.name || '-')}</td>
-              <td>${escapeHtml(formatAreaValue(parseNumericValue(application.hectares)))}</td>
-            </tr>
-          `;
-          })
-          .join('')
-      : `
-        <tr>
-          <td colspan="6" class="empty-row">Nenhuma aplicacao encontrada para os filtros selecionados.</td>
-        </tr>
-      `;
-
-    const reportPeriod =
-      reportStartDate || reportEndDate
-        ? `${formatOperationalDateBR(reportStartDate || undefined)} ate ${formatOperationalDateBR(reportEndDate || undefined)}`
-        : 'Todos os periodos';
-
-    const reportHtml = `
-      <!doctype html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Relatorio de Aplicacoes por Talhao</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              font-family: Arial, Helvetica, sans-serif;
-              color: #111827;
-              background: #f5f5f5;
-              padding: 24px;
-            }
-            .report-sheet {
-              max-width: 1180px;
-              margin: 0 auto;
-              background: #ffffff;
-              border-radius: 12px;
-              padding: 28px;
-              border: 1px solid #e5e7eb;
-            }
-            .report-title {
-              margin: 0;
-              font-size: 28px;
-              color: #1f2937;
-            }
-            .report-subtitle {
-              margin: 8px 0 0;
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .report-period {
-              margin: 4px 0 0;
-              color: #6b7280;
-              font-size: 13px;
-            }
-            .report-map-section {
-              margin-top: 24px;
-              border: 1px solid #e5e7eb;
-              border-radius: 10px;
-              overflow: hidden;
-              min-height: 320px;
-              background: #f3f4f6;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #4b5563;
-              font-weight: 600;
-            }
-            .map-wrapper {
-              position: relative;
-              width: 100%;
-              height: 100%;
-              min-height: 320px;
-            }
-            .map-image,
-            .map-overlay {
-              position: absolute;
-              inset: 0;
-              width: 100%;
-              height: 100%;
-            }
-            .summary-grid {
-              margin-top: 24px;
-              display: grid;
-              grid-template-columns: repeat(3, minmax(0, 1fr));
-              gap: 12px;
-            }
-            .summary-card {
-              border: 1px solid #e5e7eb;
-              border-radius: 10px;
-              padding: 12px;
-              background: #fafafa;
-            }
-            .summary-label {
-              display: block;
-              font-size: 12px;
-              color: #6b7280;
-              text-transform: uppercase;
-              letter-spacing: 0.04em;
-            }
-            .summary-value {
-              margin-top: 6px;
-              font-size: 16px;
-              font-weight: 700;
-              color: #1f2937;
-            }
-            .info-grid {
-              margin-top: 16px;
-              display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-              gap: 10px;
-            }
-            .info-item {
-              border: 1px solid #f0f1f4;
-              border-radius: 8px;
-              padding: 10px;
-              background: #fff;
-            }
-            .info-item strong {
-              display: block;
-              color: #6b7280;
-              font-size: 12px;
-              margin-bottom: 4px;
-            }
-            .history-section {
-              margin-top: 26px;
-            }
-            .history-title {
-              margin: 0 0 12px;
-              font-size: 18px;
-              color: #1f2937;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              border: 1px solid #e5e7eb;
-              border-radius: 8px;
-              overflow: hidden;
-            }
-            thead {
-              background: #f9fafb;
-            }
-            th,
-            td {
-              text-align: left;
-              padding: 10px;
-              border-bottom: 1px solid #e5e7eb;
-              font-size: 13px;
-            }
-            .empty-row {
-              text-align: center;
-              color: #6b7280;
-              padding: 22px;
-            }
-            @media print {
-              body {
-                background: white;
-                padding: 0;
-              }
-              .report-sheet {
-                max-width: none;
-                border: 0;
-                border-radius: 0;
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <main class="report-sheet">
-            <h1 class="report-title">Relatorio de Aplicacoes por Talhao</h1>
-            <p class="report-subtitle">
-              Talhao: ${escapeHtml(activePlot.name)} | Fazenda: ${escapeHtml(data?.farm?.name || 'N/A')} | Cliente: ${escapeHtml(data?.farm?.customer?.name || 'N/A')}
-            </p>
-            <p class="report-period">Periodo: ${escapeHtml(reportPeriod)}</p>
-
-            ${mapSection}
-
-            ${
-              reportSections.includeSummary
-                ? `
-              <section class="summary-grid">
-                <article class="summary-card">
-                  <span class="summary-label">Fazenda</span>
-                  <span class="summary-value">${escapeHtml(data?.farm?.name || 'N/A')}</span>
-                </article>
-                <article class="summary-card">
-                  <span class="summary-label">Cliente</span>
-                  <span class="summary-value">${escapeHtml(data?.farm?.customer?.name || 'N/A')}</span>
-                </article>
-                <article class="summary-card">
-                  <span class="summary-label">Talhao e Area</span>
-                  <span class="summary-value">${escapeHtml(`${activePlot.name} (${formatPlotArea(activePlot.hectare)})`)}</span>
-                </article>
-                <article class="summary-card">
-                  <span class="summary-label">Total de aplicacoes</span>
-                  <span class="summary-value">${escapeHtml(String(reportSummary.totalApplications))}</span>
-                </article>
-                <article class="summary-card">
-                  <span class="summary-label">Area total aplicada</span>
-                  <span class="summary-value">${escapeHtml(formatAreaValue(reportSummary.totalAppliedArea))}</span>
-                </article>
-                <article class="summary-card">
-                  <span class="summary-label">Cultura</span>
-                  <span class="summary-value">${escapeHtml(reportSummary.latestCulture || 'N/A')}</span>
-                </article>
-              </section>
-            `
-                : ''
-            }
-
-            <section class="info-grid">
-              <article class="info-item"><strong>Talhao</strong>${escapeHtml(activePlot.name || 'N/A')}</article>
-              <article class="info-item"><strong>ID do Talhao</strong>${escapeHtml(activePlot.id || 'N/A')}</article>
-              <article class="info-item"><strong>Data de Cadastro</strong>${escapeHtml(formatTimestamp(activePlot.createdAt))}</article>
-              <article class="info-item"><strong>Gerado em</strong>${escapeHtml(new Date().toLocaleString('pt-BR'))}</article>
-            </section>
-
-            ${
-              reportSections.includeDetailedHistory
-                ? `
-              <section class="history-section">
-                <h2 class="history-title">Detalhamento do Historico</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Operacao/Tipo</th>
-                      <th>Produto</th>
-                      <th>Piloto</th>
-                      <th>Drone</th>
-                      <th>Area Aplicada</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${detailRows}
-                  </tbody>
-                </table>
-              </section>
-            `
-                : ''
-            }
-          </main>
-          <script>
-            window.addEventListener('load', function () {
-              setTimeout(function () {
-                window.print();
-              }, 300);
-            });
-          </script>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.open();
-    printWindow.document.write(reportHtml);
-    printWindow.document.close();
-
-    setIsReportOptionsOpen(false);
+  function handlePrint() {
+    window.print();
   }
 
   const hasNoApplications = !isLoadingApplications && sortedApplications.length === 0;
@@ -674,6 +363,7 @@ export default function DialogPlotDetails({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             setIsReportOptionsOpen(false);
+            setIsPrintPreviewOpen(false);
           }
           setIsOpen(nextOpen);
         }}
@@ -744,7 +434,120 @@ export default function DialogPlotDetails({
           )}
 
           <div className='flex-1 min-h-0 overflow-y-auto pr-1'>
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-12'>
+            {isPrintPreviewOpen ? (
+              <div id='plot-print-preview-root' className='mx-auto w-full max-w-5xl rounded-lg border bg-white p-6 text-black'>
+                <div className='print-actions mb-4 flex flex-wrap items-center justify-between gap-2'>
+                  <h2 className='text-xl font-semibold'>Pré-visualização do relatório</h2>
+                  <div className='flex items-center gap-2'>
+                    <Button type='button' onClick={handlePrint} className='bg-orange-600 hover:bg-orange-700 text-white'>
+                      <Printer className='mr-2 h-4 w-4' />
+                      Imprimir
+                    </Button>
+                    <Button type='button' variant='outline' onClick={() => setIsPrintPreviewOpen(false)}>
+                      Fechar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className='space-y-6'>
+                  <header>
+                    <h1 className='text-3xl font-bold'>Relatório de Aplicações por Talhão</h1>
+                    <p className='mt-2 text-sm text-muted-foreground'>
+                      Talhão: {activePlot?.name || 'N/A'} | Fazenda: {data?.farm?.name || 'N/A'} | Cliente:{' '}
+                      {data?.farm?.customer?.name || 'N/A'}
+                    </p>
+                    <p className='text-sm text-muted-foreground'>
+                      Período:{' '}
+                      {printOptions?.startDate || printOptions?.endDate
+                        ? `${formatOperationalDateBR(printOptions?.startDate || undefined)} até ${formatOperationalDateBR(printOptions?.endDate || undefined)}`
+                        : 'Todos os períodos'}
+                    </p>
+                  </header>
+
+                  {printOptions?.sections.includeMap ? (
+                    <section className='rounded-md border bg-muted/20 p-4'>
+                      <div className='flex h-56 items-center justify-center rounded-md border border-dashed bg-background text-center'>
+                        <div>
+                          <p className='text-base font-semibold'>{activePlot?.name || 'Talhão'}</p>
+                          <p className='text-sm text-muted-foreground'>Visualização do talhão</p>
+                        </div>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {printOptions?.sections.includeSummary ? (
+                    <section className='grid grid-cols-2 gap-3 md:grid-cols-4'>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground'>Total de aplicações</p>
+                        <p className='mt-1 text-sm font-semibold'>{reportSummary.totalApplications}</p>
+                      </div>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground'>Área total aplicada</p>
+                        <p className='mt-1 text-sm font-semibold'>{formatAreaValue(reportSummary.totalAppliedArea)}</p>
+                      </div>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground'>Última aplicação</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {reportFilteredApplications[0] ? formatApplicationDate(reportFilteredApplications[0].date) : 'N/A'}
+                        </p>
+                      </div>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground'>Cultura</p>
+                        <p className='mt-1 text-sm font-semibold'>{reportSummary.latestCulture || 'N/A'}</p>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {printOptions?.sections.includeDetailedHistory ? (
+                    <section>
+                      <h2 className='mb-3 text-lg font-semibold'>Detalhamento do Histórico</h2>
+                      <div className='overflow-x-auto rounded-md border'>
+                        <table className='w-full border-collapse text-sm'>
+                          <thead className='bg-muted/30'>
+                            <tr>
+                              <th className='border-b p-2 text-left'>Data</th>
+                              {hasOperationTypeInReport ? (
+                                <th className='border-b p-2 text-left'>Operação/Tipo</th>
+                              ) : null}
+                              <th className='border-b p-2 text-left'>Produto</th>
+                              <th className='border-b p-2 text-left'>Piloto</th>
+                              <th className='border-b p-2 text-left'>Drone</th>
+                              <th className='border-b p-2 text-left'>Área aplicada</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportFilteredApplications.length ? (
+                              reportFilteredApplications.map((application) => (
+                                <tr key={`report-row-${application.id}`}>
+                                  <td className='border-b p-2'>{formatApplicationDate(application.date)}</td>
+                                  {hasOperationTypeInReport ? (
+                                    <td className='border-b p-2'>{getApplicationOperationType(application) || '-'}</td>
+                                  ) : null}
+                                  <td className='border-b p-2'>{application.product?.name || '-'}</td>
+                                  <td className='border-b p-2'>{application.pilot?.name || '-'}</td>
+                                  <td className='border-b p-2'>{application.drone?.name || '-'}</td>
+                                  <td className='border-b p-2'>{formatAreaValue(parseNumericValue(application.hectares))}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  className='p-4 text-center text-muted-foreground'
+                                  colSpan={hasOperationTypeInReport ? 6 : 5}
+                                >
+                                  Nenhuma aplicacao encontrada para os filtros selecionados.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className='grid grid-cols-1 gap-4 lg:grid-cols-12'>
               <Card className='order-1 lg:order-2 lg:col-span-8 lg:row-span-2 overflow-hidden'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
@@ -942,7 +745,8 @@ export default function DialogPlotDetails({
                     })}
                 </CardContent>
               </Card>
-            </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1035,6 +839,33 @@ export default function DialogPlotDetails({
           </div>
         </DialogContent>
       </Dialog>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #plot-print-preview-root,
+          #plot-print-preview-root * {
+            visibility: visible !important;
+          }
+          #plot-print-preview-root {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 99999 !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 24px !important;
+            background: white !important;
+          }
+          .print-actions {
+            display: none !important;
+          }
+        }
+      `}</style>
     </>
   );
 }
