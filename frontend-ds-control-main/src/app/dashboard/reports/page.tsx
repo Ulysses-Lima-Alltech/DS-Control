@@ -1,7 +1,8 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import DateRangePicker, { type DateParams } from '@/components/DateRangePicker';
@@ -58,6 +59,26 @@ type ReportsFiltersState = {
 
 type SummaryItem = { label: string; value: string };
 type NamedValue = { name: string; value: number };
+type ApplicationsPreview = {
+  count: number;
+  totalAppliedHectares: number;
+  items: Application[];
+};
+type FarmPreviewRow = {
+  farmId: string;
+  farmName: string;
+  customerName: string;
+  plotsCount: number;
+  totalAreaHectares: number;
+  applicationsCount?: number;
+  serviceOrdersCount?: number;
+};
+type GeneralPreview = {
+  applicationsCount: number;
+  serviceOrdersCount: number;
+  farmsCount: number;
+  totalAppliedHectares: number;
+};
 
 const STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
   { value: 'open', label: 'Aberta' },
@@ -113,6 +134,22 @@ function aggregateByName(list: Array<{ name: string; value: number }>): NamedVal
     .sort((a, b) => b.value - a.value);
 }
 
+function hasActiveFilters(filtersState: ReportsFiltersState): boolean {
+  return Object.values(filtersState).some((value) => value !== undefined && value !== '');
+}
+
+function formatDate(value?: Date | string): string {
+  if (!value) return 'Nao informada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Nao informada';
+  return new Intl.DateTimeFormat('pt-BR').format(date);
+}
+
+function getStatusLabel(status?: ServiceOrderStatus): string {
+  if (!status) return 'Nao informado';
+  return STATUS_OPTIONS.find((item) => item.value === status)?.label || status;
+}
+
 export default function ReportsCenterPage() {
   const [selectedReportId, setSelectedReportId] = useState<ReportId>('applications');
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(undefined);
@@ -130,6 +167,16 @@ export default function ReportsCenterPage() {
   const [serviceOrderSearch, setServiceOrderSearch] = useState('');
 
   const [filters, setFilters] = useState<ReportsFiltersState>({});
+  const [isGeneratingRowReport, setIsGeneratingRowReport] = useState<string | null>(null);
+  const [applicationsPreview, setApplicationsPreview] = useState<ApplicationsPreview | null>(null);
+  const [applicationsPreviewLoading, setApplicationsPreviewLoading] = useState(false);
+  const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
+  const [farmsPreviewRows, setFarmsPreviewRows] = useState<FarmPreviewRow[]>([]);
+  const [farmsPreviewLoading, setFarmsPreviewLoading] = useState(false);
+  const [farmsPreviewError, setFarmsPreviewError] = useState<string | null>(null);
+  const [generalPreview, setGeneralPreview] = useState<GeneralPreview | null>(null);
+  const [generalPreviewLoading, setGeneralPreviewLoading] = useState(false);
+  const [generalPreviewError, setGeneralPreviewError] = useState<string | null>(null);
 
   const selectedReport = useMemo(
     () => reportsCatalog.find((item) => item.id === selectedReportId) || reportsCatalog[0],
@@ -234,6 +281,8 @@ export default function ReportsCenterPage() {
       normalizeLabel(serviceOrder.observation || '').includes(normalizedObservationFilter)
     );
   }, [serviceOrdersData?.data, filters.observation]);
+
+  const serviceOrdersFoundCount = serviceOrdersData?.totalCount || filteredServiceOrders.length;
 
   const serviceOrderOptions = filteredServiceOrders.map((serviceOrder) => ({
     value: serviceOrder.id,
@@ -472,6 +521,30 @@ export default function ReportsCenterPage() {
     downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
   };
 
+  const handleGenerateServiceOrderReportById = async (serviceOrderId: string) => {
+    try {
+      setIsGeneratingRowReport(serviceOrderId);
+      setGenerationError(null);
+      setGenerationSuccess(null);
+      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const blob = await generateServiceOrderStrategicReportPDF({
+        serviceOrder: serviceOrderForReport,
+        applications,
+      });
+
+      downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
+      setGenerationSuccess(`Relatorio da OS #${serviceOrderForReport.number} gerado com sucesso.`);
+      toast.success('Relatorio gerado com sucesso.');
+      setSelectedServiceOrderId(serviceOrderId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio.';
+      setGenerationError(message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingRowReport(null);
+    }
+  };
+
   const handleGenerateFarmsReport = async () => {
     const [farmsResponse, applicationsResponse, serviceOrdersResponse] = await Promise.all([
       getAllFarms(filters.customerId, {
@@ -640,6 +713,147 @@ export default function ReportsCenterPage() {
     setGenerationSuccess(null);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadApplicationsPreview = async () => {
+      if (selectedReport.id !== 'applications') return;
+      setApplicationsPreviewLoading(true);
+      setApplicationsPreviewError(null);
+      try {
+        const response = await getAllApplications({
+          ...buildApplicationFilters(),
+          serviceOrderId: selectedServiceOrderId,
+          page: '1',
+          limit: '50',
+        });
+        if (!isMounted) return;
+        const totalAppliedHectares =
+          parseNumber(response.summary?.totalFilteredHectares) ||
+          (response.data || []).reduce((sum, item) => sum + parseNumber(item.hectares), 0);
+        setApplicationsPreview({
+          count: response.totalCount || response.data.length,
+          totalAppliedHectares,
+          items: response.data || [],
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Erro ao carregar aplicacoes.';
+        setApplicationsPreviewError(message);
+      } finally {
+        if (isMounted) setApplicationsPreviewLoading(false);
+      }
+    };
+
+    loadApplicationsPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReport.id, selectedServiceOrderId, filters]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFarmsPreview = async () => {
+      if (selectedReport.id !== 'farms') return;
+      setFarmsPreviewLoading(true);
+      setFarmsPreviewError(null);
+      try {
+        const [farmsResponse, applicationsResponse, serviceOrdersResponse] = await Promise.all([
+          getAllFarms(filters.customerId, {
+            page: '1',
+            limit: '200',
+            includeCustomer: 'true',
+            includePlots: 'true',
+            includeGeoJson: 'false',
+            search: undefined,
+          }),
+          getAllApplications({
+            ...buildApplicationFilters(),
+            page: '1',
+            limit: '1000',
+          }),
+          getAllServiceOrders(buildServiceOrderFilters()),
+        ]);
+
+        if (!isMounted) return;
+        const rows = (farmsResponse.data || [])
+          .filter((farm) => (filters.farmId ? farm.id === filters.farmId : true))
+          .map((farm) => ({
+            farmId: farm.id,
+            farmName: farm.name,
+            customerName: farm.customer?.name || 'Cliente N/A',
+            plotsCount: farm.plots?.length || 0,
+            totalAreaHectares: (farm.plots || []).reduce((sum, plot) => sum + parseNumber(plot.hectare), 0),
+            applicationsCount: (applicationsResponse.data || []).filter((app) => app.farmId === farm.id).length,
+            serviceOrdersCount: (serviceOrdersResponse.data || []).filter((serviceOrder) =>
+              (serviceOrder.farms || []).some((serviceOrderFarm) => serviceOrderFarm.id === farm.id)
+            ).length,
+          }));
+        setFarmsPreviewRows(rows);
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Erro ao carregar fazendas.';
+        setFarmsPreviewError(message);
+      } finally {
+        if (isMounted) setFarmsPreviewLoading(false);
+      }
+    };
+
+    loadFarmsPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReport.id, filters]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadGeneralPreview = async () => {
+      if (selectedReport.id !== 'general') return;
+      setGeneralPreviewLoading(true);
+      setGeneralPreviewError(null);
+      try {
+        const [applicationsResponse, serviceOrdersResponse, farmsResponse] = await Promise.all([
+          getAllApplications({
+            ...buildApplicationFilters(),
+            page: '1',
+            limit: '1000',
+          }),
+          getAllServiceOrders(buildServiceOrderFilters()),
+          getAllFarms(filters.customerId, {
+            page: '1',
+            limit: '200',
+            includeCustomer: 'true',
+            includePlots: 'true',
+            includeGeoJson: 'false',
+          }),
+        ]);
+
+        if (!isMounted) return;
+        setGeneralPreview({
+          applicationsCount: applicationsResponse.totalCount || applicationsResponse.data.length,
+          serviceOrdersCount: serviceOrdersResponse.totalCount || serviceOrdersResponse.data.length,
+          farmsCount: farmsResponse.totalCount || farmsResponse.data.length,
+          totalAppliedHectares:
+            parseNumber(applicationsResponse.summary?.totalFilteredHectares) ||
+            (applicationsResponse.data || []).reduce((sum, app) => sum + parseNumber(app.hectares), 0),
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Erro ao carregar resumo geral.';
+        setGeneralPreviewError(message);
+      } finally {
+        if (isMounted) setGeneralPreviewLoading(false);
+      }
+    };
+
+    loadGeneralPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReport.id, filters]);
+
   return (
     <div className='p-6 space-y-6 min-h-full max-w-screen'>
       <div>
@@ -676,6 +890,179 @@ export default function ReportsCenterPage() {
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className='max-w-full'>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-lg'>Relatorios disponiveis</CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          {selectedReport.id === 'service-orders' && (
+            <div className='space-y-3'>
+              <div>
+                <p className='text-sm font-semibold'>Ordens de Servico encontradas</p>
+                <p className='text-xs text-muted-foreground'>
+                  Selecione uma OS para gerar o relatorio estrategico.
+                </p>
+              </div>
+
+              <div className='text-xs text-muted-foreground'>
+                {serviceOrdersFoundCount} OS encontradas
+                {!hasActiveFilters(filters) ? ' (lista inicial limitada)' : ''}
+              </div>
+
+              {filteredServiceOrders.length === 0 && (
+                <p className='text-sm text-muted-foreground'>Nenhuma OS encontrada para os filtros atuais.</p>
+              )}
+
+              <div className='space-y-2'>
+                {filteredServiceOrders.map((serviceOrder) => {
+                  const plannedTotal = (serviceOrder.plots || []).reduce(
+                    (sum, plot) => sum + parseNumber(plot.hectare),
+                    0
+                  );
+                  const pilotsLabel =
+                    serviceOrder.pilots?.length > 0
+                      ? serviceOrder.pilots.map((pilot) => pilot.name).join(', ')
+                      : 'Nao informado';
+                  return (
+                    <div key={serviceOrder.id} className='rounded-lg border p-3'>
+                      <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
+                        <div className='space-y-1'>
+                          <p className='text-sm font-semibold'>
+                            OS #{serviceOrder.number} | {serviceOrder.customer?.name || 'Cliente N/A'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Fazendas:{' '}
+                            {serviceOrder.farms?.length > 0
+                              ? serviceOrder.farms.map((farm) => farm.name).join(', ')
+                              : 'Sem fazenda'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Contrato/Safra: {serviceOrder.contract?.name || 'Nao informado'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Planejada: {formatDate(serviceOrder.plannedDate)} | Status:{' '}
+                            {getStatusLabel(serviceOrder.status)}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Observacao/Tipo: {serviceOrder.observation || 'Nao informado'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Total planejado: {plannedTotal.toFixed(2)} ha | Pilotos: {pilotsLabel}
+                          </p>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            size='sm'
+                            onClick={() => handleGenerateServiceOrderReportById(serviceOrder.id)}
+                            disabled={isGeneratingReport || isGeneratingRowReport === serviceOrder.id}
+                          >
+                            {isGeneratingRowReport === serviceOrder.id ? (
+                              <>
+                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                Gerando...
+                              </>
+                            ) : (
+                              'Gerar relatorio'
+                            )}
+                          </Button>
+                          <Button size='sm' variant='outline' asChild>
+                            <Link href={`/dashboard/service-orders/${serviceOrder.id}`}>Abrir OS</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {selectedReport.id === 'applications' && (
+            <div className='space-y-3'>
+              <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
+              {selectedReport.requiresServiceOrderSelection && !selectedServiceOrderId && (
+                <p className='text-xs text-muted-foreground'>
+                  Este relatorio usa o PDF por OS. Selecione uma OS para gerar com os filtros.
+                </p>
+              )}
+              {applicationsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>}
+              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
+              {applicationsPreview && (
+                <>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+                    <div className='rounded-lg border p-3'>
+                      <p className='text-xs text-muted-foreground'>Quantidade</p>
+                      <p className='text-sm font-semibold'>{applicationsPreview.count}</p>
+                    </div>
+                    <div className='rounded-lg border p-3'>
+                      <p className='text-xs text-muted-foreground'>Total aplicado</p>
+                      <p className='text-sm font-semibold'>{applicationsPreview.totalAppliedHectares.toFixed(2)} ha</p>
+                    </div>
+                  </div>
+                  <p className='text-xs text-muted-foreground'>
+                    Mostrando ate {applicationsPreview.items.length} aplicacoes no resumo.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {selectedReport.id === 'farms' && (
+            <div className='space-y-3'>
+              <p className='text-sm font-semibold'>Fazendas encontradas</p>
+              {farmsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>}
+              {farmsPreviewError && <p className='text-sm text-red-500'>{farmsPreviewError}</p>}
+              {!farmsPreviewLoading && !farmsPreviewError && farmsPreviewRows.length === 0 && (
+                <p className='text-sm text-muted-foreground'>Nenhuma fazenda encontrada para os filtros atuais.</p>
+              )}
+              <div className='space-y-2'>
+                {farmsPreviewRows.map((farmRow) => (
+                  <div key={farmRow.farmId} className='rounded-lg border p-3'>
+                    <p className='text-sm font-semibold'>{farmRow.farmName}</p>
+                    <p className='text-xs text-muted-foreground'>Cliente: {farmRow.customerName}</p>
+                    <p className='text-xs text-muted-foreground'>
+                      Area total: {farmRow.totalAreaHectares.toFixed(2)} ha | Talhoes/Mapas: {farmRow.plotsCount}
+                    </p>
+                    <p className='text-xs text-muted-foreground'>
+                      Aplicacoes vinculadas: {farmRow.applicationsCount || 0} | OS vinculadas:{' '}
+                      {farmRow.serviceOrdersCount || 0}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedReport.id === 'general' && (
+            <div className='space-y-3'>
+              <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
+              {generalPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando resumo...</p>}
+              {generalPreviewError && <p className='text-sm text-red-500'>{generalPreviewError}</p>}
+              {generalPreview && (
+                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2'>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Total aplicado</p>
+                    <p className='text-sm font-semibold'>{generalPreview.totalAppliedHectares.toFixed(2)} ha</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Aplicacoes</p>
+                    <p className='text-sm font-semibold'>{generalPreview.applicationsCount}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Ordens de Servico</p>
+                    <p className='text-sm font-semibold'>{generalPreview.serviceOrdersCount}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Fazendas</p>
+                    <p className='text-sm font-semibold'>{generalPreview.farmsCount}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
