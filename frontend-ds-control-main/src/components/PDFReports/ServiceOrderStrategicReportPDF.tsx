@@ -6,8 +6,11 @@ import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE, formatOperationalDateBR } from '@/utils/operational-date';
 import {
   buildStrategicMapProjection,
+  buildStrategicMapProjectionFromViewport,
+  buildStrategicMapViewport,
   extractPlotPolygons,
   type StrategicMapShapeInput,
+  type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
 
 Font.register({
@@ -37,8 +40,9 @@ const DARK_TEXT = '#1F2937';
 const MUTED_TEXT = '#6B7280';
 const LIGHT_BORDER = '#E5E7EB';
 const BACKGROUND_SUBTLE = '#F9FAFB';
-const MAP_BACKGROUND = '#EEF4FA';
-const MAP_GRID = '#D4E0EF';
+const MAP_BACKGROUND = '#E8EEF6';
+const MAP_GRID = '#C8D6EA';
+const MAP_FALLBACK_TAG = '#D97706';
 
 const MAP_CANVAS_WIDTH = 418;
 const MAP_CANVAS_HEIGHT = 286;
@@ -75,6 +79,9 @@ type PlotDetailRow = {
 interface ServiceOrderStrategicReportPDFProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
+  prefetchedMapBaseDataUrl?: string | null;
+  mapViewport?: StrategicMapViewport | null;
+  mapBaseStyleLabel?: string;
 }
 
 type MapLabelPlacement = {
@@ -281,6 +288,9 @@ function buildTinyShapeMarkerPath(x: number, y: number, size: number = 2.5): str
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
   serviceOrder,
   applications,
+  prefetchedMapBaseDataUrl = null,
+  mapViewport = null,
+  mapBaseStyleLabel = 'Base cartografica 2D',
 }) => {
   const generatedAt = formatGeneratedAt();
 
@@ -360,16 +370,18 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     polygons: row.polygons,
   }));
 
-  const mapProjection = buildStrategicMapProjection(
-    mapShapesInput,
-    MAP_CANVAS_WIDTH,
-    MAP_CANVAS_HEIGHT,
-    10
-  );
+  const strategicViewport =
+    mapViewport ??
+    buildStrategicMapViewport(mapShapesInput, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, 10);
+
+  const mapProjection = strategicViewport
+    ? buildStrategicMapProjectionFromViewport(mapShapesInput, strategicViewport)
+    : buildStrategicMapProjection(mapShapesInput, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, 10);
   const mapLabelPlacements = mapProjection
     ? buildMapLabelPlacements(mapProjection.shapes, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT)
     : [];
   const mapGridPaths = buildMapGridPaths(MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, 36);
+  const shouldShowMapBaseFallback = mapProjection && !prefetchedMapBaseDataUrl;
 
   const farmSummaryMap = new Map<
     string,
@@ -406,6 +418,22 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const applicationsWithUnknownPlot = applications.filter(
     (application) => application.plotId && !plotIdsSet.has(application.plotId)
   );
+  const consistencyMessages: string[] = [];
+  if (rowsWithoutGeometry.length > 0) {
+    consistencyMessages.push(
+      `${rowsWithoutGeometry.length} talhao(oes) sem geometria no cadastro.`
+    );
+  }
+  if (applicationsWithoutPlot.length > 0) {
+    consistencyMessages.push(
+      `${applicationsWithoutPlot.length} aplicacao(oes) sem vinculo de talhao.`
+    );
+  }
+  if (applicationsWithUnknownPlot.length > 0) {
+    consistencyMessages.push(
+      `${applicationsWithUnknownPlot.length} aplicacao(oes) com plot fora da lista planejada da OS.`
+    );
+  }
 
   const detailPages = chunkRows(plotRows, 18);
 
@@ -556,26 +584,42 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             >
               {mapProjection ? (
                 <>
+                  {prefetchedMapBaseDataUrl && (
+                    // eslint-disable-next-line jsx-a11y/alt-text
+                    <Image
+                      src={prefetchedMapBaseDataUrl}
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  )}
                   <Svg
                     width='100%'
                     height='100%'
                     viewBox={`0 0 ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT}`}
                     preserveAspectRatio='xMidYMid meet'
                   >
-                    {mapGridPaths.map((gridPath, index) => (
-                      <Path
-                        key={`grid-${index}`}
-                        d={gridPath}
-                        fill='none'
-                        stroke={MAP_GRID}
-                        strokeWidth={0.7}
-                        strokeOpacity={0.55}
-                      />
-                    ))}
+                    {!prefetchedMapBaseDataUrl &&
+                      mapGridPaths.map((gridPath, index) => (
+                        <Path
+                          key={`grid-${index}`}
+                          d={gridPath}
+                          fill='none'
+                          stroke={MAP_GRID}
+                          strokeWidth={0.7}
+                          strokeOpacity={0.55}
+                        />
+                      ))}
                     <Path
                       d={`M 0 0 L ${MAP_CANVAS_WIDTH} 0 L ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT} L 0 ${MAP_CANVAS_HEIGHT} Z`}
-                      fill='none'
-                      stroke='#B8C8DD'
+                      fill={prefetchedMapBaseDataUrl ? 'none' : '#FFFFFF'}
+                      fillOpacity={prefetchedMapBaseDataUrl ? 0 : 0.08}
+                      stroke={prefetchedMapBaseDataUrl ? '#AFC1D8' : '#B8C8DD'}
                       strokeWidth={1}
                     />
                     {mapProjection.shapes.map((shape) => {
@@ -584,8 +628,14 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                         stroke: '#64748B',
                       };
                       const isTinyShape = shape.areaPx < 130;
-                      const strokeWidth = isTinyShape ? 2.2 : shape.areaPx < 600 ? 2.1 : 2.6;
-                      const fillOpacity = isTinyShape ? 0.84 : 0.74;
+                      const strokeWidth = isTinyShape ? 2.3 : shape.areaPx < 600 ? 2.2 : 2.8;
+                      const fillOpacity = prefetchedMapBaseDataUrl
+                        ? isTinyShape
+                          ? 0.66
+                          : 0.54
+                        : isTinyShape
+                          ? 0.84
+                          : 0.74;
 
                       return (
                         <React.Fragment key={`shape-${shape.id}`}>
@@ -634,11 +684,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                     </Text>
                   ))}
 
-                  <View
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      top: 8,
+                    <View
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: 8,
                       alignItems: 'center',
                       border: '0.5px solid #B9C8DA',
                       borderRadius: 4,
@@ -647,9 +697,28 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                       backgroundColor: '#FFFFFFD9',
                     }}
                   >
-                    <Text style={{ fontSize: 6, color: '#4B5563', marginBottom: 1 }}>N</Text>
-                    <Text style={{ fontSize: 7, color: '#111827' }}>^</Text>
-                  </View>
+                      <Text style={{ fontSize: 6, color: '#4B5563', marginBottom: 1 }}>N</Text>
+                      <Text style={{ fontSize: 7, color: '#111827' }}>^</Text>
+                    </View>
+
+                    {shouldShowMapBaseFallback && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 8,
+                          bottom: 8,
+                          border: `0.5px solid ${MAP_FALLBACK_TAG}`,
+                          borderRadius: 4,
+                          backgroundColor: '#FFF7ED',
+                          paddingHorizontal: 5,
+                          paddingVertical: 3,
+                        }}
+                      >
+                        <Text style={{ fontSize: 6.4, color: '#9A3412' }}>
+                          Base cartografica indisponivel. Exibindo malha vetorial.
+                        </Text>
+                      </View>
+                    )}
                 </>
               ) : (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 }}>
@@ -687,58 +756,35 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
           </View>
 
           {mapProjection && (
-            <Text style={{ marginTop: 6, fontSize: 8, color: MUTED_TEXT }}>
-              Extensao aproximada: {mapProjection.extentKm.widthKm.toFixed(2).replace('.', ',')} km x{' '}
-              {mapProjection.extentKm.heightKm.toFixed(2).replace('.', ',')} km
-            </Text>
+            <View style={{ marginTop: 6 }}>
+              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
+                Extensao aproximada: {mapProjection.extentKm.widthKm.toFixed(2).replace('.', ',')} km x{' '}
+                {mapProjection.extentKm.heightKm.toFixed(2).replace('.', ',')} km
+              </Text>
+              <Text style={{ marginTop: 2, fontSize: 7.5, color: MUTED_TEXT }}>
+                Base cartografica: {prefetchedMapBaseDataUrl ? mapBaseStyleLabel : 'indisponivel (fallback vetorial)'}
+              </Text>
+            </View>
           )}
         </View>
 
-        <View style={{ flexDirection: 'row' }}>
+        {consistencyMessages.length > 0 && (
           <View
             style={{
-              width: '49%',
               border: `1px solid ${LIGHT_BORDER}`,
               borderRadius: 8,
               padding: 8,
-              marginRight: '2%',
+              backgroundColor: '#FCFCFD',
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Talhoes sem geometria</Text>
-            {rowsWithoutGeometry.length > 0 ? (
-              rowsWithoutGeometry.slice(0, 7).map((row) => (
-                <Text key={`no-geo-${row.plotId}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 3 }}>
-                  {row.plotName} ({row.farmName}) - {formatHectares(row.plannedHectares)}
-                </Text>
-              ))
-            ) : (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Todos os talhoes possuem geometria.</Text>
-            )}
-            {rowsWithoutGeometry.length > 7 && (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT, marginTop: 2 }}>
-                +{rowsWithoutGeometry.length - 7} talhao(oes) adicionais no detalhamento.
+            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>Observacoes de consistencia</Text>
+            {consistencyMessages.map((message, index) => (
+              <Text key={`consistency-${index}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 2 }}>
+                - {message}
               </Text>
-            )}
+            ))}
           </View>
-
-          <View style={{ width: '49%', border: `1px solid ${LIGHT_BORDER}`, borderRadius: 8, padding: 8 }}>
-            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Aplicacoes sem vinculo de talhao</Text>
-            {applicationsWithoutPlot.length > 0 ? (
-              applicationsWithoutPlot.slice(0, 7).map((application) => (
-                <Text key={`app-no-plot-${application.id}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 3 }}>
-                  {application.product?.name || 'Produto N/A'} - {formatHectares(parseNumber(application.hectares))}
-                </Text>
-              ))
-            ) : (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Sem aplicacoes sem talhao vinculado.</Text>
-            )}
-            {applicationsWithUnknownPlot.length > 0 && (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT, marginTop: 3 }}>
-                {applicationsWithUnknownPlot.length} aplicacao(oes) com plot fora da lista planejada da OS.
-              </Text>
-            )}
-          </View>
-        </View>
+        )}
 
         <View
           fixed
@@ -838,21 +884,23 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             ))}
           </View>
 
-          <View style={{ marginTop: 10, border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, padding: 8 }}>
-            <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 5 }}>Resumo por fazenda</Text>
-            {farmSummaryRows.map((farm) => (
-              <View
-                key={`farm-summary-${farm.farmId}-${farm.farmName}`}
-                style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}
-              >
-                <Text style={{ fontSize: 8 }}>{farm.farmName}</Text>
-                <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
-                  Planejado: {formatHectares(farm.plannedHectares)} | Aplicado:{' '}
-                  {formatHectares(farm.appliedHectares)}
-                </Text>
-              </View>
-            ))}
-          </View>
+          {index === detailPages.length - 1 && (
+            <View style={{ marginTop: 10, border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, padding: 8 }}>
+              <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 5 }}>Resumo por fazenda</Text>
+              {farmSummaryRows.map((farm) => (
+                <View
+                  key={`farm-summary-${farm.farmId}-${farm.farmName}`}
+                  style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}
+                >
+                  <Text style={{ fontSize: 8 }}>{farm.farmName}</Text>
+                  <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
+                    Planejado: {formatHectares(farm.plannedHectares)} | Aplicado:{' '}
+                    {formatHectares(farm.appliedHectares)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View
             fixed

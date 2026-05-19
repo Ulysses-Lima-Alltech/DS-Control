@@ -4,6 +4,13 @@ import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
 import { buildReportMapboxStaticUrl } from '@/utils/mapboxStaticReportMap';
+import {
+  buildStrategicMapStaticBaseUrl,
+  buildStrategicMapViewport,
+  extractPlotPolygons,
+  type StrategicMapShapeInput,
+  type StrategicMapViewport,
+} from '@/utils/strategicReportMap2d';
 
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
@@ -12,6 +19,10 @@ interface GeneratePDFParams {
 
 const REPORT_MAP_WIDTH = 1280;
 const REPORT_MAP_HEIGHT = 480;
+const STRATEGIC_REPORT_MAP_WIDTH = 418;
+const STRATEGIC_REPORT_MAP_HEIGHT = 286;
+const STRATEGIC_REPORT_MAP_PADDING = 10;
+const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/light-v11';
 
 function getReportMapboxAccessToken(): string {
   return (
@@ -94,6 +105,60 @@ async function prefetchReportMapImagesByPlotId(
   return out;
 }
 
+function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
+  return (serviceOrder.plots || [])
+    .map((plot) => {
+      if (!plot.id) {
+        return null;
+      }
+
+      const polygons = extractPlotPolygons(plot);
+      if (polygons.length === 0) {
+        return null;
+      }
+
+      return {
+        id: plot.id,
+        label: plot.name || `Talhao ${plot.id}`,
+        farmKey: plot.farmId || 'farm-unknown',
+        polygons,
+      };
+    })
+    .filter((shape): shape is StrategicMapShapeInput => shape !== null);
+}
+
+async function prefetchStrategicReportMapBase(
+  serviceOrder: ServiceOrder
+): Promise<{
+  mapViewport: StrategicMapViewport | null;
+  mapBaseDataUrl: string | null;
+}> {
+  const shapes = buildStrategicMapShapes(serviceOrder);
+  const mapViewport = buildStrategicMapViewport(
+    shapes,
+    STRATEGIC_REPORT_MAP_WIDTH,
+    STRATEGIC_REPORT_MAP_HEIGHT,
+    STRATEGIC_REPORT_MAP_PADDING
+  );
+
+  const accessToken = getReportMapboxAccessToken().trim();
+  if (!mapViewport || !accessToken) {
+    return { mapViewport, mapBaseDataUrl: null };
+  }
+
+  const mapBaseUrl = buildStrategicMapStaticBaseUrl({
+    viewport: mapViewport,
+    width: STRATEGIC_REPORT_MAP_WIDTH,
+    height: STRATEGIC_REPORT_MAP_HEIGHT,
+    accessToken,
+    styleId: STRATEGIC_REPORT_MAP_STYLE,
+    pixelRatio: 2,
+  });
+
+  const mapBaseDataUrl = await fetchRemoteImageAsDataUrl(mapBaseUrl);
+  return { mapViewport, mapBaseDataUrl };
+}
+
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
@@ -117,10 +182,14 @@ export async function generateServiceOrderStrategicReportPDF({
   applications,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const { mapViewport, mapBaseDataUrl } = await prefetchStrategicReportMapBase(serviceOrder);
 
   const element = ServiceOrderStrategicReportPDF({
     serviceOrder,
     applications,
+    mapViewport,
+    prefetchedMapBaseDataUrl: mapBaseDataUrl,
+    mapBaseStyleLabel: 'Mapbox Light',
   });
 
   // @ts-expect-error - toBlob is not typed

@@ -49,6 +49,67 @@ export type StrategicMapProjection = {
   shapes: StrategicMapShapeProjected[];
 };
 
+export type StrategicMapViewport = {
+  width: number;
+  height: number;
+  padding: number;
+  zoom: number;
+  centerLng: number;
+  centerLat: number;
+  worldSize: number;
+  centerWorldX: number;
+  centerWorldY: number;
+  bounds: {
+    minLng: number;
+    minLat: number;
+    maxLng: number;
+    maxLat: number;
+  };
+};
+
+const WEB_MERCATOR_MAX_LAT = 85.05112878;
+const MAPBOX_TILE_SIZE = 512;
+
+function clampLat(lat: number): number {
+  return Math.max(-WEB_MERCATOR_MAX_LAT, Math.min(WEB_MERCATOR_MAX_LAT, lat));
+}
+
+function lngToNormalizedX(lng: number): number {
+  return (lng + 180) / 360;
+}
+
+function latToNormalizedY(lat: number): number {
+  const clampedLat = clampLat(lat);
+  const sinValue = Math.sin((clampedLat * Math.PI) / 180);
+  return 0.5 - Math.log((1 + sinValue) / (1 - sinValue)) / (4 * Math.PI);
+}
+
+function normalizedXToLng(normalizedX: number): number {
+  return normalizedX * 360 - 180;
+}
+
+function normalizedYToLat(normalizedY: number): number {
+  const y = Math.PI * (1 - 2 * normalizedY);
+  return (180 / Math.PI) * Math.atan(Math.sinh(y));
+}
+
+function lngLatToWorld(lng: number, lat: number, worldSize: number): XYPoint {
+  return {
+    x: lngToNormalizedX(lng) * worldSize,
+    y: latToNormalizedY(lat) * worldSize,
+  };
+}
+
+function buildViewportProjection(viewport: StrategicMapViewport) {
+  return ([lng, lat]: LngLat) => {
+    const worldPoint = lngLatToWorld(lng, lat, viewport.worldSize);
+    return {
+      x: viewport.width / 2 + (worldPoint.x - viewport.centerWorldX),
+      y: viewport.height / 2 + (worldPoint.y - viewport.centerWorldY),
+    };
+  };
+}
+
 function isSamePoint(a: LngLat, b: LngLat): boolean {
   return Math.abs(a[0] - b[0]) < EPSILON && Math.abs(a[1] - b[1]) < EPSILON;
 }
@@ -329,12 +390,7 @@ function computeAdaptivePadding(basePadding: number, width: number, height: numb
   return Math.max(6, Math.min(basePadding, maxAllowed));
 }
 
-export function buildStrategicMapProjection(
-  shapes: StrategicMapShapeInput[],
-  width: number,
-  height: number,
-  padding: number = 20
-): StrategicMapProjection | null {
+function collectShapePoints(shapes: StrategicMapShapeInput[]): LngLat[] {
   const allPoints: LngLat[] = [];
 
   shapes.forEach((shape) => {
@@ -346,6 +402,106 @@ export function buildStrategicMapProjection(
       });
     });
   });
+
+  return allPoints;
+}
+
+export function buildStrategicMapViewport(
+  shapes: StrategicMapShapeInput[],
+  width: number,
+  height: number,
+  padding: number = 20
+): StrategicMapViewport | null {
+  const allPoints = collectShapePoints(shapes);
+  if (allPoints.length === 0) {
+    return null;
+  }
+
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+
+  allPoints.forEach(([lng, lat]) => {
+    const clampedLat = clampLat(lat);
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, clampedLat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, clampedLat);
+  });
+
+  if (
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLng) ||
+    !Number.isFinite(maxLat)
+  ) {
+    return null;
+  }
+
+  if (Math.abs(maxLng - minLng) < EPSILON) {
+    minLng -= 0.0001;
+    maxLng += 0.0001;
+  }
+
+  if (Math.abs(maxLat - minLat) < EPSILON) {
+    minLat = clampLat(minLat - 0.0001);
+    maxLat = clampLat(maxLat + 0.0001);
+  }
+
+  const adaptivePadding = computeAdaptivePadding(padding, width, height);
+  const usableWidth = Math.max(1, width - adaptivePadding * 2);
+  const usableHeight = Math.max(1, height - adaptivePadding * 2);
+
+  const minNormalizedX = lngToNormalizedX(minLng);
+  const maxNormalizedX = lngToNormalizedX(maxLng);
+  const minNormalizedY = latToNormalizedY(maxLat);
+  const maxNormalizedY = latToNormalizedY(minLat);
+
+  const normalizedWidth = Math.max(EPSILON, maxNormalizedX - minNormalizedX);
+  const normalizedHeight = Math.max(EPSILON, maxNormalizedY - minNormalizedY);
+
+  const zoomX = Math.log2(usableWidth / (MAPBOX_TILE_SIZE * normalizedWidth));
+  const zoomY = Math.log2(usableHeight / (MAPBOX_TILE_SIZE * normalizedHeight));
+  const zoom = Math.max(0, Math.min(20, Math.min(zoomX, zoomY)));
+
+  if (!Number.isFinite(zoom)) {
+    return null;
+  }
+
+  const worldSize = MAPBOX_TILE_SIZE * 2 ** zoom;
+  const centerNormalizedX = (minNormalizedX + maxNormalizedX) / 2;
+  const centerNormalizedY = (minNormalizedY + maxNormalizedY) / 2;
+  const centerLng = normalizedXToLng(centerNormalizedX);
+  const centerLat = normalizedYToLat(centerNormalizedY);
+  const centerWorld = lngLatToWorld(centerLng, centerLat, worldSize);
+
+  return {
+    width,
+    height,
+    padding: adaptivePadding,
+    zoom,
+    centerLng,
+    centerLat,
+    worldSize,
+    centerWorldX: centerWorld.x,
+    centerWorldY: centerWorld.y,
+    bounds: {
+      minLng,
+      minLat,
+      maxLng,
+      maxLat,
+    },
+  };
+}
+
+export function buildStrategicMapProjection(
+  shapes: StrategicMapShapeInput[],
+  width: number,
+  height: number,
+  padding: number = 20
+): StrategicMapProjection | null {
+  const allPoints = collectShapePoints(shapes);
 
   if (allPoints.length === 0) {
     return null;
@@ -477,4 +633,126 @@ export function buildStrategicMapProjection(
     },
     shapes: projectedShapes,
   };
+}
+
+export function buildStrategicMapProjectionFromViewport(
+  shapes: StrategicMapShapeInput[],
+  viewport: StrategicMapViewport
+): StrategicMapProjection | null {
+  const allPoints = collectShapePoints(shapes);
+  if (allPoints.length === 0) {
+    return null;
+  }
+
+  const project = buildViewportProjection(viewport);
+
+  const projectedShapes: StrategicMapShapeProjected[] = shapes
+    .map((shape) => {
+      const projectedPolygons = shape.polygons.map((polygon) =>
+        polygon.map((ring) => projectRing(ring, project))
+      );
+
+      const pathD = projectedPolygons
+        .map((polygon) => buildPathFromPolygon(polygon))
+        .filter(Boolean)
+        .join(' ');
+
+      if (!pathD) {
+        return null;
+      }
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let areaPx = 0;
+
+      projectedPolygons.forEach((polygon) => {
+        areaPx += projectedPolygonArea(polygon);
+        polygon.forEach((ring) => {
+          ring.forEach((point) => {
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
+          });
+        });
+      });
+
+      if (
+        !Number.isFinite(minX) ||
+        !Number.isFinite(minY) ||
+        !Number.isFinite(maxX) ||
+        !Number.isFinite(maxY)
+      ) {
+        return null;
+      }
+
+      const labelPointLngLat =
+        defaultShapeLabelPoint(shape) ??
+        ([
+          (viewport.bounds.minLng + viewport.bounds.maxLng) / 2,
+          (viewport.bounds.minLat + viewport.bounds.maxLat) / 2,
+        ] as LngLat);
+      const labelPoint = project(labelPointLngLat);
+
+      return {
+        id: shape.id,
+        label: shape.label,
+        farmKey: shape.farmKey,
+        pathD,
+        labelX: labelPoint.x,
+        labelY: labelPoint.y,
+        areaPx,
+        bbox: {
+          minX,
+          minY,
+          maxX,
+          maxY,
+          width: Math.max(0, maxX - minX),
+          height: Math.max(0, maxY - minY),
+        },
+      };
+    })
+    .filter((shape): shape is StrategicMapShapeProjected => shape !== null);
+
+  if (projectedShapes.length === 0) {
+    return null;
+  }
+
+  const lngSpan = viewport.bounds.maxLng - viewport.bounds.minLng;
+  const latSpan = viewport.bounds.maxLat - viewport.bounds.minLat;
+  const midLatRad = ((viewport.bounds.minLat + viewport.bounds.maxLat) / 2) * (Math.PI / 180);
+  const widthKm = Math.abs(lngSpan * 111.32 * Math.cos(midLatRad));
+  const heightKm = Math.abs(latSpan * 110.574);
+
+  return {
+    bounds: {
+      ...viewport.bounds,
+    },
+    extentKm: {
+      widthKm,
+      heightKm,
+      diagonalKm: Math.sqrt(widthKm ** 2 + heightKm ** 2),
+    },
+    shapes: projectedShapes,
+  };
+}
+
+export function buildStrategicMapStaticBaseUrl(params: {
+  viewport: StrategicMapViewport;
+  width: number;
+  height: number;
+  accessToken: string;
+  styleId?: string;
+  pixelRatio?: 1 | 2;
+}): string {
+  const { viewport, width, height, accessToken, styleId, pixelRatio } = params;
+  const staticStyle = styleId || 'mapbox/light-v11';
+  const centerLng = viewport.centerLng.toFixed(7);
+  const centerLat = viewport.centerLat.toFixed(7);
+  const zoom = viewport.zoom.toFixed(7);
+  const sizeSuffix = pixelRatio === 2 ? '@2x' : '';
+
+  return `https://api.mapbox.com/styles/v1/${staticStyle}/static/${centerLng},${centerLat},${zoom},0,0/${width}x${height}${sizeSuffix}?access_token=${encodeURIComponent(accessToken)}&attribution=false&logo=false`;
 }
