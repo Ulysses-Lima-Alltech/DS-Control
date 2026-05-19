@@ -5,6 +5,7 @@ import {
   FileText,
   FileUser,
   HandHelping,
+  ChartNoAxesColumn,
   LayoutDashboard,
   Map,
   NotepadText,
@@ -91,6 +92,13 @@ export const pathItems: PathItem[] = [
     category: 'configurações',
   },
   {
+    title: 'Relatórios',
+    url: '/dashboard/reports',
+    icon: ChartNoAxesColumn,
+    showOnSidebar: true,
+    category: 'configurações',
+  },
+  {
     title: 'Usuários',
     url: '/dashboard/users',
     icon: Users,
@@ -147,4 +155,3 @@ export const pathItems: PathItem[] = [
     category: 'configurações',
   },
 ];
-

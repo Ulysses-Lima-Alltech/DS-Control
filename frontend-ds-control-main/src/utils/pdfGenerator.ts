@@ -1,4 +1,10 @@
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
+import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
+import GeneralReportPDF, {
+  type GeneralNamedValue,
+  type GeneralReportStatusSummary,
+  type GeneralReportTotals,
+} from '@/components/PDFReports/GeneralReportPDF';
 import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
@@ -15,6 +21,23 @@ import {
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
   applications: Application[];
+}
+
+export interface GenerateFarmsReportPDFParams {
+  rows: FarmsReportRow[];
+  generatedAt: string;
+  filtersSummary: Array<{ label: string; value: string }>;
+}
+
+export interface GenerateGeneralReportPDFParams {
+  generatedAt: string;
+  filtersSummary: Array<{ label: string; value: string }>;
+  totals: GeneralReportTotals;
+  statusSummary: GeneralReportStatusSummary;
+  byFarm: GeneralNamedValue[];
+  byPilot: GeneralNamedValue[];
+  byProduct: GeneralNamedValue[];
+  byAssistant: GeneralNamedValue[];
 }
 
 const REPORT_MAP_WIDTH = 1280;
@@ -58,15 +81,6 @@ async function prefetchReportMapImagesByPlotId(
     const plotApplications = applicationsByPlot[plotId];
     const plot = plotApplications[0]?.plot;
     if (!plot) {
-      console.log('[REPORT_PREFETCH_DEBUG]', {
-        phase: 'pdfGenerator:no_plot',
-        plotId,
-        plotName: null,
-        mapUrlExists: false,
-        unavailableReason: null,
-        usedLongUrlFallback: false,
-        note: 'first application sem plot',
-      });
       out[plotId] = null;
       continue;
     }
@@ -77,16 +91,6 @@ async function prefetchReportMapImagesByPlotId(
       accessToken,
     });
 
-    console.log('[REPORT_PREFETCH_DEBUG]', {
-      phase: 'pdfGenerator:after_buildReportMapboxStaticUrl',
-      plotId,
-      plotName: plot.name ?? null,
-      mapUrlExists: Boolean(mapResult.url),
-      mapUrlLength: mapResult.url?.length ?? 0,
-      unavailableReason: mapResult.unavailableReason,
-      usedLongUrlFallback: mapResult.usedLongUrlFallback,
-    });
-
     if (!mapResult.url) {
       out[plotId] = null;
       continue;
@@ -94,13 +98,6 @@ async function prefetchReportMapImagesByPlotId(
     const dataUrl = await fetchRemoteImageAsDataUrl(mapResult.url);
     out[plotId] = dataUrl;
 
-    console.log('[REPORT_PREFETCH_DEBUG]', {
-      phase: 'pdfGenerator:after_fetchRemoteImageAsDataUrl',
-      plotId,
-      plotName: plot.name ?? null,
-      prefetchResultExists: Boolean(dataUrl),
-      prefetchDataUrlLength: typeof dataUrl === 'string' ? dataUrl.length : 0,
-    });
   }
 
   return out;
@@ -196,6 +193,52 @@ export async function generateServiceOrderStrategicReportPDF({
     mapViewport,
     prefetchedMapBaseDataUrl: mapBaseDataUrl,
     mapBaseStyleLabel: 'Mapbox Light',
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateFarmsReportPDF({
+  rows,
+  generatedAt,
+  filtersSummary,
+}: GenerateFarmsReportPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+
+  const element = FarmsReportPDF({
+    rows,
+    generatedAt,
+    filtersSummary,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateGeneralReportPDF({
+  generatedAt,
+  filtersSummary,
+  totals,
+  statusSummary,
+  byFarm,
+  byPilot,
+  byProduct,
+  byAssistant,
+}: GenerateGeneralReportPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+
+  const element = GeneralReportPDF({
+    generatedAt,
+    filtersSummary,
+    totals,
+    statusSummary,
+    byFarm,
+    byPilot,
+    byProduct,
+    byAssistant,
   });
 
   // @ts-expect-error - toBlob is not typed
