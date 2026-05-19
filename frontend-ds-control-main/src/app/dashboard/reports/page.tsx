@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import DateRangePicker, { type DateParams } from '@/components/DateRangePicker';
+import {
+  resolveApplicationStatusLabel,
+  resolveApplicationTypeOrIssueLabel,
+  type ApplicationsGeneralReportRow,
+} from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +38,7 @@ import type { User } from '@/types/user.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
   downloadPDF,
-  generateApplicationsReportPDF,
+  generateApplicationsGeneralReportPDF,
   generateFarmsReportPDF,
   generateGeneralReportPDF,
   generateServiceOrderStrategicReportPDF,
@@ -59,11 +64,6 @@ type ReportsFiltersState = {
 
 type SummaryItem = { label: string; value: string };
 type NamedValue = { name: string; value: number };
-type ApplicationsPreview = {
-  count: number;
-  totalAppliedHectares: number;
-  items: Application[];
-};
 type FarmPreviewRow = {
   farmId: string;
   farmName: string;
@@ -150,6 +150,23 @@ function getStatusLabel(status?: ServiceOrderStatus): string {
   return STATUS_OPTIONS.find((item) => item.value === status)?.label || status;
 }
 
+function formatOperationalDate(value?: string): string {
+  if (!value) return 'Nao informada';
+  const onlyDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const match = value.match(onlyDatePattern);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day);
+    return new Intl.DateTimeFormat('pt-BR').format(date);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Nao informada';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: OPERATIONAL_TIME_ZONE }).format(date);
+}
+
 export default function ReportsCenterPage() {
   const [selectedReportId, setSelectedReportId] = useState<ReportId>('applications');
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(undefined);
@@ -168,9 +185,6 @@ export default function ReportsCenterPage() {
 
   const [filters, setFilters] = useState<ReportsFiltersState>({});
   const [isGeneratingRowReport, setIsGeneratingRowReport] = useState<string | null>(null);
-  const [applicationsPreview, setApplicationsPreview] = useState<ApplicationsPreview | null>(null);
-  const [applicationsPreviewLoading, setApplicationsPreviewLoading] = useState(false);
-  const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
   const [farmsPreviewRows, setFarmsPreviewRows] = useState<FarmPreviewRow[]>([]);
   const [farmsPreviewLoading, setFarmsPreviewLoading] = useState(false);
   const [farmsPreviewError, setFarmsPreviewError] = useState<string | null>(null);
@@ -413,6 +427,40 @@ export default function ReportsCenterPage() {
     includeContracts: 'true',
   });
 
+  const fetchAllApplicationsByFilters = async () => {
+    const pageSize = 1000;
+    const firstResponse = await getAllApplications({
+      ...buildApplicationFilters(),
+      page: '1',
+      limit: String(pageSize),
+    });
+
+    const applications = [...(firstResponse.data || [])];
+    const totalPages = firstResponse.totalPages || 1;
+
+    if (totalPages > 1) {
+      const pages = Array.from({ length: totalPages - 1 }, (_, index) => String(index + 2));
+      const responses = await Promise.all(
+        pages.map((page) =>
+          getAllApplications({
+            ...buildApplicationFilters(),
+            page,
+            limit: String(pageSize),
+          })
+        )
+      );
+      responses.forEach((response) => {
+        applications.push(...(response.data || []));
+      });
+    }
+
+    return {
+      applications,
+      totalCount: firstResponse.totalCount || applications.length,
+      totalFilteredHectares: parseNumber(firstResponse.summary?.totalFilteredHectares),
+    };
+  };
+
   const fetchServiceOrderAndApplications = async (serviceOrderId: string) => {
     const serviceOrderForReport = await getServiceOrderById(serviceOrderId, {
       includePlots: 'true',
@@ -448,61 +496,48 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateApplicationsReport = async () => {
-    if (!selectedServiceOrderId) {
-      throw new Error('Selecione uma OS para gerar o relatorio de aplicacoes.');
-    }
-
-    const serviceOrderForReport = await getServiceOrderById(selectedServiceOrderId, {
-      includePlots: 'true',
-      includeGeoJson: 'true',
-      includePilots: 'true',
-      includeFarms: 'true',
-      includeContracts: 'true',
-      includeCustomers: 'true',
-    });
-
-    const filteredApplicationsResponse = await getAllApplications({
-      ...buildApplicationFilters(),
-      serviceOrderId: selectedServiceOrderId,
-      page: '1',
-      limit: '1000',
-    });
-
-    const applications = [...(filteredApplicationsResponse.data || [])];
-
-    if (serviceOrderForReport.plots && Array.isArray(serviceOrderForReport.plots)) {
-      const plotMap = new Map<string, Farm['plots'][number]>();
-      serviceOrderForReport.plots.forEach((plot) => {
-        if (plot.id) {
-          plotMap.set(plot.id, plot);
-        }
-      });
-
-      applications.forEach((application: Application) => {
-        if (application.plotId && plotMap.has(application.plotId)) {
-          const mappedPlot = plotMap.get(application.plotId);
-          if (mappedPlot) {
-            application.plot = mappedPlot;
-          }
-        }
-      });
-    }
+    const { applications, totalFilteredHectares } = await fetchAllApplicationsByFilters();
 
     if (applications.length === 0) {
-      throw new Error(
-        'Nenhuma aplicacao encontrada para os filtros selecionados nesta OS.'
-      );
+      throw new Error('Nenhuma aplicacao encontrada para os filtros selecionados.');
     }
 
-    const blob = await generateApplicationsReportPDF({
-      serviceOrder: serviceOrderForReport,
-      applications,
+    const rows: ApplicationsGeneralReportRow[] = applications.map((application) => ({
+      id: application.id,
+      date: formatOperationalDate(application.date),
+      serviceOrderNumber: application.serviceOrder?.number
+        ? `#${application.serviceOrder.number}`
+        : application.serviceOrderId
+          ? `#${application.serviceOrderId}`
+          : 'N/A',
+      customerName: application.serviceOrder?.customer?.name || 'Cliente N/A',
+      farmName: application.farm?.name || 'Fazenda N/A',
+      plotName: application.plot?.name || 'Talhao N/A',
+      pilotName: application.pilot?.name || 'Piloto N/A',
+      assistantName: application.assistant?.name || 'Ajudante N/A',
+      droneName: application.drone?.name || 'Drone N/A',
+      productName: application.product?.name || 'Produto N/A',
+      typeOrIssueLabel: resolveApplicationTypeOrIssueLabel(application.observations),
+      appliedHectares: parseNumber(application.hectares),
+      statusLabel: resolveApplicationStatusLabel(application.serviceOrder?.status),
+    }));
+
+    const totalAppliedHectares =
+      totalFilteredHectares || rows.reduce((sum, row) => sum + row.appliedHectares, 0);
+    const periodLabel =
+      filters.startDate && filters.endDate
+        ? `${filters.startDate} ate ${filters.endDate}`
+        : 'Sem periodo especifico';
+
+    const blob = await generateApplicationsGeneralReportPDF({
+      generatedAt: formatGeneratedAt(),
+      filtersSummary: resolveFiltersSummary(),
+      periodLabel,
+      rows,
+      totalAppliedHectares,
     });
 
-    downloadPDF(
-      blob,
-      `relatorio-aplicacoes-os-${serviceOrderForReport.number}-central.pdf`
-    );
+    downloadPDF(blob, 'relatorio-aplicacoes-geral.pdf');
   };
 
   const handleGenerateServiceOrderReport = async () => {
@@ -712,44 +747,6 @@ export default function ReportsCenterPage() {
     setGenerationError(null);
     setGenerationSuccess(null);
   };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadApplicationsPreview = async () => {
-      if (selectedReport.id !== 'applications') return;
-      setApplicationsPreviewLoading(true);
-      setApplicationsPreviewError(null);
-      try {
-        const response = await getAllApplications({
-          ...buildApplicationFilters(),
-          serviceOrderId: selectedServiceOrderId,
-          page: '1',
-          limit: '50',
-        });
-        if (!isMounted) return;
-        const totalAppliedHectares =
-          parseNumber(response.summary?.totalFilteredHectares) ||
-          (response.data || []).reduce((sum, item) => sum + parseNumber(item.hectares), 0);
-        setApplicationsPreview({
-          count: response.totalCount || response.data.length,
-          totalAppliedHectares,
-          items: response.data || [],
-        });
-      } catch (error) {
-        if (!isMounted) return;
-        const message = error instanceof Error ? error.message : 'Erro ao carregar aplicacoes.';
-        setApplicationsPreviewError(message);
-      } finally {
-        if (isMounted) setApplicationsPreviewLoading(false);
-      }
-    };
-
-    loadApplicationsPreview();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedReport.id, selectedServiceOrderId, filters]);
 
   useEffect(() => {
     let isMounted = true;
@@ -982,31 +979,10 @@ export default function ReportsCenterPage() {
 
           {selectedReport.id === 'applications' && (
             <div className='space-y-3'>
-              <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
-              {selectedReport.requiresServiceOrderSelection && !selectedServiceOrderId && (
-                <p className='text-xs text-muted-foreground'>
-                  Este relatorio usa o PDF por OS. Selecione uma OS para gerar com os filtros.
-                </p>
-              )}
-              {applicationsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>}
-              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
-              {applicationsPreview && (
-                <>
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
-                    <div className='rounded-lg border p-3'>
-                      <p className='text-xs text-muted-foreground'>Quantidade</p>
-                      <p className='text-sm font-semibold'>{applicationsPreview.count}</p>
-                    </div>
-                    <div className='rounded-lg border p-3'>
-                      <p className='text-xs text-muted-foreground'>Total aplicado</p>
-                      <p className='text-sm font-semibold'>{applicationsPreview.totalAppliedHectares.toFixed(2)} ha</p>
-                    </div>
-                  </div>
-                  <p className='text-xs text-muted-foreground'>
-                    Mostrando ate {applicationsPreview.items.length} aplicacoes no resumo.
-                  </p>
-                </>
-              )}
+              <p className='text-sm font-semibold'>Relatorio de aplicacoes geral</p>
+              <p className='text-xs text-muted-foreground'>
+                Use os filtros para gerar um relatorio descritivo das aplicacoes efetuadas no recorte selecionado.
+              </p>
             </div>
           )}
 

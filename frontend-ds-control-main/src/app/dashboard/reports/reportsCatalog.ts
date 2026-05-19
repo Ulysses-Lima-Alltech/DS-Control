@@ -28,7 +28,7 @@ export const reportsCatalog: ReportCatalogItem[] = [
   {
     id: 'applications',
     label: 'Relatorio de aplicacoes',
-    description: 'Usa os filtros operacionais e gera o PDF de aplicacoes da OS selecionada.',
+    description: 'Gera um PDF descritivo de aplicacoes para o recorte filtrado, sem mapa.',
     supportedFilters: [
       'period',
       'cropSeason',
@@ -41,10 +41,7 @@ export const reportsCatalog: ReportCatalogItem[] = [
       'serviceOrderStatus',
       'applicationIssue',
       'serviceOrderNumber',
-      'serviceOrder',
     ],
-    requiresServiceOrderSelection: true,
-    serviceOrderSelectionLabel: 'OS para o relatorio de aplicacoes',
   },
   {
     id: 'service-orders',

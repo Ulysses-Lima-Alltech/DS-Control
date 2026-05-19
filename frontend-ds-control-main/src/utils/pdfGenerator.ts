@@ -1,3 +1,6 @@
+import ApplicationsGeneralReportPDF, {
+  type ApplicationsGeneralReportRow,
+} from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
 import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
 import GeneralReportPDF, {
@@ -38,6 +41,14 @@ export interface GenerateGeneralReportPDFParams {
   byPilot: GeneralNamedValue[];
   byProduct: GeneralNamedValue[];
   byAssistant: GeneralNamedValue[];
+}
+
+export interface GenerateApplicationsGeneralReportPDFParams {
+  generatedAt: string;
+  filtersSummary: Array<{ label: string; value: string }>;
+  periodLabel: string;
+  rows: ApplicationsGeneralReportRow[];
+  totalAppliedHectares: number;
 }
 
 const REPORT_MAP_WIDTH = 1280;
@@ -239,6 +250,28 @@ export async function generateGeneralReportPDF({
     byPilot,
     byProduct,
     byAssistant,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateApplicationsGeneralReportPDF({
+  generatedAt,
+  filtersSummary,
+  periodLabel,
+  rows,
+  totalAppliedHectares,
+}: GenerateApplicationsGeneralReportPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+
+  const element = ApplicationsGeneralReportPDF({
+    generatedAt,
+    filtersSummary,
+    periodLabel,
+    rows,
+    totalAppliedHectares,
   });
 
   // @ts-expect-error - toBlob is not typed
