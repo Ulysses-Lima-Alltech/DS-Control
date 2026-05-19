@@ -277,16 +277,6 @@ function buildMapGridPaths(width: number, height: number, step: number): string[
   return paths;
 }
 
-function buildTinyShapeMarkerPath(x: number, y: number, size: number = 2.5): string {
-  return [
-    `M ${x.toFixed(2)} ${(y - size).toFixed(2)}`,
-    `L ${(x + size).toFixed(2)} ${y.toFixed(2)}`,
-    `L ${x.toFixed(2)} ${(y + size).toFixed(2)}`,
-    `L ${(x - size).toFixed(2)} ${y.toFixed(2)}`,
-    'Z',
-  ].join(' ');
-}
-
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
   serviceOrder,
   applications,
@@ -636,34 +626,25 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                         stroke: '#64748B',
                       };
                       const isTinyShape = shape.areaPx < 130;
-                      const strokeWidth = isTinyShape ? 1.05 : shape.areaPx < 600 ? 0.95 : 1.15;
+                      const strokeWidth = isTinyShape ? 0.58 : shape.areaPx < 600 ? 0.5 : 0.46;
                       const fillOpacity = prefetchedMapBaseDataUrl
                         ? isTinyShape
-                          ? 0.66
-                          : 0.54
+                          ? 0.7
+                          : 0.58
                         : isTinyShape
-                          ? 0.84
-                          : 0.74;
+                          ? 0.86
+                          : 0.76;
 
                       return (
-                        <React.Fragment key={`shape-${shape.id}`}>
-                          <Path
-                            d={shape.pathD}
-                            fill={color.fill}
-                            fillOpacity={fillOpacity}
-                            fillRule='evenodd'
-                            stroke={color.stroke}
-                            strokeWidth={strokeWidth}
-                          />
-                          {isTinyShape && (
-                            <Path
-                              d={buildTinyShapeMarkerPath(shape.labelX, shape.labelY)}
-                              fill={color.stroke}
-                              stroke='#FFFFFF'
-                              strokeWidth={0.45}
-                            />
-                          )}
-                        </React.Fragment>
+                        <Path
+                          key={`shape-${shape.id}`}
+                          d={shape.pathD}
+                          fill={color.fill}
+                          fillOpacity={fillOpacity}
+                          fillRule='evenodd'
+                          stroke={color.stroke}
+                          strokeWidth={strokeWidth}
+                        />
                       );
                     })}
                   </Svg>
