@@ -21,8 +21,9 @@ const REPORT_MAP_WIDTH = 1280;
 const REPORT_MAP_HEIGHT = 480;
 const STRATEGIC_REPORT_MAP_WIDTH = 418;
 const STRATEGIC_REPORT_MAP_HEIGHT = 286;
-const STRATEGIC_REPORT_MAP_PADDING = 10;
+const STRATEGIC_REPORT_MAP_PADDING = 8;
 const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/light-v11';
+const STRATEGIC_REPORT_PADDING_SCALE = 0.58;
 
 function getReportMapboxAccessToken(): string {
   return (
@@ -138,7 +139,12 @@ async function prefetchStrategicReportMapBase(
     shapes,
     STRATEGIC_REPORT_MAP_WIDTH,
     STRATEGIC_REPORT_MAP_HEIGHT,
-    STRATEGIC_REPORT_MAP_PADDING
+    STRATEGIC_REPORT_MAP_PADDING,
+    {
+      paddingScale: STRATEGIC_REPORT_PADDING_SCALE,
+      minPaddingPx: 2,
+      maxPaddingRatio: 0.05,
+    }
   );
 
   const accessToken = getReportMapboxAccessToken().trim();

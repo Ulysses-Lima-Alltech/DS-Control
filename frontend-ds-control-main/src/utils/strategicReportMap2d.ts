@@ -67,6 +67,12 @@ export type StrategicMapViewport = {
   };
 };
 
+export type StrategicMapViewportOptions = {
+  paddingScale?: number;
+  minPaddingPx?: number;
+  maxPaddingRatio?: number;
+};
+
 const WEB_MERCATOR_MAX_LAT = 85.05112878;
 const MAPBOX_TILE_SIZE = 512;
 
@@ -381,13 +387,13 @@ function projectedPolygonArea(polygon: XYPoint[][]): number {
 }
 
 function computeAdaptivePadding(basePadding: number, width: number, height: number): number {
-  const fallback = Math.max(8, Math.min(16, Math.min(width, height) * 0.035));
+  const fallback = Math.max(4, Math.min(14, Math.min(width, height) * 0.03));
   if (!Number.isFinite(basePadding) || basePadding < 0) {
     return fallback;
   }
 
-  const maxAllowed = Math.max(8, Math.min(width, height) * 0.08);
-  return Math.max(6, Math.min(basePadding, maxAllowed));
+  const maxAllowed = Math.max(6, Math.min(width, height) * 0.07);
+  return Math.max(2, Math.min(basePadding, maxAllowed));
 }
 
 function collectShapePoints(shapes: StrategicMapShapeInput[]): LngLat[] {
@@ -410,7 +416,8 @@ export function buildStrategicMapViewport(
   shapes: StrategicMapShapeInput[],
   width: number,
   height: number,
-  padding: number = 20
+  padding: number = 20,
+  options?: StrategicMapViewportOptions
 ): StrategicMapViewport | null {
   const allPoints = collectShapePoints(shapes);
   if (allPoints.length === 0) {
@@ -450,8 +457,16 @@ export function buildStrategicMapViewport(
   }
 
   const adaptivePadding = computeAdaptivePadding(padding, width, height);
-  const usableWidth = Math.max(1, width - adaptivePadding * 2);
-  const usableHeight = Math.max(1, height - adaptivePadding * 2);
+  const paddingScale = options?.paddingScale ?? 1;
+  const minPaddingPx = options?.minPaddingPx ?? 2;
+  const maxPaddingRatio = options?.maxPaddingRatio ?? 0.06;
+  const maxPaddingPx = Math.max(minPaddingPx, Math.min(width, height) * maxPaddingRatio);
+  const effectivePadding = Math.max(
+    minPaddingPx,
+    Math.min(adaptivePadding * paddingScale, maxPaddingPx)
+  );
+  const usableWidth = Math.max(1, width - effectivePadding * 2);
+  const usableHeight = Math.max(1, height - effectivePadding * 2);
 
   const minNormalizedX = lngToNormalizedX(minLng);
   const maxNormalizedX = lngToNormalizedX(maxLng);
@@ -479,7 +494,7 @@ export function buildStrategicMapViewport(
   return {
     width,
     height,
-    padding: adaptivePadding,
+    padding: effectivePadding,
     zoom,
     centerLng,
     centerLat,

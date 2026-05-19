@@ -50,6 +50,8 @@ const MAP_CONTAINER_WIDTH = MAP_CANVAS_WIDTH + 2;
 const MAP_CONTAINER_HEIGHT = MAP_CANVAS_HEIGHT + 2;
 const MAP_LEGEND_WIDTH = 109;
 const MAP_ROW_GAP = 8;
+const MAP_VIEWPORT_PADDING = 8;
+const MAP_VIEWPORT_PADDING_SCALE = 0.58;
 
 const FARM_COLORS = [
   { fill: '#38BDF8', stroke: '#0284C7' },
@@ -372,7 +374,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
 
   const strategicViewport =
     mapViewport ??
-    buildStrategicMapViewport(mapShapesInput, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, 10);
+    buildStrategicMapViewport(mapShapesInput, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, MAP_VIEWPORT_PADDING, {
+      paddingScale: MAP_VIEWPORT_PADDING_SCALE,
+      minPaddingPx: 2,
+      maxPaddingRatio: 0.05,
+    });
 
   const mapProjection = strategicViewport
     ? buildStrategicMapProjectionFromViewport(mapShapesInput, strategicViewport)
@@ -436,6 +442,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   }
 
   const detailPages = chunkRows(plotRows, 18);
+  const showConsistencyOnSummaryPage = consistencyMessages.length > 0 && detailPages.length === 0;
+  const showConsistencyOnFirstDetailPage = consistencyMessages.length > 0 && detailPages.length > 0;
 
   return (
     <Document>
@@ -628,7 +636,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                         stroke: '#64748B',
                       };
                       const isTinyShape = shape.areaPx < 130;
-                      const strokeWidth = isTinyShape ? 2.3 : shape.areaPx < 600 ? 2.2 : 2.8;
+                      const strokeWidth = isTinyShape ? 1.05 : shape.areaPx < 600 ? 0.95 : 1.15;
                       const fillOpacity = prefetchedMapBaseDataUrl
                         ? isTinyShape
                           ? 0.66
@@ -652,7 +660,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                               d={buildTinyShapeMarkerPath(shape.labelX, shape.labelY)}
                               fill={color.stroke}
                               stroke='#FFFFFF'
-                              strokeWidth={0.8}
+                              strokeWidth={0.45}
                             />
                           )}
                         </React.Fragment>
@@ -768,18 +776,18 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
           )}
         </View>
 
-        {consistencyMessages.length > 0 && (
+        {showConsistencyOnSummaryPage && (
           <View
             style={{
               border: `1px solid ${LIGHT_BORDER}`,
               borderRadius: 8,
-              padding: 8,
+              padding: 7,
               backgroundColor: '#FCFCFD',
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>Observacoes de consistencia</Text>
+            <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 3 }}>Observacoes de consistencia</Text>
             {consistencyMessages.map((message, index) => (
-              <Text key={`consistency-${index}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 2 }}>
+              <Text key={`consistency-${index}`} style={{ fontSize: 7.6, color: MUTED_TEXT, marginBottom: 1.5 }}>
                 - {message}
               </Text>
             ))}
@@ -828,7 +836,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               alignItems: 'center',
               borderBottom: `2px solid ${BRAND_YELLOW}`,
               paddingBottom: 10,
-              marginBottom: 12,
+              marginBottom: 10,
             }}
           >
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
@@ -838,6 +846,28 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               <Text style={{ fontSize: 9, color: MUTED_TEXT }}>OS #{serviceOrder.number}</Text>
             </View>
           </View>
+
+          {showConsistencyOnFirstDetailPage && index === 0 && (
+            <View
+              style={{
+                border: `1px solid ${LIGHT_BORDER}`,
+                borderRadius: 6,
+                padding: 6,
+                backgroundColor: '#FCFCFD',
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ fontSize: 8.5, fontWeight: 700, marginBottom: 2 }}>Observacoes de consistencia</Text>
+              {consistencyMessages.map((message, messageIndex) => (
+                <Text
+                  key={`consistency-detail-${messageIndex}`}
+                  style={{ fontSize: 7.5, color: MUTED_TEXT, marginBottom: 1.5 }}
+                >
+                  - {message}
+                </Text>
+              ))}
+            </View>
+          )}
 
           <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, overflow: 'hidden' }}>
             <View
