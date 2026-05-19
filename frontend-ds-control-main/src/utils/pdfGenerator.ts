@@ -1,4 +1,5 @@
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
+import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
@@ -104,6 +105,22 @@ export async function generateApplicationsReportPDF({
     serviceOrder,
     applications,
     prefetchedMapImageDataUrls,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateServiceOrderStrategicReportPDF({
+  serviceOrder,
+  applications,
+}: GeneratePDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+
+  const element = ServiceOrderStrategicReportPDF({
+    serviceOrder,
+    applications,
   });
 
   // @ts-expect-error - toBlob is not typed

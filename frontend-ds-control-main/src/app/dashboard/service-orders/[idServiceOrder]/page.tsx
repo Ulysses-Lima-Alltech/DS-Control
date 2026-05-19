@@ -49,7 +49,7 @@ import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
+import { downloadPDF, generateServiceOrderStrategicReportPDF } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -326,7 +326,7 @@ export default function ServiceOrderPage({
     try {
       setIsGeneratingReport(true);
 
-      const blob = await generateApplicationsReportPDF({
+      const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderData,
         applications: reportApplications,
       });

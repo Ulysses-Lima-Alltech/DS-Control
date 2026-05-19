@@ -29,7 +29,7 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
+import { downloadPDF, generateServiceOrderStrategicReportPDF } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 interface CardServiceOrderDetailsProps {
@@ -181,7 +181,7 @@ function LoadedCardServiceOrderDetails({
 
       clearInterval(progressInterval);
 
-      const blob = await generateApplicationsReportPDF({
+      const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
       });
