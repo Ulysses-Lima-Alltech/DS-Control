@@ -5,6 +5,7 @@ import type { Plot } from '@/types/plot.type';
 type LngLat = [number, number];
 type PolygonRings = LngLat[][];
 type PlotPolygons = PolygonRings[];
+type XYPoint = { x: number; y: number };
 
 const EPSILON = 1e-12;
 
@@ -22,6 +23,15 @@ export type StrategicMapShapeProjected = {
   pathD: string;
   labelX: number;
   labelY: number;
+  areaPx: number;
+  bbox: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+    width: number;
+    height: number;
+  };
 };
 
 export type StrategicMapProjection = {
@@ -247,18 +257,17 @@ function defaultShapeLabelPoint(shape: StrategicMapShapeInput): LngLat | null {
 }
 
 function buildPathFromRing(
-  ring: LngLat[],
-  project: (point: LngLat) => { x: number; y: number }
+  ring: XYPoint[]
 ): string {
   if (ring.length < 2) {
     return '';
   }
 
-  const first = project(ring[0]);
+  const first = ring[0];
   let d = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
   for (let i = 1; i < ring.length; i++) {
-    const point = project(ring[i]);
+    const point = ring[i];
     d += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
   }
 
@@ -267,13 +276,57 @@ function buildPathFromRing(
 }
 
 function buildPathFromPolygon(
-  polygon: PolygonRings,
-  project: (point: LngLat) => { x: number; y: number }
+  polygon: XYPoint[][]
 ): string {
   return polygon
-    .map((ring) => buildPathFromRing(ring, project))
+    .map((ring) => buildPathFromRing(ring))
     .filter(Boolean)
     .join(' ');
+}
+
+function projectRing(
+  ring: LngLat[],
+  project: (point: LngLat) => { x: number; y: number }
+): XYPoint[] {
+  return ring.map((point) => project(point));
+}
+
+function projectedRingArea(ring: XYPoint[]): number {
+  if (ring.length < 3) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const current = ring[i];
+    const next = ring[(i + 1) % ring.length];
+    sum += current.x * next.y - next.x * current.y;
+  }
+
+  return sum / 2;
+}
+
+function projectedPolygonArea(polygon: XYPoint[][]): number {
+  if (polygon.length === 0) {
+    return 0;
+  }
+
+  const outerArea = Math.abs(projectedRingArea(polygon[0]));
+  const holesArea = polygon
+    .slice(1)
+    .reduce((sum, hole) => sum + Math.abs(projectedRingArea(hole)), 0);
+
+  return Math.max(0, outerArea - holesArea);
+}
+
+function computeAdaptivePadding(basePadding: number, width: number, height: number): number {
+  const fallback = Math.max(8, Math.min(16, Math.min(width, height) * 0.035));
+  if (!Number.isFinite(basePadding) || basePadding < 0) {
+    return fallback;
+  }
+
+  const maxAllowed = Math.max(8, Math.min(width, height) * 0.08);
+  return Math.max(6, Math.min(basePadding, maxAllowed));
 }
 
 export function buildStrategicMapProjection(
@@ -317,8 +370,9 @@ export function buildStrategicMapProjection(
     return null;
   }
 
-  const usableWidth = Math.max(1, width - padding * 2);
-  const usableHeight = Math.max(1, height - padding * 2);
+  const adaptivePadding = computeAdaptivePadding(padding, width, height);
+  const usableWidth = Math.max(1, width - adaptivePadding * 2);
+  const usableHeight = Math.max(1, height - adaptivePadding * 2);
   const scale = Math.min(usableWidth / lngSpan, usableHeight / latSpan);
 
   if (!Number.isFinite(scale) || scale <= 0) {
@@ -327,8 +381,8 @@ export function buildStrategicMapProjection(
 
   const drawingWidth = lngSpan * scale;
   const drawingHeight = latSpan * scale;
-  const offsetX = padding + (usableWidth - drawingWidth) / 2;
-  const offsetY = padding + (usableHeight - drawingHeight) / 2;
+  const offsetX = adaptivePadding + (usableWidth - drawingWidth) / 2;
+  const offsetY = adaptivePadding + (usableHeight - drawingHeight) / 2;
 
   const project = ([lng, lat]: LngLat) => ({
     x: offsetX + (lng - minLng) * scale,
@@ -337,12 +391,43 @@ export function buildStrategicMapProjection(
 
   const projectedShapes: StrategicMapShapeProjected[] = shapes
     .map((shape) => {
-      const pathD = shape.polygons
-        .map((polygon) => buildPathFromPolygon(polygon, project))
+      const projectedPolygons = shape.polygons.map((polygon) =>
+        polygon.map((ring) => projectRing(ring, project))
+      );
+
+      const pathD = projectedPolygons
+        .map((polygon) => buildPathFromPolygon(polygon))
         .filter(Boolean)
         .join(' ');
 
       if (!pathD) {
+        return null;
+      }
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let areaPx = 0;
+
+      projectedPolygons.forEach((polygon) => {
+        areaPx += projectedPolygonArea(polygon);
+        polygon.forEach((ring) => {
+          ring.forEach((point) => {
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
+          });
+        });
+      });
+
+      if (
+        !Number.isFinite(minX) ||
+        !Number.isFinite(minY) ||
+        !Number.isFinite(maxX) ||
+        !Number.isFinite(maxY)
+      ) {
         return null;
       }
 
@@ -357,6 +442,15 @@ export function buildStrategicMapProjection(
         pathD,
         labelX: labelPoint.x,
         labelY: labelPoint.y,
+        areaPx,
+        bbox: {
+          minX,
+          minY,
+          maxX,
+          maxY,
+          width: Math.max(0, maxX - minX),
+          height: Math.max(0, maxY - minY),
+        },
       };
     })
     .filter((shape): shape is StrategicMapShapeProjected => shape !== null);

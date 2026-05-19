@@ -37,9 +37,15 @@ const DARK_TEXT = '#1F2937';
 const MUTED_TEXT = '#6B7280';
 const LIGHT_BORDER = '#E5E7EB';
 const BACKGROUND_SUBTLE = '#F9FAFB';
+const MAP_BACKGROUND = '#EEF4FA';
+const MAP_GRID = '#D4E0EF';
 
-const MAP_WIDTH = 460;
-const MAP_HEIGHT = 300;
+const MAP_CANVAS_WIDTH = 418;
+const MAP_CANVAS_HEIGHT = 286;
+const MAP_CONTAINER_WIDTH = MAP_CANVAS_WIDTH + 2;
+const MAP_CONTAINER_HEIGHT = MAP_CANVAS_HEIGHT + 2;
+const MAP_LEGEND_WIDTH = 109;
+const MAP_ROW_GAP = 8;
 
 const FARM_COLORS = [
   { fill: '#38BDF8', stroke: '#0284C7' },
@@ -52,7 +58,7 @@ const FARM_COLORS = [
   { fill: '#22D3EE', stroke: '#0891B2' },
 ];
 
-type PlotStatus = 'Pendente' | 'Parcial' | 'Concluído';
+type PlotStatus = 'Pendente' | 'Parcial' | 'Concluido';
 
 type PlotDetailRow = {
   plotId: string;
@@ -70,6 +76,15 @@ interface ServiceOrderStrategicReportPDFProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
 }
+
+type MapLabelPlacement = {
+  id: string;
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 function parseNumber(value: unknown): number {
   if (typeof value === 'number') {
@@ -93,7 +108,7 @@ function formatHectares(value: number): string {
 
 function formatStatus(status: ServiceOrder['status']): string {
   if (status === 'completed') {
-    return 'Concluída';
+    return 'Concluida';
   }
   if (status === 'cancelled') {
     return 'Cancelada';
@@ -136,7 +151,7 @@ function resolveFarmNameByPlot(serviceOrder: ServiceOrder, plotId: string, farmI
     (farm.plots || []).some((plot) => plot.id === plotId)
   );
 
-  return farmByNestedPlot?.name || 'Fazenda não informada';
+  return farmByNestedPlot?.name || 'Fazenda nao informada';
 }
 
 function resolvePlotStatus(plannedHectares: number, appliedHectares: number, applicationsCount: number): PlotStatus {
@@ -145,10 +160,122 @@ function resolvePlotStatus(plannedHectares: number, appliedHectares: number, app
   }
 
   if (plannedHectares > 0 && appliedHectares >= plannedHectares * 0.98) {
-    return 'Concluído';
+    return 'Concluido';
   }
 
   return 'Parcial';
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function rectanglesOverlap(
+  a: { left: number; top: number; width: number; height: number },
+  b: { left: number; top: number; width: number; height: number },
+  padding: number = 2
+): boolean {
+  return !(
+    a.left + a.width + padding <= b.left ||
+    b.left + b.width + padding <= a.left ||
+    a.top + a.height + padding <= b.top ||
+    b.top + b.height + padding <= a.top
+  );
+}
+
+function simplifyPlotLabel(label: string): string {
+  const compact = label.replace(/\s+/g, ' ').trim();
+  if (compact.length <= 18) {
+    return compact;
+  }
+
+  const firstPart = compact.split(' ')[0];
+  return firstPart.length <= 12 ? firstPart : `${firstPart.slice(0, 12)}...`;
+}
+
+function buildMapLabelPlacements(
+  shapes: Array<{
+    id: string;
+    label: string;
+    labelX: number;
+    labelY: number;
+    areaPx: number;
+    bbox: { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number };
+  }>,
+  mapWidth: number,
+  mapHeight: number
+): MapLabelPlacement[] {
+  const sorted = [...shapes].sort((a, b) => b.areaPx - a.areaPx);
+  const placed: MapLabelPlacement[] = [];
+
+  sorted.forEach((shape) => {
+    if (shape.areaPx < 260 || shape.bbox.width < 24 || shape.bbox.height < 12) {
+      return;
+    }
+
+    const label = simplifyPlotLabel(shape.label);
+    const width = clamp(label.length * 3.5 + 10, 30, 90);
+    const height = 11;
+
+    let left = shape.labelX - width / 2;
+    let top = shape.labelY - height / 2;
+
+    const bboxMinLeft = shape.bbox.minX - 3;
+    const bboxMaxLeft = shape.bbox.maxX - width + 3;
+    if (bboxMaxLeft >= bboxMinLeft) {
+      left = clamp(left, bboxMinLeft, bboxMaxLeft);
+    }
+
+    const bboxMinTop = shape.bbox.minY - 2;
+    const bboxMaxTop = shape.bbox.maxY - height + 2;
+    if (bboxMaxTop >= bboxMinTop) {
+      top = clamp(top, bboxMinTop, bboxMaxTop);
+    }
+
+    left = clamp(left, 2, mapWidth - width - 2);
+    top = clamp(top, 2, mapHeight - height - 2);
+
+    const candidate = { left, top, width, height };
+    const hasCollision = placed.some((existing) => rectanglesOverlap(candidate, existing, 1.5));
+    if (hasCollision) {
+      return;
+    }
+
+    placed.push({
+      id: shape.id,
+      text: label,
+      left,
+      top,
+      width,
+      height,
+    });
+  });
+
+  return placed;
+}
+
+function buildMapGridPaths(width: number, height: number, step: number): string[] {
+  const paths: string[] = [];
+
+  for (let x = step; x < width; x += step) {
+    paths.push(`M ${x} 0 L ${x} ${height}`);
+  }
+
+  for (let y = step; y < height; y += step) {
+    paths.push(`M 0 ${y} L ${width} ${y}`);
+  }
+
+  return paths;
+}
+
+function buildTinyShapeMarkerPath(x: number, y: number, size: number = 2.5): string {
+  return [
+    `M ${x.toFixed(2)} ${(y - size).toFixed(2)}`,
+    `L ${(x + size).toFixed(2)} ${y.toFixed(2)}`,
+    `L ${x.toFixed(2)} ${(y + size).toFixed(2)}`,
+    `L ${(x - size).toFixed(2)} ${y.toFixed(2)}`,
+    'Z',
+  ].join(' ');
 }
 
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
@@ -192,7 +319,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
 
       return {
         plotId: plot.id,
-        plotName: plot.name || `Talhão ${plot.id}`,
+        plotName: plot.name || `Talhao ${plot.id}`,
         farmId: plot.farmId || 'farm-unknown',
         farmName: resolveFarmNameByPlot(serviceOrder, plot.id, plot.farmId),
         plannedHectares,
@@ -228,15 +355,21 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
 
   const mapShapesInput: StrategicMapShapeInput[] = rowsWithGeometry.map((row) => ({
     id: row.plotId,
-    label:
-      rowsWithGeometry.length <= 18
-        ? `${row.plotName} • ${formatHectares(row.plannedHectares)}`
-        : row.plotName,
+    label: row.plotName,
     farmKey: row.farmId,
     polygons: row.polygons,
   }));
 
-  const mapProjection = buildStrategicMapProjection(mapShapesInput, MAP_WIDTH, MAP_HEIGHT, 20);
+  const mapProjection = buildStrategicMapProjection(
+    mapShapesInput,
+    MAP_CANVAS_WIDTH,
+    MAP_CANVAS_HEIGHT,
+    10
+  );
+  const mapLabelPlacements = mapProjection
+    ? buildMapLabelPlacements(mapProjection.shapes, MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT)
+    : [];
+  const mapGridPaths = buildMapGridPaths(MAP_CANVAS_WIDTH, MAP_CANVAS_HEIGHT, 36);
 
   const farmSummaryMap = new Map<
     string,
@@ -303,9 +436,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatório da OS</Text>
+            <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatorio da OS</Text>
             <Text style={{ fontSize: 10, color: MUTED_TEXT, marginTop: 2 }}>
-              Mapa Estratégico Consolidado
+              Mapa Estrategico Consolidado
             </Text>
           </View>
         </View>
@@ -319,7 +452,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Resumo da Ordem de Serviço</Text>
+          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Resumo da Ordem de Servico</Text>
 
           <View style={{ flexDirection: 'row', marginBottom: 6 }}>
             <View style={{ width: '50%' }}>
@@ -370,7 +503,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               </Text>
             </View>
             <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Observação / Tipo</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Observacao / Tipo</Text>
               <Text style={{ fontSize: 10, fontWeight: 500 }}>{serviceOrder.observation || 'N/A'}</Text>
             </View>
           </View>
@@ -406,19 +539,19 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Mapa 2D consolidado dos talhões</Text>
+          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Mapa 2D consolidado dos talhoes</Text>
 
           <View style={{ flexDirection: 'row' }}>
             <View
               style={{
-                width: 472,
-                height: 312,
+                width: MAP_CONTAINER_WIDTH,
+                height: MAP_CONTAINER_HEIGHT,
                 border: `1px solid ${LIGHT_BORDER}`,
                 borderRadius: 6,
-                backgroundColor: '#F8FAFC',
+                backgroundColor: MAP_BACKGROUND,
                 position: 'relative',
                 overflow: 'hidden',
-                marginRight: 10,
+                marginRight: MAP_ROW_GAP,
               }}
             >
               {mapProjection ? (
@@ -426,59 +559,108 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                   <Svg
                     width='100%'
                     height='100%'
-                    viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+                    viewBox={`0 0 ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT}`}
                     preserveAspectRatio='xMidYMid meet'
                   >
+                    {mapGridPaths.map((gridPath, index) => (
+                      <Path
+                        key={`grid-${index}`}
+                        d={gridPath}
+                        fill='none'
+                        stroke={MAP_GRID}
+                        strokeWidth={0.7}
+                        strokeOpacity={0.55}
+                      />
+                    ))}
+                    <Path
+                      d={`M 0 0 L ${MAP_CANVAS_WIDTH} 0 L ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT} L 0 ${MAP_CANVAS_HEIGHT} Z`}
+                      fill='none'
+                      stroke='#B8C8DD'
+                      strokeWidth={1}
+                    />
                     {mapProjection.shapes.map((shape) => {
                       const color = farmColorMap.get(shape.farmKey) || {
                         fill: '#CBD5E1',
                         stroke: '#64748B',
                       };
+                      const isTinyShape = shape.areaPx < 130;
+                      const strokeWidth = isTinyShape ? 2.2 : shape.areaPx < 600 ? 2.1 : 2.6;
+                      const fillOpacity = isTinyShape ? 0.84 : 0.74;
 
                       return (
-                        <Path
-                          key={`shape-${shape.id}`}
-                          d={shape.pathD}
-                          fill={color.fill}
-                          fillOpacity={0.48}
-                          fillRule='evenodd'
-                          stroke={color.stroke}
-                          strokeWidth={1.4}
-                        />
+                        <React.Fragment key={`shape-${shape.id}`}>
+                          <Path
+                            d={shape.pathD}
+                            fill={color.fill}
+                            fillOpacity={fillOpacity}
+                            fillRule='evenodd'
+                            stroke={color.stroke}
+                            strokeWidth={strokeWidth}
+                          />
+                          {isTinyShape && (
+                            <Path
+                              d={buildTinyShapeMarkerPath(shape.labelX, shape.labelY)}
+                              fill={color.stroke}
+                              stroke='#FFFFFF'
+                              strokeWidth={0.8}
+                            />
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </Svg>
 
-                  {mapProjection.shapes.map((shape) => (
+                  {mapLabelPlacements.map((label) => (
                     <Text
-                      key={`label-${shape.id}`}
+                      key={`label-${label.id}`}
                       style={{
                         position: 'absolute',
-                        left: Math.max(0, shape.labelX - 42),
-                        top: Math.max(0, shape.labelY - 6),
-                        width: 84,
+                        left: label.left,
+                        top: label.top,
+                        width: label.width,
+                        height: label.height,
                         textAlign: 'center',
-                        fontSize: 7,
+                        fontSize: 6.6,
+                        fontWeight: 500,
                         color: '#111827',
-                        backgroundColor: '#FFFFFFCC',
+                        backgroundColor: '#FFFFFFE5',
+                        border: '0.5px solid #CBD5E1',
                         borderRadius: 3,
-                        paddingVertical: 1,
+                        lineHeight: 1.15,
+                        paddingTop: 1.3,
                       }}
                     >
-                      {shape.label}
+                      {label.text}
                     </Text>
                   ))}
+
+                  <View
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: 8,
+                      alignItems: 'center',
+                      border: '0.5px solid #B9C8DA',
+                      borderRadius: 4,
+                      paddingHorizontal: 4,
+                      paddingVertical: 2,
+                      backgroundColor: '#FFFFFFD9',
+                    }}
+                  >
+                    <Text style={{ fontSize: 6, color: '#4B5563', marginBottom: 1 }}>N</Text>
+                    <Text style={{ fontSize: 7, color: '#111827' }}>^</Text>
+                  </View>
                 </>
               ) : (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 }}>
                   <Text style={{ fontSize: 10, color: MUTED_TEXT, textAlign: 'center' }}>
-                    Não há geometrias válidas para montar o mapa 2D desta OS.
+                    Nao ha geometrias validas para montar o mapa 2D desta OS.
                   </Text>
                 </View>
               )}
             </View>
 
-            <View style={{ width: 76, paddingTop: 2 }}>
+            <View style={{ width: MAP_LEGEND_WIDTH, paddingTop: 2 }}>
               <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Legenda</Text>
               {farmSummaryRows.map((farm) => {
                 const color = farmColorMap.get(farm.farmId) || { fill: '#CBD5E1', stroke: '#64748B' };
@@ -506,7 +688,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
 
           {mapProjection && (
             <Text style={{ marginTop: 6, fontSize: 8, color: MUTED_TEXT }}>
-              Extensão aproximada: {mapProjection.extentKm.widthKm.toFixed(2).replace('.', ',')} km x{' '}
+              Extensao aproximada: {mapProjection.extentKm.widthKm.toFixed(2).replace('.', ',')} km x{' '}
               {mapProjection.extentKm.heightKm.toFixed(2).replace('.', ',')} km
             </Text>
           )}
@@ -522,7 +704,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               marginRight: '2%',
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Talhões sem geometria</Text>
+            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Talhoes sem geometria</Text>
             {rowsWithoutGeometry.length > 0 ? (
               rowsWithoutGeometry.slice(0, 7).map((row) => (
                 <Text key={`no-geo-${row.plotId}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 3 }}>
@@ -530,17 +712,17 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 </Text>
               ))
             ) : (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Todos os talhões possuem geometria.</Text>
+              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Todos os talhoes possuem geometria.</Text>
             )}
             {rowsWithoutGeometry.length > 7 && (
               <Text style={{ fontSize: 8, color: MUTED_TEXT, marginTop: 2 }}>
-                +{rowsWithoutGeometry.length - 7} talhão(ões) adicionais no detalhamento.
+                +{rowsWithoutGeometry.length - 7} talhao(oes) adicionais no detalhamento.
               </Text>
             )}
           </View>
 
           <View style={{ width: '49%', border: `1px solid ${LIGHT_BORDER}`, borderRadius: 8, padding: 8 }}>
-            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Aplicações sem vínculo de talhão</Text>
+            <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>Aplicacoes sem vinculo de talhao</Text>
             {applicationsWithoutPlot.length > 0 ? (
               applicationsWithoutPlot.slice(0, 7).map((application) => (
                 <Text key={`app-no-plot-${application.id}`} style={{ fontSize: 8, color: MUTED_TEXT, marginBottom: 3 }}>
@@ -548,11 +730,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 </Text>
               ))
             ) : (
-              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Sem aplicações sem talhão vinculado.</Text>
+              <Text style={{ fontSize: 8, color: MUTED_TEXT }}>Sem aplicacoes sem talhao vinculado.</Text>
             )}
             {applicationsWithUnknownPlot.length > 0 && (
               <Text style={{ fontSize: 8, color: MUTED_TEXT, marginTop: 3 }}>
-                {applicationsWithUnknownPlot.length} aplicação(ões) com plot fora da lista planejada da OS.
+                {applicationsWithUnknownPlot.length} aplicacao(oes) com plot fora da lista planejada da OS.
               </Text>
             )}
           </View>
@@ -571,10 +753,10 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control • Gerado em {generatedAt}</Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
-            render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`}
+            render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
           />
         </View>
       </Page>
@@ -606,7 +788,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 13, fontWeight: 700 }}>Detalhamento dos Talhões</Text>
+              <Text style={{ fontSize: 13, fontWeight: 700 }}>Detalhamento dos Talhoes</Text>
               <Text style={{ fontSize: 9, color: MUTED_TEXT }}>OS #{serviceOrder.number}</Text>
             </View>
           </View>
@@ -622,8 +804,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               }}
             >
               <Text style={{ width: '24%', fontSize: 8, fontWeight: 700 }}>Fazenda</Text>
-              <Text style={{ width: '24%', fontSize: 8, fontWeight: 700 }}>Talhão</Text>
-              <Text style={{ width: '13%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Área</Text>
+              <Text style={{ width: '24%', fontSize: 8, fontWeight: 700 }}>Talhao</Text>
+              <Text style={{ width: '13%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Area</Text>
               <Text style={{ width: '13%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Aplicado</Text>
               <Text style={{ width: '11%', fontSize: 8, fontWeight: 700, textAlign: 'center' }}>Aplic.</Text>
               <Text style={{ width: '15%', fontSize: 8, fontWeight: 700, textAlign: 'center' }}>Status</Text>
@@ -685,10 +867,10 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control • Gerado em {generatedAt}</Text>
+            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
             <Text
               style={{ fontSize: 8, color: MUTED_TEXT }}
-              render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`}
+              render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
             />
           </View>
         </Page>
