@@ -79,6 +79,19 @@ type GeneralPreview = {
   farmsCount: number;
   totalAppliedHectares: number;
 };
+type ApplicationPreviewRow = {
+  id: string;
+  date: string;
+  serviceOrderNumber: string;
+  customerName: string;
+  farmName: string;
+  plotName: string;
+  pilotName: string;
+  productName: string;
+  typeOrIssueLabel: string;
+  appliedHectares: number;
+  statusLabel: string;
+};
 
 const STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
   { value: 'open', label: 'Aberta' },
@@ -191,6 +204,11 @@ export default function ReportsCenterPage() {
   const [generalPreview, setGeneralPreview] = useState<GeneralPreview | null>(null);
   const [generalPreviewLoading, setGeneralPreviewLoading] = useState(false);
   const [generalPreviewError, setGeneralPreviewError] = useState<string | null>(null);
+  const [applicationsPreviewRows, setApplicationsPreviewRows] = useState<ApplicationPreviewRow[]>([]);
+  const [applicationsPreviewLoading, setApplicationsPreviewLoading] = useState(false);
+  const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
+  const [applicationsPreviewTotalCount, setApplicationsPreviewTotalCount] = useState(0);
+  const [applicationsPreviewTotalHectares, setApplicationsPreviewTotalHectares] = useState(0);
 
   const selectedReport = useMemo(
     () => reportsCatalog.find((item) => item.id === selectedReportId) || reportsCatalog[0],
@@ -751,6 +769,58 @@ export default function ReportsCenterPage() {
   useEffect(() => {
     let isMounted = true;
 
+    const loadApplicationsPreview = async () => {
+      if (selectedReport.id !== 'applications') return;
+      setApplicationsPreviewLoading(true);
+      setApplicationsPreviewError(null);
+      try {
+        const response = await getAllApplications({
+          ...buildApplicationFilters(),
+          page: '1',
+          limit: '50',
+        });
+
+        if (!isMounted) return;
+
+        const rows = (response.data || []).map((application) => ({
+          id: application.id,
+          date: formatOperationalDate(application.date),
+          serviceOrderNumber: application.serviceOrder?.number
+            ? `#${application.serviceOrder.number}`
+            : application.serviceOrderId
+              ? `#${application.serviceOrderId}`
+              : '-',
+          customerName: application.serviceOrder?.customer?.name || '-',
+          farmName: application.farm?.name || '-',
+          plotName: application.plot?.name || '-',
+          pilotName: application.pilot?.name || '-',
+          productName: application.product?.name || '-',
+          typeOrIssueLabel: resolveApplicationTypeOrIssueLabel(application.observations),
+          appliedHectares: parseNumber(application.hectares),
+          statusLabel: resolveApplicationStatusLabel(application.serviceOrder?.status),
+        }));
+
+        setApplicationsPreviewRows(rows);
+        setApplicationsPreviewTotalCount(response.totalCount || rows.length);
+        setApplicationsPreviewTotalHectares(parseNumber(response.summary?.totalFilteredHectares));
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Erro ao carregar aplicacoes.';
+        setApplicationsPreviewError(message);
+      } finally {
+        if (isMounted) setApplicationsPreviewLoading(false);
+      }
+    };
+
+    loadApplicationsPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReport.id, filters]);
+
+  useEffect(() => {
+    let isMounted = true;
+
     const loadFarmsPreview = async () => {
       if (selectedReport.id !== 'farms') return;
       setFarmsPreviewLoading(true);
@@ -979,10 +1049,69 @@ export default function ReportsCenterPage() {
 
           {selectedReport.id === 'applications' && (
             <div className='space-y-3'>
-              <p className='text-sm font-semibold'>Relatorio de aplicacoes geral</p>
+              <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
               <p className='text-xs text-muted-foreground'>
-                Use os filtros para gerar um relatorio descritivo das aplicacoes efetuadas no recorte selecionado.
+                Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
               </p>
+              {applicationsPreviewLoading && (
+                <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
+              )}
+              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
+              {!applicationsPreviewLoading &&
+                !applicationsPreviewError &&
+                applicationsPreviewRows.length === 0 && (
+                  <p className='text-sm text-muted-foreground'>
+                    Nenhuma aplicacao encontrada para os filtros selecionados.
+                  </p>
+                )}
+              {!applicationsPreviewLoading &&
+                !applicationsPreviewError &&
+                applicationsPreviewRows.length > 0 && (
+                  <div className='space-y-2'>
+                    <div className='overflow-x-auto rounded-lg border'>
+                      <table className='w-full text-xs'>
+                        <thead className='bg-muted/40'>
+                          <tr className='text-left'>
+                            <th className='px-3 py-2 font-medium'>Data</th>
+                            <th className='px-3 py-2 font-medium'>OS</th>
+                            <th className='px-3 py-2 font-medium'>Cliente</th>
+                            <th className='px-3 py-2 font-medium'>Fazenda</th>
+                            <th className='px-3 py-2 font-medium'>Talhao/Mapa</th>
+                            <th className='px-3 py-2 font-medium'>Piloto</th>
+                            <th className='px-3 py-2 font-medium'>Produto</th>
+                            <th className='px-3 py-2 font-medium'>Tipo/Issue</th>
+                            <th className='px-3 py-2 font-medium'>Area aplicada</th>
+                            <th className='px-3 py-2 font-medium'>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {applicationsPreviewRows.map((row) => (
+                            <tr key={row.id} className='border-t'>
+                              <td className='px-3 py-2'>{row.date}</td>
+                              <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
+                              <td className='px-3 py-2'>{row.customerName}</td>
+                              <td className='px-3 py-2'>{row.farmName}</td>
+                              <td className='px-3 py-2'>{row.plotName}</td>
+                              <td className='px-3 py-2'>{row.pilotName}</td>
+                              <td className='px-3 py-2'>{row.productName}</td>
+                              <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
+                              <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
+                              <td className='px-3 py-2'>{row.statusLabel}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className='flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+                      <p>Previa: {applicationsPreviewRows.length} aplicacoes exibidas.</p>
+                      <p>Total filtrado: {applicationsPreviewTotalCount} aplicacoes.</p>
+                      <p>Area total filtrada: {applicationsPreviewTotalHectares.toFixed(2)} ha.</p>
+                    </div>
+                    <p className='text-xs text-muted-foreground'>
+                      Exibindo ate 50 aplicacoes na previa. O PDF considera todas as aplicacoes filtradas.
+                    </p>
+                  </div>
+                )}
             </div>
           )}
 
