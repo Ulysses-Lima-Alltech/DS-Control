@@ -988,7 +988,23 @@ export default function ReportsCenterPage() {
 
           {selectedReport.id === 'farms' && (
             <div className='space-y-3'>
-              <p className='text-sm font-semibold'>Fazendas encontradas</p>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <p className='text-sm font-semibold'>Fazendas encontradas</p>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateReport}
+                  disabled={isGeneratingReport || farmsPreviewLoading || farmsPreviewRows.length === 0}
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando relatorio de fazendas...
+                    </>
+                  ) : (
+                    'Gerar relatorio de fazendas'
+                  )}
+                </Button>
+              </div>
               {farmsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>}
               {farmsPreviewError && <p className='text-sm text-red-500'>{farmsPreviewError}</p>}
               {!farmsPreviewLoading && !farmsPreviewError && farmsPreviewRows.length === 0 && (
