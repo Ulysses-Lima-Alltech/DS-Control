@@ -1,3 +1,4 @@
+import ApplicationIndividualReportPDF from '@/components/PDFReports/ApplicationIndividualReportPDF';
 import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
@@ -12,10 +13,15 @@ import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrder
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
-import { buildReportMapboxStaticUrl } from '@/utils/mapboxStaticReportMap';
+import {
+  buildReportMapboxStaticUrl,
+  getReportMapPlaceholderMessage,
+} from '@/utils/mapboxStaticReportMap';
+import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import {
   buildStrategicMapStaticBaseUrl,
   buildStrategicMapViewport,
+  buildStrategicMapProjection,
   extractPlotPolygons,
   type StrategicMapShapeInput,
   type StrategicMapViewport,
@@ -49,6 +55,11 @@ export interface GenerateApplicationsGeneralReportPDFParams {
   periodLabel: string;
   rows: ApplicationsGeneralReportRow[];
   totalAppliedHectares: number;
+}
+
+export interface GenerateApplicationIndividualReportPDFParams {
+  application: Application;
+  generatedAt: string;
 }
 
 const REPORT_MAP_WIDTH = 1280;
@@ -173,6 +184,85 @@ async function prefetchStrategicReportMapBase(
   return { mapViewport, mapBaseDataUrl };
 }
 
+async function prefetchApplicationIndividualMap(application: Application): Promise<{
+  mapImageDataUrl: string | null;
+  mapOverlayPathDs: string[] | null;
+  mapFallbackVectorPathD: string | null;
+  mapUnavailableMessage: string | null;
+}> {
+  const plot = application.plot;
+  if (!plot) {
+    return {
+      mapImageDataUrl: null,
+      mapOverlayPathDs: null,
+      mapFallbackVectorPathD: null,
+      mapUnavailableMessage: 'Mapa indisponivel para esta aplicacao.',
+    };
+  }
+
+  const accessToken = getReportMapboxAccessToken();
+  const mapResult = buildReportMapboxStaticUrl({
+    plot,
+    mapWidth: REPORT_MAP_WIDTH,
+    mapHeight: REPORT_MAP_HEIGHT,
+    accessToken,
+  });
+
+  let mapImageDataUrl: string | null = null;
+  let mapUnavailableMessage: string | null = getReportMapPlaceholderMessage(
+    mapResult.unavailableReason
+  );
+  if (mapResult.url) {
+    try {
+      mapImageDataUrl = await fetchRemoteImageAsDataUrl(mapResult.url);
+      mapUnavailableMessage = null;
+    } catch {
+      mapUnavailableMessage = 'Falha ao carregar o mapa da aplicacao.';
+    }
+  }
+
+  let mapOverlayPathDs: string[] | null = null;
+  try {
+    mapOverlayPathDs = buildPlotPolygonSvgPathDs(plot, REPORT_MAP_WIDTH, REPORT_MAP_HEIGHT);
+  } catch {
+    mapOverlayPathDs = null;
+  }
+
+  let mapFallbackVectorPathD: string | null = null;
+  try {
+    const polygons = extractPlotPolygons(plot);
+    if (polygons.length > 0) {
+      const projection = buildStrategicMapProjection(
+        [
+          {
+            id: plot.id || application.id,
+            label: plot.name || `Talhao ${plot.id || application.id}`,
+            farmKey: plot.farmId || application.farmId || 'farm-unknown',
+            polygons,
+          },
+        ],
+        REPORT_MAP_WIDTH,
+        REPORT_MAP_HEIGHT,
+        10
+      );
+      mapFallbackVectorPathD = projection?.shapes[0]?.pathD || null;
+    }
+  } catch {
+    mapFallbackVectorPathD = null;
+  }
+
+  if (!mapImageDataUrl && !mapFallbackVectorPathD && !mapUnavailableMessage) {
+    mapUnavailableMessage = 'Mapa indisponivel para esta aplicacao.';
+  }
+
+  return {
+    mapImageDataUrl,
+    mapOverlayPathDs,
+    mapFallbackVectorPathD,
+    mapUnavailableMessage,
+  };
+}
+
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
@@ -272,6 +362,27 @@ export async function generateApplicationsGeneralReportPDF({
     periodLabel,
     rows,
     totalAppliedHectares,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateApplicationIndividualReportPDF({
+  application,
+  generatedAt,
+}: GenerateApplicationIndividualReportPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+  const mapData = await prefetchApplicationIndividualMap(application);
+
+  const element = ApplicationIndividualReportPDF({
+    application,
+    generatedAt,
+    mapImageDataUrl: mapData.mapImageDataUrl,
+    mapOverlayPathDs: mapData.mapOverlayPathDs,
+    mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,
+    mapUnavailableMessage: mapData.mapUnavailableMessage,
   });
 
   // @ts-expect-error - toBlob is not typed

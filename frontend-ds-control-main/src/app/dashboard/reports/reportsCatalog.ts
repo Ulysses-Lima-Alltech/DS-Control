@@ -27,8 +27,8 @@ export type ReportCatalogItem = {
 export const reportsCatalog: ReportCatalogItem[] = [
   {
     id: 'applications',
-    label: 'Relatorio de aplicacoes',
-    description: 'Gera um PDF descritivo de aplicacoes para o recorte filtrado, sem mapa.',
+    label: 'Relatorio de aplicacao',
+    description: 'Gera um PDF individual por voo/aplicacao, com mapa do talhao selecionado.',
     supportedFilters: [
       'period',
       'cropSeason',

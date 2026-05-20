@@ -2,7 +2,7 @@
 
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
-import { Edit, Filter, SearchX, Trash, X } from 'lucide-react';
+import { Edit, FileText, Filter, Loader2, SearchX, Trash, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import DateRangePicker from '@/components/DateRangePicker';
 import DialogForm from '@/components/DialogForm';
 import FormApplication from '@/components/Forms/FormApplication';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -20,8 +21,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import { Input } from '@/components/ui/input';
+import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import {
     Sheet,
     SheetContent,
@@ -30,24 +39,15 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { DataTable, type ColumnDefWithId } from '@/components/ui/table-data';
 import {
     createActionsColumn,
     createDateColumn,
 } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useDeleteApplicationById } from '@/mutations/application.mutation';
-import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllApplications } from '@/queries/application.query';
+import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllCropSeasonsInfinite, useGetCropSeasonById } from '@/queries/crop-season.query';
 import { useGetAllCultureTypesInfinite } from '@/queries/culture-type.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
@@ -64,15 +64,16 @@ import {
   ApplicationOrderType,
 } from '@/types/applications.type';
 import { Assistant } from '@/types/assistant.type';
+import { CropSeason } from '@/types/crop-season.type';
 import { CultureType } from '@/types/culture-types.type';
 import { Customer } from '@/types/customer.type';
 import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
 import { Product } from '@/types/product.type';
-import { CropSeason } from '@/types/crop-season.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
+import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
 
 interface TableApplicationsProps {
   customerId?: string;
@@ -211,6 +212,9 @@ export const TableApplications = ({
   const [applicationToDelete, setApplicationToDelete] = React.useState<Application | null>(null);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [applicationToEdit, setApplicationToEdit] = React.useState<Application | null>(null);
+  const [generatingApplicationReportId, setGeneratingApplicationReportId] = React.useState<string | null>(
+    null
+  );
 
   const [orderBy, setOrderBy] = React.useState<ApplicationOrderBy | undefined>(undefined)
   const [orderType, setOrderType] = React.useState<ApplicationOrderType | undefined>(undefined)
@@ -439,6 +443,23 @@ export const TableApplications = ({
       deleteApplicationById(applicationToDelete.id);
       setDeleteDialogOpen(false);
       setApplicationToDelete(null);
+    }
+  };
+
+  const handleGenerateApplicationReport = async (application: Application) => {
+    try {
+      setGeneratingApplicationReportId(application.id);
+      await generateAndDownloadApplicationIndividualReport({
+        applicationId: application.id,
+        application,
+      });
+      toast.success('Relatorio da aplicacao gerado com sucesso');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erro ao gerar relatorio da aplicacao.';
+      toast.error(message);
+    } finally {
+      setGeneratingApplicationReportId(null);
     }
   };
 
@@ -918,6 +939,24 @@ export const TableApplications = ({
     createDateColumn<Application>('createdAt', 'createdAt', 'Data de Criação'),
     createActionsColumn<Application>((application) => (
       <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='outline'
+              size='icon'
+              className='h-8 w-8'
+              onClick={() => void handleGenerateApplicationReport(application)}
+              disabled={generatingApplicationReportId === application.id}
+            >
+              {generatingApplicationReportId === application.id ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                <FileText className='h-4 w-4' />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Gerar relatorio da aplicacao</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <DialogForm

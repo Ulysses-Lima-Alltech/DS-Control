@@ -9,7 +9,6 @@ import DateRangePicker, { type DateParams } from '@/components/DateRangePicker';
 import {
   resolveApplicationStatusLabel,
   resolveApplicationTypeOrIssueLabel,
-  type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,10 +34,10 @@ import {
 import type { Farm } from '@/types/farm.type';
 import type { ServiceOrderStatus } from '@/types/service-order.type';
 import type { User } from '@/types/user.type';
+import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
   downloadPDF,
-  generateApplicationsGeneralReportPDF,
   generateFarmsReportPDF,
   generateGeneralReportPDF,
   generateServiceOrderStrategicReportPDF,
@@ -183,6 +182,7 @@ function formatOperationalDate(value?: string): string {
 export default function ReportsCenterPage() {
   const [selectedReportId, setSelectedReportId] = useState<ReportId>('applications');
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(undefined);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | undefined>(undefined);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState<string | null>(null);
@@ -205,6 +205,7 @@ export default function ReportsCenterPage() {
   const [generalPreviewLoading, setGeneralPreviewLoading] = useState(false);
   const [generalPreviewError, setGeneralPreviewError] = useState<string | null>(null);
   const [applicationsPreviewRows, setApplicationsPreviewRows] = useState<ApplicationPreviewRow[]>([]);
+  const [applicationsPreviewData, setApplicationsPreviewData] = useState<Application[]>([]);
   const [applicationsPreviewLoading, setApplicationsPreviewLoading] = useState(false);
   const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
   const [applicationsPreviewTotalCount, setApplicationsPreviewTotalCount] = useState(0);
@@ -328,6 +329,7 @@ export default function ReportsCenterPage() {
       ...prev,
       [key]: value,
     }));
+    setSelectedApplicationId(undefined);
 
     if (key === 'customerId') {
       setFilters((prev) => ({
@@ -336,6 +338,7 @@ export default function ReportsCenterPage() {
         farmId: undefined,
       }));
       setSelectedServiceOrderId(undefined);
+      setSelectedApplicationId(undefined);
       return;
     }
 
@@ -445,40 +448,6 @@ export default function ReportsCenterPage() {
     includeContracts: 'true',
   });
 
-  const fetchAllApplicationsByFilters = async () => {
-    const pageSize = 1000;
-    const firstResponse = await getAllApplications({
-      ...buildApplicationFilters(),
-      page: '1',
-      limit: String(pageSize),
-    });
-
-    const applications = [...(firstResponse.data || [])];
-    const totalPages = firstResponse.totalPages || 1;
-
-    if (totalPages > 1) {
-      const pages = Array.from({ length: totalPages - 1 }, (_, index) => String(index + 2));
-      const responses = await Promise.all(
-        pages.map((page) =>
-          getAllApplications({
-            ...buildApplicationFilters(),
-            page,
-            limit: String(pageSize),
-          })
-        )
-      );
-      responses.forEach((response) => {
-        applications.push(...(response.data || []));
-      });
-    }
-
-    return {
-      applications,
-      totalCount: firstResponse.totalCount || applications.length,
-      totalFilteredHectares: parseNumber(firstResponse.summary?.totalFilteredHectares),
-    };
-  };
-
   const fetchServiceOrderAndApplications = async (serviceOrderId: string) => {
     const serviceOrderForReport = await getServiceOrderById(serviceOrderId, {
       includePlots: 'true',
@@ -513,49 +482,40 @@ export default function ReportsCenterPage() {
     return { serviceOrderForReport, applications };
   };
 
-  const handleGenerateApplicationsReport = async () => {
-    const { applications, totalFilteredHectares } = await fetchAllApplicationsByFilters();
-
-    if (applications.length === 0) {
-      throw new Error('Nenhuma aplicacao encontrada para os filtros selecionados.');
+  const handleGenerateApplicationReport = async (applicationId?: string) => {
+    const targetApplicationId = applicationId || selectedApplicationId;
+    if (!targetApplicationId) {
+      throw new Error('Selecione uma aplicacao para gerar o relatorio individual.');
     }
 
-    const rows: ApplicationsGeneralReportRow[] = applications.map((application) => ({
-      id: application.id,
-      date: formatOperationalDate(application.date),
-      serviceOrderNumber: application.serviceOrder?.number
-        ? `#${application.serviceOrder.number}`
-        : application.serviceOrderId
-          ? `#${application.serviceOrderId}`
-          : 'N/A',
-      customerName: application.serviceOrder?.customer?.name || 'Cliente N/A',
-      farmName: application.farm?.name || 'Fazenda N/A',
-      plotName: application.plot?.name || 'Talhao N/A',
-      pilotName: application.pilot?.name || 'Piloto N/A',
-      assistantName: application.assistant?.name || 'Ajudante N/A',
-      droneName: application.drone?.name || 'Drone N/A',
-      productName: application.product?.name || 'Produto N/A',
-      typeOrIssueLabel: resolveApplicationTypeOrIssueLabel(application.observations),
-      appliedHectares: parseNumber(application.hectares),
-      statusLabel: resolveApplicationStatusLabel(application.serviceOrder?.status),
-    }));
+    const applicationFromPreview = applicationsPreviewData.find(
+      (application) => application.id === targetApplicationId
+    );
 
-    const totalAppliedHectares =
-      totalFilteredHectares || rows.reduce((sum, row) => sum + row.appliedHectares, 0);
-    const periodLabel =
-      filters.startDate && filters.endDate
-        ? `${filters.startDate} ate ${filters.endDate}`
-        : 'Sem periodo especifico';
-
-    const blob = await generateApplicationsGeneralReportPDF({
-      generatedAt: formatGeneratedAt(),
-      filtersSummary: resolveFiltersSummary(),
-      periodLabel,
-      rows,
-      totalAppliedHectares,
+    await generateAndDownloadApplicationIndividualReport({
+      applicationId: targetApplicationId,
+      application: applicationFromPreview,
     });
 
-    downloadPDF(blob, 'relatorio-aplicacoes-geral.pdf');
+    setSelectedApplicationId(targetApplicationId);
+  };
+
+  const handleGenerateApplicationReportById = async (applicationId: string) => {
+    try {
+      setIsGeneratingRowReport(applicationId);
+      setGenerationError(null);
+      setGenerationSuccess(null);
+
+      await handleGenerateApplicationReport(applicationId);
+      setGenerationSuccess('Relatorio da aplicacao gerado com sucesso.');
+      toast.success('Relatorio da aplicacao gerado com sucesso.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio da aplicacao.';
+      setGenerationError(message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingRowReport(null);
+    }
   };
 
   const handleGenerateServiceOrderReport = async () => {
@@ -738,7 +698,7 @@ export default function ReportsCenterPage() {
       setGenerationSuccess(null);
 
       if (selectedReport.id === 'applications') {
-        await handleGenerateApplicationsReport();
+        await handleGenerateApplicationReport();
       } else if (selectedReport.id === 'service-orders') {
         await handleGenerateServiceOrderReport();
       } else if (selectedReport.id === 'farms') {
@@ -761,6 +721,7 @@ export default function ReportsCenterPage() {
   const clearFilters = () => {
     setFilters({});
     setSelectedServiceOrderId(undefined);
+    setSelectedApplicationId(undefined);
     setServiceOrderSearch('');
     setGenerationError(null);
     setGenerationSuccess(null);
@@ -800,12 +761,20 @@ export default function ReportsCenterPage() {
           statusLabel: resolveApplicationStatusLabel(application.serviceOrder?.status),
         }));
 
+        setApplicationsPreviewData(response.data || []);
         setApplicationsPreviewRows(rows);
         setApplicationsPreviewTotalCount(response.totalCount || rows.length);
         setApplicationsPreviewTotalHectares(parseNumber(response.summary?.totalFilteredHectares));
+        setSelectedApplicationId((previous) => {
+          if (previous && rows.some((row) => row.id === previous)) {
+            return previous;
+          }
+          return rows[0]?.id;
+        });
       } catch (error) {
         if (!isMounted) return;
         const message = error instanceof Error ? error.message : 'Erro ao carregar aplicacoes.';
+        setApplicationsPreviewData([]);
         setApplicationsPreviewError(message);
       } finally {
         if (isMounted) setApplicationsPreviewLoading(false);
@@ -926,7 +895,7 @@ export default function ReportsCenterPage() {
       <div>
         <h1 className='text-2xl font-bold'>Relatorios</h1>
         <p className='text-muted-foreground'>
-          Gere relatorios consolidados com base nos filtros selecionados.
+          Gere relatorios conforme os filtros e o tipo selecionado.
         </p>
       </div>
 
@@ -943,6 +912,7 @@ export default function ReportsCenterPage() {
                 onClick={() => {
                   setSelectedReportId(report.id);
                   setSelectedServiceOrderId(undefined);
+                  setSelectedApplicationId(undefined);
                   setGenerationError(null);
                   setGenerationSuccess(null);
                 }}
@@ -1203,14 +1173,23 @@ export default function ReportsCenterPage() {
           </div>
 
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleGenerateReport} disabled={isGeneratingReport}>
+            <Button
+              onClick={handleGenerateReport}
+              disabled={
+                isGeneratingReport ||
+                (selectedReport.id === 'applications' &&
+                  (applicationsPreviewLoading ||
+                    applicationsPreviewRows.length === 0 ||
+                    !selectedApplicationId))
+              }
+            >
               {isGeneratingReport ? (
                 <>
                   <Loader2 className='h-4 w-4 mr-2 animate-spin' />
                   Gerando relatorio...
                 </>
               ) : (
-                'Gerar relatorio'
+                selectedReport.id === 'applications' ? 'Gerar relatorio da aplicacao' : 'Gerar relatorio'
               )}
             </Button>
             <Button variant='outline' onClick={clearFilters} disabled={isGeneratingReport}>
@@ -1313,14 +1292,18 @@ export default function ReportsCenterPage() {
                 <div>
                   <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
                   <p className='text-xs text-muted-foreground'>
-                    Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
+                    Selecione uma aplicacao para gerar o relatorio individual do voo/aplicacao.
                   </p>
                 </div>
                 <Button
                   size='sm'
-                  onClick={handleGenerateApplicationsReport}
+                  onClick={handleGenerateReport}
                   disabled={
-                    isGeneratingReport || applicationsPreviewLoading || applicationsPreviewRows.length === 0
+                    isGeneratingReport ||
+                    applicationsPreviewLoading ||
+                    applicationsPreviewRows.length === 0 ||
+                    !selectedApplicationId ||
+                    !!isGeneratingRowReport
                   }
                 >
                   {isGeneratingReport ? (
@@ -1329,10 +1312,15 @@ export default function ReportsCenterPage() {
                       Gerando...
                     </>
                   ) : (
-                    'Gerar relatorio de aplicacoes'
+                    'Gerar relatorio da aplicacao'
                   )}
                 </Button>
               </div>
+              {selectedApplicationId && (
+                <p className='text-xs text-muted-foreground'>
+                  Aplicacao selecionada: <span className='font-medium'>{selectedApplicationId}</span>
+                </p>
+              )}
               {applicationsPreviewLoading && (
                 <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
               )}
@@ -1362,11 +1350,14 @@ export default function ReportsCenterPage() {
                             <th className='px-3 py-2 font-medium'>Tipo/Issue</th>
                             <th className='px-3 py-2 font-medium'>Area aplicada</th>
                             <th className='px-3 py-2 font-medium'>Status</th>
+                            <th className='px-3 py-2 font-medium text-right'>Acoes</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {applicationsPreviewRows.map((row) => (
-                            <tr key={row.id} className='border-t'>
+                          {applicationsPreviewRows.map((row) => {
+                            const isSelected = selectedApplicationId === row.id;
+                            return (
+                            <tr key={row.id} className={`border-t ${isSelected ? 'bg-primary/5' : ''}`}>
                               <td className='px-3 py-2'>{row.date}</td>
                               <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
                               <td className='px-3 py-2'>{row.customerName}</td>
@@ -1377,8 +1368,34 @@ export default function ReportsCenterPage() {
                               <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
                               <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
                               <td className='px-3 py-2'>{row.statusLabel}</td>
+                              <td className='px-3 py-2'>
+                                <div className='flex justify-end gap-2'>
+                                  <Button
+                                    size='sm'
+                                    variant={isSelected ? 'default' : 'outline'}
+                                    onClick={() => setSelectedApplicationId(row.id)}
+                                  >
+                                    {isSelected ? 'Selecionada' : 'Selecionar'}
+                                  </Button>
+                                  <Button
+                                    size='sm'
+                                    onClick={() => handleGenerateApplicationReportById(row.id)}
+                                    disabled={isGeneratingReport || isGeneratingRowReport === row.id}
+                                  >
+                                    {isGeneratingRowReport === row.id ? (
+                                      <>
+                                        <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                        Gerando...
+                                      </>
+                                    ) : (
+                                      'Gerar relatorio'
+                                    )}
+                                  </Button>
+                                </div>
+                              </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1388,7 +1405,7 @@ export default function ReportsCenterPage() {
                       <p>Area total filtrada: {applicationsPreviewTotalHectares.toFixed(2)} ha.</p>
                     </div>
                     <p className='text-xs text-muted-foreground'>
-                      Exibindo ate 50 aplicacoes na previa. O PDF considera todas as aplicacoes filtradas.
+                      Exibindo ate 50 aplicacoes na previa. O PDF e gerado apenas para a aplicacao selecionada.
                     </p>
                   </div>
                 )}

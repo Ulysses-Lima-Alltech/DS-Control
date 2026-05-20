@@ -550,7 +550,7 @@ export default function ServiceOrderPage({
             onClick={() => handleGenerateReport('all')}
           >
             <FileText className='mr-2 h-4 w-4' />
-            Gerar relatório da aplicação
+            Gerar relatorio da OS
           </Button>
         </CardContent>
       </Card>
@@ -772,4 +772,3 @@ function ServiceOrderDetailsSkeleton() {
     </div>
   );
 }
-
