@@ -960,265 +960,6 @@ export default function ReportsCenterPage() {
         </CardContent>
       </Card>
 
-      <Card className='max-w-full order-3'>
-        <CardHeader className='pb-2'>
-          <CardTitle className='text-lg'>Relatorios disponiveis</CardTitle>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          {selectedReport.id === 'service-orders' && (
-            <div className='space-y-3'>
-              <div>
-                <p className='text-sm font-semibold'>Ordens de Servico encontradas</p>
-                <p className='text-xs text-muted-foreground'>
-                  Selecione uma OS para gerar o relatorio estrategico.
-                </p>
-              </div>
-
-              <div className='text-xs text-muted-foreground'>
-                {serviceOrdersFoundCount} OS encontradas
-                {!hasActiveFilters(filters) ? ' (lista inicial limitada)' : ''}
-              </div>
-
-              {filteredServiceOrders.length === 0 && (
-                <p className='text-sm text-muted-foreground'>Nenhuma OS encontrada para os filtros atuais.</p>
-              )}
-
-              <div className='space-y-2'>
-                {filteredServiceOrders.map((serviceOrder) => {
-                  const plannedTotal = (serviceOrder.plots || []).reduce(
-                    (sum, plot) => sum + parseNumber(plot.hectare),
-                    0
-                  );
-                  const pilotsLabel =
-                    serviceOrder.pilots?.length > 0
-                      ? serviceOrder.pilots.map((pilot) => pilot.name).join(', ')
-                      : 'Nao informado';
-                  return (
-                    <div key={serviceOrder.id} className='rounded-lg border p-3'>
-                      <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
-                        <div className='space-y-1'>
-                          <p className='text-sm font-semibold'>
-                            OS #{serviceOrder.number} | {serviceOrder.customer?.name || 'Cliente N/A'}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            Fazendas:{' '}
-                            {serviceOrder.farms?.length > 0
-                              ? serviceOrder.farms.map((farm) => farm.name).join(', ')
-                              : 'Sem fazenda'}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            Contrato/Safra: {serviceOrder.contract?.name || 'Nao informado'}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            Planejada: {formatDate(serviceOrder.plannedDate)} | Status:{' '}
-                            {getStatusLabel(serviceOrder.status)}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            Observacao/Tipo: {serviceOrder.observation || 'Nao informado'}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            Total planejado: {plannedTotal.toFixed(2)} ha | Pilotos: {pilotsLabel}
-                          </p>
-                        </div>
-                        <div className='flex flex-wrap gap-2'>
-                          <Button
-                            size='sm'
-                            onClick={() => handleGenerateServiceOrderReportById(serviceOrder.id)}
-                            disabled={isGeneratingReport || isGeneratingRowReport === serviceOrder.id}
-                          >
-                            {isGeneratingRowReport === serviceOrder.id ? (
-                              <>
-                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                                Gerando...
-                              </>
-                            ) : (
-                              'Gerar relatorio'
-                            )}
-                          </Button>
-                          <Button size='sm' variant='outline' asChild>
-                            <Link href={`/dashboard/service-orders/${serviceOrder.id}`}>Abrir OS</Link>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {selectedReport.id === 'applications' && (
-            <div className='space-y-3'>
-              <div className='flex flex-wrap items-center justify-between gap-2'>
-                <div>
-                  <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
-                  <p className='text-xs text-muted-foreground'>
-                    Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
-                  </p>
-                </div>
-                <Button
-                  size='sm'
-                  onClick={handleGenerateReport}
-                  disabled={
-                    isGeneratingReport || applicationsPreviewLoading || applicationsPreviewRows.length === 0
-                  }
-                >
-                  {isGeneratingReport ? (
-                    <>
-                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                      Gerando...
-                    </>
-                  ) : (
-                    'Gerar relatorio de aplicacoes'
-                  )}
-                </Button>
-              </div>
-              {applicationsPreviewLoading && (
-                <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
-              )}
-              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
-              {!applicationsPreviewLoading &&
-                !applicationsPreviewError &&
-                applicationsPreviewRows.length === 0 && (
-                  <p className='text-sm text-muted-foreground'>
-                    Nenhuma aplicacao encontrada para os filtros selecionados.
-                  </p>
-                )}
-              {!applicationsPreviewLoading &&
-                !applicationsPreviewError &&
-                applicationsPreviewRows.length > 0 && (
-                  <div className='space-y-2'>
-                    <div className='overflow-x-auto rounded-lg border'>
-                      <table className='w-full text-xs'>
-                        <thead className='bg-muted/40'>
-                          <tr className='text-left'>
-                            <th className='px-3 py-2 font-medium'>Data</th>
-                            <th className='px-3 py-2 font-medium'>OS</th>
-                            <th className='px-3 py-2 font-medium'>Cliente</th>
-                            <th className='px-3 py-2 font-medium'>Fazenda</th>
-                            <th className='px-3 py-2 font-medium'>Talhao/Mapa</th>
-                            <th className='px-3 py-2 font-medium'>Piloto</th>
-                            <th className='px-3 py-2 font-medium'>Produto</th>
-                            <th className='px-3 py-2 font-medium'>Tipo/Issue</th>
-                            <th className='px-3 py-2 font-medium'>Area aplicada</th>
-                            <th className='px-3 py-2 font-medium'>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {applicationsPreviewRows.map((row) => (
-                            <tr key={row.id} className='border-t'>
-                              <td className='px-3 py-2'>{row.date}</td>
-                              <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
-                              <td className='px-3 py-2'>{row.customerName}</td>
-                              <td className='px-3 py-2'>{row.farmName}</td>
-                              <td className='px-3 py-2'>{row.plotName}</td>
-                              <td className='px-3 py-2'>{row.pilotName}</td>
-                              <td className='px-3 py-2'>{row.productName}</td>
-                              <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
-                              <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
-                              <td className='px-3 py-2'>{row.statusLabel}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className='flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
-                      <p>Previa: {applicationsPreviewRows.length} aplicacoes exibidas.</p>
-                      <p>Total filtrado: {applicationsPreviewTotalCount} aplicacoes.</p>
-                      <p>Area total filtrada: {applicationsPreviewTotalHectares.toFixed(2)} ha.</p>
-                    </div>
-                    <p className='text-xs text-muted-foreground'>
-                      Exibindo ate 50 aplicacoes na previa. O PDF considera todas as aplicacoes filtradas.
-                    </p>
-                  </div>
-                )}
-            </div>
-          )}
-
-          {selectedReport.id === 'farms' && (
-            <div className='space-y-3'>
-              <div className='flex flex-wrap items-center justify-between gap-2'>
-                <p className='text-sm font-semibold'>Fazendas encontradas</p>
-                <Button
-                  size='sm'
-                  onClick={handleGenerateReport}
-                  disabled={isGeneratingReport || farmsPreviewLoading || farmsPreviewRows.length === 0}
-                >
-                  {isGeneratingReport ? (
-                    <>
-                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                      Gerando relatorio de fazendas...
-                    </>
-                  ) : (
-                    'Gerar relatorio de fazendas'
-                  )}
-                </Button>
-              </div>
-              {farmsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>}
-              {farmsPreviewError && <p className='text-sm text-red-500'>{farmsPreviewError}</p>}
-              {!farmsPreviewLoading && !farmsPreviewError && farmsPreviewRows.length === 0 && (
-                <p className='text-sm text-muted-foreground'>Nenhuma fazenda encontrada para os filtros atuais.</p>
-              )}
-              <div className='space-y-2'>
-                {farmsPreviewRows.map((farmRow) => (
-                  <div key={farmRow.farmId} className='rounded-lg border p-3'>
-                    <p className='text-sm font-semibold'>{farmRow.farmName}</p>
-                    <p className='text-xs text-muted-foreground'>Cliente: {farmRow.customerName}</p>
-                    <p className='text-xs text-muted-foreground'>
-                      Area total: {farmRow.totalAreaHectares.toFixed(2)} ha | Talhoes/Mapas: {farmRow.plotsCount}
-                    </p>
-                    <p className='text-xs text-muted-foreground'>
-                      Aplicacoes vinculadas: {farmRow.applicationsCount || 0} | OS vinculadas:{' '}
-                      {farmRow.serviceOrdersCount || 0}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedReport.id === 'general' && (
-            <div className='space-y-3'>
-              <div className='flex flex-wrap items-center justify-between gap-2'>
-                <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
-                <Button size='sm' onClick={handleGenerateReport} disabled={isGeneratingReport || generalPreviewLoading}>
-                  {isGeneratingReport ? (
-                    <>
-                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                      Gerando...
-                    </>
-                  ) : (
-                    'Gerar relatorio geral'
-                  )}
-                </Button>
-              </div>
-              {generalPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando resumo...</p>}
-              {generalPreviewError && <p className='text-sm text-red-500'>{generalPreviewError}</p>}
-              {generalPreview && (
-                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2'>
-                  <div className='rounded-lg border p-3'>
-                    <p className='text-xs text-muted-foreground'>Total aplicado</p>
-                    <p className='text-sm font-semibold'>{generalPreview.totalAppliedHectares.toFixed(2)} ha</p>
-                  </div>
-                  <div className='rounded-lg border p-3'>
-                    <p className='text-xs text-muted-foreground'>Aplicacoes</p>
-                    <p className='text-sm font-semibold'>{generalPreview.applicationsCount}</p>
-                  </div>
-                  <div className='rounded-lg border p-3'>
-                    <p className='text-xs text-muted-foreground'>Ordens de Servico</p>
-                    <p className='text-sm font-semibold'>{generalPreview.serviceOrdersCount}</p>
-                  </div>
-                  <div className='rounded-lg border p-3'>
-                    <p className='text-xs text-muted-foreground'>Fazendas</p>
-                    <p className='text-sm font-semibold'>{generalPreview.farmsCount}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       <Card className='max-w-full order-2'>
         <CardHeader className='pb-2'>
           <CardTitle className='text-lg'>Filtros</CardTitle>
@@ -1476,6 +1217,265 @@ export default function ReportsCenterPage() {
               Limpar filtros
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className='max-w-full order-3'>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-lg'>Relatorios disponiveis</CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          {selectedReport.id === 'service-orders' && (
+            <div className='space-y-3'>
+              <div>
+                <p className='text-sm font-semibold'>Ordens de Servico encontradas</p>
+                <p className='text-xs text-muted-foreground'>
+                  Selecione uma OS para gerar o relatorio estrategico.
+                </p>
+              </div>
+
+              <div className='text-xs text-muted-foreground'>
+                {serviceOrdersFoundCount} OS encontradas
+                {!hasActiveFilters(filters) ? ' (lista inicial limitada)' : ''}
+              </div>
+
+              {filteredServiceOrders.length === 0 && (
+                <p className='text-sm text-muted-foreground'>Nenhuma OS encontrada para os filtros atuais.</p>
+              )}
+
+              <div className='space-y-2'>
+                {filteredServiceOrders.map((serviceOrder) => {
+                  const plannedTotal = (serviceOrder.plots || []).reduce(
+                    (sum, plot) => sum + parseNumber(plot.hectare),
+                    0
+                  );
+                  const pilotsLabel =
+                    serviceOrder.pilots?.length > 0
+                      ? serviceOrder.pilots.map((pilot) => pilot.name).join(', ')
+                      : 'Nao informado';
+                  return (
+                    <div key={serviceOrder.id} className='rounded-lg border p-3'>
+                      <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
+                        <div className='space-y-1'>
+                          <p className='text-sm font-semibold'>
+                            OS #{serviceOrder.number} | {serviceOrder.customer?.name || 'Cliente N/A'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Fazendas:{' '}
+                            {serviceOrder.farms?.length > 0
+                              ? serviceOrder.farms.map((farm) => farm.name).join(', ')
+                              : 'Sem fazenda'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Contrato/Safra: {serviceOrder.contract?.name || 'Nao informado'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Planejada: {formatDate(serviceOrder.plannedDate)} | Status:{' '}
+                            {getStatusLabel(serviceOrder.status)}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Observacao/Tipo: {serviceOrder.observation || 'Nao informado'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Total planejado: {plannedTotal.toFixed(2)} ha | Pilotos: {pilotsLabel}
+                          </p>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            size='sm'
+                            onClick={() => handleGenerateServiceOrderReportById(serviceOrder.id)}
+                            disabled={isGeneratingReport || isGeneratingRowReport === serviceOrder.id}
+                          >
+                            {isGeneratingRowReport === serviceOrder.id ? (
+                              <>
+                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                Gerando...
+                              </>
+                            ) : (
+                              'Gerar relatorio'
+                            )}
+                          </Button>
+                          <Button size='sm' variant='outline' asChild>
+                            <Link href={`/dashboard/service-orders/${serviceOrder.id}`}>Abrir OS</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {selectedReport.id === 'applications' && (
+            <div className='space-y-3'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <div>
+                  <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
+                  <p className='text-xs text-muted-foreground'>
+                    Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
+                  </p>
+                </div>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateApplicationsReport}
+                  disabled={
+                    isGeneratingReport || applicationsPreviewLoading || applicationsPreviewRows.length === 0
+                  }
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar relatorio de aplicacoes'
+                  )}
+                </Button>
+              </div>
+              {applicationsPreviewLoading && (
+                <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
+              )}
+              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
+              {!applicationsPreviewLoading &&
+                !applicationsPreviewError &&
+                applicationsPreviewRows.length === 0 && (
+                  <p className='text-sm text-muted-foreground'>
+                    Nenhuma aplicacao encontrada para os filtros selecionados.
+                  </p>
+                )}
+              {!applicationsPreviewLoading &&
+                !applicationsPreviewError &&
+                applicationsPreviewRows.length > 0 && (
+                  <div className='space-y-2'>
+                    <div className='overflow-x-auto rounded-lg border'>
+                      <table className='w-full text-xs'>
+                        <thead className='bg-muted/40'>
+                          <tr className='text-left'>
+                            <th className='px-3 py-2 font-medium'>Data</th>
+                            <th className='px-3 py-2 font-medium'>OS</th>
+                            <th className='px-3 py-2 font-medium'>Cliente</th>
+                            <th className='px-3 py-2 font-medium'>Fazenda</th>
+                            <th className='px-3 py-2 font-medium'>Talhao/Mapa</th>
+                            <th className='px-3 py-2 font-medium'>Piloto</th>
+                            <th className='px-3 py-2 font-medium'>Produto</th>
+                            <th className='px-3 py-2 font-medium'>Tipo/Issue</th>
+                            <th className='px-3 py-2 font-medium'>Area aplicada</th>
+                            <th className='px-3 py-2 font-medium'>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {applicationsPreviewRows.map((row) => (
+                            <tr key={row.id} className='border-t'>
+                              <td className='px-3 py-2'>{row.date}</td>
+                              <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
+                              <td className='px-3 py-2'>{row.customerName}</td>
+                              <td className='px-3 py-2'>{row.farmName}</td>
+                              <td className='px-3 py-2'>{row.plotName}</td>
+                              <td className='px-3 py-2'>{row.pilotName}</td>
+                              <td className='px-3 py-2'>{row.productName}</td>
+                              <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
+                              <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
+                              <td className='px-3 py-2'>{row.statusLabel}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className='flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+                      <p>Previa: {applicationsPreviewRows.length} aplicacoes exibidas.</p>
+                      <p>Total filtrado: {applicationsPreviewTotalCount} aplicacoes.</p>
+                      <p>Area total filtrada: {applicationsPreviewTotalHectares.toFixed(2)} ha.</p>
+                    </div>
+                    <p className='text-xs text-muted-foreground'>
+                      Exibindo ate 50 aplicacoes na previa. O PDF considera todas as aplicacoes filtradas.
+                    </p>
+                  </div>
+                )}
+            </div>
+          )}
+
+          {selectedReport.id === 'farms' && (
+            <div className='space-y-3'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <p className='text-sm font-semibold'>Fazendas encontradas</p>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateReport}
+                  disabled={isGeneratingReport || farmsPreviewLoading || farmsPreviewRows.length === 0}
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando relatorio de fazendas...
+                    </>
+                  ) : (
+                    'Gerar relatorio de fazendas'
+                  )}
+                </Button>
+              </div>
+              {farmsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>}
+              {farmsPreviewError && <p className='text-sm text-red-500'>{farmsPreviewError}</p>}
+              {!farmsPreviewLoading && !farmsPreviewError && farmsPreviewRows.length === 0 && (
+                <p className='text-sm text-muted-foreground'>Nenhuma fazenda encontrada para os filtros atuais.</p>
+              )}
+              <div className='space-y-2'>
+                {farmsPreviewRows.map((farmRow) => (
+                  <div key={farmRow.farmId} className='rounded-lg border p-3'>
+                    <p className='text-sm font-semibold'>{farmRow.farmName}</p>
+                    <p className='text-xs text-muted-foreground'>Cliente: {farmRow.customerName}</p>
+                    <p className='text-xs text-muted-foreground'>
+                      Area total: {farmRow.totalAreaHectares.toFixed(2)} ha | Talhoes/Mapas: {farmRow.plotsCount}
+                    </p>
+                    <p className='text-xs text-muted-foreground'>
+                      Aplicacoes vinculadas: {farmRow.applicationsCount || 0} | OS vinculadas:{' '}
+                      {farmRow.serviceOrdersCount || 0}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedReport.id === 'general' && (
+            <div className='space-y-3'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
+                <Button size='sm' onClick={handleGenerateReport} disabled={isGeneratingReport || generalPreviewLoading}>
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar relatorio geral'
+                  )}
+                </Button>
+              </div>
+              {generalPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando resumo...</p>}
+              {generalPreviewError && <p className='text-sm text-red-500'>{generalPreviewError}</p>}
+              {generalPreview && (
+                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2'>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Total aplicado</p>
+                    <p className='text-sm font-semibold'>{generalPreview.totalAppliedHectares.toFixed(2)} ha</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Aplicacoes</p>
+                    <p className='text-sm font-semibold'>{generalPreview.applicationsCount}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Ordens de Servico</p>
+                    <p className='text-sm font-semibold'>{generalPreview.serviceOrdersCount}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <p className='text-xs text-muted-foreground'>Fazendas</p>
+                    <p className='text-sm font-semibold'>{generalPreview.farmsCount}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
