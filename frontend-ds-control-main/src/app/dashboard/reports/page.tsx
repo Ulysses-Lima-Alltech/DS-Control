@@ -922,7 +922,7 @@ export default function ReportsCenterPage() {
   }, [selectedReport.id, filters]);
 
   return (
-    <div className='p-6 space-y-6 min-h-full max-w-screen'>
+    <div className='p-6 flex flex-col gap-6 min-h-full max-w-screen'>
       <div>
         <h1 className='text-2xl font-bold'>Relatorios</h1>
         <p className='text-muted-foreground'>
@@ -930,7 +930,7 @@ export default function ReportsCenterPage() {
         </p>
       </div>
 
-      <Card className='max-w-full'>
+      <Card className='max-w-full order-1'>
         <CardHeader className='pb-2'>
           <CardTitle className='text-lg'>Tipo de relatorio</CardTitle>
         </CardHeader>
@@ -960,7 +960,7 @@ export default function ReportsCenterPage() {
         </CardContent>
       </Card>
 
-      <Card className='max-w-full'>
+      <Card className='max-w-full order-3'>
         <CardHeader className='pb-2'>
           <CardTitle className='text-lg'>Relatorios disponiveis</CardTitle>
         </CardHeader>
@@ -1049,10 +1049,30 @@ export default function ReportsCenterPage() {
 
           {selectedReport.id === 'applications' && (
             <div className='space-y-3'>
-              <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
-              <p className='text-xs text-muted-foreground'>
-                Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
-              </p>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <div>
+                  <p className='text-sm font-semibold'>Aplicacoes encontradas</p>
+                  <p className='text-xs text-muted-foreground'>
+                    Estas aplicacoes serao consideradas no relatorio conforme os filtros selecionados.
+                  </p>
+                </div>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateReport}
+                  disabled={
+                    isGeneratingReport || applicationsPreviewLoading || applicationsPreviewRows.length === 0
+                  }
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar relatorio de aplicacoes'
+                  )}
+                </Button>
+              </div>
               {applicationsPreviewLoading && (
                 <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
               )}
@@ -1159,7 +1179,19 @@ export default function ReportsCenterPage() {
 
           {selectedReport.id === 'general' && (
             <div className='space-y-3'>
-              <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
+                <Button size='sm' onClick={handleGenerateReport} disabled={isGeneratingReport || generalPreviewLoading}>
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar relatorio geral'
+                  )}
+                </Button>
+              </div>
               {generalPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando resumo...</p>}
               {generalPreviewError && <p className='text-sm text-red-500'>{generalPreviewError}</p>}
               {generalPreview && (
@@ -1187,7 +1219,7 @@ export default function ReportsCenterPage() {
         </CardContent>
       </Card>
 
-      <Card className='max-w-full'>
+      <Card className='max-w-full order-2'>
         <CardHeader className='pb-2'>
           <CardTitle className='text-lg'>Filtros</CardTitle>
         </CardHeader>
@@ -1447,7 +1479,7 @@ export default function ReportsCenterPage() {
         </CardContent>
       </Card>
 
-      <Card className='max-w-full'>
+      <Card className='max-w-full order-4'>
         <CardContent className='pt-6'>
           {!generationError && !generationSuccess && (
             <p className='text-sm text-muted-foreground'>
