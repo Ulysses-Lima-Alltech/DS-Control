@@ -3,6 +3,7 @@ import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
+import PilotApplicationsReportPDF from '@/components/PDFReports/PilotApplicationsReportPDF';
 import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
 import GeneralReportPDF, {
   type GeneralNamedValue,
@@ -10,6 +11,9 @@ import GeneralReportPDF, {
   type GeneralReportTotals,
 } from '@/components/PDFReports/GeneralReportPDF';
 import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
+import ServiceOrdersDetailedReportPDF, {
+  type ServiceOrderDetailedSection,
+} from '@/components/PDFReports/ServiceOrdersDetailedReportPDF';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
@@ -62,6 +66,18 @@ export interface GenerateApplicationIndividualReportPDFParams {
   generatedAt: string;
 }
 
+export interface GenerateServiceOrdersDetailedConsolidatedPDFParams {
+  generatedAt: string;
+  filtersSummary: Array<{ label: string; value: string }>;
+  sections: ServiceOrderDetailedSection[];
+}
+
+export interface GeneratePilotApplicationsReportPDFParams {
+  generatedAt: string;
+  filtersSummary: Array<{ label: string; value: string }>;
+  groups: Array<{ pilotName: string; applications: Application[] }>;
+}
+
 const REPORT_MAP_WIDTH = 1280;
 const REPORT_MAP_HEIGHT = 480;
 const STRATEGIC_REPORT_MAP_WIDTH = 418;
@@ -80,51 +96,6 @@ function getReportMapboxAccessToken(): string {
 /**
  * Mesma regra de páginas por talhão que ApplicationsReportPDF; pré-busca cada mapUrl Mapbox para data URL antes do pdf().
  */
-async function prefetchReportMapImagesByPlotId(
-  applications: Application[]
-): Promise<Record<string, string | null>> {
-  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
-  const applicationsByPlot = applicationsWithPlot.reduce(
-    (acc, app) => {
-      const plotId = app.plotId!;
-      if (!acc[plotId]) {
-        acc[plotId] = [];
-      }
-      acc[plotId].push(app);
-      return acc;
-    },
-    {} as Record<string, Application[]>
-  );
-
-  const accessToken = getReportMapboxAccessToken();
-  const out: Record<string, string | null> = {};
-
-  for (const plotId of Object.keys(applicationsByPlot)) {
-    const plotApplications = applicationsByPlot[plotId];
-    const plot = plotApplications[0]?.plot;
-    if (!plot) {
-      out[plotId] = null;
-      continue;
-    }
-    const mapResult = buildReportMapboxStaticUrl({
-      plot,
-      mapWidth: REPORT_MAP_WIDTH,
-      mapHeight: REPORT_MAP_HEIGHT,
-      accessToken,
-    });
-
-    if (!mapResult.url) {
-      out[plotId] = null;
-      continue;
-    }
-    const dataUrl = await fetchRemoteImageAsDataUrl(mapResult.url);
-    out[plotId] = dataUrl;
-
-  }
-
-  return out;
-}
-
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
   return (serviceOrder.plots || [])
     .map((plot) => {
@@ -268,12 +239,37 @@ export async function generateApplicationsReportPDF({
   applications,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  const prefetchedMapImageDataUrls = await prefetchReportMapImagesByPlotId(applications);
+  const element = ServiceOrdersDetailedReportPDF({
+    title: `Relatorio Detalhado da OS #${serviceOrder.number}`,
+    generatedAt: new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date()),
+    filtersSummary: [],
+    sections: [{ serviceOrder, applications }],
+  });
 
-  const element = ApplicationsReportPDF({
-    serviceOrder,
-    applications,
-    prefetchedMapImageDataUrls,
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generateServiceOrdersDetailedConsolidatedPDF({
+  generatedAt,
+  filtersSummary,
+  sections,
+}: GenerateServiceOrdersDetailedConsolidatedPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+  const element = ServiceOrdersDetailedReportPDF({
+    title: 'Relatorio Detalhado de Ordens de Servico',
+    generatedAt,
+    filtersSummary,
+    sections,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -383,6 +379,23 @@ export async function generateApplicationIndividualReportPDF({
     mapOverlayPathDs: mapData.mapOverlayPathDs,
     mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,
     mapUnavailableMessage: mapData.mapUnavailableMessage,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  const blob = await pdf(element).toBlob();
+  return blob;
+}
+
+export async function generatePilotApplicationsReportPDF({
+  generatedAt,
+  filtersSummary,
+  groups,
+}: GeneratePilotApplicationsReportPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+  const element = PilotApplicationsReportPDF({
+    generatedAt,
+    filtersSummary,
+    groups,
   });
 
   // @ts-expect-error - toBlob is not typed

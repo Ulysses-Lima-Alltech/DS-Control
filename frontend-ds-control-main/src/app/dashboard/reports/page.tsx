@@ -32,7 +32,7 @@ import {
   type ApplicationIssueFilter,
 } from '@/types/applications.type';
 import type { Farm } from '@/types/farm.type';
-import type { ServiceOrderStatus } from '@/types/service-order.type';
+import type { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import type { User } from '@/types/user.type';
 import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
@@ -41,7 +41,9 @@ import {
   generateApplicationsReportPDF,
   generateFarmsReportPDF,
   generateGeneralReportPDF,
+  generatePilotApplicationsReportPDF,
   generateServiceOrderStrategicReportPDF,
+  generateServiceOrdersDetailedConsolidatedPDF,
 } from '@/utils/pdfGenerator';
 
 import { reportsCatalog, type ReportFilterKey, type ReportId } from './reportsCatalog';
@@ -183,6 +185,7 @@ function formatOperationalDate(value?: string): string {
 export default function ReportsCenterPage() {
   const [selectedReportId, setSelectedReportId] = useState<ReportId>('applications');
   const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(undefined);
+  const [selectedServiceOrderIds, setSelectedServiceOrderIds] = useState<string[]>([]);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | undefined>(undefined);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -325,6 +328,12 @@ export default function ReportsCenterPage() {
       serviceOrder.farms?.length > 0 ? serviceOrder.farms.map((farm) => farm.name).join(', ') : 'Sem fazenda',
   }));
 
+  const toggleServiceOrderSelection = (serviceOrderId: string) => {
+    setSelectedServiceOrderIds((prev) =>
+      prev.includes(serviceOrderId) ? prev.filter((id) => id !== serviceOrderId) : [...prev, serviceOrderId]
+    );
+  };
+
   const updateFilter = <K extends keyof ReportsFiltersState>(key: K, value: ReportsFiltersState[K]) => {
     setFilters((prev) => ({
       ...prev,
@@ -339,12 +348,14 @@ export default function ReportsCenterPage() {
         farmId: undefined,
       }));
       setSelectedServiceOrderId(undefined);
+      setSelectedServiceOrderIds([]);
       setSelectedApplicationId(undefined);
       return;
     }
 
     if (key === 'farmId' || key === 'pilotId' || key === 'serviceOrderStatus' || key === 'startDate' || key === 'endDate' || key === 'serviceOrderNumber' || key === 'observation') {
       setSelectedServiceOrderId(undefined);
+      setSelectedServiceOrderIds([]);
     }
   };
 
@@ -520,19 +531,25 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateServiceOrderReport = async () => {
-    if (!selectedServiceOrderId) {
-      throw new Error('Selecione uma OS para gerar o relatorio da OS.');
+    const targets =
+      selectedServiceOrderIds.length > 0
+        ? selectedServiceOrderIds
+        : selectedServiceOrderId
+          ? [selectedServiceOrderId]
+          : [];
+
+    if (targets.length === 0) {
+      throw new Error('Selecione ao menos uma OS para gerar o relatorio da OS.');
     }
 
-    const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(
-      selectedServiceOrderId
-    );
-    const blob = await generateServiceOrderStrategicReportPDF({
-      serviceOrder: serviceOrderForReport,
-      applications,
-    });
-
-    downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
+    for (const serviceOrderId of targets) {
+      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const blob = await generateServiceOrderStrategicReportPDF({
+        serviceOrder: serviceOrderForReport,
+        applications,
+      });
+      downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
+    }
   };
 
   const handleGenerateServiceOrderReportById = async (serviceOrderId: string) => {
@@ -550,6 +567,7 @@ export default function ReportsCenterPage() {
       setGenerationSuccess(`Relatorio da OS #${serviceOrderForReport.number} gerado com sucesso.`);
       toast.success('Relatorio gerado com sucesso.');
       setSelectedServiceOrderId(serviceOrderId);
+      setSelectedServiceOrderIds([serviceOrderId]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio.';
       setGenerationError(message);
@@ -579,6 +597,7 @@ export default function ReportsCenterPage() {
       setGenerationSuccess(`Relatorio detalhado da OS #${serviceOrderForReport.number} gerado com sucesso.`);
       toast.success('Relatorio detalhado gerado com sucesso.');
       setSelectedServiceOrderId(serviceOrderId);
+      setSelectedServiceOrderIds([serviceOrderId]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio detalhado.';
       setGenerationError(message);
@@ -586,6 +605,70 @@ export default function ReportsCenterPage() {
     } finally {
       setIsGeneratingRowReport(null);
     }
+  };
+
+  const handleGenerateSelectedServiceOrdersDetailedReport = async () => {
+    const targets =
+      selectedServiceOrderIds.length > 0
+        ? selectedServiceOrderIds
+        : selectedServiceOrderId
+          ? [selectedServiceOrderId]
+          : [];
+    if (targets.length === 0) {
+      throw new Error('Selecione ao menos uma OS para gerar o relatorio detalhado.');
+    }
+
+    const sections: Array<{ serviceOrder: ServiceOrder; applications: Application[] }> = [];
+    for (const serviceOrderId of targets) {
+      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      sections.push({
+        serviceOrder: serviceOrderForReport,
+        applications,
+      });
+    }
+
+    const totalApps = sections.reduce((sum, section) => sum + section.applications.length, 0);
+    if (totalApps === 0) {
+      throw new Error('Nao ha aplicacoes nas OS selecionadas para gerar o relatorio detalhado.');
+    }
+
+    const blob = await generateServiceOrdersDetailedConsolidatedPDF({
+      generatedAt: formatGeneratedAt(),
+      filtersSummary: resolveFiltersSummary(),
+      sections,
+    });
+    downloadPDF(blob, `relatorio-detalhado-os-${targets.length}-selecionadas.pdf`);
+  };
+
+  const handleGeneratePilotReport = async () => {
+    const response = await getAllApplications({
+      ...buildApplicationFilters(),
+      page: '1',
+      limit: '1000',
+    });
+    const apps = response.data || [];
+    if (apps.length === 0) {
+      throw new Error('Nenhuma aplicacao encontrada para os filtros selecionados.');
+    }
+
+    const grouped = new Map<string, Application[]>();
+    apps.forEach((app) => {
+      const pilotName = app.pilot?.name || 'Piloto nao informado';
+      const current = grouped.get(pilotName) || [];
+      current.push(app);
+      grouped.set(pilotName, current);
+    });
+
+    const groups = Array.from(grouped.entries())
+      .map(([pilotName, applications]) => ({ pilotName, applications }))
+      .sort((a, b) => a.pilotName.localeCompare(b.pilotName, 'pt-BR'));
+
+    const blob = await generatePilotApplicationsReportPDF({
+      generatedAt: formatGeneratedAt(),
+      filtersSummary: resolveFiltersSummary(),
+      groups,
+    });
+    downloadPDF(blob, 'relatorio-por-piloto.pdf');
   };
 
   const handleGenerateFarmsReport = async () => {
@@ -731,6 +814,8 @@ export default function ReportsCenterPage() {
         await handleGenerateApplicationReport();
       } else if (selectedReport.id === 'service-orders') {
         await handleGenerateServiceOrderReport();
+      } else if (selectedReport.id === 'pilot') {
+        await handleGeneratePilotReport();
       } else if (selectedReport.id === 'farms') {
         await handleGenerateFarmsReport();
       } else {
@@ -751,6 +836,7 @@ export default function ReportsCenterPage() {
   const clearFilters = () => {
     setFilters({});
     setSelectedServiceOrderId(undefined);
+    setSelectedServiceOrderIds([]);
     setSelectedApplicationId(undefined);
     setServiceOrderSearch('');
     setGenerationError(null);
@@ -942,6 +1028,7 @@ export default function ReportsCenterPage() {
                 onClick={() => {
                   setSelectedReportId(report.id);
                   setSelectedServiceOrderId(undefined);
+                  setSelectedServiceOrderIds([]);
                   setSelectedApplicationId(undefined);
                   setGenerationError(null);
                   setGenerationSuccess(null);
@@ -1182,7 +1269,11 @@ export default function ReportsCenterPage() {
                 <SearchableSelectQuery
                   options={serviceOrderOptions}
                   value={selectedServiceOrderId}
-                  onValueChange={(value) => setSelectedServiceOrderId(value as string | undefined)}
+                  onValueChange={(value) => {
+                    const nextValue = value as string | undefined;
+                    setSelectedServiceOrderId(nextValue);
+                    setSelectedServiceOrderIds(nextValue ? [nextValue] : []);
+                  }}
                   placeholder='Selecionar OS'
                   searchPlaceholder='Buscar OS...'
                   onSearchChange={setServiceOrderSearch}
@@ -1210,7 +1301,10 @@ export default function ReportsCenterPage() {
                 (selectedReport.id === 'applications' &&
                   (applicationsPreviewLoading ||
                     applicationsPreviewRows.length === 0 ||
-                    !selectedApplicationId))
+                    !selectedApplicationId)) ||
+                (selectedReport.id === 'service-orders' &&
+                  selectedServiceOrderIds.length === 0 &&
+                  !selectedServiceOrderId)
               }
             >
               {isGeneratingReport ? (
@@ -1219,7 +1313,13 @@ export default function ReportsCenterPage() {
                   Gerando relatorio...
                 </>
               ) : (
-                selectedReport.id === 'applications' ? 'Gerar relatorio da aplicacao' : 'Gerar relatorio'
+                selectedReport.id === 'applications'
+                  ? 'Gerar relatorio da aplicacao'
+                  : selectedReport.id === 'service-orders'
+                    ? 'Gerar relatorio da OS'
+                    : selectedReport.id === 'pilot'
+                      ? 'Gerar relatorio por piloto'
+                      : 'Gerar relatorio'
               )}
             </Button>
             <Button variant='outline' onClick={clearFilters} disabled={isGeneratingReport}>
@@ -1241,6 +1341,31 @@ export default function ReportsCenterPage() {
                 <p className='text-xs text-muted-foreground'>
                   Cada OS possui dois fluxos: mapa estrategico e relatorio detalhado de aplicacao.
                 </p>
+              </div>
+
+              <div className='flex flex-wrap items-center gap-2'>
+                <Badge variant='outline'>Selecionadas: {selectedServiceOrderIds.length}</Badge>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateServiceOrderReport}
+                  disabled={
+                    isGeneratingReport ||
+                    (selectedServiceOrderIds.length === 0 && !selectedServiceOrderId)
+                  }
+                >
+                  Mapa estrategico (selecionadas)
+                </Button>
+                <Button
+                  size='sm'
+                  variant='secondary'
+                  onClick={handleGenerateSelectedServiceOrdersDetailedReport}
+                  disabled={
+                    isGeneratingReport ||
+                    (selectedServiceOrderIds.length === 0 && !selectedServiceOrderId)
+                  }
+                >
+                  Relatorio detalhado (selecionadas)
+                </Button>
               </div>
 
               <div className='text-xs text-muted-foreground'>
@@ -1266,6 +1391,14 @@ export default function ReportsCenterPage() {
                     <div key={serviceOrder.id} className='rounded-lg border p-3'>
                       <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
                         <div className='space-y-1'>
+                          <label className='flex items-center gap-2 text-xs text-muted-foreground'>
+                            <input
+                              type='checkbox'
+                              checked={selectedServiceOrderIds.includes(serviceOrder.id)}
+                              onChange={() => toggleServiceOrderSelection(serviceOrder.id)}
+                            />
+                            Selecionar OS
+                          </label>
                           <p className='text-sm font-semibold'>
                             OS #{serviceOrder.number} | {serviceOrder.customer?.name || 'Cliente N/A'}
                           </p>
@@ -1498,6 +1631,32 @@ export default function ReportsCenterPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {selectedReport.id === 'pilot' && (
+            <div className='space-y-3'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <div>
+                  <p className='text-sm font-semibold'>Relatorio por piloto</p>
+                  <p className='text-xs text-muted-foreground'>
+                    Gera uma lista compacta agrupada por piloto, sem mapa, conforme os filtros.
+                  </p>
+                </div>
+                <Button size='sm' onClick={handleGenerateReport} disabled={isGeneratingReport}>
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                      Gerando...
+                    </>
+                  ) : (
+                    'Gerar relatorio por piloto'
+                  )}
+                </Button>
+              </div>
+              <p className='text-xs text-muted-foreground'>
+                Se um piloto estiver filtrado, o PDF trara apenas esse piloto. Sem filtro de piloto, o PDF agrupa todos os pilotos retornados.
+              </p>
             </div>
           )}
 
