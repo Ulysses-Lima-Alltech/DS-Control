@@ -49,7 +49,11 @@ import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { downloadPDF, generateServiceOrderStrategicReportPDF } from '@/utils/pdfGenerator';
+import {
+  downloadPDF,
+  generateApplicationsReportPDF,
+  generateServiceOrderStrategicReportPDF,
+} from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -311,15 +315,8 @@ export default function ServiceOrderPage({
     });
   };
 
-  const handleGenerateReport = async (mode: ReportMode = 'all') => {
+  const handleGenerateStrategicReport = async () => {
     if (!serviceOrderData) {
-      return;
-    }
-
-    const reportApplications = buildApplicationsForReport(mode);
-
-    if (reportApplications.length === 0) {
-      toast.info('Não há aplicações para o recorte selecionado');
       return;
     }
 
@@ -328,19 +325,49 @@ export default function ServiceOrderPage({
 
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderData,
-        applications: reportApplications,
+        applications: applicationWithPlotData,
       });
 
-      const suffix =
-        mode === 'all' ? 'geral' : mode === 'completed' ? 'concluidos' : 'pendentes';
-
-      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-${suffix}.pdf`);
-      toast.success('Relatório gerado com sucesso');
+      downloadPDF(blob, `relatorio-os-${serviceOrderData.number}-estrategico.pdf`);
+      toast.success('Relatorio estrategico gerado com sucesso');
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
-        toast.error('Erro ao gerar relatório');
+        toast.error('Erro ao gerar relatorio');
+      }
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const handleGenerateApplicationsReport = async (mode: ReportMode = 'all') => {
+    if (!serviceOrderData) {
+      return;
+    }
+
+    const reportApplications = buildApplicationsForReport(mode);
+    if (reportApplications.length === 0) {
+      toast.info('Nao ha aplicacoes para o recorte selecionado');
+      return;
+    }
+
+    try {
+      setIsGeneratingReport(true);
+
+      const blob = await generateApplicationsReportPDF({
+        serviceOrder: serviceOrderData,
+        applications: reportApplications,
+      });
+
+      const suffix = mode === 'all' ? 'geral' : mode === 'completed' ? 'concluidos' : 'pendentes';
+      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-${suffix}.pdf`);
+      toast.success('Relatorio de aplicacao gerado com sucesso');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Erro ao gerar relatorio');
       }
     } finally {
       setIsGeneratingReport(false);
@@ -547,10 +574,10 @@ export default function ServiceOrderPage({
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={() => handleGenerateReport('all')}
+            onClick={() => handleGenerateStrategicReport()}
           >
             <FileText className='mr-2 h-4 w-4' />
-            Gerar relatorio da OS
+            Mapa estrategico da OS
           </Button>
         </CardContent>
       </Card>
@@ -657,15 +684,15 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateReport('all')}
+                onClick={() => handleGenerateApplicationsReport('all')}
               >
-                PDF Geral
+                PDF Aplicacoes (Geral)
               </Button>
               <Button
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateReport('completed')}
+                onClick={() => handleGenerateApplicationsReport('completed')}
               >
                 PDF Concluídos
               </Button>
@@ -673,7 +700,7 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateReport('pending')}
+                onClick={() => handleGenerateApplicationsReport('pending')}
               >
                 PDF Pendentes
               </Button>

@@ -3,6 +3,8 @@ import type { GeoJSON } from 'geojson';
 import type { Plot } from '@/types/plot.type';
 
 const DEFAULT_PADDING = 0.1;
+const MIN_SPAN = 1e-4;
+const WEB_MERCATOR_MAX_LAT = 85.05112878;
 
 const DEBUG_PREFIX = '[REPORT_MAP_DEBUG]';
 
@@ -140,41 +142,165 @@ export type ReportPaddedBoundsWorld = {
   north: number;
 };
 
+type LngLatPoint = [number, number];
+
+function clampLat(lat: number): number {
+  return Math.max(-WEB_MERCATOR_MAX_LAT, Math.min(WEB_MERCATOR_MAX_LAT, lat));
+}
+
+function normalizeLngLatPoint(point: unknown): LngLatPoint | null {
+  if (!Array.isArray(point) || point.length < 2) {
+    return null;
+  }
+  const lng = Number(point[0]);
+  const lat = Number(point[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return null;
+  }
+  return [lng, clampLat(lat)];
+}
+
+export function extractLngLatPointsFromGeometry(geoJson: GeoJSON | null): LngLatPoint[] {
+  if (!geoJson) {
+    return [];
+  }
+
+  const points: LngLatPoint[] = [];
+
+  const walkGeometry = (geometry: GeoJSON.Geometry | null | undefined): void => {
+    if (!geometry) return;
+
+    if (geometry.type === 'Polygon') {
+      for (const ring of geometry.coordinates || []) {
+        for (const coordinate of ring || []) {
+          const normalizedPoint = normalizeLngLatPoint(coordinate);
+          if (normalizedPoint) points.push(normalizedPoint);
+        }
+      }
+      return;
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+      for (const polygon of geometry.coordinates || []) {
+        for (const ring of polygon || []) {
+          for (const coordinate of ring || []) {
+            const normalizedPoint = normalizeLngLatPoint(coordinate);
+            if (normalizedPoint) points.push(normalizedPoint);
+          }
+        }
+      }
+      return;
+    }
+
+    if (geometry.type === 'GeometryCollection') {
+      for (const nested of geometry.geometries || []) {
+        walkGeometry(nested);
+      }
+    }
+  };
+
+  if (geoJson.type === 'FeatureCollection') {
+    for (const feature of geoJson.features || []) {
+      walkGeometry(feature.geometry);
+    }
+    return points;
+  }
+
+  if (geoJson.type === 'Feature') {
+    walkGeometry(geoJson.geometry);
+    return points;
+  }
+
+  walkGeometry(geoJson as GeoJSON.Geometry);
+  return points;
+}
+
+export function calculateGeometryBbox(points: LngLatPoint[]): ReportMapBoundingBox | null {
+  if (!points.length) {
+    return null;
+  }
+
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+
+  for (const [lng, lat] of points) {
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, lat);
+  }
+
+  if (
+    minLng === Infinity ||
+    maxLng === -Infinity ||
+    minLat === Infinity ||
+    maxLat === -Infinity
+  ) {
+    return null;
+  }
+
+  return {
+    minLng,
+    minLat,
+    maxLng,
+    maxLat,
+    centerLng: (minLng + maxLng) / 2,
+    centerLat: (minLat + maxLat) / 2,
+  };
+}
+
+export function expandBboxWithAspectRatio(
+  bounds: ReportMapBoundingBox,
+  targetAspectRatio: number,
+  paddingPercent: number
+): ReportPaddedBoundsWorld {
+  const centerLng = bounds.centerLng;
+  const centerLat = bounds.centerLat;
+
+  let lngSpan = Math.max(bounds.maxLng - bounds.minLng, MIN_SPAN);
+  let latSpan = Math.max(bounds.maxLat - bounds.minLat, MIN_SPAN);
+
+  const paddingFactor = 1 + Math.max(0, paddingPercent) * 2;
+  lngSpan *= paddingFactor;
+  latSpan *= paddingFactor;
+
+  const safeAspectRatio = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0
+    ? targetAspectRatio
+    : 1;
+  const currentAspectRatio = lngSpan / latSpan;
+
+  if (currentAspectRatio > safeAspectRatio) {
+    latSpan = lngSpan / safeAspectRatio;
+  } else {
+    lngSpan = latSpan * safeAspectRatio;
+  }
+
+  return {
+    west: centerLng - lngSpan / 2,
+    south: clampLat(centerLat - latSpan / 2),
+    east: centerLng + lngSpan / 2,
+    north: clampLat(centerLat + latSpan / 2),
+  };
+}
+
 /**
  * Bbox com padding (igual a `buildReportMapboxStaticUrl`) para projetar o polígono do talhão sobre a imagem.
  */
 export function getReportPaddedBoundsForPlot(
   plot: Plot,
-  paddingRatio: number = DEFAULT_PADDING
+  paddingRatio: number = DEFAULT_PADDING,
+  targetAspectRatio?: number
 ): ReportPaddedBoundsWorld | null {
-  const bounds = calculatePlotBounds(plot);
+  const parsedGeoJson = parsePlotGeoJson(plot);
+  const points = extractLngLatPointsFromGeometry(parsedGeoJson);
+  const bounds = calculateGeometryBbox(points);
   if (!bounds) {
     return null;
   }
-  const lngSpan = bounds.maxLng - bounds.minLng;
-  const latSpan = bounds.maxLat - bounds.minLat;
-  if (lngSpan < 1e-12 || latSpan < 1e-12) {
-    return null;
-  }
-  const lngPadding = lngSpan * paddingRatio;
-  const latPadding = latSpan * paddingRatio;
-  return {
-    west: bounds.minLng - lngPadding,
-    south: bounds.minLat - latPadding,
-    east: bounds.maxLng + lngPadding,
-    north: bounds.maxLat + latPadding,
-  };
-}
-
-function paddedBboxString(bounds: ReportMapBoundingBox, paddingRatio: number): string {
-  const lngPadding = (bounds.maxLng - bounds.minLng) * paddingRatio;
-  const latPadding = (bounds.maxLat - bounds.minLat) * paddingRatio;
-  return [
-    bounds.minLng - lngPadding,
-    bounds.minLat - latPadding,
-    bounds.maxLng + lngPadding,
-    bounds.maxLat + latPadding,
-  ].join(',');
+  const derivedAspectRatio = targetAspectRatio && targetAspectRatio > 0 ? targetAspectRatio : 1;
+  return expandBboxWithAspectRatio(bounds, derivedAspectRatio, paddingRatio);
 }
 
 /**
@@ -234,7 +360,6 @@ export function buildReportMapboxStaticUrl(
   const geometryTypes = collectGeometryTypes(parsed);
 
   const token = accessToken?.trim();
-  const tokenPresent = Boolean(token);
 
   if (!token) {
     console.log(DEBUG_PREFIX, {
@@ -285,7 +410,8 @@ export function buildReportMapboxStaticUrl(
     return { url: null, unavailableReason: 'geojson_missing', usedLongUrlFallback: false };
   }
 
-  const bounds = calculatePlotBounds(plot);
+  const points = extractLngLatPointsFromGeometry(parsed);
+  const bounds = calculateGeometryBbox(points);
   if (!bounds) {
     console.log(DEBUG_PREFIX, {
       tokenPresent: true,
@@ -305,25 +431,12 @@ export function buildReportMapboxStaticUrl(
     };
   }
 
-  const lngSpan = bounds.maxLng - bounds.minLng;
-  const latSpan = bounds.maxLat - bounds.minLat;
-  if (lngSpan < 1e-12 || latSpan < 1e-12) {
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
-      plotId,
-      plotName,
-      geoJsonPresent: true,
-      geometryTypes,
-      boundsCalculated: true,
-      bounds,
-      returnNullReason: 'bounds_invalid',
-      detail: 'degenerate_extent',
-      usedLongUrlFallback: false,
-    });
-    return { url: null, unavailableReason: 'bounds_invalid', usedLongUrlFallback: false };
-  }
-
-  const bboxStr = paddedBboxString(bounds, padding);
+  const worldBounds = expandBboxWithAspectRatio(
+    bounds,
+    mapWidth / mapHeight,
+    padding
+  );
+  const bboxStr = [worldBounds.west, worldBounds.south, worldBounds.east, worldBounds.north].join(',');
   const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
 
   logReportMapSuccess({

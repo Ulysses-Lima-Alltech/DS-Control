@@ -1,7 +1,6 @@
 import type { GeoJSON } from 'geojson';
 
 import type { Plot } from '@/types/plot.type';
-
 import {
   getReportPaddedBoundsForPlot,
   parsePlotGeoJson,
@@ -9,6 +8,19 @@ import {
 } from '@/utils/mapboxStaticReportMap';
 
 const DEFAULT_PADDING = 0.1;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function lngToNormalizedX(lng: number): number {
+  return (lng + 180) / 360;
+}
+
+function latToNormalizedY(lat: number): number {
+  const sinValue = Math.sin((lat * Math.PI) / 180);
+  return 0.5 - Math.log((1 + sinValue) / (1 - sinValue)) / (4 * Math.PI);
+}
 
 function projectLngLatToMapPx(
   lng: number,
@@ -18,11 +30,21 @@ function projectLngLatToMapPx(
   mapHeight: number
 ): { x: number; y: number } {
   const { west, south, east, north } = world;
-  const x = ((lng - west) / (east - west)) * mapWidth;
-  const y = ((north - lat) / (north - south)) * mapHeight;
+  const westX = lngToNormalizedX(west);
+  const eastX = lngToNormalizedX(east);
+  const lngX = lngToNormalizedX(lng);
+  const xDenominator = Math.max(Math.abs(eastX - westX), 1e-12);
+  const x = ((lngX - westX) / xDenominator) * mapWidth;
+
+  const northY = latToNormalizedY(north);
+  const southY = latToNormalizedY(south);
+  const latY = latToNormalizedY(lat);
+  const yDenominator = Math.max(Math.abs(southY - northY), 1e-12);
+  const y = ((latY - northY) / yDenominator) * mapHeight;
+
   return {
-    x: Math.max(0, Math.min(mapWidth, x)),
-    y: Math.max(0, Math.min(mapHeight, y)),
+    x: clamp(x, 0, mapWidth),
+    y: clamp(y, 0, mapHeight),
   };
 }
 
@@ -115,7 +137,7 @@ export function buildPlotPolygonSvgPathDs(
   mapHeight: number,
   paddingRatio: number = DEFAULT_PADDING
 ): string[] | null {
-  const world = getReportPaddedBoundsForPlot(plot, paddingRatio);
+  const world = getReportPaddedBoundsForPlot(plot, paddingRatio, mapWidth / mapHeight);
   if (!world) {
     return null;
   }

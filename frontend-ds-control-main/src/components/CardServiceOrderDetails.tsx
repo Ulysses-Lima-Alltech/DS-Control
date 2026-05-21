@@ -29,7 +29,11 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { downloadPDF, generateServiceOrderStrategicReportPDF } from '@/utils/pdfGenerator';
+import {
+  downloadPDF,
+  generateApplicationsReportPDF,
+  generateServiceOrderStrategicReportPDF,
+} from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 interface CardServiceOrderDetailsProps {
@@ -113,7 +117,7 @@ function LoadedCardServiceOrderDetails({
     }
   }, [applicationsData]);
 
-  const handleGeneratePDFReport = async () => {
+  const handleGenerateStrategicPDFReport = async () => {
     try {
       setIsGeneratingPDF(true);
       setPdfProgress(0);
@@ -137,18 +141,11 @@ function LoadedCardServiceOrderDetails({
       });
 
       if (!serviceOrderForReport) {
-        throw new Error('Erro ao carregar dados da ordem de serviço');
+        throw new Error('Erro ao carregar dados da ordem de servico');
       }
 
-      setPdfProgress(40);
-
-      if (!applicationsData?.data) {
-        throw new Error('Erro ao carregar aplicações');
-      }
-
-      setPdfProgress(60);
-
-      const applications = [...applicationsData.data];
+      setPdfProgress(50);
+      const applications = [...(applicationsData?.data || [])];
 
       if (serviceOrderForReport.plots && Array.isArray(serviceOrderForReport.plots)) {
         const plotMap = new Map<string, Plot>();
@@ -168,35 +165,85 @@ function LoadedCardServiceOrderDetails({
         });
       }
 
-      console.log('[REPORT_PDF_PLOT_DEBUG]', {
-        source: 'CardServiceOrderDetails',
-        serviceOrderPlotsLength: serviceOrderForReport.plots?.length ?? 0,
-        applications: applications.map((a) => ({
-          plotId: a.plotId,
-          hasPlotGeoJson: Boolean(a.plot?.geoJson),
-        })),
-      });
-
-      setPdfProgress(75);
-
       clearInterval(progressInterval);
-
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
       });
 
       setPdfProgress(95);
-
-      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrder.number}.pdf`);
-
+      downloadPDF(blob, `relatorio-os-${serviceOrder.number}-estrategico.pdf`);
       setPdfProgress(100);
-      toast.success('Relatório gerado com sucesso');
+      toast.success('Relatorio estrategico gerado com sucesso');
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
-        toast.error('Erro ao gerar relatório');
+        toast.error('Erro ao gerar relatorio');
+      }
+    } finally {
+      setIsGeneratingPDF(false);
+      setPdfProgress(0);
+    }
+  };
+
+  const handleGenerateApplicationsPDFReport = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      setPdfProgress(0);
+      setPdfProgress(20);
+
+      const serviceOrderForReport = await getServiceOrderById(serviceOrder.id, {
+        includePlots: 'true',
+        includeGeoJson: 'true',
+        includePilots: 'true',
+        includeFarms: 'true',
+        includeContracts: 'true',
+        includeCustomers: 'true',
+      });
+
+      if (!serviceOrderForReport) {
+        throw new Error('Erro ao carregar dados da ordem de servico');
+      }
+
+      const applications = [...(applicationsData?.data || [])];
+      if (applications.length === 0) {
+        throw new Error('Nao ha aplicacoes vinculadas para gerar este relatorio');
+      }
+
+      if (serviceOrderForReport.plots && Array.isArray(serviceOrderForReport.plots)) {
+        const plotMap = new Map<string, Plot>();
+        serviceOrderForReport.plots.forEach((plot: Plot) => {
+          if (plot.id) {
+            plotMap.set(plot.id, plot);
+          }
+        });
+
+        applications.forEach((application: Application) => {
+          if (application.plotId && plotMap.has(application.plotId)) {
+            const plot = plotMap.get(application.plotId);
+            if (plot) {
+              application.plot = plot;
+            }
+          }
+        });
+      }
+
+      setPdfProgress(70);
+      const blob = await generateApplicationsReportPDF({
+        serviceOrder: serviceOrderForReport,
+        applications,
+      });
+
+      setPdfProgress(95);
+      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrder.number}.pdf`);
+      setPdfProgress(100);
+      toast.success('Relatorio de aplicacao gerado com sucesso');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Erro ao gerar relatorio');
       }
     } finally {
       setIsGeneratingPDF(false);
@@ -440,7 +487,7 @@ function LoadedCardServiceOrderDetails({
                   size='sm'
                   className='flex items-center justify-center gap-2 text-blue-600 border-blue-600 hover:bg-blue-50 w-full'
                   disabled={isGeneratingPDF}
-                  onClick={handleGeneratePDFReport}
+                  onClick={handleGenerateStrategicPDFReport}
                 >
                   <FileText className='h-4 w-4 flex-shrink-0' />
                   <span className='text-nowrap overflow-hidden text-ellipsis'>
@@ -449,7 +496,17 @@ function LoadedCardServiceOrderDetails({
                       : 'Gerar relatório de aplicações'}
                   </span>
                 </Button>
-                {isGeneratingPDF && (
+                                <Button
+                  variant='outline'
+                  size='sm'
+                  className='flex items-center justify-center gap-2 text-sky-700 border-sky-700 hover:bg-sky-50 w-full'
+                  disabled={isGeneratingPDF}
+                  onClick={handleGenerateApplicationsPDFReport}
+                >
+                  <FileText className='h-4 w-4 flex-shrink-0' />
+                  <span className='text-nowrap overflow-hidden text-ellipsis'>Relatorio de Aplicacao da OS</span>
+                </Button>
+{isGeneratingPDF && (
                   <div className='space-y-2'>
                     <Progress value={pdfProgress} className='h-2' />
                     <p className='text-xs text-muted-foreground text-center'>
