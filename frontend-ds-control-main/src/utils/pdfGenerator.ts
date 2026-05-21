@@ -80,11 +80,11 @@ export interface GeneratePilotApplicationsReportPDFParams {
 
 const REPORT_MAP_WIDTH = 1280;
 const REPORT_MAP_HEIGHT = 480;
-const STRATEGIC_REPORT_MAP_WIDTH = 418;
-const STRATEGIC_REPORT_MAP_HEIGHT = 286;
+const STRATEGIC_REPORT_MAP_WIDTH = 1080;
+const STRATEGIC_REPORT_MAP_HEIGHT = 660;
 const STRATEGIC_REPORT_MAP_PADDING = 8;
 const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/light-v11';
-const STRATEGIC_REPORT_PADDING_SCALE = 0.58;
+const STRATEGIC_REPORT_PADDING_SCALE = 0.78;
 
 function getReportMapboxAccessToken(): string {
   return (
@@ -142,13 +142,25 @@ async function prefetchReportMapImagesByPlotId(
 }
 
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
+  const isValidCoord = (coord: [number, number]) =>
+    Number.isFinite(coord[0]) &&
+    Number.isFinite(coord[1]) &&
+    Math.abs(coord[0]) <= 180 &&
+    Math.abs(coord[1]) <= 90;
+
   return (serviceOrder.plots || [])
     .map((plot) => {
       if (!plot.id) {
         return null;
       }
 
-      const polygons = extractPlotPolygons(plot);
+      const polygons = extractPlotPolygons(plot)
+        .map((polygon) =>
+          polygon
+            .map((ring) => ring.filter((coord) => isValidCoord(coord as [number, number])))
+            .filter((ring) => ring.length >= 4)
+        )
+        .filter((polygon) => polygon.length > 0);
       if (polygons.length === 0) {
         return null;
       }
