@@ -96,6 +96,51 @@ function getReportMapboxAccessToken(): string {
 /**
  * Mesma regra de páginas por talhão que ApplicationsReportPDF; pré-busca cada mapUrl Mapbox para data URL antes do pdf().
  */
+async function prefetchReportMapImagesByPlotId(
+  applications: Application[]
+): Promise<Record<string, string | null>> {
+  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
+  const applicationsByPlot = applicationsWithPlot.reduce(
+    (acc, app) => {
+      const plotId = app.plotId!;
+      if (!acc[plotId]) {
+        acc[plotId] = [];
+      }
+      acc[plotId].push(app);
+      return acc;
+    },
+    {} as Record<string, Application[]>
+  );
+
+  const accessToken = getReportMapboxAccessToken();
+  const out: Record<string, string | null> = {};
+
+  for (const plotId of Object.keys(applicationsByPlot)) {
+    const plotApplications = applicationsByPlot[plotId];
+    const plot = plotApplications[0]?.plot;
+    if (!plot) {
+      out[plotId] = null;
+      continue;
+    }
+
+    const mapResult = buildReportMapboxStaticUrl({
+      plot,
+      mapWidth: REPORT_MAP_WIDTH,
+      mapHeight: REPORT_MAP_HEIGHT,
+      accessToken,
+    });
+
+    if (!mapResult.url) {
+      out[plotId] = null;
+      continue;
+    }
+
+    out[plotId] = await fetchRemoteImageAsDataUrl(mapResult.url);
+  }
+
+  return out;
+}
+
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
   return (serviceOrder.plots || [])
     .map((plot) => {
@@ -239,19 +284,12 @@ export async function generateApplicationsReportPDF({
   applications,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  const element = ServiceOrdersDetailedReportPDF({
-    title: `Relatorio Detalhado da OS #${serviceOrder.number}`,
-    generatedAt: new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(new Date()),
-    filtersSummary: [],
-    sections: [{ serviceOrder, applications }],
+  const prefetchedMapImageDataUrls = await prefetchReportMapImagesByPlotId(applications);
+
+  const element = ApplicationsReportPDF({
+    serviceOrder,
+    applications,
+    prefetchedMapImageDataUrls,
   });
 
   // @ts-expect-error - toBlob is not typed

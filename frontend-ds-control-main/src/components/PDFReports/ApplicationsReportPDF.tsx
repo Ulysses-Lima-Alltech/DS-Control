@@ -123,10 +123,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
       >
         <View
           style={{
-            padding: 40,
+            padding: 30,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
             alignItems: 'center',
           }}
         >
@@ -136,7 +135,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             style={{
               width: 300,
               height: 100,
-              marginBottom: 30,
+              marginBottom: 18,
               objectFit: 'contain',
             }}
           />
@@ -154,7 +153,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             style={{
               fontSize: 12,
               textAlign: 'center',
-              marginBottom: 40,
+              marginBottom: 24,
               lineHeight: 1.5,
             }}
           >
@@ -166,8 +165,8 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           <View
             style={{
               width: '100%',
-              marginTop: 20,
-              padding: 20,
+              marginTop: 12,
+              padding: 14,
               border: '1px solid #E5E7EB',
               borderRadius: 8,
             }}
@@ -395,8 +394,8 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           <View
             style={{
               width: '100%',
-              marginTop: 30,
-              padding: 20,
+              marginTop: 14,
+              padding: 14,
               border: '1px solid #E5E7EB',
               borderRadius: 8,
             }}
@@ -753,7 +752,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             </View>
 
             <View
-              wrap={false}
               style={{
                 backgroundColor: '#F9FAFB',
                 padding: 15,
@@ -854,7 +852,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
             {plotApplications.map((application) => (
               <View
-                wrap={false}
                 key={application.id}
                 style={{
                   backgroundColor: '#FFFFFF',
