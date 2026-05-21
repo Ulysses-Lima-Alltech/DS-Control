@@ -26,6 +26,7 @@ import { useGetAllUsers } from '@/queries/user.query';
 import { getAllApplications, getApplicationsByServiceOrderId } from '@/services/application.service';
 import { getAllFarms } from '@/services/farm.service';
 import { getAllServiceOrders, getServiceOrderById } from '@/services/service-order.service';
+import { getAllUsers } from '@/services/user.service';
 import {
   APPLICATION_ISSUE_LABELS,
   type Application,
@@ -93,6 +94,13 @@ type ApplicationPreviewRow = {
   typeOrIssueLabel: string;
   appliedHectares: number;
   statusLabel: string;
+};
+type PilotPreviewRow = {
+  pilotId: string;
+  pilotName: string;
+  statusLabel: string;
+  applicationsCount: number;
+  totalHectares: number;
 };
 
 const STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
@@ -214,6 +222,9 @@ export default function ReportsCenterPage() {
   const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
   const [applicationsPreviewTotalCount, setApplicationsPreviewTotalCount] = useState(0);
   const [applicationsPreviewTotalHectares, setApplicationsPreviewTotalHectares] = useState(0);
+  const [pilotPreviewRows, setPilotPreviewRows] = useState<PilotPreviewRow[]>([]);
+  const [pilotPreviewLoading, setPilotPreviewLoading] = useState(false);
+  const [pilotPreviewError, setPilotPreviewError] = useState<string | null>(null);
 
   const selectedReport = useMemo(
     () => reportsCatalog.find((item) => item.id === selectedReportId) || reportsCatalog[0],
@@ -241,9 +252,9 @@ export default function ReportsCenterPage() {
 
   const { data: pilotsData } = useGetAllUsers({
     page: '1',
-    limit: '200',
+    limit: '400',
     type: 'pilot',
-    status: 'active',
+    status: 'all',
     search: pilotSearch || undefined,
   });
   const pilots = pilotsData?.data || [];
@@ -531,13 +542,7 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateServiceOrderReport = async () => {
-    const targets =
-      selectedServiceOrderIds.length > 0
-        ? selectedServiceOrderIds
-        : selectedServiceOrderId
-          ? [selectedServiceOrderId]
-          : [];
-
+    const targets = selectedServiceOrderIds;
     if (targets.length === 0) {
       throw new Error('Selecione ao menos uma OS para gerar o relatorio da OS.');
     }
@@ -608,12 +613,7 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateSelectedServiceOrdersDetailedReport = async () => {
-    const targets =
-      selectedServiceOrderIds.length > 0
-        ? selectedServiceOrderIds
-        : selectedServiceOrderId
-          ? [selectedServiceOrderId]
-          : [];
+    const targets = selectedServiceOrderIds;
     if (targets.length === 0) {
       throw new Error('Selecione ao menos uma OS para gerar o relatorio detalhado.');
     }
@@ -669,6 +669,29 @@ export default function ReportsCenterPage() {
       groups,
     });
     downloadPDF(blob, 'relatorio-por-piloto.pdf');
+  };
+
+  const handleGeneratePilotReportById = async (pilotId: string, pilotName: string) => {
+    const response = await getAllApplications({
+      ...buildApplicationFilters(),
+      pilotId,
+      page: '1',
+      limit: '1000',
+    });
+    const apps = response.data || [];
+    if (apps.length === 0) {
+      throw new Error(`Nenhuma aplicacao encontrada para o piloto ${pilotName}.`);
+    }
+
+    const blob = await generatePilotApplicationsReportPDF({
+      generatedAt: formatGeneratedAt(),
+      filtersSummary: [
+        ...resolveFiltersSummary().filter((item) => item.label !== 'Piloto'),
+        { label: 'Piloto', value: pilotName },
+      ],
+      groups: [{ pilotName, applications: apps }],
+    });
+    downloadPDF(blob, `relatorio-piloto-${pilotName.replace(/\s+/g, '-').toLowerCase()}.pdf`);
   };
 
   const handleGenerateFarmsReport = async () => {
@@ -902,6 +925,84 @@ export default function ReportsCenterPage() {
       isMounted = false;
     };
   }, [selectedReport.id, filters]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPilotPreview = async () => {
+      if (selectedReport.id !== 'pilot') return;
+      setPilotPreviewLoading(true);
+      setPilotPreviewError(null);
+      try {
+        const [usersResponse, applicationsResponse] = await Promise.all([
+          getAllUsers({
+            page: '1',
+            limit: '500',
+            type: 'pilot',
+            status: 'all',
+            search: pilotSearch || undefined,
+          }),
+          getAllApplications({
+            ...buildApplicationFilters(),
+            page: '1',
+            limit: '1000',
+          }),
+        ]);
+
+        if (!isMounted) return;
+        const applications = applicationsResponse.data || [];
+        const map = new Map<string, PilotPreviewRow>();
+
+        (usersResponse.data || []).forEach((pilot) => {
+          map.set(pilot.id, {
+            pilotId: pilot.id,
+            pilotName: pilot.name,
+            statusLabel: pilot.deletedAt ? 'Inativo' : 'Ativo',
+            applicationsCount: 0,
+            totalHectares: 0,
+          });
+        });
+
+        applications.forEach((app) => {
+          const pilotId = app.pilotId || app.pilot?.id;
+          const pilotName = app.pilot?.name || 'Piloto nao informado';
+          const current = pilotId
+            ? map.get(pilotId) || {
+                pilotId,
+                pilotName,
+                statusLabel: 'Ativo',
+                applicationsCount: 0,
+                totalHectares: 0,
+              }
+            : {
+                pilotId: `unknown-${pilotName}`,
+                pilotName,
+                statusLabel: 'Nao informado',
+                applicationsCount: 0,
+                totalHectares: 0,
+              };
+          current.applicationsCount += 1;
+          current.totalHectares += parseNumber(app.hectares);
+          map.set(current.pilotId, current);
+        });
+
+        const rows = Array.from(map.values()).sort((a, b) => a.pilotName.localeCompare(b.pilotName, 'pt-BR'));
+        setPilotPreviewRows(rows);
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Erro ao carregar pilotos.';
+        setPilotPreviewRows([]);
+        setPilotPreviewError(message);
+      } finally {
+        if (isMounted) setPilotPreviewLoading(false);
+      }
+    };
+
+    loadPilotPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReport.id, filters, pilotSearch]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1261,7 +1362,7 @@ export default function ReportsCenterPage() {
               </div>
             )}
 
-            {supports('serviceOrder') && (
+            {supports('serviceOrder') && selectedReport.id !== 'service-orders' && (
               <div className='space-y-1 md:col-span-2 xl:col-span-2'>
                 <p className='text-sm font-medium'>
                   {selectedReport.serviceOrderSelectionLabel || 'Selecionar OS'}
@@ -1303,8 +1404,7 @@ export default function ReportsCenterPage() {
                     applicationsPreviewRows.length === 0 ||
                     !selectedApplicationId)) ||
                 (selectedReport.id === 'service-orders' &&
-                  selectedServiceOrderIds.length === 0 &&
-                  !selectedServiceOrderId)
+                  selectedServiceOrderIds.length === 0)
               }
             >
               {isGeneratingReport ? (
@@ -1348,10 +1448,7 @@ export default function ReportsCenterPage() {
                 <Button
                   size='sm'
                   onClick={handleGenerateServiceOrderReport}
-                  disabled={
-                    isGeneratingReport ||
-                    (selectedServiceOrderIds.length === 0 && !selectedServiceOrderId)
-                  }
+                  disabled={isGeneratingReport || selectedServiceOrderIds.length === 0}
                 >
                   Mapa estrategico (selecionadas)
                 </Button>
@@ -1359,10 +1456,7 @@ export default function ReportsCenterPage() {
                   size='sm'
                   variant='secondary'
                   onClick={handleGenerateSelectedServiceOrdersDetailedReport}
-                  disabled={
-                    isGeneratingReport ||
-                    (selectedServiceOrderIds.length === 0 && !selectedServiceOrderId)
-                  }
+                  disabled={isGeneratingReport || selectedServiceOrderIds.length === 0}
                 >
                   Relatorio detalhado (selecionadas)
                 </Button>
@@ -1654,6 +1748,54 @@ export default function ReportsCenterPage() {
                   )}
                 </Button>
               </div>
+              {pilotPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando pilotos...</p>}
+              {pilotPreviewError && <p className='text-sm text-red-500'>{pilotPreviewError}</p>}
+              {!pilotPreviewLoading && !pilotPreviewError && (
+                <div className='space-y-2'>
+                  {pilotPreviewRows.map((pilotRow) => (
+                    <div key={pilotRow.pilotId} className='rounded-lg border p-3'>
+                      <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
+                        <div className='space-y-1'>
+                          <p className='text-sm font-semibold'>{pilotRow.pilotName}</p>
+                          <p className='text-xs text-muted-foreground'>Status: {pilotRow.statusLabel}</p>
+                          <p className='text-xs text-muted-foreground'>
+                            Aplicacoes: {pilotRow.applicationsCount} | Hectares: {pilotRow.totalHectares.toFixed(2)} ha
+                          </p>
+                        </div>
+                        <Button
+                          size='sm'
+                          onClick={async () => {
+                            try {
+                              setIsGeneratingRowReport(`pilot-${pilotRow.pilotId}`);
+                              setGenerationError(null);
+                              setGenerationSuccess(null);
+                              await handleGeneratePilotReportById(pilotRow.pilotId, pilotRow.pilotName);
+                              setGenerationSuccess(`Relatorio do piloto ${pilotRow.pilotName} gerado com sucesso.`);
+                              toast.success('Relatorio do piloto gerado com sucesso.');
+                            } catch (error) {
+                              const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio do piloto.';
+                              setGenerationError(message);
+                              toast.error(message);
+                            } finally {
+                              setIsGeneratingRowReport(null);
+                            }
+                          }}
+                          disabled={isGeneratingReport || isGeneratingRowReport === `pilot-${pilotRow.pilotId}`}
+                        >
+                          {isGeneratingRowReport === `pilot-${pilotRow.pilotId}` ? (
+                            <>
+                              <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                              Gerando...
+                            </>
+                          ) : (
+                            'Gerar relatorio'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className='text-xs text-muted-foreground'>
                 Se um piloto estiver filtrado, o PDF trara apenas esse piloto. Sem filtro de piloto, o PDF agrupa todos os pilotos retornados.
               </p>
