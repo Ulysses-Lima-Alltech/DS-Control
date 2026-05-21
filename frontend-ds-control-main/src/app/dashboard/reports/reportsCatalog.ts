@@ -1,4 +1,4 @@
-export type ReportId = 'applications' | 'service-orders' | 'farms' | 'general';
+export type ReportId = 'applications' | 'service-orders' | 'farms' | 'general' | 'pilot';
 
 export type ReportFilterKey =
   | 'period'
@@ -79,6 +79,25 @@ export const reportsCatalog: ReportCatalogItem[] = [
     id: 'general',
     label: 'Relatorio geral',
     description: 'Consolidado de aplicacoes e OS para o recorte filtrado.',
+    supportedFilters: [
+      'period',
+      'cropSeason',
+      'customer',
+      'farm',
+      'pilot',
+      'product',
+      'assistant',
+      'drone',
+      'serviceOrderStatus',
+      'applicationIssue',
+      'observation',
+      'serviceOrderNumber',
+    ],
+  },
+  {
+    id: 'pilot',
+    label: 'Relatorio por piloto',
+    description: 'Consolida aplicacoes por piloto em lista compacta, sem mapa.',
     supportedFilters: [
       'period',
       'cropSeason',
