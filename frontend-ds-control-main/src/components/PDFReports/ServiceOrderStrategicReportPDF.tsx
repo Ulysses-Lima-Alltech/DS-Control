@@ -174,9 +174,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                         key={shape.id}
                         d={shape.pathD}
                         fill={color.fill}
-                        fillOpacity={isApplied ? 0.78 : 0.45}
-                        stroke={isApplied ? '#065F46' : color.stroke}
-                        strokeWidth={isApplied ? 1.2 : 0.55}
+                        fillOpacity={isApplied ? 0.62 : 0.48}
+                        stroke={isApplied ? '#111827' : color.stroke}
+                        strokeWidth={isApplied ? 1.4 : 0.55}
                         fillRule='evenodd'
                       />
                     );
@@ -208,12 +208,30 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             <View style={{ marginTop: 6, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 6 }}>
               <Text style={{ fontSize: 8, fontWeight: 700, marginBottom: 4 }}>Status operacional</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-                <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: '#86EFAC', border: '1px solid #065F46', marginRight: 4 }} />
-                <Text style={{ fontSize: 7.5 }}>Aplicado</Text>
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    backgroundColor: '#FFFFFF',
+                    border: '2px solid #111827',
+                    marginRight: 4,
+                  }}
+                />
+                <Text style={{ fontSize: 7.5 }}>Aplicado (contorno escuro espesso)</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: '#D1D5DB', border: '1px solid #64748B', marginRight: 4 }} />
-                <Text style={{ fontSize: 7.5 }}>Pendente / Programado</Text>
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #64748B',
+                    marginRight: 4,
+                  }}
+                />
+                <Text style={{ fontSize: 7.5 }}>Pendente / Programado (contorno fino padrao)</Text>
               </View>
             </View>
           </View>

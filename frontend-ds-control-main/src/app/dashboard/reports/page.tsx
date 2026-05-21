@@ -38,6 +38,7 @@ import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicat
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
   downloadPDF,
+  generateApplicationsReportPDF,
   generateFarmsReportPDF,
   generateGeneralReportPDF,
   generateServiceOrderStrategicReportPDF,
@@ -551,6 +552,35 @@ export default function ReportsCenterPage() {
       setSelectedServiceOrderId(serviceOrderId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio.';
+      setGenerationError(message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingRowReport(null);
+    }
+  };
+
+  const handleGenerateServiceOrderApplicationsReportById = async (serviceOrderId: string) => {
+    try {
+      setIsGeneratingRowReport(`apps-${serviceOrderId}`);
+      setGenerationError(null);
+      setGenerationSuccess(null);
+
+      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      if (applications.length === 0) {
+        throw new Error('Nao ha aplicacoes para gerar o relatorio detalhado desta OS.');
+      }
+
+      const blob = await generateApplicationsReportPDF({
+        serviceOrder: serviceOrderForReport,
+        applications,
+      });
+
+      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderForReport.number}.pdf`);
+      setGenerationSuccess(`Relatorio detalhado da OS #${serviceOrderForReport.number} gerado com sucesso.`);
+      toast.success('Relatorio detalhado gerado com sucesso.');
+      setSelectedServiceOrderId(serviceOrderId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio detalhado.';
       setGenerationError(message);
       toast.error(message);
     } finally {
@@ -1209,7 +1239,7 @@ export default function ReportsCenterPage() {
               <div>
                 <p className='text-sm font-semibold'>Ordens de Servico encontradas</p>
                 <p className='text-xs text-muted-foreground'>
-                  Selecione uma OS para gerar o relatorio estrategico.
+                  Cada OS possui dois fluxos: mapa estrategico e relatorio detalhado de aplicacao.
                 </p>
               </div>
 
@@ -1271,7 +1301,24 @@ export default function ReportsCenterPage() {
                                 Gerando...
                               </>
                             ) : (
-                              'Gerar relatorio'
+                              'Mapa estrategico'
+                            )}
+                          </Button>
+                          <Button
+                            size='sm'
+                            variant='secondary'
+                            onClick={() => handleGenerateServiceOrderApplicationsReportById(serviceOrder.id)}
+                            disabled={
+                              isGeneratingReport || isGeneratingRowReport === `apps-${serviceOrder.id}`
+                            }
+                          >
+                            {isGeneratingRowReport === `apps-${serviceOrder.id}` ? (
+                              <>
+                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                Gerando...
+                              </>
+                            ) : (
+                              'Relatorio detalhado'
                             )}
                           </Button>
                           <Button size='sm' variant='outline' asChild>

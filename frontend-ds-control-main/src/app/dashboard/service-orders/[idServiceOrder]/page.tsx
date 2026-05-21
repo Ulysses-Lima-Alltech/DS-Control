@@ -579,6 +579,14 @@ export default function ServiceOrderPage({
             <FileText className='mr-2 h-4 w-4' />
             Mapa estrategico da OS
           </Button>
+          <Button
+            variant='outline'
+            disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
+            onClick={() => handleGenerateApplicationsReport('all')}
+          >
+            <FileText className='mr-2 h-4 w-4' />
+            Relatorio de aplicacao da OS
+          </Button>
         </CardContent>
       </Card>
 
