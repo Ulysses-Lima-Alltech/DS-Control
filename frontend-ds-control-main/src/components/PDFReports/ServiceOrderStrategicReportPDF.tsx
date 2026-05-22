@@ -9,10 +9,12 @@ import {
   type StrategicFarmColor,
 } from '@/utils/strategicReportPalette';
 import {
+  buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
   extractPlotPolygons,
   sanitizeStrategicPolygons,
   type StrategicMapShapeInput,
+  type StrategicMapShapeProjected,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
 
@@ -56,6 +58,11 @@ const BRAND_YELLOW = '#EAAE07';
 const DARK_TEXT = '#0F172A';
 const MUTED_TEXT = '#6B7280';
 const LIGHT_BORDER = '#E5E7EB';
+const STRATEGIC_POLYGON_STROKE = '#111827';
+const STRATEGIC_LABEL_TEXT = '#FFFFFF';
+const STRATEGIC_LABEL_HALO = '#0F172A';
+const LABEL_COLLISION_GAP_PX = 1.6;
+const LABEL_MAP_MARGIN_PX = 3;
 
 interface ServiceOrderStrategicReportPDFProps {
   serviceOrder: ServiceOrder;
@@ -65,6 +72,37 @@ interface ServiceOrderStrategicReportPDFProps {
   mapViewport?: StrategicMapViewport | null;
   farmColorMap?: Map<string, StrategicFarmColor>;
 }
+
+type LabelDensity = 'large' | 'medium' | 'small';
+
+type LabelBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+type LabelPlacement = {
+  x: number;
+  y: number;
+  codeY: number;
+  areaY: number;
+  code: string;
+  areaText: string;
+  showArea: boolean;
+  primarySize: number;
+  secondarySize: number;
+  bounds: LabelBounds;
+};
+
+type StrategicVectorShape = {
+  shape: StrategicMapShapeProjected;
+  labelCode: string;
+  areaText: string;
+  areaHa: number;
+  color: StrategicFarmColor;
+  isApplied: boolean;
+};
 
 function parseNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -93,6 +131,423 @@ function formatGeneratedAt(): string {
     second: '2-digit',
     hour12: false,
   }).format(new Date());
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function compactPlotCode(label: string, fallbackPlotId: string): string {
+  const normalized = label.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return `TALHAO ${fallbackPlotId.slice(0, 6).toUpperCase()}`;
+  }
+
+  const farmMatch = normalized.match(/\bF\s*[-_/]?\s*(\d+[A-Z]?)\b/);
+  const plotMatch = normalized.match(/\bT\s*[-_/]?\s*(\d+[A-Z]?)\b/);
+  if (farmMatch && plotMatch) {
+    return `F${farmMatch[1]} T${plotMatch[1]}`;
+  }
+  if (farmMatch) {
+    return `F${farmMatch[1]}`;
+  }
+  if (plotMatch) {
+    return `T${plotMatch[1]}`;
+  }
+
+  const compact = normalized.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!compact) {
+    return `TALHAO ${fallbackPlotId.slice(0, 6).toUpperCase()}`;
+  }
+
+  const tokens = compact.split(' ');
+  if (tokens.length >= 2) {
+    return `${tokens[0]} ${tokens[1]}`.slice(0, 22);
+  }
+  return compact.slice(0, 22);
+}
+
+function resolveLabelDensity(shape: StrategicMapShapeProjected): LabelDensity {
+  const isLarge = shape.bbox.width >= 132 && shape.bbox.height >= 58 && shape.areaPx >= 15600;
+  if (isLarge) return 'large';
+
+  const isMedium = shape.bbox.width >= 74 && shape.bbox.height >= 34 && shape.areaPx >= 4300;
+  if (isMedium) return 'medium';
+
+  return 'small';
+}
+
+function estimateTextWidth(text: string, fontSize: number): number {
+  let units = 0;
+  for (const char of text) {
+    if (char === ' ') {
+      units += 0.34;
+      continue;
+    }
+
+    if ('WMWQ@#'.includes(char)) {
+      units += 0.9;
+      continue;
+    }
+
+    if ('I1JLT'.includes(char)) {
+      units += 0.46;
+      continue;
+    }
+
+    if (',.;:'.includes(char)) {
+      units += 0.3;
+      continue;
+    }
+
+    units += 0.64;
+  }
+  return units * fontSize;
+}
+
+function measureLabel(
+  code: string,
+  areaText: string,
+  primarySize: number,
+  secondarySize: number,
+  showArea: boolean
+): {
+  width: number;
+  height: number;
+  primaryHeight: number;
+  secondaryHeight: number;
+  lineGap: number;
+} {
+  const codeWidth = estimateTextWidth(code, primarySize * 0.99);
+  const areaWidth = showArea ? estimateTextWidth(areaText, secondarySize * 0.99) : 0;
+
+  const primaryHeight = primarySize * 1.04;
+  const secondaryHeight = showArea ? secondarySize * 1.02 : 0;
+  const lineGap = showArea ? Math.max(2.2, primarySize * 0.15) : 0;
+  const textWidth = Math.max(codeWidth, areaWidth);
+  const textHeight = showArea ? primaryHeight + lineGap + secondaryHeight : primaryHeight;
+  const padX = clamp(primarySize * 0.3, 3.8, 10);
+  const padY = clamp(primarySize * 0.2, 2.4, 8);
+
+  return {
+    width: textWidth + padX * 2,
+    height: textHeight + padY * 2,
+    primaryHeight,
+    secondaryHeight,
+    lineGap,
+  };
+}
+
+function buildLabelBounds(x: number, y: number, width: number, height: number): LabelBounds {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  return {
+    minX: x - halfWidth,
+    minY: y - halfHeight,
+    maxX: x + halfWidth,
+    maxY: y + halfHeight,
+  };
+}
+
+function intersectsBounds(a: LabelBounds, b: LabelBounds, gap: number): boolean {
+  return !(
+    a.maxX + gap < b.minX ||
+    a.minX - gap > b.maxX ||
+    a.maxY + gap < b.minY ||
+    a.minY - gap > b.maxY
+  );
+}
+
+function isInsideMapBounds(bounds: LabelBounds, mapWidth: number, mapHeight: number): boolean {
+  return (
+    bounds.minX >= LABEL_MAP_MARGIN_PX &&
+    bounds.minY >= LABEL_MAP_MARGIN_PX &&
+    bounds.maxX <= mapWidth - LABEL_MAP_MARGIN_PX &&
+    bounds.maxY <= mapHeight - LABEL_MAP_MARGIN_PX
+  );
+}
+
+function pointInRing(point: { x: number; y: number }, ring: Array<{ x: number; y: number }>): boolean {
+  if (ring.length < 3) {
+    return false;
+  }
+
+  const { x: px, y: py } = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const { x: xi, y: yi } = ring[i];
+    const { x: xj, y: yj } = ring[j];
+    const intersects =
+      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInProjectedPolygons(
+  point: { x: number; y: number },
+  projectedPolygons: StrategicMapShapeProjected['projectedPolygons']
+): boolean {
+  return projectedPolygons.some((polygon) => {
+    const outerRing = polygon[0];
+    if (!outerRing || !pointInRing(point, outerRing)) {
+      return false;
+    }
+
+    for (let holeIndex = 1; holeIndex < polygon.length; holeIndex++) {
+      if (pointInRing(point, polygon[holeIndex])) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+function isLabelBoundsInsideProjectedShape(
+  bounds: LabelBounds,
+  projectedPolygons: StrategicMapShapeProjected['projectedPolygons']
+): boolean {
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  };
+  const testPoints = [
+    center,
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.minX, y: bounds.maxY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: center.x, y: bounds.minY },
+    { x: center.x, y: bounds.maxY },
+    { x: bounds.minX, y: center.y },
+    { x: bounds.maxX, y: center.y },
+  ];
+
+  return testPoints.every((point) => pointInProjectedPolygons(point, projectedPolygons));
+}
+
+function buildLabelAnchorCandidates(
+  shape: StrategicMapShapeProjected
+): Array<{ x: number; y: number }> {
+  const { labelX, labelY } = shape;
+  const offsetX = clamp(shape.bbox.width * 0.24, 10, 64);
+  const offsetY = clamp(shape.bbox.height * 0.24, 10, 54);
+
+  const out: Array<{ x: number; y: number }> = [
+    { x: labelX, y: labelY },
+    { x: labelX - offsetX, y: labelY },
+    { x: labelX + offsetX, y: labelY },
+    { x: labelX, y: labelY - offsetY },
+    { x: labelX, y: labelY + offsetY },
+    { x: labelX - offsetX, y: labelY - offsetY },
+    { x: labelX + offsetX, y: labelY - offsetY },
+    { x: labelX - offsetX, y: labelY + offsetY },
+    { x: labelX + offsetX, y: labelY + offsetY },
+  ];
+
+  const minDim = Math.max(1, Math.min(shape.bbox.width, shape.bbox.height));
+  const radialStep = clamp(minDim * 0.18, 8, 34);
+  for (let ring = 1; ring <= 3; ring++) {
+    const radius = radialStep * ring;
+    for (let angleIdx = 0; angleIdx < 12; angleIdx++) {
+      const angle = (Math.PI * 2 * angleIdx) / 12;
+      out.push({
+        x: labelX + Math.cos(angle) * radius,
+        y: labelY + Math.sin(angle) * radius,
+      });
+    }
+  }
+
+  const gridStepX = clamp(shape.bbox.width * 0.18, 7, 30);
+  const gridStepY = clamp(shape.bbox.height * 0.18, 7, 30);
+  for (let gx = -2; gx <= 2; gx++) {
+    for (let gy = -2; gy <= 2; gy++) {
+      if (gx === 0 && gy === 0) continue;
+      out.push({
+        x: labelX + gx * gridStepX,
+        y: labelY + gy * gridStepY,
+      });
+    }
+  }
+
+  const deduped: Array<{ x: number; y: number }> = [];
+  const seen = new Set<string>();
+  out.forEach((point) => {
+    const key = `${Math.round(point.x * 2) / 2}|${Math.round(point.y * 2) / 2}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(point);
+  });
+  return deduped;
+}
+
+function resolveLabelPlacement(params: {
+  vectorShape: StrategicVectorShape;
+  mapWidth: number;
+  mapHeight: number;
+  occupiedBounds: LabelBounds[];
+  forceCodeOnly?: boolean;
+  relaxedPass?: boolean;
+}): LabelPlacement | null {
+  const { vectorShape, mapWidth, mapHeight, occupiedBounds, forceCodeOnly, relaxedPass } = params;
+  const { shape } = vectorShape;
+  const density = resolveLabelDensity(shape);
+  const minPrimaryByDensity = density === 'small' ? 10 : density === 'medium' ? 12 : 14;
+  const baseBySize = Math.min(shape.bbox.width, shape.bbox.height) * 0.24;
+  const baseByArea = Math.sqrt(Math.max(1, shape.areaPx)) * 0.14;
+  const basePrimary = clamp(
+    Math.min(baseBySize, baseByArea),
+    relaxedPass ? 8 : minPrimaryByDensity,
+    34
+  );
+  const condensedCode = vectorShape.labelCode.replace(/\s+/g, '');
+  const anchors = buildLabelAnchorCandidates(shape);
+
+  const variants: Array<{ code: string; showArea: boolean; fontScale: number }> = [];
+  const allowArea = !forceCodeOnly && vectorShape.areaHa > 0 && density !== 'small';
+
+  if (allowArea && density === 'large') {
+    variants.push({ code: vectorShape.labelCode, showArea: true, fontScale: 1 });
+    variants.push({ code: vectorShape.labelCode, showArea: true, fontScale: 0.9 });
+  }
+
+  if (allowArea && density === 'medium') {
+    variants.push({ code: vectorShape.labelCode, showArea: true, fontScale: 0.92 });
+  }
+
+  variants.push({ code: vectorShape.labelCode, showArea: false, fontScale: density === 'small' ? 0.9 : 1 });
+  variants.push({ code: vectorShape.labelCode, showArea: false, fontScale: density === 'small' ? 0.8 : 0.88 });
+
+  if (condensedCode && condensedCode !== vectorShape.labelCode) {
+    variants.push({ code: condensedCode, showArea: false, fontScale: 0.8 });
+  }
+
+  const maxCollisionGap = relaxedPass ? 0.6 : LABEL_COLLISION_GAP_PX;
+  const triedVariants = new Set<string>();
+  const uniqueVariants = variants.filter((variant) => {
+    const key = `${variant.code}|${variant.showArea}|${variant.fontScale.toFixed(3)}`;
+    if (triedVariants.has(key)) return false;
+    triedVariants.add(key);
+    return true;
+  });
+
+  for (const variant of uniqueVariants) {
+    const primarySize = clamp(
+      basePrimary * variant.fontScale,
+      relaxedPass ? 7.6 : minPrimaryByDensity,
+      34
+    );
+    const secondarySize = clamp(primarySize * 0.72, 7, 24);
+    const metrics = measureLabel(
+      variant.code,
+      vectorShape.areaText,
+      primarySize,
+      secondarySize,
+      variant.showArea
+    );
+    const widthLimit = Math.max(38, shape.bbox.width * (density === 'small' ? 1.34 : 1.55));
+    const heightLimit = Math.max(19, shape.bbox.height * (density === 'small' ? 1.45 : 1.7));
+    if (metrics.width > widthLimit || metrics.height > heightLimit) {
+      continue;
+    }
+
+    for (const anchor of anchors) {
+      if (!pointInProjectedPolygons(anchor, shape.projectedPolygons)) {
+        continue;
+      }
+
+      const bounds = buildLabelBounds(anchor.x, anchor.y, metrics.width, metrics.height);
+      if (!isInsideMapBounds(bounds, mapWidth, mapHeight)) {
+        continue;
+      }
+
+      if (!isLabelBoundsInsideProjectedShape(bounds, shape.projectedPolygons)) {
+        continue;
+      }
+
+      const collides = occupiedBounds.some((occupied) =>
+        intersectsBounds(bounds, occupied, maxCollisionGap)
+      );
+      if (collides) {
+        continue;
+      }
+
+      const codeY = variant.showArea
+        ? anchor.y - (metrics.secondaryHeight + metrics.lineGap) / 2
+        : anchor.y;
+      const areaY = variant.showArea
+        ? anchor.y + (metrics.primaryHeight + metrics.lineGap) / 2
+        : anchor.y;
+
+      return {
+        x: anchor.x,
+        y: anchor.y,
+        codeY,
+        areaY,
+        code: variant.code,
+        areaText: vectorShape.areaText,
+        showArea: variant.showArea,
+        primarySize,
+        secondarySize,
+        bounds,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildStrategicLabelPlacements(
+  vectorShapes: StrategicVectorShape[],
+  mapWidth: number,
+  mapHeight: number
+): { placements: Map<string, LabelPlacement>; labelsDrawn: number; labelsOmitted: number } {
+  const occupiedBounds: LabelBounds[] = [];
+  const placements = new Map<string, LabelPlacement>();
+  const sortedShapes = [...vectorShapes].sort((a, b) => b.shape.areaPx - a.shape.areaPx);
+  const unresolved: StrategicVectorShape[] = [];
+
+  sortedShapes.forEach((vectorShape) => {
+    const placement = resolveLabelPlacement({
+      vectorShape,
+      mapWidth,
+      mapHeight,
+      occupiedBounds,
+    });
+
+    if (!placement) {
+      unresolved.push(vectorShape);
+      return;
+    }
+
+    placements.set(vectorShape.shape.id, placement);
+    occupiedBounds.push(placement.bounds);
+  });
+
+  unresolved.forEach((vectorShape) => {
+    const placement = resolveLabelPlacement({
+      vectorShape,
+      mapWidth,
+      mapHeight,
+      occupiedBounds,
+      forceCodeOnly: true,
+      relaxedPass: true,
+    });
+
+    if (!placement) {
+      return;
+    }
+
+    placements.set(vectorShape.shape.id, placement);
+    occupiedBounds.push(placement.bounds);
+  });
+
+  return {
+    placements,
+    labelsDrawn: placements.size,
+    labelsOmitted: Math.max(0, vectorShapes.length - placements.size),
+  };
 }
 
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
@@ -155,6 +610,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     farmColorMap && farmColorMap.size > 0
       ? farmColorMap
       : buildStrategicFarmColorMap(Array.from(new Set(plotRows.map((row) => row.farmId))));
+
+  const plotRowsById = new Map(validPlotRows.map((row) => [row.plotId, row]));
 
   const appliedPlotIds = new Set(
     applications
@@ -221,8 +678,50 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       })()
     : 0.5;
 
-  const mapImageSrc = prefetchedMapImageDataUrl || prefetchedMapBaseDataUrl;
+  const mapImageSrc = prefetchedMapBaseDataUrl || prefetchedMapImageDataUrl;
   const hasMap = Boolean(mapImageSrc);
+  const strategicProjection = viewport
+    ? buildStrategicMapProjectionFromViewport(shapesInput, viewport)
+    : null;
+
+  const strategicVectorShapes: StrategicVectorShape[] =
+    strategicProjection?.shapes.map((shape) => {
+      const row = plotRowsById.get(shape.id);
+      const farmColor =
+        derivedFarmColorMap.get(row?.farmId || shape.farmKey) || {
+          fill: '#CBD5E1',
+          stroke: '#64748B',
+        };
+
+      const plotLabel = compactPlotCode(row?.plotName || shape.label, shape.id);
+      const areaHa = row?.hectares || 0;
+
+      return {
+        shape,
+        labelCode: plotLabel,
+        areaText: formatHectares(areaHa),
+        areaHa,
+        color: farmColor,
+        isApplied: appliedPlotIds.has(shape.id),
+      };
+    }) || [];
+
+  const strategicLabelLayout = buildStrategicLabelPlacements(
+    strategicVectorShapes,
+    MAP_LOGICAL_WIDTH,
+    MAP_LOGICAL_HEIGHT
+  );
+
+  if (strategicProjection) {
+    console.info('[StrategicPDF][VectorMap]', {
+      totalShapes: strategicVectorShapes.length,
+      labelsDrawn: strategicLabelLayout.labelsDrawn,
+      labelsOmitted: strategicLabelLayout.labelsOmitted,
+      hasBaseMap: hasMap,
+      mapLogicalWidth: MAP_LOGICAL_WIDTH,
+      mapLogicalHeight: MAP_LOGICAL_HEIGHT,
+    });
+  }
 
   return (
     <Document>
@@ -280,9 +779,90 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 top: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: 'fill',
               }}
             />
+          ) : null}
+
+          {strategicProjection ? (
+            <Svg
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: '100%',
+                height: '100%',
+              }}
+              viewBox={`0 0 ${MAP_LOGICAL_WIDTH} ${MAP_LOGICAL_HEIGHT}`}
+              preserveAspectRatio='none'
+            >
+              {strategicVectorShapes.map(({ shape, color, isApplied }) => (
+                <Path
+                  key={`shape-${shape.id}`}
+                  d={shape.pathD}
+                  fill={color.fill}
+                  fillOpacity={isApplied ? (hasMap ? 0.46 : 0.64) : hasMap ? 0.31 : 0.5}
+                  fillRule='evenodd'
+                  stroke={STRATEGIC_POLYGON_STROKE}
+                  strokeOpacity={0.9}
+                  strokeWidth={1.12}
+                />
+              ))}
+
+              {strategicVectorShapes.map(({ shape }) => {
+                const placement = strategicLabelLayout.placements.get(shape.id);
+                if (!placement) {
+                  return null;
+                }
+
+                const haloCodeWidth = clamp(placement.primarySize * 0.1, 0.95, 1.8);
+                const haloAreaWidth = clamp(placement.secondarySize * 0.1, 0.85, 1.65);
+
+                return (
+                  <React.Fragment key={`label-${shape.id}`}>
+                    <Text
+                      x={placement.x}
+                      y={placement.codeY}
+                      textAnchor='middle'
+                      dominantBaseline='middle'
+                      fill={STRATEGIC_LABEL_TEXT}
+                      stroke={STRATEGIC_LABEL_HALO}
+                      strokeWidth={haloCodeWidth}
+                      strokeLinejoin='round'
+                      strokeLinecap='round'
+                      style={{
+                        fontFamily: 'Roboto',
+                        fontWeight: 700,
+                        fontSize: placement.primarySize,
+                      }}
+                    >
+                      {placement.code}
+                    </Text>
+
+                    {placement.showArea ? (
+                      <Text
+                        x={placement.x}
+                        y={placement.areaY}
+                        textAnchor='middle'
+                        dominantBaseline='middle'
+                        fill={STRATEGIC_LABEL_TEXT}
+                        stroke={STRATEGIC_LABEL_HALO}
+                        strokeWidth={haloAreaWidth}
+                        strokeLinejoin='round'
+                        strokeLinecap='round'
+                        style={{
+                          fontFamily: 'Roboto',
+                          fontWeight: 600,
+                          fontSize: placement.secondarySize,
+                        }}
+                      >
+                        {placement.areaText}
+                      </Text>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
+            </Svg>
           ) : null}
 
           <View
@@ -354,6 +934,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 <Text style={{ flex: 1, fontSize: 6.7 }}>
                   {farm.farmName.toUpperCase()} ({formatHectares(farm.hectares)})
                 </Text>
+                <Text style={{ fontSize: 6.1, color: MUTED_TEXT }}>
+                  {farm.appliedCount}/{farm.totalCount}
+                </Text>
               </View>
             ))}
             {legendFarmRows.length > LEGEND_MAX_ROWS ? (
@@ -364,9 +947,17 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             <Text style={{ fontSize: 7.6, fontWeight: 700, marginTop: 2 }}>
               TOTAL: {formatHectares(totalValidHectares).toUpperCase()}
             </Text>
+            <Text style={{ fontSize: 5.8, color: MUTED_TEXT, marginTop: 1 }}>
+              Aplicados = opacidade levemente maior (contorno padrao uniforme)
+            </Text>
             {invalidPlotRows.length > 0 ? (
               <Text style={{ fontSize: 6.1, color: MUTED_TEXT, marginTop: 1 }}>
                 Talhoes sem geometria valida: {invalidPlotRows.length}
+              </Text>
+            ) : null}
+            {strategicProjection && strategicLabelLayout.labelsOmitted > 0 ? (
+              <Text style={{ fontSize: 5.8, color: MUTED_TEXT, marginTop: 1 }}>
+                Labels omitidos por sobreposicao extrema: {strategicLabelLayout.labelsOmitted}
               </Text>
             ) : null}
           </View>
@@ -415,7 +1006,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             <Image src='/images/pdf-logo-only.png' style={{ width: 90, height: 22, objectFit: 'contain' }} />
           </View>
 
-          {!hasMap ? (
+          {!hasMap && !strategicProjection ? (
             <View
               style={{
                 position: 'absolute',

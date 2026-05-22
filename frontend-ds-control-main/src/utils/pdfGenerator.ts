@@ -22,10 +22,6 @@ import {
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
-import {
-  generateStrategicMapImage,
-  type StrategicPlotRenderMeta,
-} from '@/utils/strategicReportMapImage';
 import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
 import {
   buildStrategicMapStaticBaseUrl,
@@ -89,7 +85,7 @@ const REPORT_MAP_HEIGHT = 480;
 const STRATEGIC_REPORT_MAP_WIDTH = 1200;
 const STRATEGIC_REPORT_MAP_HEIGHT = 760;
 const STRATEGIC_REPORT_MAP_PADDING = 48;
-const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/satellite-streets-v12';
+const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/light-v11';
 const STRATEGIC_REPORT_MAP_PIXEL_RATIO: 1 | 2 = 2;
 const STRATEGIC_REPORT_PADDING_SCALE = 1.2;
 const STRATEGIC_REPORT_SAFE_AREA_INSETS_PX = {
@@ -176,40 +172,6 @@ function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeI
     .filter((shape): shape is StrategicMapShapeInput => shape !== null);
 }
 
-function parseNumber(value: unknown): number {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (typeof value === 'string') {
-    const normalized = value.replace(',', '.').trim();
-    const parsed = Number.parseFloat(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
-
-function buildStrategicPlotRenderMetaMap(
-  serviceOrder: ServiceOrder,
-  applications: Application[]
-): Map<string, StrategicPlotRenderMeta> {
-  const appliedPlotIds = new Set(
-    applications
-      .filter((application) => application.serviceOrderId === serviceOrder.id)
-      .map((application) => application.plotId)
-      .filter((plotId): plotId is string => Boolean(plotId))
-  );
-
-  const out = new Map<string, StrategicPlotRenderMeta>();
-  (serviceOrder.plots || []).forEach((plot) => {
-    if (!plot.id) return;
-    out.set(plot.id, {
-      plotId: plot.id,
-      label: plot.name || `Talhao ${plot.id}`,
-      areaHa: parseNumber(plot.hectare),
-      isApplied: appliedPlotIds.has(plot.id),
-    });
-  });
-  return out;
-}
-
 function buildStrategicFarmColorMapFromServiceOrder(
   serviceOrder: ServiceOrder
 ): Map<string, StrategicFarmColor> {
@@ -224,8 +186,7 @@ function buildStrategicFarmColorMapFromServiceOrder(
 }
 
 async function prefetchStrategicReportMapBase(
-  serviceOrder: ServiceOrder,
-  applications: Application[]
+  serviceOrder: ServiceOrder
 ): Promise<{
   mapViewport: StrategicMapViewport | null;
   mapBaseDataUrl: string | null;
@@ -234,7 +195,6 @@ async function prefetchStrategicReportMapBase(
 }> {
   const shapes = buildStrategicMapShapes(serviceOrder);
   const farmColorMap = buildStrategicFarmColorMapFromServiceOrder(serviceOrder);
-  const plotMetaMap = buildStrategicPlotRenderMetaMap(serviceOrder, applications);
   const mapViewport = buildStrategicMapViewport(
     shapes,
     STRATEGIC_REPORT_MAP_WIDTH,
@@ -269,30 +229,15 @@ async function prefetchStrategicReportMapBase(
       })
     : null;
 
-  const strategicMapImage = await generateStrategicMapImage({
-    shapes,
-    viewport: mapViewport,
-    mapBaseUrl,
-    logicalWidth: STRATEGIC_REPORT_MAP_WIDTH,
-    logicalHeight: STRATEGIC_REPORT_MAP_HEIGHT,
-    pixelRatio: STRATEGIC_REPORT_MAP_PIXEL_RATIO,
-    farmColorMap,
-    plotMetaMap,
-  });
-
-  if (!accessToken) {
-    return {
-      mapViewport,
-      mapBaseDataUrl: strategicMapImage.mapBaseDataUrl,
-      mapImageDataUrl: strategicMapImage.mapImageDataUrl,
-      farmColorMap,
-    };
+  let mapBaseDataUrl: string | null = null;
+  if (mapBaseUrl) {
+    mapBaseDataUrl = await fetchRemoteImageAsDataUrl(mapBaseUrl);
   }
 
   return {
     mapViewport,
-    mapBaseDataUrl: strategicMapImage.mapBaseDataUrl,
-    mapImageDataUrl: strategicMapImage.mapImageDataUrl,
+    mapBaseDataUrl,
+    mapImageDataUrl: null,
     farmColorMap,
   };
 }
@@ -460,7 +405,7 @@ export async function generateServiceOrderStrategicReportPDF({
   });
 
   const { mapViewport, mapBaseDataUrl, mapImageDataUrl, farmColorMap } =
-    await prefetchStrategicReportMapBase(serviceOrder, applications);
+    await prefetchStrategicReportMapBase(serviceOrder);
 
   const element = ServiceOrderStrategicReportPDF({
     serviceOrder,
