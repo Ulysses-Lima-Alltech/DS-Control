@@ -72,6 +72,12 @@ export type StrategicMapViewportOptions = {
   paddingScale?: number;
   minPaddingPx?: number;
   maxPaddingRatio?: number;
+  safeAreaInsetsPx?: Partial<{
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  }>;
 };
 
 const WEB_MERCATOR_MAX_LAT = 85.05112878;
@@ -651,8 +657,35 @@ export function buildStrategicMapViewport(
     minPaddingPx,
     Math.min(adaptivePadding * paddingScale, maxPaddingPx)
   );
-  const usableWidth = Math.max(1, width - effectivePadding * 2);
-  const usableHeight = Math.max(1, height - effectivePadding * 2);
+  const safeAreaInsets = options?.safeAreaInsetsPx;
+  const safeTop = Math.max(0, Number(safeAreaInsets?.top) || 0);
+  const safeRight = Math.max(0, Number(safeAreaInsets?.right) || 0);
+  const safeBottom = Math.max(0, Number(safeAreaInsets?.bottom) || 0);
+  const safeLeft = Math.max(0, Number(safeAreaInsets?.left) || 0);
+
+  let paddingTop = effectivePadding + safeTop;
+  let paddingRight = effectivePadding + safeRight;
+  let paddingBottom = effectivePadding + safeBottom;
+  let paddingLeft = effectivePadding + safeLeft;
+
+  const maxHorizontalBudget = Math.max(2, width - 2);
+  const horizontalPadding = paddingLeft + paddingRight;
+  if (horizontalPadding > maxHorizontalBudget) {
+    const ratio = maxHorizontalBudget / horizontalPadding;
+    paddingLeft *= ratio;
+    paddingRight *= ratio;
+  }
+
+  const maxVerticalBudget = Math.max(2, height - 2);
+  const verticalPadding = paddingTop + paddingBottom;
+  if (verticalPadding > maxVerticalBudget) {
+    const ratio = maxVerticalBudget / verticalPadding;
+    paddingTop *= ratio;
+    paddingBottom *= ratio;
+  }
+
+  const usableWidth = Math.max(1, width - paddingLeft - paddingRight);
+  const usableHeight = Math.max(1, height - paddingTop - paddingBottom);
 
   const minNormalizedX = lngToNormalizedX(minLng);
   const maxNormalizedX = lngToNormalizedX(maxLng);
@@ -671,11 +704,16 @@ export function buildStrategicMapViewport(
   }
 
   const worldSize = MAPBOX_TILE_SIZE * 2 ** zoom;
-  const centerNormalizedX = (minNormalizedX + maxNormalizedX) / 2;
-  const centerNormalizedY = (minNormalizedY + maxNormalizedY) / 2;
+  const centerNormalizedXRaw = (minNormalizedX + maxNormalizedX) / 2;
+  const centerNormalizedYRaw = (minNormalizedY + maxNormalizedY) / 2;
+  const centerWorldXRaw = centerNormalizedXRaw * worldSize;
+  const centerWorldYRaw = centerNormalizedYRaw * worldSize;
+  const centerWorldX = centerWorldXRaw + (paddingRight - paddingLeft) / 2;
+  const centerWorldY = centerWorldYRaw + (paddingBottom - paddingTop) / 2;
+  const centerNormalizedX = centerWorldX / worldSize;
+  const centerNormalizedY = centerWorldY / worldSize;
   const centerLng = normalizedXToLng(centerNormalizedX);
   const centerLat = normalizedYToLat(centerNormalizedY);
-  const centerWorld = lngLatToWorld(centerLng, centerLat, worldSize);
 
   return {
     width,
@@ -685,8 +723,8 @@ export function buildStrategicMapViewport(
     centerLng,
     centerLat,
     worldSize,
-    centerWorldX: centerWorld.x,
-    centerWorldY: centerWorld.y,
+    centerWorldX,
+    centerWorldY,
     bounds: {
       minLng,
       minLat,

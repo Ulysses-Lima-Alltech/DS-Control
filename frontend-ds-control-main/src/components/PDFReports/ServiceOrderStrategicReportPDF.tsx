@@ -44,6 +44,12 @@ const MAP_LOGICAL_WIDTH = 1200;
 const MAP_LOGICAL_HEIGHT = 760;
 const MAP_VIEWPORT_PADDING = 48;
 const MAP_VIEWPORT_PADDING_SCALE = 1.2;
+const MAP_SAFE_AREA_INSETS_PX = {
+  top: 12,
+  right: 24,
+  bottom: 152,
+  left: 344,
+} as const;
 const LEGEND_MAX_ROWS = 10;
 
 const BRAND_YELLOW = '#EAAE07';
@@ -141,6 +147,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         paddingScale: MAP_VIEWPORT_PADDING_SCALE,
         minPaddingPx: 2,
         maxPaddingRatio: 0.14,
+        safeAreaInsetsPx: MAP_SAFE_AREA_INSETS_PX,
       }
     );
 
@@ -319,8 +326,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               position: 'absolute',
               left: 10,
               bottom: 10,
-              width: 344,
-              maxHeight: 136,
+              width: 332,
+              maxHeight: 132,
               border: `1px solid ${LIGHT_BORDER}`,
               borderRadius: 4,
               backgroundColor: '#FFFFFFEB',

@@ -92,6 +92,12 @@ const STRATEGIC_REPORT_MAP_PADDING = 48;
 const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/satellite-streets-v12';
 const STRATEGIC_REPORT_MAP_PIXEL_RATIO: 1 | 2 = 2;
 const STRATEGIC_REPORT_PADDING_SCALE = 1.2;
+const STRATEGIC_REPORT_SAFE_AREA_INSETS_PX = {
+  top: 12,
+  right: 24,
+  bottom: 152,
+  left: 344,
+} as const;
 
 function getReportMapboxAccessToken(): string {
   return (
@@ -238,6 +244,7 @@ async function prefetchStrategicReportMapBase(
       paddingScale: STRATEGIC_REPORT_PADDING_SCALE,
       minPaddingPx: 2,
       maxPaddingRatio: 0.14,
+      safeAreaInsetsPx: STRATEGIC_REPORT_SAFE_AREA_INSETS_PX,
     }
   );
 
