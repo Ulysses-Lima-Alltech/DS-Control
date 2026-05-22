@@ -5,7 +5,7 @@ import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
-  buildStrategicFarmColorMap,
+  buildStrategicPlotColorMap,
   type StrategicFarmColor,
 } from '@/utils/strategicReportPalette';
 import {
@@ -52,17 +52,19 @@ const MAP_SAFE_AREA_INSETS_PX = {
   bottom: 152,
   left: 344,
 } as const;
-const LEGEND_MAX_ROWS = 10;
+const LEGEND_MAX_ROWS = 6;
 
 const BRAND_YELLOW = '#EAAE07';
 const DARK_TEXT = '#0F172A';
 const MUTED_TEXT = '#6B7280';
 const LIGHT_BORDER = '#E5E7EB';
 const STRATEGIC_POLYGON_STROKE = '#111827';
-const STRATEGIC_LABEL_TEXT = '#FFFFFF';
+const STRATEGIC_LABEL_TEXT = '#F8FAFC';
 const STRATEGIC_LABEL_HALO = '#0F172A';
 const LABEL_COLLISION_GAP_PX = 1.6;
 const LABEL_MAP_MARGIN_PX = 3;
+const APPLIED_FILL_OPACITY = 0.88;
+const PENDING_FILL_OPACITY = 0.32;
 
 interface ServiceOrderStrategicReportPDFProps {
   serviceOrder: ServiceOrder;
@@ -133,8 +135,59 @@ function formatGeneratedAt(): string {
   }).format(new Date());
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '').trim();
+  if (!/^[\da-fA-F]{3,8}$/.test(normalized)) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+
+  if (normalized.length === 3) {
+    const r = Number.parseInt(normalized[0] + normalized[0], 16);
+    const g = Number.parseInt(normalized[1] + normalized[1], 16);
+    const b = Number.parseInt(normalized[2] + normalized[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const base = normalized.slice(0, 6);
+  const r = Number.parseInt(base.slice(0, 2), 16);
+  const g = Number.parseInt(base.slice(2, 4), 16);
+  const b = Number.parseInt(base.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function bboxEdgeDistance(
+  a: StrategicMapShapeProjected['bbox'],
+  b: StrategicMapShapeProjected['bbox']
+): number {
+  const dx = Math.max(0, Math.max(a.minX - b.maxX, b.minX - a.maxX));
+  const dy = Math.max(0, Math.max(a.minY - b.maxY, b.minY - a.maxY));
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function buildShapeAdjacencyMap(
+  shapes: StrategicMapShapeProjected[]
+): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>();
+  shapes.forEach((shape) => adjacency.set(shape.id, new Set<string>()));
+
+  for (let i = 0; i < shapes.length; i++) {
+    for (let j = i + 1; j < shapes.length; j++) {
+      const shapeA = shapes[i];
+      const shapeB = shapes[j];
+      const distance = bboxEdgeDistance(shapeA.bbox, shapeB.bbox);
+      if (distance > 28) {
+        continue;
+      }
+      adjacency.get(shapeA.id)?.add(shapeB.id);
+      adjacency.get(shapeB.id)?.add(shapeA.id);
+    }
+  }
+
+  return adjacency;
 }
 
 function compactPlotCode(label: string, fallbackPlotId: string): string {
@@ -306,23 +359,27 @@ function pointInProjectedPolygons(
 
 function isLabelBoundsInsideProjectedShape(
   bounds: LabelBounds,
-  projectedPolygons: StrategicMapShapeProjected['projectedPolygons']
+  projectedPolygons: StrategicMapShapeProjected['projectedPolygons'],
+  strict: boolean
 ): boolean {
   const center = {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
   };
-  const testPoints = [
+  const corePoints = [
     center,
-    { x: bounds.minX, y: bounds.minY },
-    { x: bounds.maxX, y: bounds.minY },
-    { x: bounds.minX, y: bounds.maxY },
-    { x: bounds.maxX, y: bounds.maxY },
     { x: center.x, y: bounds.minY },
     { x: center.x, y: bounds.maxY },
     { x: bounds.minX, y: center.y },
     { x: bounds.maxX, y: center.y },
   ];
+  const cornerPoints = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.minX, y: bounds.maxY },
+    { x: bounds.maxX, y: bounds.maxY },
+  ];
+  const testPoints = strict ? [...corePoints, ...cornerPoints] : corePoints;
 
   return testPoints.every((point) => pointInProjectedPolygons(point, projectedPolygons));
 }
@@ -393,13 +450,13 @@ function resolveLabelPlacement(params: {
   const { vectorShape, mapWidth, mapHeight, occupiedBounds, forceCodeOnly, relaxedPass } = params;
   const { shape } = vectorShape;
   const density = resolveLabelDensity(shape);
-  const minPrimaryByDensity = density === 'small' ? 10 : density === 'medium' ? 12 : 14;
+  const minPrimaryByDensity = density === 'small' ? 8.2 : density === 'medium' ? 9.4 : 10.8;
   const baseBySize = Math.min(shape.bbox.width, shape.bbox.height) * 0.24;
   const baseByArea = Math.sqrt(Math.max(1, shape.areaPx)) * 0.14;
   const basePrimary = clamp(
     Math.min(baseBySize, baseByArea),
-    relaxedPass ? 8 : minPrimaryByDensity,
-    34
+    relaxedPass ? 6.8 : minPrimaryByDensity,
+    13.6
   );
   const condensedCode = vectorShape.labelCode.replace(/\s+/g, '');
   const anchors = buildLabelAnchorCandidates(shape);
@@ -435,10 +492,10 @@ function resolveLabelPlacement(params: {
   for (const variant of uniqueVariants) {
     const primarySize = clamp(
       basePrimary * variant.fontScale,
-      relaxedPass ? 7.6 : minPrimaryByDensity,
-      34
+      relaxedPass ? 6.6 : minPrimaryByDensity,
+      13.6
     );
-    const secondarySize = clamp(primarySize * 0.72, 7, 24);
+    const secondarySize = clamp(primarySize * 0.72, 6.2, 10.4);
     const metrics = measureLabel(
       variant.code,
       vectorShape.areaText,
@@ -446,8 +503,8 @@ function resolveLabelPlacement(params: {
       secondarySize,
       variant.showArea
     );
-    const widthLimit = Math.max(38, shape.bbox.width * (density === 'small' ? 1.34 : 1.55));
-    const heightLimit = Math.max(19, shape.bbox.height * (density === 'small' ? 1.45 : 1.7));
+    const widthLimit = Math.max(28, shape.bbox.width * (density === 'small' ? 1.55 : 1.85));
+    const heightLimit = Math.max(14, shape.bbox.height * (density === 'small' ? 1.72 : 2.05));
     if (metrics.width > widthLimit || metrics.height > heightLimit) {
       continue;
     }
@@ -462,7 +519,7 @@ function resolveLabelPlacement(params: {
         continue;
       }
 
-      if (!isLabelBoundsInsideProjectedShape(bounds, shape.projectedPolygons)) {
+      if (!isLabelBoundsInsideProjectedShape(bounds, shape.projectedPolygons, !relaxedPass)) {
         continue;
       }
 
@@ -556,7 +613,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   prefetchedMapBaseDataUrl = null,
   prefetchedMapImageDataUrl = null,
   mapViewport = null,
-  farmColorMap,
+  farmColorMap: _farmColorMap,
 }) => {
   const generatedAt = formatGeneratedAt();
   const plotRows = (serviceOrder.plots || [])
@@ -606,11 +663,6 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       }
     );
 
-  const derivedFarmColorMap =
-    farmColorMap && farmColorMap.size > 0
-      ? farmColorMap
-      : buildStrategicFarmColorMap(Array.from(new Set(plotRows.map((row) => row.farmId))));
-
   const plotRowsById = new Map(validPlotRows.map((row) => [row.plotId, row]));
 
   const appliedPlotIds = new Set(
@@ -619,48 +671,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       .map((application) => application.plotId)
       .filter((plotId): plotId is string => Boolean(plotId))
   );
-
-  const legendFarmMap = new Map<
-    string,
-    {
-      farmId: string;
-      farmName: string;
-      hectares: number;
-      appliedCount: number;
-      totalCount: number;
-      color: StrategicFarmColor;
-    }
-  >();
-
-  validPlotRows.forEach((row) => {
-    const existing = legendFarmMap.get(row.farmId);
-    const color = derivedFarmColorMap.get(row.farmId) || {
-      fill: '#CBD5E1',
-      stroke: '#64748B',
-    };
-    const isApplied = appliedPlotIds.has(row.plotId);
-
-    if (existing) {
-      existing.hectares += row.hectares;
-      existing.totalCount += 1;
-      if (isApplied) existing.appliedCount += 1;
-      return;
-    }
-
-    legendFarmMap.set(row.farmId, {
-      farmId: row.farmId,
-      farmName: row.farmName,
-      hectares: row.hectares,
-      appliedCount: isApplied ? 1 : 0,
-      totalCount: 1,
-      color,
-    });
-  });
-
-  const legendFarmRows = Array.from(legendFarmMap.values()).sort((a, b) =>
-    a.farmName.localeCompare(b.farmName, 'pt-BR')
-  );
-  const totalValidHectares = legendFarmRows.reduce((sum, row) => sum + row.hectares, 0);
+  const totalValidHectares = validPlotRows.reduce((sum, row) => sum + row.hectares, 0);
 
   const customerName = serviceOrder.customer?.name || 'CLIENTE';
   const observationTitle = (serviceOrder.observation || 'PROGRAMACAO').toUpperCase();
@@ -683,15 +694,21 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const strategicProjection = viewport
     ? buildStrategicMapProjectionFromViewport(shapesInput, viewport)
     : null;
+  const plotAdjacencyMap = strategicProjection
+    ? buildShapeAdjacencyMap(strategicProjection.shapes)
+    : new Map<string, Set<string>>();
+  const plotColorMap = buildStrategicPlotColorMap(
+    strategicProjection?.shapes.map((shape) => shape.id) || [],
+    plotAdjacencyMap
+  );
 
   const strategicVectorShapes: StrategicVectorShape[] =
     strategicProjection?.shapes.map((shape) => {
       const row = plotRowsById.get(shape.id);
-      const farmColor =
-        derivedFarmColorMap.get(row?.farmId || shape.farmKey) || {
-          fill: '#CBD5E1',
-          stroke: '#64748B',
-        };
+      const plotColor = plotColorMap.get(shape.id) || {
+        fill: '#60A5FA',
+        stroke: '#1D4ED8',
+      };
 
       const plotLabel = compactPlotCode(row?.plotName || shape.label, shape.id);
       const areaHa = row?.hectares || 0;
@@ -701,10 +718,21 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         labelCode: plotLabel,
         areaText: formatHectares(areaHa),
         areaHa,
-        color: farmColor,
+        color: plotColor,
         isApplied: appliedPlotIds.has(shape.id),
       };
     }) || [];
+
+  const legendPlotRows = strategicVectorShapes
+    .map((shape) => ({
+      plotId: shape.shape.id,
+      labelCode: shape.labelCode,
+      areaHa: shape.areaHa,
+      color: shape.color,
+      isApplied: shape.isApplied,
+    }))
+    .sort((a, b) => a.labelCode.localeCompare(b.labelCode, 'pt-BR'));
+  const legendSampleColor = legendPlotRows[0]?.color.fill || '#1D4ED8';
 
   const strategicLabelLayout = buildStrategicLabelPlacements(
     strategicVectorShapes,
@@ -717,7 +745,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       totalShapes: strategicVectorShapes.length,
       labelsDrawn: strategicLabelLayout.labelsDrawn,
       labelsOmitted: strategicLabelLayout.labelsOmitted,
+      adjacencyPairsApprox:
+        Array.from(plotAdjacencyMap.values()).reduce((sum, neighbors) => sum + neighbors.size, 0) / 2,
       hasBaseMap: hasMap,
+      appliedOpacity: APPLIED_FILL_OPACITY,
+      pendingOpacity: PENDING_FILL_OPACITY,
       mapLogicalWidth: MAP_LOGICAL_WIDTH,
       mapLogicalHeight: MAP_LOGICAL_HEIGHT,
     });
@@ -801,11 +833,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                   key={`shape-${shape.id}`}
                   d={shape.pathD}
                   fill={color.fill}
-                  fillOpacity={isApplied ? (hasMap ? 0.46 : 0.64) : hasMap ? 0.31 : 0.5}
+                  fillOpacity={isApplied ? APPLIED_FILL_OPACITY : PENDING_FILL_OPACITY}
                   fillRule='evenodd'
                   stroke={STRATEGIC_POLYGON_STROKE}
                   strokeOpacity={0.9}
-                  strokeWidth={1.12}
+                  strokeWidth={1.05}
                 />
               ))}
 
@@ -815,8 +847,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                   return null;
                 }
 
-                const haloCodeWidth = clamp(placement.primarySize * 0.1, 0.95, 1.8);
-                const haloAreaWidth = clamp(placement.secondarySize * 0.1, 0.85, 1.65);
+                const haloCodeWidth = clamp(placement.primarySize * 0.085, 0.62, 1.25);
+                const haloAreaWidth = clamp(placement.secondarySize * 0.085, 0.56, 1.1);
 
                 return (
                   <React.Fragment key={`label-${shape.id}`}>
@@ -832,7 +864,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                       strokeLinecap='round'
                       style={{
                         fontFamily: 'Roboto',
-                        fontWeight: 700,
+                        fontWeight: 600,
                         fontSize: placement.primarySize,
                       }}
                     >
@@ -852,7 +884,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                         strokeLinecap='round'
                         style={{
                           fontFamily: 'Roboto',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           fontSize: placement.secondarySize,
                         }}
                       >
@@ -916,9 +948,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             }}
           >
             <Text style={{ fontSize: 8, fontWeight: 700, marginBottom: 2 }}>LEGENDA</Text>
-            {legendFarmRows.slice(0, LEGEND_MAX_ROWS).map((farm) => (
+            {legendPlotRows.slice(0, LEGEND_MAX_ROWS).map((plotLegend) => (
               <View
-                key={farm.farmId}
+                key={plotLegend.plotId}
                 style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.8 }}
               >
                 <View
@@ -926,29 +958,53 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                     width: 8,
                     height: 8,
                     borderRadius: 1,
-                    backgroundColor: farm.color.fill,
-                    border: `1px solid ${farm.color.stroke}`,
+                    backgroundColor: plotLegend.color.fill,
+                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
                     marginRight: 4,
                   }}
                 />
                 <Text style={{ flex: 1, fontSize: 6.7 }}>
-                  {farm.farmName.toUpperCase()} ({formatHectares(farm.hectares)})
-                </Text>
-                <Text style={{ fontSize: 6.1, color: MUTED_TEXT }}>
-                  {farm.appliedCount}/{farm.totalCount}
+                  {plotLegend.labelCode} ({formatHectares(plotLegend.areaHa)})
                 </Text>
               </View>
             ))}
-            {legendFarmRows.length > LEGEND_MAX_ROWS ? (
+            {legendPlotRows.length > LEGEND_MAX_ROWS ? (
               <Text style={{ fontSize: 6.2, color: MUTED_TEXT }}>
-                + {legendFarmRows.length - LEGEND_MAX_ROWS} grupo(s)
+                + {legendPlotRows.length - LEGEND_MAX_ROWS} talhao(es)
               </Text>
             ) : null}
+            <View style={{ marginTop: 2, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.2 }}>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 1,
+                    backgroundColor: hexToRgba(legendSampleColor, APPLIED_FILL_OPACITY),
+                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
+                    marginRight: 4,
+                  }}
+                />
+                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>Aplicado: preenchimento forte</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.2 }}>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 1,
+                    backgroundColor: hexToRgba(legendSampleColor, PENDING_FILL_OPACITY),
+                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
+                    marginRight: 4,
+                  }}
+                />
+                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                  Pendente/Programado: preenchimento claro
+                </Text>
+              </View>
+            </View>
             <Text style={{ fontSize: 7.6, fontWeight: 700, marginTop: 2 }}>
               TOTAL: {formatHectares(totalValidHectares).toUpperCase()}
-            </Text>
-            <Text style={{ fontSize: 5.8, color: MUTED_TEXT, marginTop: 1 }}>
-              Aplicados = opacidade levemente maior (contorno padrao uniforme)
             </Text>
             {invalidPlotRows.length > 0 ? (
               <Text style={{ fontSize: 6.1, color: MUTED_TEXT, marginTop: 1 }}>
