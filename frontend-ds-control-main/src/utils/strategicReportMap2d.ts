@@ -21,6 +21,7 @@ export type StrategicMapShapeProjected = {
   label: string;
   farmKey: string;
   pathD: string;
+  projectedPolygons: XYPoint[][][];
   labelX: number;
   labelY: number;
   areaPx: number;
@@ -301,6 +302,180 @@ function ringCentroid(ring: LngLat[]): LngLat {
   return [centroidLng / divisor, centroidLat / divisor];
 }
 
+function pointInRing(point: LngLat, ring: LngLat[]): boolean {
+  const [px, py] = point;
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+
+    const intersects =
+      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi + EPSILON) + xi;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+function pointInPolygon(point: LngLat, polygon: PolygonRings): boolean {
+  if (polygon.length === 0 || polygon[0].length < 3) {
+    return false;
+  }
+
+  if (!pointInRing(point, polygon[0])) {
+    return false;
+  }
+
+  for (let i = 1; i < polygon.length; i++) {
+    const hole = polygon[i];
+    if (hole.length >= 3 && pointInRing(point, hole)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function distancePointToSegment(point: LngLat, a: LngLat, b: LngLat): number {
+  const [px, py] = point;
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const segmentLengthSquared = dx * dx + dy * dy;
+
+  if (segmentLengthSquared < EPSILON) {
+    return Math.hypot(px - ax, py - ay);
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(1, ((px - ax) * dx + (py - ay) * dy) / segmentLengthSquared)
+  );
+  const closestX = ax + t * dx;
+  const closestY = ay + t * dy;
+  return Math.hypot(px - closestX, py - closestY);
+}
+
+function distancePointToRing(point: LngLat, ring: LngLat[]): number {
+  if (ring.length < 2) {
+    return 0;
+  }
+
+  let best = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const current = ring[i];
+    const next = ring[(i + 1) % ring.length];
+    best = Math.min(best, distancePointToSegment(point, current, next));
+  }
+  return best;
+}
+
+function distancePointToPolygonEdges(point: LngLat, polygon: PolygonRings): number {
+  if (polygon.length === 0) {
+    return 0;
+  }
+
+  let best = distancePointToRing(point, polygon[0]);
+  for (let i = 1; i < polygon.length; i++) {
+    best = Math.min(best, distancePointToRing(point, polygon[i]));
+  }
+
+  return best;
+}
+
+function getPolygonBounds(ring: LngLat[]): {
+  minLng: number;
+  minLat: number;
+  maxLng: number;
+  maxLat: number;
+} {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+
+  ring.forEach(([lng, lat]) => {
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, lat);
+  });
+
+  return { minLng, minLat, maxLng, maxLat };
+}
+
+function pickSafeLabelPointFromPolygon(polygon: PolygonRings): LngLat | null {
+  const outerRing = polygon[0];
+  if (!outerRing || outerRing.length < 3) {
+    return null;
+  }
+
+  const centroid = ringCentroid(outerRing);
+  if (pointInPolygon(centroid, polygon)) {
+    return centroid;
+  }
+
+  const bounds = getPolygonBounds(outerRing);
+  const bboxCenter: LngLat = [
+    (bounds.minLng + bounds.maxLng) / 2,
+    (bounds.minLat + bounds.maxLat) / 2,
+  ];
+
+  const candidatePool: LngLat[] = [bboxCenter];
+  outerRing.forEach((point, index) => {
+    candidatePool.push(point);
+    const next = outerRing[(index + 1) % outerRing.length];
+    candidatePool.push([(point[0] + next[0]) / 2, (point[1] + next[1]) / 2]);
+  });
+
+  let bestCandidate: LngLat | null = null;
+  let bestScore = -Infinity;
+  candidatePool.forEach((candidate) => {
+    if (!pointInPolygon(candidate, polygon)) {
+      return;
+    }
+    const score = distancePointToPolygonEdges(candidate, polygon);
+    if (score > bestScore) {
+      bestCandidate = candidate;
+      bestScore = score;
+    }
+  });
+
+  if (bestCandidate) {
+    return bestCandidate;
+  }
+
+  const lngSpan = Math.max(bounds.maxLng - bounds.minLng, EPSILON);
+  const latSpan = Math.max(bounds.maxLat - bounds.minLat, EPSILON);
+  const gridSize = 14;
+
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const candidate: LngLat = [
+        bounds.minLng + ((col + 0.5) / gridSize) * lngSpan,
+        bounds.minLat + ((row + 0.5) / gridSize) * latSpan,
+      ];
+
+      if (!pointInPolygon(candidate, polygon)) {
+        continue;
+      }
+
+      const score = distancePointToPolygonEdges(candidate, polygon);
+      if (score > bestScore) {
+        bestCandidate = candidate;
+        bestScore = score;
+      }
+    }
+  }
+
+  return bestCandidate;
+}
+
 function getLargestPolygon(polygons: PlotPolygons): PolygonRings | null {
   if (polygons.length === 0) {
     return null;
@@ -331,12 +506,7 @@ function defaultShapeLabelPoint(shape: StrategicMapShapeInput): LngLat | null {
     return null;
   }
 
-  const outerRing = largestPolygon[0];
-  if (!outerRing) {
-    return null;
-  }
-
-  return ringCentroid(outerRing);
+  return pickSafeLabelPointFromPolygon(largestPolygon);
 }
 
 function buildPathFromRing(
@@ -627,6 +797,7 @@ export function buildStrategicMapProjection(
         label: shape.label,
         farmKey: shape.farmKey,
         pathD,
+        projectedPolygons,
         labelX: labelPoint.x,
         labelY: labelPoint.y,
         areaPx,
@@ -732,6 +903,7 @@ export function buildStrategicMapProjectionFromViewport(
         label: shape.label,
         farmKey: shape.farmKey,
         pathD,
+        projectedPolygons,
         labelX: labelPoint.x,
         labelY: labelPoint.y,
         areaPx,

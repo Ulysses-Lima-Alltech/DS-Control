@@ -23,6 +23,11 @@ import {
 } from '@/utils/mapboxStaticReportMap';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import {
+  generateStrategicMapImage,
+  type StrategicPlotRenderMeta,
+} from '@/utils/strategicReportMapImage';
+import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
+import {
   buildStrategicMapStaticBaseUrl,
   buildStrategicMapViewport,
   buildStrategicMapProjection,
@@ -81,11 +86,12 @@ export interface GeneratePilotApplicationsReportPDFParams {
 
 const REPORT_MAP_WIDTH = 1280;
 const REPORT_MAP_HEIGHT = 480;
-const STRATEGIC_REPORT_MAP_WIDTH = 1080;
-const STRATEGIC_REPORT_MAP_HEIGHT = 660;
-const STRATEGIC_REPORT_MAP_PADDING = 8;
-const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/light-v11';
-const STRATEGIC_REPORT_PADDING_SCALE = 0.78;
+const STRATEGIC_REPORT_MAP_WIDTH = 1200;
+const STRATEGIC_REPORT_MAP_HEIGHT = 760;
+const STRATEGIC_REPORT_MAP_PADDING = 48;
+const STRATEGIC_REPORT_MAP_STYLE = 'mapbox/satellite-streets-v12';
+const STRATEGIC_REPORT_MAP_PIXEL_RATIO: 1 | 2 = 2;
+const STRATEGIC_REPORT_PADDING_SCALE = 1.2;
 
 function getReportMapboxAccessToken(): string {
   return (
@@ -164,13 +170,65 @@ function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeI
     .filter((shape): shape is StrategicMapShapeInput => shape !== null);
 }
 
-async function prefetchStrategicReportMapBase(
+function parseNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const normalized = value.replace(',', '.').trim();
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function buildStrategicPlotRenderMetaMap(
+  serviceOrder: ServiceOrder,
+  applications: Application[]
+): Map<string, StrategicPlotRenderMeta> {
+  const appliedPlotIds = new Set(
+    applications
+      .filter((application) => application.serviceOrderId === serviceOrder.id)
+      .map((application) => application.plotId)
+      .filter((plotId): plotId is string => Boolean(plotId))
+  );
+
+  const out = new Map<string, StrategicPlotRenderMeta>();
+  (serviceOrder.plots || []).forEach((plot) => {
+    if (!plot.id) return;
+    out.set(plot.id, {
+      plotId: plot.id,
+      label: plot.name || `Talhao ${plot.id}`,
+      areaHa: parseNumber(plot.hectare),
+      isApplied: appliedPlotIds.has(plot.id),
+    });
+  });
+  return out;
+}
+
+function buildStrategicFarmColorMapFromServiceOrder(
   serviceOrder: ServiceOrder
+): Map<string, StrategicFarmColor> {
+  const orderedFarmIds = Array.from(
+    new Set(
+      (serviceOrder.plots || [])
+        .map((plot) => plot.farmId || 'farm-unknown')
+        .filter((farmId): farmId is string => Boolean(farmId))
+    )
+  );
+  return buildStrategicFarmColorMap(orderedFarmIds);
+}
+
+async function prefetchStrategicReportMapBase(
+  serviceOrder: ServiceOrder,
+  applications: Application[]
 ): Promise<{
   mapViewport: StrategicMapViewport | null;
   mapBaseDataUrl: string | null;
+  mapImageDataUrl: string | null;
+  farmColorMap: Map<string, StrategicFarmColor>;
 }> {
   const shapes = buildStrategicMapShapes(serviceOrder);
+  const farmColorMap = buildStrategicFarmColorMapFromServiceOrder(serviceOrder);
+  const plotMetaMap = buildStrategicPlotRenderMetaMap(serviceOrder, applications);
   const mapViewport = buildStrategicMapViewport(
     shapes,
     STRATEGIC_REPORT_MAP_WIDTH,
@@ -179,26 +237,57 @@ async function prefetchStrategicReportMapBase(
     {
       paddingScale: STRATEGIC_REPORT_PADDING_SCALE,
       minPaddingPx: 2,
-      maxPaddingRatio: 0.05,
+      maxPaddingRatio: 0.14,
     }
   );
 
   const accessToken = getReportMapboxAccessToken().trim();
-  if (!mapViewport || !accessToken) {
-    return { mapViewport, mapBaseDataUrl: null };
+  if (!mapViewport) {
+    return {
+      mapViewport,
+      mapBaseDataUrl: null,
+      mapImageDataUrl: null,
+      farmColorMap,
+    };
   }
 
-  const mapBaseUrl = buildStrategicMapStaticBaseUrl({
+  const mapBaseUrl = accessToken
+    ? buildStrategicMapStaticBaseUrl({
+        viewport: mapViewport,
+        width: STRATEGIC_REPORT_MAP_WIDTH,
+        height: STRATEGIC_REPORT_MAP_HEIGHT,
+        accessToken,
+        styleId: STRATEGIC_REPORT_MAP_STYLE,
+        pixelRatio: STRATEGIC_REPORT_MAP_PIXEL_RATIO,
+      })
+    : null;
+
+  const strategicMapImage = await generateStrategicMapImage({
+    shapes,
     viewport: mapViewport,
-    width: STRATEGIC_REPORT_MAP_WIDTH,
-    height: STRATEGIC_REPORT_MAP_HEIGHT,
-    accessToken,
-    styleId: STRATEGIC_REPORT_MAP_STYLE,
-    pixelRatio: 2,
+    mapBaseUrl,
+    logicalWidth: STRATEGIC_REPORT_MAP_WIDTH,
+    logicalHeight: STRATEGIC_REPORT_MAP_HEIGHT,
+    pixelRatio: STRATEGIC_REPORT_MAP_PIXEL_RATIO,
+    farmColorMap,
+    plotMetaMap,
   });
 
-  const mapBaseDataUrl = await fetchRemoteImageAsDataUrl(mapBaseUrl);
-  return { mapViewport, mapBaseDataUrl };
+  if (!accessToken) {
+    return {
+      mapViewport,
+      mapBaseDataUrl: strategicMapImage.mapBaseDataUrl,
+      mapImageDataUrl: strategicMapImage.mapImageDataUrl,
+      farmColorMap,
+    };
+  }
+
+  return {
+    mapViewport,
+    mapBaseDataUrl: strategicMapImage.mapBaseDataUrl,
+    mapImageDataUrl: strategicMapImage.mapImageDataUrl,
+    farmColorMap,
+  };
 }
 
 function buildStrategicPlotDiagnostics(serviceOrder: ServiceOrder): {
@@ -363,13 +452,16 @@ export async function generateServiceOrderStrategicReportPDF({
     invalidPlotIdsAndNames: diagnostics.invalidPlots,
   });
 
-  const { mapViewport, mapBaseDataUrl } = await prefetchStrategicReportMapBase(serviceOrder);
+  const { mapViewport, mapBaseDataUrl, mapImageDataUrl, farmColorMap } =
+    await prefetchStrategicReportMapBase(serviceOrder, applications);
 
   const element = ServiceOrderStrategicReportPDF({
     serviceOrder,
     applications,
     mapViewport,
     prefetchedMapBaseDataUrl: mapBaseDataUrl,
+    prefetchedMapImageDataUrl: mapImageDataUrl,
+    farmColorMap,
   });
 
   // @ts-expect-error - toBlob is not typed
