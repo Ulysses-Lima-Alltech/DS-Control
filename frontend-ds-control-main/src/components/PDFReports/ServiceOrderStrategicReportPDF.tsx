@@ -147,6 +147,24 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const estimatedScaleKm = mapProjection
     ? Math.max(0.2, Number((mapProjection.extentKm.widthKm * 0.18).toFixed(2)))
     : 0.5;
+  const labels = mapProjection
+    ? mapProjection.shapes
+        .map((shape) => {
+          const row = plotRows.find((item) => item.plotId === shape.id);
+          if (!row) return null;
+          const isTiny = shape.areaPx < 1200 || shape.bbox.width < 70 || shape.bbox.height < 32;
+          const code = row.plotName.toUpperCase().replace(/\s+/g, ' ').trim();
+          return {
+            id: row.plotId,
+            line1: isTiny ? code.slice(0, 10) : code.slice(0, 16),
+            line2: `${row.hectares.toFixed(2).replace('.', ',')} ha`,
+            x: shape.labelX,
+            y: shape.labelY,
+            isTiny,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+    : [];
 
   return (
     <Document>
@@ -216,23 +234,62 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                   );
                 })}
               </Svg>
+              {labels.map((label) => (
+                <View
+                  key={`label-${label.id}`}
+                  style={{
+                    position: 'absolute',
+                    left: Math.max(4, Math.min(MAP_CANVAS_WIDTH - 92, label.x - 45)),
+                    top: Math.max(4, Math.min(MAP_CANVAS_HEIGHT - 30, label.y - 13)),
+                    width: 90,
+                    minHeight: 24,
+                    borderRadius: 3,
+                    backgroundColor: '#FFFFFFE0',
+                    border: '0.5px solid #11182766',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 2,
+                    paddingHorizontal: 2,
+                  }}
+                >
+                  <Text style={{ fontSize: label.isTiny ? 6.2 : 6.8, fontWeight: 700, color: '#111827', textAlign: 'center' }}>
+                    {label.line1}
+                  </Text>
+                  {!label.isTiny && (
+                    <Text style={{ fontSize: 6.1, fontWeight: 500, color: '#111827', textAlign: 'center' }}>
+                      {label.line2}
+                    </Text>
+                  )}
+                </View>
+              ))}
 
               <View
                 style={{
                   position: 'absolute',
                   left: 12,
                   top: 12,
-                  width: 34,
-                  height: 46,
+                  width: 52,
+                  height: 58,
                   border: `1px solid ${LIGHT_BORDER}`,
                   borderRadius: 4,
                   backgroundColor: '#FFFFFFE6',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: 4,
                 }}
               >
-                <Text style={{ fontSize: 8, fontWeight: 700 }}>N</Text>
-                <Text style={{ fontSize: 12, marginTop: -2 }}>?</Text>
+                <Text style={{ fontSize: 7, fontWeight: 700 }}>N</Text>
+                <Svg width='30' height='30' viewBox='0 0 30 30'>
+                  <Path d='M 15 2 L 18 12 L 15 10 L 12 12 Z' fill='#111827' />
+                  <Path d='M 15 28 L 13 20 L 15 21 L 17 20 Z' fill='#4B5563' />
+                  <Path d='M 2 15 L 10 13 L 9 15 L 10 17 Z' fill='#4B5563' />
+                  <Path d='M 28 15 L 20 17 L 21 15 L 20 13 Z' fill='#4B5563' />
+                </Svg>
+                <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between', paddingHorizontal: 5 }}>
+                  <Text style={{ fontSize: 6.2, fontWeight: 700 }}>W</Text>
+                  <Text style={{ fontSize: 6.2, fontWeight: 700 }}>E</Text>
+                </View>
+                <Text style={{ fontSize: 6.2, fontWeight: 700, marginTop: -2 }}>S</Text>
               </View>
 
               <View
