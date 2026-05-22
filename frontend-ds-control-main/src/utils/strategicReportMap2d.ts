@@ -4,7 +4,7 @@ import type { Plot } from '@/types/plot.type';
 
 type LngLat = [number, number];
 type PolygonRings = LngLat[][];
-type PlotPolygons = PolygonRings[];
+export type PlotPolygons = PolygonRings[];
 type XYPoint = { x: number; y: number };
 
 const EPSILON = 1e-12;
@@ -235,6 +235,22 @@ export function extractPlotPolygons(plot: Plot): PlotPolygons {
 
   collectPolygonsFromGeometry(geoJson as GeoJSON.Geometry, polygons);
   return polygons;
+}
+
+export function sanitizeStrategicPolygons(polygons: PlotPolygons): PlotPolygons {
+  const isValidCoord = (coord: LngLat) =>
+    Number.isFinite(coord[0]) &&
+    Number.isFinite(coord[1]) &&
+    Math.abs(coord[0]) <= 180 &&
+    Math.abs(coord[1]) <= 90;
+
+  return polygons
+    .map((polygon) =>
+      polygon
+        .map((ring) => ring.filter((coord) => isValidCoord(coord)))
+        .filter((ring) => ring.length >= 4)
+    )
+    .filter((polygon) => polygon.length > 0);
 }
 
 function ringArea(ring: LngLat[]): number {

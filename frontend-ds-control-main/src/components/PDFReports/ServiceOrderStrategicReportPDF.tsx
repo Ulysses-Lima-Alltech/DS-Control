@@ -9,6 +9,7 @@ import {
   buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
   extractPlotPolygons,
+  sanitizeStrategicPolygons,
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
@@ -25,6 +26,7 @@ Font.register({
 
 const PAGE_PADDING = 10;
 const HEADER_HEIGHT = 44;
+const FOOTER_HEIGHT = 108;
 const MAP_CANVAS_WIDTH = 1080;
 const MAP_CANVAS_HEIGHT = 660;
 const MAP_VIEWPORT_PADDING = 8;
@@ -83,10 +85,12 @@ function formatGeneratedAt(): string {
 
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
   serviceOrder,
+  applications,
   prefetchedMapBaseDataUrl = null,
   mapViewport = null,
 }) => {
   const generatedAt = formatGeneratedAt();
+  const totalPlotsInServiceOrder = (serviceOrder.plots || []).length;
 
   const plotRows = (serviceOrder.plots || [])
     .map((plot) => {
@@ -99,7 +103,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         farmId: plot.farmId || 'farm-unknown',
         farmName,
         hectares: parseNumber(plot.hectare),
-        polygons: extractPlotPolygons(plot),
+        polygons: sanitizeStrategicPolygons(extractPlotPolygons(plot)),
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
@@ -108,10 +112,10 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       return byFarm !== 0 ? byFarm : a.plotName.localeCompare(b.plotName, 'pt-BR');
     });
 
-  const rowsWithGeometry = plotRows.filter((row) => row.polygons.length > 0);
-  const rowsWithoutGeometry = plotRows.filter((row) => row.polygons.length === 0);
+  const validPlotRows = plotRows.filter((row) => row.polygons.length > 0);
+  const invalidPlotRows = plotRows.filter((row) => row.polygons.length === 0);
 
-  const shapesInput: StrategicMapShapeInput[] = rowsWithGeometry.map((row) => ({
+  const shapesInput: StrategicMapShapeInput[] = validPlotRows.map((row) => ({
     id: row.plotId,
     label: row.plotName,
     farmKey: row.farmId,
@@ -136,7 +140,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     farmColorMap.set(farmId, FARM_COLORS[index % FARM_COLORS.length]);
   });
 
-  const totalHectares = plotRows.reduce((sum, row) => sum + row.hectares, 0);
+  const totalValidHectares = validPlotRows.reduce((sum, row) => sum + row.hectares, 0);
+  const totalPlannedHectares = plotRows.reduce((sum, row) => sum + row.hectares, 0);
   const customerName = serviceOrder.customer?.name || 'CLIENTE';
   const observationTitle = (serviceOrder.observation || 'PROGRAMACAO').toUpperCase();
   const title = `${customerName.toUpperCase()} - MAPA ESTRATEGICO - ${observationTitle}`;
@@ -146,12 +151,18 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     ? Math.max(0.1, Number(((mapProjection.extentKm.widthKm * scaleBarWidthPx) / MAP_CANVAS_WIDTH).toFixed(2)))
     : 0.5;
 
-  const legendRows = plotRows.map((row) => ({
-    ...row,
-    color: farmColorMap.get(row.farmId) || { fill: '#CBD5E1', stroke: '#64748B' },
-  }));
+  const shapeIdsInMap = new Set((mapProjection?.shapes || []).map((shape) => shape.id));
+  const legendRows = validPlotRows
+    .filter((row) => shapeIdsInMap.has(row.plotId))
+    .map((row) => ({
+      ...row,
+      color: farmColorMap.get(row.farmId) || { fill: '#CBD5E1', stroke: '#64748B' },
+    }));
   const splitIndex = Math.ceil(legendRows.length / 2);
   const legendColumns = [legendRows.slice(0, splitIndex), legendRows.slice(splitIndex)];
+
+  const plottedApplications = new Set(applications.map((app) => app.plotId).filter(Boolean) as string[]);
+  const appliedPlotsInMap = legendRows.filter((row) => plottedApplications.has(row.plotId)).length;
 
   return (
     <Document>
@@ -185,113 +196,129 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
           </View>
         </View>
 
-        <View style={{ flex: 1, position: 'relative', border: `1px solid ${LIGHT_BORDER}`, overflow: 'hidden' }}>
+        <View style={{ flex: 1, flexDirection: 'column', border: `1px solid ${LIGHT_BORDER}`, overflow: 'hidden' }}>
           {mapProjection ? (
             <>
-              {prefetchedMapBaseDataUrl && (
-                <Image
-                  src={prefetchedMapBaseDataUrl}
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              )}
+              <View style={{ flex: 1, position: 'relative' }}>
+                {prefetchedMapBaseDataUrl && (
+                  <Image
+                    src={prefetchedMapBaseDataUrl}
+                    style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
 
-              <Svg width='100%' height='100%' viewBox={`0 0 ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT}`} preserveAspectRatio='xMidYMid meet'>
-                {mapProjection.shapes.map((shape) => {
-                  const color = farmColorMap.get(shape.farmKey) || { fill: '#CBD5E1', stroke: '#64748B' };
-                  return (
-                    <Path
-                      key={shape.id}
-                      d={shape.pathD}
-                      fill={color.fill}
-                      fillOpacity={prefetchedMapBaseDataUrl ? 0.52 : 0.74}
-                      stroke='#0F172A'
-                      strokeWidth={1.35}
-                      fillRule='evenodd'
-                    />
-                  );
-                })}
-              </Svg>
-
-              <View
-                style={{
-                  position: 'absolute',
-                  left: 14,
-                  top: 10,
-                  width: 36,
-                  height: 50,
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingVertical: 2,
-                }}
-              >
-                <Text style={{ fontSize: 6.4, fontWeight: 700 }}>N</Text>
-                <Svg width='24' height='24' viewBox='0 0 24 24'>
-                  <Path d='M 12 1 L 14.6 9 L 12 7.2 L 9.4 9 Z' fill='#111827' />
-                  <Path d='M 12 23 L 10.5 16.5 L 12 17.4 L 13.5 16.5 Z' fill='#6B7280' />
-                  <Path d='M 1 12 L 7.8 10.7 L 7 12 L 7.8 13.3 Z' fill='#6B7280' />
-                  <Path d='M 23 12 L 16.2 13.3 L 17 12 L 16.2 10.7 Z' fill='#6B7280' />
+                <Svg width='100%' height='100%' viewBox={`0 0 ${MAP_CANVAS_WIDTH} ${MAP_CANVAS_HEIGHT}`} preserveAspectRatio='xMidYMid meet'>
+                  {mapProjection.shapes.map((shape) => {
+                    const color = farmColorMap.get(shape.farmKey) || { fill: '#CBD5E1', stroke: '#64748B' };
+                    return (
+                      <Path
+                        key={shape.id}
+                        d={shape.pathD}
+                        fill={color.fill}
+                        fillOpacity={prefetchedMapBaseDataUrl ? 0.52 : 0.74}
+                        stroke='#0F172A'
+                        strokeWidth={1.35}
+                        fillRule='evenodd'
+                      />
+                    );
+                  })}
                 </Svg>
-                <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-                  <Text style={{ fontSize: 5.8, fontWeight: 700 }}>W</Text>
-                  <Text style={{ fontSize: 5.8, fontWeight: 700 }}>E</Text>
+
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: 14,
+                    top: 10,
+                    width: 36,
+                    height: 50,
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 2,
+                  }}
+                >
+                  <Text style={{ fontSize: 6.4, fontWeight: 700 }}>N</Text>
+                  <Svg width='24' height='24' viewBox='0 0 24 24'>
+                    <Path d='M 12 1 L 14.6 9 L 12 7.2 L 9.4 9 Z' fill='#111827' />
+                    <Path d='M 12 23 L 10.5 16.5 L 12 17.4 L 13.5 16.5 Z' fill='#6B7280' />
+                    <Path d='M 1 12 L 7.8 10.7 L 7 12 L 7.8 13.3 Z' fill='#6B7280' />
+                    <Path d='M 23 12 L 16.2 13.3 L 17 12 L 16.2 10.7 Z' fill='#6B7280' />
+                  </Svg>
+                  <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between', paddingHorizontal: 2 }}>
+                    <Text style={{ fontSize: 5.8, fontWeight: 700 }}>W</Text>
+                    <Text style={{ fontSize: 5.8, fontWeight: 700 }}>E</Text>
+                  </View>
+                  <Text style={{ fontSize: 5.8, fontWeight: 700 }}>S</Text>
                 </View>
-                <Text style={{ fontSize: 5.8, fontWeight: 700 }}>S</Text>
               </View>
 
               <View
                 style={{
-                  position: 'absolute',
-                  left: 10,
-                  bottom: 10,
-                  width: 512,
-                  backgroundColor: '#FFFFFFED',
-                  border: `1px solid ${LIGHT_BORDER}`,
-                  padding: 6,
+                  height: FOOTER_HEIGHT,
+                  borderTop: `1px solid ${LIGHT_BORDER}`,
+                  backgroundColor: '#FFFFFF',
+                  flexDirection: 'row',
+                  paddingHorizontal: 8,
+                  paddingVertical: 6,
                 }}
               >
-                <Text style={{ fontSize: 8.6, fontWeight: 700, marginBottom: 4 }}>LEGENDA (TALHOES / FAZENDAS)</Text>
-                <View style={{ flexDirection: 'row' }}>
-                  {legendColumns.map((column, columnIndex) => (
-                    <View key={`legend-column-${columnIndex}`} style={{ flex: 1, paddingRight: columnIndex === 0 ? 8 : 0 }}>
-                      {column.map((row) => (
-                        <View key={row.plotId} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 }}>
-                          <View
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: row.color.fill,
-                              border: `1px solid ${row.color.stroke}`,
-                              marginTop: 1.2,
-                              marginRight: 4,
-                            }}
-                          />
-                          <Text style={{ flex: 1, fontSize: 6.7 }}>
-                            {row.farmName} / {row.plotName} - {formatHectares(row.hectares)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 8.6, fontWeight: 700, marginBottom: 3 }}>LEGENDA (TALHOES COM GEOMETRIA)</Text>
+                  <View style={{ flexDirection: 'row' }}>
+                    {legendColumns.map((column, columnIndex) => (
+                      <View key={`legend-column-${columnIndex}`} style={{ flex: 1, paddingRight: columnIndex === 0 ? 8 : 0 }}>
+                        {column.map((row) => (
+                          <View key={row.plotId} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 }}>
+                            <View
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: 1,
+                                backgroundColor: row.color.fill,
+                                border: `1px solid ${row.color.stroke}`,
+                                marginTop: 1.2,
+                                marginRight: 4,
+                              }}
+                            />
+                            <Text style={{ flex: 1, fontSize: 6.7 }}>
+                              {row.farmName} / {row.plotName} - {formatHectares(row.hectares)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 8, fontWeight: 700, marginTop: 2 }}>
+                    TOTAL COM GEOMETRIA: {formatHectares(totalValidHectares)}
+                  </Text>
+                  {invalidPlotRows.length > 0 && (
+                    <Text style={{ fontSize: 6.8, color: MUTED_TEXT, marginTop: 1 }}>
+                      Talhões sem geometria: {invalidPlotRows.length} ({invalidPlotRows.map((row) => row.plotName).join(', ')})
+                    </Text>
+                  )}
+                  {totalPlannedHectares !== totalValidHectares && (
+                    <Text style={{ fontSize: 6.8, color: MUTED_TEXT, marginTop: 1 }}>
+                      Total planejado da OS: {formatHectares(totalPlannedHectares)}
+                    </Text>
+                  )}
                 </View>
-                <Text style={{ fontSize: 8, fontWeight: 700, marginTop: 4 }}>TOTAL GERAL: {formatHectares(totalHectares)}</Text>
-              </View>
 
-              <View
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  bottom: 10,
-                  alignItems: 'flex-end',
-                }}
-              >
-                <Text style={{ fontSize: 7, color: MUTED_TEXT }}>ESCALA VISUAL</Text>
-                <View style={{ marginTop: 2, width: scaleBarWidthPx, height: 2.4, backgroundColor: '#111827' }} />
-                <Text style={{ marginTop: 2, fontSize: 7.4, fontWeight: 700 }}>{estimatedScaleKm.toFixed(2).replace('.', ',')} km</Text>
-                <Image
-                  src='/images/pdf-logo-only.png'
-                  style={{ marginTop: 6, width: 94, height: 24, objectFit: 'contain' }}
-                />
+                <View style={{ width: 192, alignItems: 'flex-end', justifyContent: 'space-between', paddingLeft: 8 }}>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 7, color: MUTED_TEXT }}>ESCALA VISUAL</Text>
+                    <View style={{ marginTop: 2, width: scaleBarWidthPx, height: 2.4, backgroundColor: '#111827' }} />
+                    <Text style={{ marginTop: 2, fontSize: 7.4, fontWeight: 700 }}>{estimatedScaleKm.toFixed(2).replace('.', ',')} km</Text>
+                    <Text style={{ marginTop: 3, fontSize: 6.5, color: MUTED_TEXT }}>
+                      Talhões no mapa/legenda: {legendRows.length}
+                    </Text>
+                    <Text style={{ fontSize: 6.5, color: MUTED_TEXT }}>Aplicados no mapa: {appliedPlotsInMap}</Text>
+                    <Text style={{ fontSize: 6.5, color: MUTED_TEXT }}>Talhões totais na OS: {totalPlotsInServiceOrder}</Text>
+                  </View>
+
+                  <Image
+                    src='/images/pdf-logo-only.png'
+                    style={{ width: 94, height: 24, objectFit: 'contain' }}
+                  />
+                </View>
               </View>
             </>
           ) : (
@@ -300,7 +327,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 Não há geometrias válidas para montar o mapa estratégico desta OS.
               </Text>
               <Text style={{ marginTop: 6, fontSize: 8, color: MUTED_TEXT }}>
-                Talhões sem geometria: {rowsWithoutGeometry.length}
+                Talhões sem geometria: {invalidPlotRows.length}
               </Text>
             </View>
           )}

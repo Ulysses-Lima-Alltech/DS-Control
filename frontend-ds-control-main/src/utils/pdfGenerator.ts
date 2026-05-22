@@ -27,6 +27,7 @@ import {
   buildStrategicMapViewport,
   buildStrategicMapProjection,
   extractPlotPolygons,
+  sanitizeStrategicPolygons,
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
@@ -142,25 +143,13 @@ async function prefetchReportMapImagesByPlotId(
 }
 
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
-  const isValidCoord = (coord: [number, number]) =>
-    Number.isFinite(coord[0]) &&
-    Number.isFinite(coord[1]) &&
-    Math.abs(coord[0]) <= 180 &&
-    Math.abs(coord[1]) <= 90;
-
   return (serviceOrder.plots || [])
     .map((plot) => {
       if (!plot.id) {
         return null;
       }
 
-      const polygons = extractPlotPolygons(plot)
-        .map((polygon) =>
-          polygon
-            .map((ring) => ring.filter((coord) => isValidCoord(coord as [number, number])))
-            .filter((ring) => ring.length >= 4)
-        )
-        .filter((polygon) => polygon.length > 0);
+      const polygons = sanitizeStrategicPolygons(extractPlotPolygons(plot));
       if (polygons.length === 0) {
         return null;
       }
@@ -210,6 +199,35 @@ async function prefetchStrategicReportMapBase(
 
   const mapBaseDataUrl = await fetchRemoteImageAsDataUrl(mapBaseUrl);
   return { mapViewport, mapBaseDataUrl };
+}
+
+function buildStrategicPlotDiagnostics(serviceOrder: ServiceOrder): {
+  totalPlots: number;
+  validPlots: Array<{ id: string; name: string }>;
+  invalidPlots: Array<{ id: string; name: string }>;
+  shapeIds: string[];
+} {
+  const plots = serviceOrder.plots || [];
+  const validPlots: Array<{ id: string; name: string }> = [];
+  const invalidPlots: Array<{ id: string; name: string }> = [];
+
+  plots.forEach((plot) => {
+    if (!plot.id) return;
+    const sanitizedPolygons = sanitizeStrategicPolygons(extractPlotPolygons(plot));
+    const payload = { id: plot.id, name: plot.name || `Talhao ${plot.id}` };
+    if (sanitizedPolygons.length > 0) {
+      validPlots.push(payload);
+      return;
+    }
+    invalidPlots.push(payload);
+  });
+
+  return {
+    totalPlots: plots.length,
+    validPlots,
+    invalidPlots,
+    shapeIds: validPlots.map((plot) => plot.id),
+  };
 }
 
 async function prefetchApplicationIndividualMap(application: Application): Promise<{
@@ -332,6 +350,19 @@ export async function generateServiceOrderStrategicReportPDF({
   applications,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const diagnostics = buildStrategicPlotDiagnostics(serviceOrder);
+  console.info('[StrategicPDF] Diagnostics', {
+    serviceOrderId: serviceOrder.id,
+    serviceOrderNumber: serviceOrder.number,
+    totalPlotsInServiceOrder: diagnostics.totalPlots,
+    totalValidPlots: diagnostics.validPlots.length,
+    totalInvalidPlots: diagnostics.invalidPlots.length,
+    totalShapesInput: diagnostics.shapeIds.length,
+    validPlotIdsAndNames: diagnostics.validPlots,
+    shapePlotIdsAndNames: diagnostics.validPlots,
+    invalidPlotIdsAndNames: diagnostics.invalidPlots,
+  });
+
   const { mapViewport, mapBaseDataUrl } = await prefetchStrategicReportMapBase(serviceOrder);
 
   const element = ServiceOrderStrategicReportPDF({
