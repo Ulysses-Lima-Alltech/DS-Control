@@ -339,7 +339,6 @@ export async function generateServiceOrderStrategicReportPDF({
     applications,
     mapViewport,
     prefetchedMapBaseDataUrl: mapBaseDataUrl,
-    mapBaseStyleLabel: 'Mapbox Light',
   });
 
   // @ts-expect-error - toBlob is not typed
