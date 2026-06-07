@@ -25,6 +25,14 @@ export type ServiceOrder = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  plannedHectares: number;
+  totalAppliedHectares: number;
+  progressPercent: number;
+  applicationsCount: number;
+  plotsWithApplications: number;
+  totalPlots: number;
+  myAppliedHectares: number;
+  myApplicationsCount: number;
 };
 
 export type StatsServiceOrders = {

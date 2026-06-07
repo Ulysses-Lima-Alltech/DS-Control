@@ -151,18 +151,11 @@ export default function ServiceOrderPage({
   );
 
   const progressData = useMemo(() => {
-    const mapasTotal = serviceOrderData?.plots?.length || 0;
-    const mapasConcluidos = completedPlotIds.length;
-
-    const areaTotal = (serviceOrderData?.plots || []).reduce((sum, plot) => {
-      return sum + (Number.parseFloat(plot.hectare || '0') || 0);
-    }, 0);
-
-    const areaConcluida = applicationsWithValidPlotId.reduce((sum, application) => {
-      return sum + (Number.parseFloat(application.hectares || '0') || 0);
-    }, 0);
-
-    const percentual = areaTotal > 0 ? (areaConcluida / areaTotal) * 100 : 0;
+    const mapasTotal = Number(serviceOrderData?.totalPlots ?? serviceOrderData?.plots?.length ?? 0);
+    const mapasConcluidos = Number(serviceOrderData?.plotsWithApplications ?? completedPlotIds.length);
+    const areaTotal = Number(serviceOrderData?.plannedHectares || 0);
+    const areaConcluida = Number(serviceOrderData?.totalAppliedHectares || 0);
+    const percentual = Number(serviceOrderData?.progressPercent || 0);
 
     return {
       mapasTotal,
@@ -171,7 +164,15 @@ export default function ServiceOrderPage({
       areaConcluida,
       percentual,
     };
-  }, [applicationsWithValidPlotId, completedPlotIds.length, serviceOrderData?.plots]);
+  }, [
+    completedPlotIds.length,
+    serviceOrderData?.plannedHectares,
+    serviceOrderData?.plots,
+    serviceOrderData?.plotsWithApplications,
+    serviceOrderData?.progressPercent,
+    serviceOrderData?.totalAppliedHectares,
+    serviceOrderData?.totalPlots,
+  ]);
 
   const mapsGeoData = useMemo<GeoJSON.FeatureCollection | undefined>(() => {
     if (!serviceOrderData?.plots?.length) {

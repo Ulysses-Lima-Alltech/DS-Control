@@ -14,6 +14,18 @@ import { COLORS } from '../constants/colors';
 import ModalMapFarmViewer from './Modal/ModalMapFarmViewer';
 import { useState } from 'react';
 
+const formatHectares = (value?: number) =>
+  `${Number(value || 0).toLocaleString('pt-BR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })} ha`;
+
+const formatPercent = (value?: number) =>
+  `${Number(value || 0).toLocaleString('pt-BR', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  })}%`;
+
 export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderId: string }) {
   const [isVisibleModalMapFarmViewer, setIsVisibleModalMapFarmViewer] = useState(false);
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
@@ -40,6 +52,12 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
   if (isLoading || !serviceOrder) {
     return <SkeletonLoading />;
   }
+
+  const plannedHectares = Number(serviceOrder.plannedHectares || 0);
+  const totalAppliedHectares = Number(serviceOrder.totalAppliedHectares || 0);
+  const progressPercent = Number(serviceOrder.progressPercent || 0);
+  const myAppliedHectares = Number(serviceOrder.myAppliedHectares || 0);
+  const myApplicationsCount = Number(serviceOrder.myApplicationsCount || 0);
 
   return (
     <View
@@ -139,6 +157,35 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
           >
             {formatDateToDDMMYYYY(serviceOrder.plannedDate)}
           </Text>
+        </View>
+      </View>
+
+      <View
+        style={{
+          backgroundColor: COLORS.background,
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: COLORS.lightgray,
+          gap: 10,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Feather name='bar-chart-2' size={18} color={COLORS.green} />
+          <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.black }}>
+            Resumo da OS
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <SummaryItem label='Total planejado' value={formatHectares(plannedHectares)} />
+          <SummaryItem label='Total aplicado na OS' value={formatHectares(totalAppliedHectares)} />
+          <SummaryItem label='Progresso total' value={formatPercent(progressPercent)} />
+          <SummaryItem
+            label='Minhas aplicações'
+            value={`${formatHectares(myAppliedHectares)} (${myApplicationsCount})`}
+          />
         </View>
       </View>
 
@@ -329,6 +376,26 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
     </View>
   );
 }
+
+const SummaryItem = ({ label, value }: { label: string; value: string }) => {
+  return (
+    <View
+      style={{
+        backgroundColor: COLORS.white,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: COLORS.lightgray,
+        padding: 10,
+        flexGrow: 1,
+        flexBasis: '47%',
+        gap: 4,
+      }}
+    >
+      <Text style={{ fontSize: 11, color: COLORS.gray }}>{label}</Text>
+      <Text style={{ fontSize: 13, color: COLORS.black, fontWeight: 'bold' }}>{value}</Text>
+    </View>
+  );
+};
 
 const SkeletonError = ({ error }: { error: Error | null }) => {
   return (

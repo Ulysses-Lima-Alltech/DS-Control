@@ -817,6 +817,16 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     selectedServiceOrderStatus && selectedServiceOrderStatus !== 'open'
       ? []
       : openServiceOrdersData?.data || [];
+  const hasFilteredApplicationsMetric = Boolean(
+    selectedPilotId ||
+      selectedProductId ||
+      selectedAssistantId ||
+      selectedDroneId ||
+      selectedApplicationIssue
+  );
+  const hasApplicationLevelOsFilters = Boolean(
+    selectedProductId || selectedAssistantId || selectedDroneId || selectedApplicationIssue
+  );
 
   const customerAreaQueries = useQueries({
     queries: customers.map((customer) => ({
@@ -925,6 +935,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           serviceOrderStatus: selectedServiceOrderStatus,
           applicationIssue: selectedApplicationIssue,
         }),
+      enabled: hasFilteredApplicationsMetric,
       staleTime: 1000 * 60 * 3,
     })),
   });
@@ -1511,10 +1522,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
     orderYesterdayStatsQueries.some((query) => query.isPending) ||
-    orderApplicationsQueries.some((query) => query.isPending);
-  const hasApplicationLevelOsFilters = Boolean(
-    selectedProductId || selectedAssistantId || selectedDroneId || selectedApplicationIssue
-  );
+    (hasFilteredApplicationsMetric && orderApplicationsQueries.some((query) => query.isPending));
   const visibleOpenServiceOrders = useMemo(
     () =>
       openServiceOrders
@@ -2006,23 +2014,15 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               {visibleOpenServiceOrders.map(({ serviceOrder, queryIndex }) => {
                 const yesterdayStats = orderYesterdayStatsQueries[queryIndex]?.data?.stats;
                 const serviceOrderApplications = orderApplicationsQueries[queryIndex]?.data?.data || [];
-                const totalPlots = serviceOrder.plots?.length || 0;
-                const totalHectaresAllPlots = (serviceOrder.plots || []).reduce(
-                  (sum, plot) => sum + Number.parseFloat(plot.hectare || '0'),
-                  0
-                );
-                const totalHectaresApplied = serviceOrderApplications.reduce(
+                const totalPlots = Number(serviceOrder.totalPlots ?? serviceOrder.plots?.length ?? 0);
+                const totalHectaresAllPlots = Number(serviceOrder.plannedHectares || 0);
+                const totalHectaresApplied = Number(serviceOrder.totalAppliedHectares || 0);
+                const filteredHectaresApplied = serviceOrderApplications.reduce(
                   (sum, application) => sum + Number.parseFloat(application.hectares || '0'),
                   0
                 );
-                const uniquePlotIdsWithApplications = new Set(
-                  serviceOrderApplications
-                    .filter((application) => application.plotId !== null)
-                    .map((application) => application.plotId)
-                );
-                const plotsWithApplications = uniquePlotIdsWithApplications.size;
-                const rawProgress =
-                  totalHectaresAllPlots > 0 ? (totalHectaresApplied / totalHectaresAllPlots) * 100 : 0;
+                const plotsWithApplications = Number(serviceOrder.plotsWithApplications || 0);
+                const rawProgress = Number(serviceOrder.progressPercent || 0);
                 const progressValue = Math.min(rawProgress, 100);
                 const customerName = serviceOrder.customer?.name || 'Cliente não informado';
                 const farmsFromOrder = (serviceOrder.farms || [])
@@ -2064,7 +2064,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                       </div>
                       <div className='space-y-2'>
                         <div className='flex items-center justify-between text-sm'>
-                          <span>Progresso da OS</span>
+                          <span>Progresso real da OS</span>
                           <span className='font-medium text-foreground'>
                             {formatHectares(totalHectaresApplied)} / {formatHectares(totalHectaresAllPlots)}
                           </span>
@@ -2074,6 +2074,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                           className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-emerald-500'
                         />
                         <p className='text-xs text-muted-foreground'>{rawProgress.toFixed(1)}% concluído</p>
+                        {hasFilteredApplicationsMetric ? (
+                          <p className='text-xs text-muted-foreground'>
+                            Aplicado no recorte filtrado: {formatHectares(filteredHectaresApplied)}
+                          </p>
+                        ) : null}
                       </div>
                       <div className='grid grid-cols-2 gap-4 border-t border-border/70 pt-4 text-sm'>
                         <div>

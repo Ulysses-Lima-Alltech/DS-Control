@@ -5,6 +5,14 @@ export type ServiceOrder = typeof serviceOrders.$inferSelect;
 export type CreateServiceOrder = typeof serviceOrders.$inferInsert;
 
 export type ServiceOrderWithDetails = ServiceOrder & {
+  plannedHectares: number;
+  totalAppliedHectares: number;
+  progressPercent: number;
+  applicationsCount: number;
+  plotsWithApplications: number;
+  totalPlots: number;
+  myAppliedHectares: number;
+  myApplicationsCount: number;
   farms: Array<{
     id: string;
     name: string;

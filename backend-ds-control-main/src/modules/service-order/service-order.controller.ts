@@ -61,7 +61,8 @@ export class ServiceOrderController {
 
       const serviceOrder = await this.service.getServiceOrderById(
         request.params.id, 
-        request.query
+        request.query,
+        request.payload?.userId,
       );
 
       app.log.info('[ServiceOrderController] - Successfully retrieved service order details');

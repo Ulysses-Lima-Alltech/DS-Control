@@ -8,7 +8,7 @@ import {
   toOperationalDateYMD,
 } from "@common/utils/operational-date";
 import { db } from "@infra/database";
-import { applications, assistants, contracts, cultureTypes, customers, drones, farms, plots, products, serviceOrders, users } from "@infra/database/schema";
+import { applications, assistants, contracts, cultureTypes, customers, drones, farms, plots, products, serviceOrderPilots, serviceOrders, users } from "@infra/database/schema";
 import { and, avg, count, countDistinct, eq, exists, ilike, inArray, isNull, not, or, sql, sum, type SQL } from "drizzle-orm";
 
 import { ApplicationVM, type ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
@@ -273,6 +273,33 @@ export class ApplicationService {
     if (requestUserId !== targetPilotId) {
       throw new AppError(
         "Você não tem permissão para acessar aplicações de outro piloto",
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+  }
+
+  private async enforcePilotServiceOrderScope(
+    requestUserId: string | undefined,
+    serviceOrderId: string,
+  ): Promise<void> {
+    const authenticatedUserType = await this.getAuthenticatedUserType(requestUserId);
+    if (authenticatedUserType !== UserType.PILOT || !requestUserId) {
+      return;
+    }
+
+    const assignment = await db.query.serviceOrderPilots.findFirst({
+      where: and(
+        eq(serviceOrderPilots.serviceOrderId, serviceOrderId),
+        eq(serviceOrderPilots.pilotId, requestUserId),
+      ),
+      columns: {
+        id: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new AppError(
+        "Voce nao tem permissao para acessar aplicacoes desta Ordem de Servico",
         HTTP_STATUS_CODES.FORBIDDEN,
       );
     }
@@ -549,6 +576,7 @@ export class ApplicationService {
     serviceOrderId: string,
     page: number,
     limit: number,
+    requestUserId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for service order %s", serviceOrderId);
 
@@ -559,6 +587,8 @@ export class ApplicationService {
         throw new AppError("Id da ordem de serviço não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     }
 
+
+    await this.enforcePilotServiceOrderScope(requestUserId, serviceOrderId);
 
     const queryResult = await this.applicationRepository.getApplicationsByServiceOrderId(serviceOrderId, page, limit);
     const totalCount = await this.applicationRepository.countApplicationsByServiceOrderId(serviceOrderId);

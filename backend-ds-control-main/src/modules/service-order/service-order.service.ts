@@ -20,6 +20,8 @@ import type {
   ServiceOrder,
   ServiceOrderWithDetails,
 } from '@repositories/service-order/service-order.types';
+import { UserRepository } from '@repositories/users/user.repository';
+import { UserType } from '@repositories/users/user.types';
 import { and, count, countDistinct, eq, exists, gte, inArray, isNull, lt, sum } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { CreateServiceOrderDTO } from './dto/create-service-order';
@@ -32,9 +34,11 @@ import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
 
 export class ServiceOrderService {
   private readonly serviceOrderRepository: ServiceOrderRepository;
+  private readonly userRepository: UserRepository;
 
   constructor() {
     this.serviceOrderRepository = new ServiceOrderRepository();
+    this.userRepository = new UserRepository();
   }
 
   /**
@@ -63,7 +67,13 @@ export class ServiceOrderService {
   public async getServiceOrderById(
     serviceOrderId: string,
     params: ServiceOrderDetailsQueryString,
+    requestUserId?: string,
   ): Promise<z.infer<typeof ServiceOrderWithDetailsSchema>> {
+    const currentPilotId = await this.getAuthorizedPilotIdForServiceOrder(
+      serviceOrderId,
+      requestUserId,
+    );
+
     const serviceOrder = await this.serviceOrderRepository.getServiceOrderById(
       serviceOrderId,
       params.includePlots,
@@ -72,6 +82,7 @@ export class ServiceOrderService {
       params.includeContracts,
       params.includeCustomers,
       params.includeGeoJson,
+      currentPilotId,
     );
 
     if (!serviceOrder) {
@@ -276,6 +287,52 @@ export class ServiceOrderService {
         HTTP_STATUS_CODES.BAD_REQUEST,
       );
     }
+  }
+
+  private async getAuthorizedPilotIdForServiceOrder(
+    serviceOrderId: string,
+    requestUserId?: string,
+  ): Promise<string | undefined> {
+    if (!requestUserId) return undefined;
+
+    const authenticatedUser = await this.userRepository.getUserById(requestUserId);
+    if (!authenticatedUser) {
+      throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
+    }
+
+    if (authenticatedUser.type !== UserType.PILOT) {
+      return undefined;
+    }
+
+    const serviceOrderExists = await db.query.serviceOrders.findFirst({
+      where: eq(serviceOrders.id, serviceOrderId),
+      columns: {
+        id: true,
+      },
+    });
+
+    if (!serviceOrderExists) {
+      throw new AppError('Ordem de servico nao encontrada', HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    const assignment = await db.query.serviceOrderPilots.findFirst({
+      where: and(
+        eq(serviceOrderPilots.serviceOrderId, serviceOrderId),
+        eq(serviceOrderPilots.pilotId, requestUserId),
+      ),
+      columns: {
+        id: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new AppError(
+        'Voce nao tem permissao para acessar esta Ordem de Servico',
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+
+    return requestUserId;
   }
 
   /**

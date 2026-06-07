@@ -100,6 +100,22 @@ export default function FormApplication({
   const { mutate: updateApplicationById, isPending: isUpdatingApplication } =
     useUpdateApplicationById();
 
+  const invalidateApplicationCaches = (targetServiceOrderId?: string | null) => {
+    const effectiveServiceOrderId = targetServiceOrderId || watch('serviceOrderId');
+
+    queryClient.invalidateQueries({ queryKey: ['applications'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders', 'my-open'] });
+    queryClient.invalidateQueries({ queryKey: ['applications', 'dashboard-metrics'] });
+
+    if (effectiveServiceOrderId) {
+      queryClient.invalidateQueries({
+        queryKey: ['applications', 'service-order', effectiveServiceOrderId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['service-orders', effectiveServiceOrderId] });
+    }
+  };
+
   // SERVICE ORDERS
   const { data: initialServiceOrder, isFetching: isFetchingInitialServiceOrder } =
     useGetServiceOrderById(
@@ -359,7 +375,7 @@ export default function FormApplication({
         {
           onSuccess: () => {
             toast('Aplicação atualizada com sucesso');
-            queryClient.invalidateQueries({ queryKey: ['applications'] });
+            invalidateApplicationCaches(data.serviceOrderId);
             onSuccess?.();
           },
           onError: (error) => {
@@ -371,7 +387,7 @@ export default function FormApplication({
       registerNewApplication(data, {
         onSuccess: () => {
           toast('Aplicação criada com sucesso');
-          queryClient.invalidateQueries({ queryKey: ['applications'] });
+          invalidateApplicationCaches(data.serviceOrderId);
           reset({
             serviceOrderId: '',
             farmId: '',

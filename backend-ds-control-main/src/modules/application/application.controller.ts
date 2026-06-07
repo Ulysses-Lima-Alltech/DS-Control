@@ -331,6 +331,7 @@ export class ApplicationController {
         request.params.serviceOrderId,
         page,
         limit,
+        request.payload?.userId,
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for service order");

@@ -220,6 +220,20 @@ export const TableApplications = ({
   const [orderType, setOrderType] = React.useState<ApplicationOrderType | undefined>(undefined)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = React.useState(false);
 
+  const invalidateApplicationCaches = (targetServiceOrderId?: string | null) => {
+    queryClient.invalidateQueries({ queryKey: ['applications'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders', 'my-open'] });
+    queryClient.invalidateQueries({ queryKey: ['applications', 'dashboard-metrics'] });
+
+    if (targetServiceOrderId) {
+      queryClient.invalidateQueries({
+        queryKey: ['applications', 'service-order', targetServiceOrderId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['service-orders', targetServiceOrderId] });
+    }
+  };
+
   const orderByOptions = [
     { value: 'date' as ApplicationOrderBy, label: 'Data da aplicação' },
     { value: 'pilot' as ApplicationOrderBy, label: 'Piloto' },
@@ -425,8 +439,10 @@ export const TableApplications = ({
   const { mutate: deleteApplicationById, isPending: isDeletingApplication } =
     useDeleteApplicationById({
       onSuccess: () => {
+        const deletedServiceOrderId = applicationToDelete?.serviceOrderId;
         toast('Aplicação deletada com sucesso');
-        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        invalidateApplicationCaches(deletedServiceOrderId);
+        setApplicationToDelete(null);
       },
       onError: (error) => {
         toast(error.message);
@@ -442,7 +458,6 @@ export const TableApplications = ({
     if (applicationToDelete) {
       deleteApplicationById(applicationToDelete.id);
       setDeleteDialogOpen(false);
-      setApplicationToDelete(null);
     }
   };
 

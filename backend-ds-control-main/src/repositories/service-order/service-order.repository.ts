@@ -2,6 +2,7 @@ import { db } from '@infra/database';
 import {
   applications,
   customers,
+  plots,
   serviceOrderFarms,
   serviceOrderPilots,
   serviceOrderPlots,
@@ -24,7 +25,151 @@ const EXCLUDED_SERVICE_ORDER_IDS = [
   'badfb92b-4e41-4b6b-b7cf-a5985ae5f4a3',
 ];
 
+type ServiceOrderProgressMetrics = Pick<
+  ServiceOrderWithDetails,
+  | 'plannedHectares'
+  | 'totalAppliedHectares'
+  | 'progressPercent'
+  | 'applicationsCount'
+  | 'plotsWithApplications'
+  | 'totalPlots'
+  | 'myAppliedHectares'
+  | 'myApplicationsCount'
+>;
+
 export class ServiceOrderRepository {
+  private getEmptyProgressMetrics(): ServiceOrderProgressMetrics {
+    return {
+      plannedHectares: 0,
+      totalAppliedHectares: 0,
+      progressPercent: 0,
+      applicationsCount: 0,
+      plotsWithApplications: 0,
+      totalPlots: 0,
+      myAppliedHectares: 0,
+      myApplicationsCount: 0,
+    };
+  }
+
+  private calculateProgressPercent(totalAppliedHectares: number, plannedHectares: number): number {
+    if (plannedHectares <= 0) return 0;
+    return Number(((totalAppliedHectares / plannedHectares) * 100).toFixed(2));
+  }
+
+  private async getProgressMetricsByServiceOrderIds(
+    serviceOrderIds: string[],
+    currentPilotId?: string,
+  ): Promise<Map<string, ServiceOrderProgressMetrics>> {
+    const uniqueServiceOrderIds = Array.from(new Set(serviceOrderIds.filter(Boolean)));
+    const metricsByServiceOrderId = new Map<string, ServiceOrderProgressMetrics>();
+
+    uniqueServiceOrderIds.forEach((serviceOrderId) => {
+      metricsByServiceOrderId.set(serviceOrderId, this.getEmptyProgressMetrics());
+    });
+
+    if (uniqueServiceOrderIds.length === 0) {
+      return metricsByServiceOrderId;
+    }
+
+    const [plannedRows, appliedRows, myAppliedRows] = await Promise.all([
+      db
+        .select({
+          serviceOrderId: serviceOrderPlots.serviceOrderId,
+          plannedHectares: sql<string>`COALESCE(SUM(${plots.hectare}), 0)`,
+          totalPlots: sql<number>`COUNT(DISTINCT ${plots.id})`,
+        })
+        .from(serviceOrderPlots)
+        .innerJoin(plots, eq(serviceOrderPlots.plotId, plots.id))
+        .where(
+          and(
+            inArray(serviceOrderPlots.serviceOrderId, uniqueServiceOrderIds),
+            isNull(plots.deletedAt),
+          ),
+        )
+        .groupBy(serviceOrderPlots.serviceOrderId),
+      db
+        .select({
+          serviceOrderId: applications.serviceOrderId,
+          totalAppliedHectares: sql<string>`COALESCE(SUM(${applications.hectares}), 0)`,
+          applicationsCount: sql<number>`COUNT(${applications.id})`,
+          plotsWithApplications: sql<number>`COUNT(DISTINCT ${applications.plotId})`,
+        })
+        .from(applications)
+        .where(
+          and(
+            inArray(applications.serviceOrderId, uniqueServiceOrderIds),
+            isNull(applications.deletedAt),
+          ),
+        )
+        .groupBy(applications.serviceOrderId),
+      currentPilotId
+        ? db
+            .select({
+              serviceOrderId: applications.serviceOrderId,
+              myAppliedHectares: sql<string>`COALESCE(SUM(${applications.hectares}), 0)`,
+              myApplicationsCount: sql<number>`COUNT(${applications.id})`,
+            })
+            .from(applications)
+            .where(
+              and(
+                inArray(applications.serviceOrderId, uniqueServiceOrderIds),
+                eq(applications.pilotId, currentPilotId),
+                isNull(applications.deletedAt),
+              ),
+            )
+            .groupBy(applications.serviceOrderId)
+        : Promise.resolve([]),
+    ]);
+
+    plannedRows.forEach((row) => {
+      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      current.plannedHectares = Number(row.plannedHectares || 0);
+      current.totalPlots = Number(row.totalPlots || 0);
+      metricsByServiceOrderId.set(row.serviceOrderId, current);
+    });
+
+    appliedRows.forEach((row) => {
+      if (!row.serviceOrderId) return;
+      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      current.totalAppliedHectares = Number(row.totalAppliedHectares || 0);
+      current.applicationsCount = Number(row.applicationsCount || 0);
+      current.plotsWithApplications = Number(row.plotsWithApplications || 0);
+      metricsByServiceOrderId.set(row.serviceOrderId, current);
+    });
+
+    myAppliedRows.forEach((row) => {
+      if (!row.serviceOrderId) return;
+      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      current.myAppliedHectares = Number(row.myAppliedHectares || 0);
+      current.myApplicationsCount = Number(row.myApplicationsCount || 0);
+      metricsByServiceOrderId.set(row.serviceOrderId, current);
+    });
+
+    metricsByServiceOrderId.forEach((metrics) => {
+      metrics.progressPercent = this.calculateProgressPercent(
+        metrics.totalAppliedHectares,
+        metrics.plannedHectares,
+      );
+    });
+
+    return metricsByServiceOrderId;
+  }
+
+  private async attachProgressMetrics<T extends { id: string }>(
+    serviceOrdersList: T[],
+    currentPilotId?: string,
+  ): Promise<Array<T & ServiceOrderProgressMetrics>> {
+    const metricsByServiceOrderId = await this.getProgressMetricsByServiceOrderIds(
+      serviceOrdersList.map((serviceOrder) => serviceOrder.id),
+      currentPilotId,
+    );
+
+    return serviceOrdersList.map((serviceOrder) => ({
+      ...serviceOrder,
+      ...(metricsByServiceOrderId.get(serviceOrder.id) ?? this.getEmptyProgressMetrics()),
+    }));
+  }
+
   private filterActivePlots<T extends { deletedAt?: Date | null }>(items?: T[] | null): T[] {
     if (!items || items.length === 0) return [];
     return items.filter((item) => !item.deletedAt);
@@ -128,6 +273,7 @@ export class ServiceOrderRepository {
     includeContracts: boolean = true,
     includeCustomers: boolean = true,
     includeGeoJson: boolean = false,
+    currentPilotId?: string,
   ): Promise<ServiceOrderWithDetails | null> {
     const serviceOrder = await db.query.serviceOrders.findFirst({
       where: eq(serviceOrders.id, serviceOrderId),
@@ -186,14 +332,21 @@ export class ServiceOrderRepository {
       return null;
     }
 
-    return {
+    const mappedServiceOrder = {
       ...serviceOrder,
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
       farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
       pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
       plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
-    } as unknown as ServiceOrderWithDetails;
+    };
+
+    const [serviceOrderWithProgress] = await this.attachProgressMetrics(
+      [mappedServiceOrder],
+      currentPilotId,
+    );
+
+    return serviceOrderWithProgress as unknown as ServiceOrderWithDetails;
   }
 
   /**
@@ -231,6 +384,7 @@ export class ServiceOrderRepository {
     includeGeoJson: boolean = false,
     orderBy?: ServiceOrderBy,
     orderType?: ServiceOrderType,
+    currentPilotId?: string,
   ): Promise<ServiceOrderWithDetails[]> {
     // Build where conditions for the main query
     const whereConditions = [];
@@ -414,7 +568,7 @@ export class ServiceOrderRepository {
     );
 
     // Return in the same order as the IDs query (respecting pagination and sorting)
-    return serviceOrderIds.map(({ id }) => {
+    const mappedServiceOrders = serviceOrderIds.map(({ id }) => {
       const serviceOrder = serviceOrderMap.get(id);
       if (!serviceOrder) {
         throw new Error(`Service order ${id} not found in details query`);
@@ -428,7 +582,12 @@ export class ServiceOrderRepository {
         pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
         plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
       };
-    }) as unknown as ServiceOrderWithDetails[];
+    });
+
+    return await this.attachProgressMetrics(
+      mappedServiceOrders,
+      currentPilotId,
+    ) as unknown as ServiceOrderWithDetails[];
   }
 
   /**
@@ -721,14 +880,19 @@ export class ServiceOrderRepository {
       }
     });
 
-    return serviceOrdersList.map(serviceOrder => ({
+    const mappedServiceOrders = serviceOrdersList.map(serviceOrder => ({
       ...serviceOrder,
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
       farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
       pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
       plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
-    })) as unknown as ServiceOrderWithDetails[];
+    }));
+
+    return await this.attachProgressMetrics(
+      mappedServiceOrders,
+      pilotId,
+    ) as unknown as ServiceOrderWithDetails[];
   }
 
   /**

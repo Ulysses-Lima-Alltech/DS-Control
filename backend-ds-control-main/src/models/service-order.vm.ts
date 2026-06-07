@@ -16,6 +16,14 @@ export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]),
   plannedDate: z.union([z.string(), z.date()]),
+  plannedHectares: z.number(),
+  totalAppliedHectares: z.number(),
+  progressPercent: z.number(),
+  applicationsCount: z.number(),
+  plotsWithApplications: z.number(),
+  totalPlots: z.number(),
+  myAppliedHectares: z.number(),
+  myApplicationsCount: z.number(),
   farms: z.array(z.object({
     id: z.string().uuid(),
     name: z.string(),
@@ -91,8 +99,8 @@ export const ServiceOrderVM = {
   toViewModel: (serviceOrder: ServiceOrder) => {
     return ServiceOrderViewModelSchema.parse(serviceOrder);
   },
-  
+
   toViewModelWithDetails: (serviceOrder: ServiceOrderWithDetails) => {
     return ServiceOrderWithDetailsSchema.parse(serviceOrder);
   },
-}; 
+};

@@ -291,12 +291,32 @@ export default function FormApplication({
     ...[dataApplicationBeingEdited?.application?.product],
   ].filter((product, index, self) => self.findIndex((p) => p && p.id === product?.id) === index);
 
+  const invalidateApplicationCaches = (targetServiceOrderId?: string | null) => {
+    const effectiveServiceOrderId =
+      targetServiceOrderId ||
+      serviceOrderIdToFetch ||
+      serviceOrderId ||
+      dataApplicationBeingEdited?.application?.serviceOrderId;
+
+    queryClient.invalidateQueries({ queryKey: ['applications'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['service-orders', 'my-open'] });
+    queryClient.invalidateQueries({ queryKey: ['applications', 'dashboard-metrics'] });
+
+    if (effectiveServiceOrderId) {
+      queryClient.invalidateQueries({
+        queryKey: ['applications', 'service-order', effectiveServiceOrderId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['service-orders', effectiveServiceOrderId] });
+    }
+  };
+
   const { mutate: registerNewApplication, isPending: isPendingRegisterNewApplication } =
     useRegisterNewApplication({
       onSuccess: () => {
         Alert.alert('Aplicação criada com sucesso');
         reset();
-        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        invalidateApplicationCaches();
         router.back();
       },
       onError: (error) => {
@@ -309,7 +329,7 @@ export default function FormApplication({
       onSuccess: () => {
         Alert.alert('Aplicação criada com sucesso');
         reset();
-        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        invalidateApplicationCaches();
         router.back();
       },
       onError: (error) => {
@@ -322,7 +342,7 @@ export default function FormApplication({
       onSuccess: () => {
         Alert.alert('Aplicação atualizada com sucesso');
         reset();
-        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        invalidateApplicationCaches();
         router.back();
       },
       onError: (error) => {
@@ -335,7 +355,7 @@ export default function FormApplication({
       onSuccess: () => {
         Alert.alert('Aplicação atualizada com sucesso');
         reset();
-        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        invalidateApplicationCaches();
         router.back();
       },
       onError: (error) => {

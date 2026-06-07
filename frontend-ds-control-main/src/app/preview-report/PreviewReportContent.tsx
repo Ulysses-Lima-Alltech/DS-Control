@@ -97,6 +97,14 @@ const MOCK_SERVICE_ORDER: ServiceOrder = {
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null,
+  plannedHectares: 25.5,
+  totalAppliedHectares: 12.75,
+  progressPercent: 50,
+  applicationsCount: 1,
+  plotsWithApplications: 1,
+  totalPlots: 1,
+  myAppliedHectares: 12.75,
+  myApplicationsCount: 1,
 };
 
 const MOCK_APPLICATIONS: Application[] = [
