@@ -765,7 +765,13 @@ export default function ReportsCenterPage() {
     const totalPlannedHectares = serviceOrders.reduce(
       (sum, serviceOrder) =>
         sum +
-        (serviceOrder.plots || []).reduce((plotSum, plot) => plotSum + parseNumber(plot.hectare), 0),
+        parseNumber(
+          serviceOrder.plannedHectares ??
+            (serviceOrder.plots || []).reduce(
+              (plotSum, plot) => plotSum + parseNumber(plot.hectare),
+              0
+            )
+        ),
       0
     );
 

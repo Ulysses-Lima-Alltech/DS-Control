@@ -106,6 +106,14 @@ type StrategicVectorShape = {
   isApplied: boolean;
 };
 
+type ServiceOrderMetrics = {
+  plannedHectares: number;
+  totalAppliedHectares: number;
+  progressPercent: number;
+  plotsWithApplications: number;
+  totalPlots: number;
+};
+
 function parseNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -115,11 +123,72 @@ function parseNumber(value: unknown): number {
   return 0;
 }
 
+function parseOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value.replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function formatHectares(value: number): string {
   return `${value.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ha`;
+}
+
+function formatPercent(value: number): string {
+  return `${value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
+function resolveServiceOrderMetrics(
+  serviceOrder: ServiceOrder,
+  applications: Application[]
+): ServiceOrderMetrics {
+  const fallbackPlannedHectares = (serviceOrder.plots || []).reduce(
+    (sum, plot) => sum + parseNumber(plot.hectare),
+    0
+  );
+  const serviceOrderApplications = applications.filter(
+    (application) => application.serviceOrderId === serviceOrder.id
+  );
+  const fallbackAppliedHectares = serviceOrderApplications.reduce(
+    (sum, application) => sum + parseNumber(application.hectares),
+    0
+  );
+  const fallbackAppliedPlotIds = new Set(
+    serviceOrderApplications
+      .map((application) => application.plotId)
+      .filter((plotId): plotId is string => Boolean(plotId))
+  );
+
+  const plannedHectares =
+    parseOptionalNumber(serviceOrder.plannedHectares) ?? fallbackPlannedHectares;
+  const totalAppliedHectares =
+    parseOptionalNumber(serviceOrder.totalAppliedHectares) ?? fallbackAppliedHectares;
+  const fallbackProgressPercent =
+    plannedHectares > 0 ? (totalAppliedHectares / plannedHectares) * 100 : 0;
+  const progressPercent =
+    parseOptionalNumber(serviceOrder.progressPercent) ?? fallbackProgressPercent;
+
+  return {
+    plannedHectares,
+    totalAppliedHectares,
+    progressPercent,
+    plotsWithApplications:
+      parseOptionalNumber(serviceOrder.plotsWithApplications) ?? fallbackAppliedPlotIds.size,
+    totalPlots:
+      parseOptionalNumber(serviceOrder.totalPlots) ??
+      serviceOrder.plots?.length ??
+      serviceOrder.plotsIds?.length ??
+      0,
+  };
 }
 
 function formatGeneratedAt(): string {
@@ -664,6 +733,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     );
 
   const plotRowsById = new Map(validPlotRows.map((row) => [row.plotId, row]));
+  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder, applications);
 
   const appliedPlotIds = new Set(
     applications
@@ -671,7 +741,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       .map((application) => application.plotId)
       .filter((plotId): plotId is string => Boolean(plotId))
   );
-  const totalValidHectares = validPlotRows.reduce((sum, row) => sum + row.hectares, 0);
+  const progressBarWidth = `${clamp(serviceOrderMetrics.progressPercent, 0, 100)}%`;
 
   const customerName = serviceOrder.customer?.name || 'CLIENTE';
   const observationTitle = (serviceOrder.observation || 'PROGRAMACAO').toUpperCase();
@@ -1003,9 +1073,39 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 </Text>
               </View>
             </View>
-            <Text style={{ fontSize: 7.6, fontWeight: 700, marginTop: 2 }}>
-              TOTAL: {formatHectares(totalValidHectares).toUpperCase()}
-            </Text>
+            <View style={{ marginTop: 2, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 2 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.4 }}>
+                <Text style={{ fontSize: 6.3, color: MUTED_TEXT }}>Progresso real da OS</Text>
+                <Text style={{ fontSize: 6.6, fontWeight: 700 }}>
+                  {formatPercent(serviceOrderMetrics.progressPercent)}
+                </Text>
+              </View>
+              <View
+                style={{
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: '#E5E7EB',
+                  overflow: 'hidden',
+                  marginBottom: 1.6,
+                }}
+              >
+                <View
+                  style={{
+                    width: progressBarWidth,
+                    height: 4,
+                    backgroundColor: BRAND_YELLOW,
+                  }}
+                />
+              </View>
+              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                Aplicado: {formatHectares(serviceOrderMetrics.totalAppliedHectares)} de{' '}
+                {formatHectares(serviceOrderMetrics.plannedHectares)}
+              </Text>
+              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                Talhoes com aplicacao: {serviceOrderMetrics.plotsWithApplications}/
+                {serviceOrderMetrics.totalPlots}
+              </Text>
+            </View>
             {invalidPlotRows.length > 0 ? (
               <Text style={{ fontSize: 6.1, color: MUTED_TEXT, marginTop: 1 }}>
                 Talhoes sem geometria valida: {invalidPlotRows.length}

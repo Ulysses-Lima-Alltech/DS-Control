@@ -70,7 +70,7 @@ const ServiceOrdersDetailedReportPDF: React.FC<ServiceOrdersDetailedReportPDFPro
           <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>Resumo</Text>
           <Text>OS selecionadas: {sections.length}</Text>
           <Text>Total de aplicacoes: {totalApplications}</Text>
-          <Text>Total de hectares: {totalHectares.toFixed(2)} ha</Text>
+          <Text>Aplicado no recorte listado: {totalHectares.toFixed(2)} ha</Text>
           <Text>Pilotos envolvidos: {pilots.size}</Text>
         </View>
 
@@ -103,7 +103,7 @@ const ServiceOrdersDetailedReportPDF: React.FC<ServiceOrdersDetailedReportPDFPro
                     : 'N/A'}
                 </Text>
                 <Text style={{ fontSize: 8, color: '#6B7280' }}>
-                  Aplicacoes: {section.applications.length} | Hectares: {osApplied.toFixed(2)} ha
+                  Aplicacoes listadas: {section.applications.length} | Aplicado no recorte: {osApplied.toFixed(2)} ha
                 </Text>
               </View>
 
