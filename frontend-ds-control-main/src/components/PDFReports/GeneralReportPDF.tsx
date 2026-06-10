@@ -38,7 +38,6 @@ export interface GeneralReportTotals {
   applicationsCount: number;
   serviceOrdersCount: number;
   totalAppliedHectares: number;
-  totalPlannedHectares: number;
 }
 
 export interface GeneralReportStatusSummary {
@@ -146,21 +145,17 @@ const GeneralReportPDF: React.FC<GeneralReportPDFProps> = ({
               <Text style={{ fontSize: 12, fontWeight: 700 }}>{formatHectares(totals.totalAppliedHectares)}</Text>
             </View>
             <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Total planejado</Text>
-              <Text style={{ fontSize: 12, fontWeight: 700 }}>{formatHectares(totals.totalPlannedHectares)}</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Gerado em</Text>
+              <Text style={{ fontSize: 10, fontWeight: 500 }}>{generatedAt}</Text>
             </View>
           </View>
 
           <View style={{ flexDirection: 'row' }}>
-            <View style={{ width: '50%' }}>
+            <View style={{ width: '100%' }}>
               <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Status OS (aberta/concluida/cancelada)</Text>
               <Text style={{ fontSize: 10, fontWeight: 500 }}>
                 {statusSummary.openCount} / {statusSummary.completedCount} / {statusSummary.cancelledCount}
               </Text>
-            </View>
-            <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Gerado em</Text>
-              <Text style={{ fontSize: 10, fontWeight: 500 }}>{generatedAt}</Text>
             </View>
           </View>
         </View>

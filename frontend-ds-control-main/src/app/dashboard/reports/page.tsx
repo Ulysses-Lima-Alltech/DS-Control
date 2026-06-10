@@ -23,7 +23,12 @@ import { useGetAllFarms } from '@/queries/farm.query';
 import { useGetAllProducts } from '@/queries/product.query';
 import { useGetAllServiceOrders } from '@/queries/service-order.query';
 import { useGetAllUsers } from '@/queries/user.query';
-import { getAllApplications, getApplicationsByServiceOrderId } from '@/services/application.service';
+import {
+  getAllApplications,
+  getApplicationsByServiceOrderId,
+  type GetAllApplicationsParams,
+  type GetAllApplicationsResponse,
+} from '@/services/application.service';
 import { getAllFarms } from '@/services/farm.service';
 import { getAllServiceOrders, getServiceOrderById } from '@/services/service-order.service';
 import { getAllUsers } from '@/services/user.service';
@@ -102,6 +107,15 @@ type PilotPreviewRow = {
   applicationsCount: number;
   totalHectares: number;
 };
+type ApplicationsReportData = {
+  applications: Application[];
+  totalCount: number;
+  totalAppliedHectares: number;
+  summary: GetAllApplicationsResponse['summary'];
+};
+
+const GENERAL_REPORT_APPLICATIONS_LIMIT = 1000;
+const GENERAL_REPORT_APPLICATIONS_MAX_PAGES = 500;
 
 const STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
   { value: 'open', label: 'Aberta' },
@@ -120,6 +134,69 @@ function parseNumber(value: unknown): number {
   }
 
   return 0;
+}
+
+function sumApplicationsHectares(applications: Application[]): number {
+  return applications.reduce((sum, application) => sum + parseNumber(application.hectares), 0);
+}
+
+async function fetchApplicationsForGeneralReport(
+  filters: GetAllApplicationsParams
+): Promise<ApplicationsReportData> {
+  const limit = GENERAL_REPORT_APPLICATIONS_LIMIT;
+  const applicationsById = new Map<string, Application>();
+  let page = 1;
+  let firstResponse: GetAllApplicationsResponse | null = null;
+
+  while (page <= GENERAL_REPORT_APPLICATIONS_MAX_PAGES) {
+    const response = await getAllApplications({
+      ...filters,
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    if (!firstResponse) {
+      firstResponse = response;
+    }
+
+    const pageApplications = response.data || [];
+    pageApplications.forEach((application) => applicationsById.set(application.id, application));
+
+    const totalCount = response.totalCount ?? applicationsById.size;
+    if (
+      pageApplications.length === 0 ||
+      applicationsById.size >= totalCount ||
+      page >= response.totalPages
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  if (!firstResponse) {
+    throw new Error('Nao foi possivel carregar as aplicacoes para o relatorio geral.');
+  }
+
+  if (
+    page >= GENERAL_REPORT_APPLICATIONS_MAX_PAGES &&
+    applicationsById.size < firstResponse.totalCount
+  ) {
+    throw new Error('Nao foi possivel carregar todas as aplicacoes filtradas para o relatorio geral.');
+  }
+
+  const applications = Array.from(applicationsById.values());
+  const summaryTotal = firstResponse.summary?.totalFilteredHectares;
+
+  return {
+    applications,
+    totalCount: firstResponse.totalCount ?? applications.length,
+    totalAppliedHectares:
+      summaryTotal !== undefined && summaryTotal !== null
+        ? parseNumber(summaryTotal)
+        : sumApplicationsHectares(applications),
+    summary: firstResponse.summary,
+  };
 }
 
 function formatGeneratedAt(): string {
@@ -435,7 +512,7 @@ export default function ReportsCenterPage() {
     return summary;
   };
 
-  const buildApplicationFilters = () => ({
+  const buildApplicationFilters = (): GetAllApplicationsParams => ({
     page: '1',
     limit: '1000',
     startDate: filters.startDate,
@@ -750,30 +827,13 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateGeneralReport = async () => {
-    const [applicationsResponse, serviceOrdersResponse] = await Promise.all([
-      getAllApplications(buildApplicationFilters()),
+    const [applicationsReportData, serviceOrdersResponse] = await Promise.all([
+      fetchApplicationsForGeneralReport(buildApplicationFilters()),
       getAllServiceOrders(buildServiceOrderFilters()),
     ]);
 
-    const applications = applicationsResponse.data || [];
+    const applications = applicationsReportData.applications;
     const serviceOrders = serviceOrdersResponse.data || [];
-
-    const totalAppliedHectares = applications.reduce(
-      (sum, application) => sum + parseNumber(application.hectares),
-      0
-    );
-    const totalPlannedHectares = serviceOrders.reduce(
-      (sum, serviceOrder) =>
-        sum +
-        parseNumber(
-          serviceOrder.plannedHectares ??
-            (serviceOrder.plots || []).reduce(
-              (plotSum, plot) => plotSum + parseNumber(plot.hectare),
-              0
-            )
-        ),
-      0
-    );
 
     const byFarm = aggregateByName(
       applications.map((application) => ({
@@ -818,10 +878,9 @@ export default function ReportsCenterPage() {
       generatedAt: formatGeneratedAt(),
       filtersSummary: resolveFiltersSummary(),
       totals: {
-        applicationsCount: applications.length,
+        applicationsCount: applicationsReportData.totalCount,
         serviceOrdersCount: serviceOrders.length,
-        totalAppliedHectares,
-        totalPlannedHectares,
+        totalAppliedHectares: applicationsReportData.totalAppliedHectares,
       },
       statusSummary,
       byFarm,
