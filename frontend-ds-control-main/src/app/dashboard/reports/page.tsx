@@ -29,9 +29,14 @@ import {
   type GetAllApplicationsParams,
   type GetAllApplicationsResponse,
 } from '@/services/application.service';
-import { getAllFarms } from '@/services/farm.service';
-import { getAllServiceOrders, getServiceOrderById } from '@/services/service-order.service';
-import { getAllUsers } from '@/services/user.service';
+import { getAllFarms, type GetAllFarmsParams, type GetAllFarmsResponse } from '@/services/farm.service';
+import {
+  getAllServiceOrders,
+  getServiceOrderById,
+  type GetAllServiceOrdersParams,
+  type GetAllServiceOrdersResponse,
+} from '@/services/service-order.service';
+import { getAllUsers, type GetAllUsersParams, type GetAllUsersResponse } from '@/services/user.service';
 import {
   APPLICATION_ISSUE_LABELS,
   type Application,
@@ -113,9 +118,21 @@ type ApplicationsReportData = {
   totalAppliedHectares: number;
   summary: GetAllApplicationsResponse['summary'];
 };
+type FarmsReportData = {
+  farms: Farm[];
+  totalCount: number;
+};
+type ServiceOrdersReportData = {
+  serviceOrders: ServiceOrder[];
+  totalCount: number;
+};
+type UsersReportData = {
+  users: User[];
+  totalCount: number;
+};
 
-const GENERAL_REPORT_APPLICATIONS_LIMIT = 1000;
-const GENERAL_REPORT_APPLICATIONS_MAX_PAGES = 500;
+const REPORT_FETCH_PAGE_SIZE = 1000;
+const REPORT_FETCH_MAX_PAGES = 500;
 
 const STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
   { value: 'open', label: 'Aberta' },
@@ -129,7 +146,12 @@ function parseNumber(value: unknown): number {
   }
 
   if (typeof value === 'string') {
-    const normalized = Number.parseFloat(value.replace(',', '.'));
+    const trimmed = value.trim();
+    const normalizedValue =
+      trimmed.includes(',') && trimmed.includes('.')
+        ? trimmed.replace(/\./g, '').replace(',', '.')
+        : trimmed.replace(',', '.');
+    const normalized = Number.parseFloat(normalizedValue);
     return Number.isFinite(normalized) ? normalized : 0;
   }
 
@@ -140,15 +162,15 @@ function sumApplicationsHectares(applications: Application[]): number {
   return applications.reduce((sum, application) => sum + parseNumber(application.hectares), 0);
 }
 
-async function fetchApplicationsForGeneralReport(
+async function fetchAllApplicationsByFilters(
   filters: GetAllApplicationsParams
 ): Promise<ApplicationsReportData> {
-  const limit = GENERAL_REPORT_APPLICATIONS_LIMIT;
+  const limit = REPORT_FETCH_PAGE_SIZE;
   const applicationsById = new Map<string, Application>();
   let page = 1;
   let firstResponse: GetAllApplicationsResponse | null = null;
 
-  while (page <= GENERAL_REPORT_APPLICATIONS_MAX_PAGES) {
+  while (page <= REPORT_FETCH_MAX_PAGES) {
     const response = await getAllApplications({
       ...filters,
       page: page.toString(),
@@ -175,14 +197,14 @@ async function fetchApplicationsForGeneralReport(
   }
 
   if (!firstResponse) {
-    throw new Error('Nao foi possivel carregar as aplicacoes para o relatorio geral.');
+    throw new Error('Nao foi possivel carregar as aplicacoes para o relatorio.');
   }
 
   if (
-    page >= GENERAL_REPORT_APPLICATIONS_MAX_PAGES &&
+    page >= REPORT_FETCH_MAX_PAGES &&
     applicationsById.size < firstResponse.totalCount
   ) {
-    throw new Error('Nao foi possivel carregar todas as aplicacoes filtradas para o relatorio geral.');
+    throw new Error('Nao foi possivel carregar todas as aplicacoes filtradas para o relatorio.');
   }
 
   const applications = Array.from(applicationsById.values());
@@ -196,6 +218,141 @@ async function fetchApplicationsForGeneralReport(
         ? parseNumber(summaryTotal)
         : sumApplicationsHectares(applications),
     summary: firstResponse.summary,
+  };
+}
+
+async function fetchAllFarmsByFilters(
+  customerId: string | undefined,
+  filters: GetAllFarmsParams
+): Promise<FarmsReportData> {
+  const limit = REPORT_FETCH_PAGE_SIZE;
+  const farmsById = new Map<string, Farm>();
+  let page = 1;
+  let firstResponse: GetAllFarmsResponse | null = null;
+
+  while (page <= REPORT_FETCH_MAX_PAGES) {
+    const response = await getAllFarms(customerId, {
+      ...filters,
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    if (!firstResponse) {
+      firstResponse = response;
+    }
+
+    const pageFarms = response.data || [];
+    pageFarms.forEach((farm) => farmsById.set(farm.id, farm));
+
+    const totalCount = response.totalCount ?? farmsById.size;
+    if (pageFarms.length === 0 || farmsById.size >= totalCount || page >= response.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  if (!firstResponse) {
+    throw new Error('Nao foi possivel carregar as fazendas para o relatorio.');
+  }
+
+  if (page >= REPORT_FETCH_MAX_PAGES && farmsById.size < firstResponse.totalCount) {
+    throw new Error('Nao foi possivel carregar todas as fazendas filtradas para o relatorio.');
+  }
+
+  return {
+    farms: Array.from(farmsById.values()),
+    totalCount: firstResponse.totalCount ?? farmsById.size,
+  };
+}
+
+async function fetchAllServiceOrdersByFilters(
+  filters: GetAllServiceOrdersParams
+): Promise<ServiceOrdersReportData> {
+  const limit = REPORT_FETCH_PAGE_SIZE;
+  const serviceOrdersById = new Map<string, ServiceOrder>();
+  let page = 1;
+  let firstResponse: GetAllServiceOrdersResponse | null = null;
+
+  while (page <= REPORT_FETCH_MAX_PAGES) {
+    const response = await getAllServiceOrders({
+      ...filters,
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    if (!firstResponse) {
+      firstResponse = response;
+    }
+
+    const pageServiceOrders = response.data || [];
+    pageServiceOrders.forEach((serviceOrder) => serviceOrdersById.set(serviceOrder.id, serviceOrder));
+
+    const totalCount = response.totalCount ?? serviceOrdersById.size;
+    if (
+      pageServiceOrders.length === 0 ||
+      serviceOrdersById.size >= totalCount ||
+      page >= response.totalPages
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  if (!firstResponse) {
+    throw new Error('Nao foi possivel carregar as ordens de servico para o relatorio.');
+  }
+
+  if (page >= REPORT_FETCH_MAX_PAGES && serviceOrdersById.size < firstResponse.totalCount) {
+    throw new Error('Nao foi possivel carregar todas as ordens de servico filtradas para o relatorio.');
+  }
+
+  return {
+    serviceOrders: Array.from(serviceOrdersById.values()),
+    totalCount: firstResponse.totalCount ?? serviceOrdersById.size,
+  };
+}
+
+async function fetchAllUsersByFilters(filters: GetAllUsersParams): Promise<UsersReportData> {
+  const limit = REPORT_FETCH_PAGE_SIZE;
+  const usersById = new Map<string, User>();
+  let page = 1;
+  let firstResponse: GetAllUsersResponse | null = null;
+
+  while (page <= REPORT_FETCH_MAX_PAGES) {
+    const response = await getAllUsers({
+      ...filters,
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    if (!firstResponse) {
+      firstResponse = response;
+    }
+
+    const pageUsers = response.data || [];
+    pageUsers.forEach((user) => usersById.set(user.id, user));
+
+    const totalCount = response.totalCount ?? usersById.size;
+    if (pageUsers.length === 0 || usersById.size >= totalCount || page >= response.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  if (!firstResponse) {
+    throw new Error('Nao foi possivel carregar os usuarios para o relatorio.');
+  }
+
+  if (page >= REPORT_FETCH_MAX_PAGES && usersById.size < firstResponse.totalCount) {
+    throw new Error('Nao foi possivel carregar todos os usuarios filtrados para o relatorio.');
+  }
+
+  return {
+    users: Array.from(usersById.values()),
+    totalCount: firstResponse.totalCount ?? usersById.size,
   };
 }
 
@@ -513,8 +670,6 @@ export default function ReportsCenterPage() {
   };
 
   const buildApplicationFilters = (): GetAllApplicationsParams => ({
-    page: '1',
-    limit: '1000',
     startDate: filters.startDate,
     endDate: filters.endDate,
     cropSeasonId: filters.cropSeasonId,
@@ -530,9 +685,7 @@ export default function ReportsCenterPage() {
     serviceOrderNumber: filters.serviceOrderNumber,
   });
 
-  const buildServiceOrderFilters = () => ({
-    page: '1',
-    limit: '1000',
+  const buildServiceOrderFilters = (): GetAllServiceOrdersParams => ({
     search: filters.serviceOrderNumber || undefined,
     status: filters.serviceOrderStatus,
     customerId: filters.customerId,
@@ -718,12 +871,8 @@ export default function ReportsCenterPage() {
   };
 
   const handleGeneratePilotReport = async () => {
-    const response = await getAllApplications({
-      ...buildApplicationFilters(),
-      page: '1',
-      limit: '1000',
-    });
-    const apps = response.data || [];
+    const response = await fetchAllApplicationsByFilters(buildApplicationFilters());
+    const apps = response.applications;
     if (apps.length === 0) {
       throw new Error('Nenhuma aplicacao encontrada para os filtros selecionados.');
     }
@@ -749,13 +898,11 @@ export default function ReportsCenterPage() {
   };
 
   const handleGeneratePilotReportById = async (pilotId: string, pilotName: string) => {
-    const response = await getAllApplications({
+    const response = await fetchAllApplicationsByFilters({
       ...buildApplicationFilters(),
       pilotId,
-      page: '1',
-      limit: '1000',
     });
-    const apps = response.data || [];
+    const apps = response.applications;
     if (apps.length === 0) {
       throw new Error(`Nenhuma aplicacao encontrada para o piloto ${pilotName}.`);
     }
@@ -772,22 +919,20 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateFarmsReport = async () => {
-    const [farmsResponse, applicationsResponse, serviceOrdersResponse] = await Promise.all([
-      getAllFarms(filters.customerId, {
-        page: '1',
-        limit: '1000',
+    const [farmsReportData, applicationsReportData, serviceOrdersReportData] = await Promise.all([
+      fetchAllFarmsByFilters(filters.customerId, {
         includeCustomer: 'true',
         includePlots: 'true',
         includeGeoJson: 'false',
         search: undefined,
       }),
-      getAllApplications(buildApplicationFilters()),
-      getAllServiceOrders(buildServiceOrderFilters()),
+      fetchAllApplicationsByFilters(buildApplicationFilters()),
+      fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
     ]);
 
-    const allFarmsFromApi = farmsResponse.data || [];
-    const applications = applicationsResponse.data || [];
-    const serviceOrders = serviceOrdersResponse.data || [];
+    const allFarmsFromApi = farmsReportData.farms;
+    const applications = applicationsReportData.applications;
+    const serviceOrders = serviceOrdersReportData.serviceOrders;
 
     const filteredFarms = allFarmsFromApi.filter((farm) => {
       if (filters.farmId && farm.id !== filters.farmId) {
@@ -827,13 +972,13 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateGeneralReport = async () => {
-    const [applicationsReportData, serviceOrdersResponse] = await Promise.all([
-      fetchApplicationsForGeneralReport(buildApplicationFilters()),
-      getAllServiceOrders(buildServiceOrderFilters()),
+    const [applicationsReportData, serviceOrdersReportData] = await Promise.all([
+      fetchAllApplicationsByFilters(buildApplicationFilters()),
+      fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
     ]);
 
     const applications = applicationsReportData.applications;
-    const serviceOrders = serviceOrdersResponse.data || [];
+    const serviceOrders = serviceOrdersReportData.serviceOrders;
 
     const byFarm = aggregateByName(
       applications.map((application) => ({
@@ -879,7 +1024,7 @@ export default function ReportsCenterPage() {
       filtersSummary: resolveFiltersSummary(),
       totals: {
         applicationsCount: applicationsReportData.totalCount,
-        serviceOrdersCount: serviceOrders.length,
+        serviceOrdersCount: serviceOrdersReportData.totalCount,
         totalAppliedHectares: applicationsReportData.totalAppliedHectares,
       },
       statusSummary,
@@ -999,26 +1144,20 @@ export default function ReportsCenterPage() {
       setPilotPreviewLoading(true);
       setPilotPreviewError(null);
       try {
-        const [usersResponse, applicationsResponse] = await Promise.all([
-          getAllUsers({
-            page: '1',
-            limit: '500',
+        const [usersReportData, applicationsReportData] = await Promise.all([
+          fetchAllUsersByFilters({
             type: 'pilot',
             status: 'all',
             search: pilotSearch || undefined,
           }),
-          getAllApplications({
-            ...buildApplicationFilters(),
-            page: '1',
-            limit: '1000',
-          }),
+          fetchAllApplicationsByFilters(buildApplicationFilters()),
         ]);
 
         if (!isMounted) return;
-        const applications = applicationsResponse.data || [];
+        const applications = applicationsReportData.applications;
         const map = new Map<string, PilotPreviewRow>();
 
-        (usersResponse.data || []).forEach((pilot) => {
+        usersReportData.users.forEach((pilot) => {
           map.set(pilot.id, {
             pilotId: pilot.id,
             pilotName: pilot.name,
@@ -1077,25 +1216,19 @@ export default function ReportsCenterPage() {
       setFarmsPreviewLoading(true);
       setFarmsPreviewError(null);
       try {
-        const [farmsResponse, applicationsResponse, serviceOrdersResponse] = await Promise.all([
-          getAllFarms(filters.customerId, {
-            page: '1',
-            limit: '200',
+        const [farmsReportData, applicationsReportData, serviceOrdersReportData] = await Promise.all([
+          fetchAllFarmsByFilters(filters.customerId, {
             includeCustomer: 'true',
             includePlots: 'true',
             includeGeoJson: 'false',
             search: undefined,
           }),
-          getAllApplications({
-            ...buildApplicationFilters(),
-            page: '1',
-            limit: '1000',
-          }),
-          getAllServiceOrders(buildServiceOrderFilters()),
+          fetchAllApplicationsByFilters(buildApplicationFilters()),
+          fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
         ]);
 
         if (!isMounted) return;
-        const rows = (farmsResponse.data || [])
+        const rows = farmsReportData.farms
           .filter((farm) => (filters.farmId ? farm.id === filters.farmId : true))
           .map((farm) => ({
             farmId: farm.id,
@@ -1103,8 +1236,8 @@ export default function ReportsCenterPage() {
             customerName: farm.customer?.name || 'Cliente N/A',
             plotsCount: farm.plots?.length || 0,
             totalAreaHectares: (farm.plots || []).reduce((sum, plot) => sum + parseNumber(plot.hectare), 0),
-            applicationsCount: (applicationsResponse.data || []).filter((app) => app.farmId === farm.id).length,
-            serviceOrdersCount: (serviceOrdersResponse.data || []).filter((serviceOrder) =>
+            applicationsCount: applicationsReportData.applications.filter((app) => app.farmId === farm.id).length,
+            serviceOrdersCount: serviceOrdersReportData.serviceOrders.filter((serviceOrder) =>
               (serviceOrder.farms || []).some((serviceOrderFarm) => serviceOrderFarm.id === farm.id)
             ).length,
           }));
@@ -1132,16 +1265,10 @@ export default function ReportsCenterPage() {
       setGeneralPreviewLoading(true);
       setGeneralPreviewError(null);
       try {
-        const [applicationsResponse, serviceOrdersResponse, farmsResponse] = await Promise.all([
-          getAllApplications({
-            ...buildApplicationFilters(),
-            page: '1',
-            limit: '1000',
-          }),
-          getAllServiceOrders(buildServiceOrderFilters()),
-          getAllFarms(filters.customerId, {
-            page: '1',
-            limit: '200',
+        const [applicationsReportData, serviceOrdersReportData, farmsReportData] = await Promise.all([
+          fetchAllApplicationsByFilters(buildApplicationFilters()),
+          fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
+          fetchAllFarmsByFilters(filters.customerId, {
             includeCustomer: 'true',
             includePlots: 'true',
             includeGeoJson: 'false',
@@ -1150,12 +1277,10 @@ export default function ReportsCenterPage() {
 
         if (!isMounted) return;
         setGeneralPreview({
-          applicationsCount: applicationsResponse.totalCount || applicationsResponse.data.length,
-          serviceOrdersCount: serviceOrdersResponse.totalCount || serviceOrdersResponse.data.length,
-          farmsCount: farmsResponse.totalCount || farmsResponse.data.length,
-          totalAppliedHectares:
-            parseNumber(applicationsResponse.summary?.totalFilteredHectares) ||
-            (applicationsResponse.data || []).reduce((sum, app) => sum + parseNumber(app.hectares), 0),
+          applicationsCount: applicationsReportData.totalCount,
+          serviceOrdersCount: serviceOrdersReportData.totalCount,
+          farmsCount: farmsReportData.totalCount,
+          totalAppliedHectares: applicationsReportData.totalAppliedHectares,
         });
       } catch (error) {
         if (!isMounted) return;

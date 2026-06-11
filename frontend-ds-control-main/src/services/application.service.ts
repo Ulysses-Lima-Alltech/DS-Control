@@ -221,20 +221,46 @@ export async function getApplicationsByServiceOrderId(
   serviceOrderId: string
 ): Promise<GetApplicationsByServiceOrderIdResponse> {
   const limit = 1000;
-  const url = `/applications/service-order/${serviceOrderId}?limit=${limit}`;
+  const maxPages = 500;
+  const applicationsById = new Map<string, Application>();
+  let page = 1;
 
-  const response = await api(url, {
-    method: 'GET',
-  });
+  while (page <= maxPages) {
+    const url = `/applications/service-order/${serviceOrderId}?page=${page}&limit=${limit}`;
 
-  if (!response.ok) {
-    const error = await response.json();
+    const response = await api(url, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        '[Application Service] Erro ao buscar aplicacoes da ordem de servico.'
+      );
+    }
+
+    const payload = await response.json();
+    const pageApplications = payload.data || [];
+    pageApplications.forEach((application: Application) => applicationsById.set(application.id, application));
+
+    const totalCount = payload.totalCount ?? applicationsById.size;
+    if (
+      pageApplications.length === 0 ||
+      applicationsById.size >= totalCount ||
+      page >= payload.totalPages
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  if (page >= maxPages) {
     throw new Error(
-      `[Application Service] Erro ao buscar aplicações da ordem de serviço: ${error.message}`
+      '[Application Service] Nao foi possivel carregar todas as aplicacoes da ordem de servico.'
     );
   }
 
-  return await response.json();
+  return { data: Array.from(applicationsById.values()) };
 }
 
 export type RegisterNewApplicationParams = z.infer<typeof RegisterNewApplicationSchema>;
