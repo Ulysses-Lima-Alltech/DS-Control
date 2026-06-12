@@ -371,7 +371,7 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
                           <View style={styles.applicationDataItem}>
                             <Text style={styles.applicationDataLabel}>OS</Text>
                             <Text style={styles.applicationDataValue}>
-                              #{application.serviceOrder.number}
+                              #{application.serviceOrder?.number}
                             </Text>
                           </View>
                         ) : null}

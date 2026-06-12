@@ -27,15 +27,15 @@ const ApplicationPlotHistory: React.FC<ApplicationPlotHistoryProps> = ({ plotId 
   const renderApplication = ({ item }: { item: Application }) => (
     <View style={styles.applicationCard}>
       <View style={styles.applicationHeader}>
-        <Text style={styles.applicationTitle}>Aplicação de {item.product.name}</Text>
+        <Text style={styles.applicationTitle}>Aplicação de {item.product?.name ?? 'N/A'}</Text>
         <Text style={styles.applicationDate}>{formatDateToDDMMYYYY(item.date)}</Text>
       </View>
-      <Text style={styles.applicationInfo}>Piloto: {item.pilot.name}</Text>
-      <Text style={styles.applicationInfo}>Ajudante: {item.assistant.name}</Text>
-      <Text style={styles.applicationInfo}>Drone: {item.drone.name}</Text>
+      <Text style={styles.applicationInfo}>Piloto: {item.pilot?.name ?? 'N/A'}</Text>
+      <Text style={styles.applicationInfo}>Ajudante: {item.assistant?.name ?? 'N/A'}</Text>
+      <Text style={styles.applicationInfo}>Drone: {item.drone?.name ?? 'N/A'}</Text>
       <Text style={styles.applicationInfo}>Hectares: {item.hectares}</Text>
-      <Text style={styles.applicationInfo}>Talhão: {item.plot.name}</Text>
-      <Text style={styles.applicationInfo}>Cultivo: {item.culture.name}</Text>
+      <Text style={styles.applicationInfo}>Talhão: {item.plot?.name ?? 'N/A'}</Text>
+      <Text style={styles.applicationInfo}>Cultivo: {item.culture?.name ?? 'N/A'}</Text>
       <Text style={styles.applicationInfo}>Vazão: {item.flowRate} L/ha</Text>
       <Text style={styles.applicationInfo}>Altitude: {item.altitude} m</Text>
       <Text style={styles.applicationInfo}>Espaçamento de rota: {item.routeSpacing} m</Text>

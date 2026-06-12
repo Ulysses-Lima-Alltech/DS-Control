@@ -708,7 +708,7 @@ export default function FormApplication({
                     <Text style={{ fontSize: 14, color: COLORS.black }}>Ajudante</Text>
                   </View>
                   <SearchableSelectQuery
-                    value={field.value}
+                    value={field.value ?? undefined}
                     listedData={listedAssistants}
                     onSearchChange={setAssistantSearchTerm}
                     onItemSelect={field.onChange}
@@ -749,7 +749,7 @@ export default function FormApplication({
                     <Text style={{ fontSize: 14, color: COLORS.black }}>Drone</Text>
                   </View>
                   <SearchableSelectQuery
-                    value={field.value}
+                    value={field.value ?? ''}
                     listedData={listedDrones}
                     onSearchChange={setDroneSearchTerm}
                     onItemSelect={field.onChange}
@@ -790,7 +790,7 @@ export default function FormApplication({
                     <Text style={{ fontSize: 14, color: COLORS.black }}>Cultivo</Text>
                   </View>
                   <SearchableSelectQuery
-                    value={field.value}
+                    value={field.value ?? ''}
                     listedData={listedCultureTypes}
                     onSearchChange={setCultureTypeSearchTerm}
                     onItemSelect={field.onChange}
@@ -876,7 +876,7 @@ export default function FormApplication({
                     placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
                     multiline
                     numberOfLines={3}
-                    value={field.value}
+                    value={field.value ?? ''}
                     onChangeText={field.onChange}
                     style={{
                       backgroundColor: COLORS.white,

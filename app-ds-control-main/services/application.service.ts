@@ -23,10 +23,33 @@ export type GetAllApplicationsParams = {
   assistantId?: string;
   productId?: string;
   droneId?: string;
+  cultureId?: string;
   customerId?: string;
   serviceOrderId?: string;
   farmId?: string;
+  plotId?: string;
   serviceOrderStatus?: ServiceOrderStatus;
+  status?: ServiceOrderStatus;
+  customerName?: string;
+  farmName?: string;
+  pilotName?: string;
+  assistantName?: string;
+  droneName?: string;
+  cultureName?: string;
+  plotName?: string;
+  productName?: string;
+  observations?: string;
+  serviceOrderNumber?: string;
+  hectaresMin?: string;
+  hectaresMax?: string;
+  flowRateMin?: string;
+  flowRateMax?: string;
+  altitudeMin?: string;
+  altitudeMax?: string;
+  routeSpacingMin?: string;
+  routeSpacingMax?: string;
+  dropletSizeMin?: string;
+  dropletSizeMax?: string;
   applicationIssue?: ApplicationIssueFilter;
   invalidApplication?: string;
   currentSeason?: boolean;
@@ -37,6 +60,8 @@ export type GetAllApplicationsParams = {
   includeServiceOrder?: string;
   startDate?: string;
   endDate?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: string;
   limit?: string;
   orderBy?: ApplicationOrderBy;
@@ -66,16 +91,41 @@ export async function getAllApplications(
   };
 
   const searchParams = new URLSearchParams();
+  const normalizedServiceOrderStatus = params?.serviceOrderStatus ?? params?.status;
+
   if (params?.search) searchParams.append('search', params.search);
   if (params?.pilotId) searchParams.append('pilotId', params.pilotId);
   if (params?.assistantId) searchParams.append('assistantId', params.assistantId);
   if (params?.productId) searchParams.append('productId', params.productId);
   if (params?.droneId) searchParams.append('droneId', params.droneId);
+  if (params?.cultureId) searchParams.append('cultureId', params.cultureId);
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.serviceOrderId) searchParams.append('serviceOrderId', params.serviceOrderId);
   if (params?.farmId) searchParams.append('farmId', params.farmId);
-  if (params?.serviceOrderStatus)
-    searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
+  if (params?.plotId) searchParams.append('plotId', params.plotId);
+  if (normalizedServiceOrderStatus)
+    searchParams.append('serviceOrderStatus', normalizedServiceOrderStatus);
+  if (params?.customerName) searchParams.append('customerName', params.customerName);
+  if (params?.farmName) searchParams.append('farmName', params.farmName);
+  if (params?.pilotName) searchParams.append('pilotName', params.pilotName);
+  if (params?.assistantName) searchParams.append('assistantName', params.assistantName);
+  if (params?.droneName) searchParams.append('droneName', params.droneName);
+  if (params?.cultureName) searchParams.append('cultureName', params.cultureName);
+  if (params?.plotName) searchParams.append('plotName', params.plotName);
+  if (params?.productName) searchParams.append('productName', params.productName);
+  if (params?.observations) searchParams.append('observations', params.observations);
+  if (params?.serviceOrderNumber)
+    searchParams.append('serviceOrderNumber', params.serviceOrderNumber);
+  if (params?.hectaresMin) searchParams.append('hectaresMin', params.hectaresMin);
+  if (params?.hectaresMax) searchParams.append('hectaresMax', params.hectaresMax);
+  if (params?.flowRateMin) searchParams.append('flowRateMin', params.flowRateMin);
+  if (params?.flowRateMax) searchParams.append('flowRateMax', params.flowRateMax);
+  if (params?.altitudeMin) searchParams.append('altitudeMin', params.altitudeMin);
+  if (params?.altitudeMax) searchParams.append('altitudeMax', params.altitudeMax);
+  if (params?.routeSpacingMin) searchParams.append('routeSpacingMin', params.routeSpacingMin);
+  if (params?.routeSpacingMax) searchParams.append('routeSpacingMax', params.routeSpacingMax);
+  if (params?.dropletSizeMin) searchParams.append('dropletSizeMin', params.dropletSizeMin);
+  if (params?.dropletSizeMax) searchParams.append('dropletSizeMax', params.dropletSizeMax);
   if (params?.applicationIssue) searchParams.append('applicationIssue', params.applicationIssue);
   if (params?.invalidApplication)
     searchParams.append('invalidApplication', params.invalidApplication);
@@ -84,12 +134,15 @@ export async function getAllApplications(
   if (params?.includeCustomer) searchParams.append('includeCustomer', params.includeCustomer);
   if (params?.includeServiceOrder)
     searchParams.append('includeServiceOrder', params.includeServiceOrder);
-  if (params?.startDate) {
-    const normalizedStartDate = toCivilYYYYMMDD(params.startDate);
+  const startDate = params?.startDate ?? params?.dateFrom;
+  const endDate = params?.endDate ?? params?.dateTo;
+
+  if (startDate) {
+    const normalizedStartDate = toCivilYYYYMMDD(startDate);
     if (normalizedStartDate) searchParams.append('startDate', normalizedStartDate);
   }
-  if (params?.endDate) {
-    const normalizedEndDate = toCivilYYYYMMDD(params.endDate);
+  if (endDate) {
+    const normalizedEndDate = toCivilYYYYMMDD(endDate);
     if (normalizedEndDate) searchParams.append('endDate', normalizedEndDate);
   }
   if (params?.page) searchParams.append('page', params.page);

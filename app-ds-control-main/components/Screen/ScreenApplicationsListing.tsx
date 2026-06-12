@@ -763,7 +763,7 @@ export default function ScreenApplicationsListing() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name='settings' size={16} color={COLORS.green} />
                 <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                  Aplicação de {application.product.name}
+                  Aplicação de {application.product?.name ?? 'N/A'}
                 </Text>
                 {!application.serviceOrder && (
                   <View
@@ -855,7 +855,7 @@ export default function ScreenApplicationsListing() {
                         Número da OS
                       </Text>
                       <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: 'bold' }}>
-                        #{application.serviceOrder.number}
+                        #{application.serviceOrder?.number}
                       </Text>
                     </View>
                   )}
@@ -924,7 +924,7 @@ export default function ScreenApplicationsListing() {
                   <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                     <Text style={{ fontSize: 12, color: COLORS.gray }}>Drone</Text>
                     <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: 'bold' }}>
-                      {application.drone.name}
+                      {application.drone?.name ?? 'NÃO INFORMADO'}
                     </Text>
                   </View>
                 </View>
@@ -1001,7 +1001,7 @@ export default function ScreenApplicationsListing() {
                   <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                     <Text style={{ fontSize: 12, color: COLORS.gray }}>Cultivo</Text>
                     <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: 'bold' }}>
-                      {application.culture.name}
+                      {application.culture?.name ?? 'NÃO INFORMADO'}
                     </Text>
                   </View>
                 </View>

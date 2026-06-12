@@ -10,31 +10,33 @@ import { Farm } from './farm.type';
 
 export type Application = {
   id: string;
-  serviceOrderId: string;
-  serviceOrder: ServiceOrder;
+  serviceOrderId: string | null;
+  serviceOrder: ServiceOrder | null;
   pilotId: string;
   pilot: User;
-  assistantId: string;
-  assistant: Assistant;
+  assistantId: string | null;
+  assistant: Assistant | null;
   droneId: string;
   drone: Drone;
   cultureId: string;
   culture: CultureType;
   hectares: string;
   date: string;
+  applicationDate?: string;
   productId: string;
   product: Product;
-  plotId: string;
-  plot: Plot;
+  plotId: string | null;
+  plot: Plot | null;
   flowRate: string;
   altitude: string;
   routeSpacing: string;
   dropletSize: string;
-  observations: string;
-  createdAt: Date;
-  updatedAt: Date;
-  farmId: string;
-  farm: Farm;
+  observations: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string | null;
+  deletedAt?: Date | string | null;
+  farmId: string | null;
+  farm: Farm | null;
 };
 
 export type ApplicationIssueFilter =

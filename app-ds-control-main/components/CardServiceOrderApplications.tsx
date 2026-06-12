@@ -181,7 +181,7 @@ export default function CardServiceOrderApplications({
                   <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                     <Text style={{ fontSize: 12, color: COLORS.gray }}>Drone</Text>
                     <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: 'bold' }}>
-                      {application.drone.name}
+                      {application.drone?.name ?? 'NÃO INFORMADO'}
                     </Text>
                   </View>
                 </View>
@@ -266,7 +266,7 @@ export default function CardServiceOrderApplications({
                   <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                     <Text style={{ fontSize: 12, color: COLORS.gray }}>Cultivo</Text>
                     <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: 'bold' }}>
-                      {application.culture.name}
+                      {application.culture?.name ?? 'NÃO INFORMADO'}
                     </Text>
                   </View>
                 </View>

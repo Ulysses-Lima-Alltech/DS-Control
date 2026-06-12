@@ -66,7 +66,9 @@ export const generateServiceOrderReportHTML = (
   }
 
   // Filter applications with plots and group by plot
-  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
+  const applicationsWithPlot = applications.filter(
+    (app): app is Application & { plotId: string } => Boolean(app.plotId)
+  );
   const applicationsByPlot = applicationsWithPlot.reduce(
     (acc, app) => {
       const plotId = app.plotId;
@@ -178,6 +180,9 @@ export const generateServiceOrderReportHTML = (
 
       // Get plot data with GeoJSON from service order data
       const plot = plotDataMap.get(plotId) || firstApp.plot;
+      if (!plot) {
+        return '';
+      }
 
       const mapWidth = 1280;
       const mapHeight = 480;
@@ -220,7 +225,7 @@ export const generateServiceOrderReportHTML = (
           <h3 class="plot-name">${plot.name}</h3>
           <div class="plot-detail">
             <span class="plot-label">Fazenda:</span>
-            <span class="plot-value">${farmMap.get(firstApp.plotId) || 'N/A'}</span>
+            <span class="plot-value">${farmMap.get(plotId) || 'N/A'}</span>
           </div>
           <div class="plot-detail">
             <span class="plot-label">Área:</span>
