@@ -5,10 +5,15 @@ import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
 type DjiReportManifestApplication = {
   applicationId: string;
   imageStatus?: string;
+  imageScope?: 'day' | 'application' | string | null;
+  matchType?: 'exact_application' | 'high_confidence' | 'date_only' | 'no_match' | string | null;
+  matchConfidence?: number | null;
   imageUrl?: string;
   publicImageUrl?: string;
   djiImageUrl?: string;
   djiDate?: string | null;
+  djiFlightRecordNumber?: string | null;
+  djiMetadata?: Record<string, unknown> | null;
 };
 
 type DjiReportPublicManifest = {
@@ -24,8 +29,38 @@ export type DjiReportImageByApplicationId = Record<
     imageSrc: string;
     imageUrl: string;
     imageStatus: string;
+    imageScope: 'application';
+    matchType: 'exact_application' | 'high_confidence';
+    matchConfidence: number | null;
+    djiFlightRecordNumber?: string | null;
+    djiMetadata?: Record<string, unknown> | null;
   }
 >;
+
+function isTrustedApplicationImage(
+  item: DjiReportManifestApplication | undefined
+): item is DjiReportManifestApplication & {
+  imageScope: 'application';
+  matchType: 'exact_application' | 'high_confidence';
+} {
+  return (
+    item?.imageScope === 'application' &&
+    (item.matchType === 'exact_application' || item.matchType === 'high_confidence')
+  );
+}
+
+function isTrustedApplicationMatch(application: Application): application is Application & {
+  djiImageUrl: string;
+  djiImageScope: 'application';
+  djiMatchType: 'exact_application' | 'high_confidence';
+} {
+  return (
+    Boolean(application.djiImageUrl) &&
+    application.djiImageScope === 'application' &&
+    (application.djiMatchType === 'exact_application' ||
+      application.djiMatchType === 'high_confidence')
+  );
+}
 
 function getServiceOrderNumber(serviceOrder?: ServiceOrder | null): string | null {
   if (serviceOrder?.number === undefined || serviceOrder?.number === null) {
@@ -80,6 +115,10 @@ export async function enrichApplicationsWithDjiImageUrl(
 
   return applications.map((application) => {
     const manifestItem = imageByApplicationId.get(application.id);
+    if (!isTrustedApplicationImage(manifestItem)) {
+      return application;
+    }
+
     const djiImageUrl = resolveManifestImageUrl(
       manifestItem?.publicImageUrl || manifestItem?.djiImageUrl || manifestItem?.imageUrl
     );
@@ -93,6 +132,11 @@ export async function enrichApplicationsWithDjiImageUrl(
       djiImageUrl,
       djiImageStatus: manifestItem?.imageStatus,
       djiDate: manifestItem?.djiDate || undefined,
+      djiImageScope: manifestItem.imageScope,
+      djiMatchType: manifestItem.matchType,
+      djiMatchConfidence: manifestItem.matchConfidence ?? undefined,
+      djiFlightRecordNumber: manifestItem.djiFlightRecordNumber ?? undefined,
+      djiMetadata: manifestItem.djiMetadata ?? undefined,
     };
   });
 }
@@ -103,7 +147,7 @@ export async function prefetchDjiReportImagesByApplicationId(
   const out: DjiReportImageByApplicationId = {};
 
   for (const application of applications) {
-    if (!application.djiImageUrl) {
+    if (!isTrustedApplicationMatch(application)) {
       continue;
     }
 
@@ -116,6 +160,11 @@ export async function prefetchDjiReportImagesByApplicationId(
       imageSrc,
       imageUrl: application.djiImageUrl,
       imageStatus: application.djiImageStatus || 'READY',
+      imageScope: 'application',
+      matchType: application.djiMatchType,
+      matchConfidence: application.djiMatchConfidence ?? null,
+      djiFlightRecordNumber: application.djiFlightRecordNumber,
+      djiMetadata: application.djiMetadata,
     };
   }
 

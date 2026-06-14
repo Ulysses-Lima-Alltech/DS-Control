@@ -118,7 +118,11 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   const completionPercent = plannedHectares > 0 ? (appliedHectares / plannedHectares) * 100 : null;
 
   const applicationDateLabel = formatApplicationDate(application.date);
-  const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl);
+  const hasTrustedDjiMatch =
+    application.djiImageScope === 'application' &&
+    (application.djiMatchType === 'exact_application' ||
+      application.djiMatchType === 'high_confidence');
+  const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
 

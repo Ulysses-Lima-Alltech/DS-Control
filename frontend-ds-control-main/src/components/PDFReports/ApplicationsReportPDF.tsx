@@ -46,8 +46,20 @@ interface ApplicationsReportPDFProps {
       imageSrc: string;
       imageStatus: string;
       imageUrl?: string;
+      imageScope?: 'application' | 'day' | string;
+      matchType?: 'exact_application' | 'high_confidence' | 'date_only' | 'no_match' | string;
     }
   >;
+}
+
+function isTrustedDjiReportImage(
+  image: NonNullable<ApplicationsReportPDFProps['djiImagesByApplicationId']>[string] | undefined
+) {
+  return (
+    Boolean(image?.imageSrc) &&
+    image?.imageScope === 'application' &&
+    (image.matchType === 'exact_application' || image.matchType === 'high_confidence')
+  );
 }
 
 const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
@@ -594,7 +606,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const usePrefetchedMap = prefetchedMapImageDataUrls !== undefined;
         const mapImageSrc = usePrefetchedMap ? (prefetchedSrc ?? undefined) : (mapUrl ?? undefined);
         const plotDjiApplication = plotApplications.find((application) =>
-          Boolean(djiImagesByApplicationId?.[application.id]?.imageSrc)
+          isTrustedDjiReportImage(djiImagesByApplicationId?.[application.id])
         );
         const plotDjiImage = plotDjiApplication
           ? djiImagesByApplicationId?.[plotDjiApplication.id]

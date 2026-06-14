@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FRONTEND_ROOT = path.resolve(__dirname, '..');
 const PROJECT_ROOT = path.resolve(FRONTEND_ROOT, '..');
+const TRUSTED_MATCH_TYPES = new Set(['exact_application', 'high_confidence']);
 
 function getArg(name, fallback = '') {
   const index = process.argv.indexOf(name);
@@ -26,7 +27,9 @@ function ensureDir(dir) {
 }
 
 function normalizeOsId(value) {
-  return String(value || '').replace(/^os-/i, '').trim();
+  return String(value || '')
+    .replace(/^os-/i, '')
+    .trim();
 }
 
 function imageExtension(filePath) {
@@ -66,8 +69,16 @@ function copyManifestImages(manifestPath) {
   for (const application of manifest.applications || []) {
     const applicationId = application.applicationId;
     const imagePath = application.applicationImagePath;
+    const imageScope = application.imageScope || null;
+    const matchType = application.matchType || null;
 
-    if (!applicationId || !imagePath || application.imageStatus !== 'READY') {
+    if (
+      !applicationId ||
+      !imagePath ||
+      application.imageStatus !== 'READY' ||
+      imageScope !== 'application' ||
+      !TRUSTED_MATCH_TYPES.has(matchType)
+    ) {
       skipped += 1;
       continue;
     }
@@ -86,7 +97,12 @@ function copyManifestImages(manifestPath) {
     publicManifest.applications.push({
       applicationId,
       imageStatus: application.imageStatus,
+      imageScope,
+      matchType,
+      matchConfidence: application.matchConfidence ?? null,
       djiDate: application.djiDate || null,
+      djiFlightRecordNumber: application.djiFlightRecordNumber || null,
+      djiMetadata: application.djiMetadata || null,
       imageUrl: `/dji-reports/os-${osId}/${fileName}`,
       fileName,
       source: 'public-local',
@@ -108,9 +124,7 @@ function copyManifestImages(manifestPath) {
 
 const explicitManifest = getArg('--manifest');
 const osId = normalizeOsId(getArg('--os-id', '134'));
-const manifestPath = explicitManifest
-  ? path.resolve(explicitManifest)
-  : defaultManifestPath(osId);
+const manifestPath = explicitManifest ? path.resolve(explicitManifest) : defaultManifestPath(osId);
 
 if (!fs.existsSync(manifestPath)) {
   console.error(`[ERRO] Manifest nao encontrado: ${manifestPath}`);
