@@ -11,6 +11,8 @@ import {
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 
+const DJI_REPORT_IMAGE_HEIGHT = 280;
+
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -590,21 +592,25 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
         const prefetchedSrc = prefetchedMapImageDataUrls?.[plotId];
         const usePrefetchedMap = prefetchedMapImageDataUrls !== undefined;
-        const mapImageSrc = usePrefetchedMap ? prefetchedSrc ?? undefined : mapUrl ?? undefined;
-        const plotDjiImage = plotApplications
-          .map((application) => djiImagesByApplicationId?.[application.id])
-          .find((image) => Boolean(image?.imageSrc));
+        const mapImageSrc = usePrefetchedMap ? (prefetchedSrc ?? undefined) : (mapUrl ?? undefined);
+        const plotDjiApplication = plotApplications.find((application) =>
+          Boolean(djiImagesByApplicationId?.[application.id]?.imageSrc)
+        );
+        const plotDjiImage = plotDjiApplication
+          ? djiImagesByApplicationId?.[plotDjiApplication.id]
+          : undefined;
         const reportImageSrc = plotDjiImage?.imageSrc || mapImageSrc;
         const showDjiImage = Boolean(plotDjiImage?.imageSrc);
         const showMapImage = Boolean(reportImageSrc);
+        const djiCaption = plotDjiApplication
+          ? `Imagem DJI vinculada à aplicação — ${formatApplicationDate(plotDjiApplication.date)}`
+          : null;
 
         if (!showMapImage && typeof console !== 'undefined') {
           const key = plotId;
           const hasPrefetchKey =
-            prefetchedMapImageDataUrls !== undefined && Object.prototype.hasOwnProperty.call(
-              prefetchedMapImageDataUrls,
-              key
-            );
+            prefetchedMapImageDataUrls !== undefined &&
+            Object.prototype.hasOwnProperty.call(prefetchedMapImageDataUrls, key);
           console.log('[REPORT_PREFETCH_DEBUG]', {
             phase: 'ApplicationsReportPDF:placeholder',
             plotId: plot.id,
@@ -619,8 +625,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 : prefetchedMapImageDataUrls[key] === null
                   ? 'null'
                   : typeof prefetchedMapImageDataUrls[key],
-            prefetchedStringLength:
-              typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
+            prefetchedStringLength: typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
             placeholderText: mapPlaceholderMessage ?? 'Mapa indisponível',
           });
         }
@@ -692,79 +697,127 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               </View>
             </View>
 
-            <View
-              style={{
-                width: '100%',
-                height: 200,
-                position: 'relative',
-                marginBottom: 20,
-                border: '1px solid #E5E7EB',
-              }}
-            >
-              {showMapImage && (
-                <>
+            {showDjiImage ? (
+              <View
+                wrap={false}
+                style={{
+                  width: '100%',
+                  marginBottom: 18,
+                  padding: 7,
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 6,
+                  backgroundColor: '#FFFFFF',
+                }}
+              >
+                <View
+                  style={{
+                    width: '100%',
+                    height: DJI_REPORT_IMAGE_HEIGHT,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: '#F9FAFB',
+                    overflow: 'hidden',
+                  }}
+                >
                   {/* eslint-disable-next-line jsx-a11y/alt-text */}
                   <Image
-                    src={reportImageSrc!}
+                    src={plotDjiImage!.imageSrc}
                     style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
                       width: '100%',
                       height: '100%',
-                      objectFit: 'fill',
+                      objectFit: 'contain',
                     }}
                   />
-                  {!showDjiImage && plotPolygonPathDs?.length ? (
-                    <Svg
+                </View>
+                {djiCaption && (
+                  <Text
+                    style={{
+                      fontSize: 8,
+                      color: '#6B7280',
+                      textAlign: 'center',
+                      marginTop: 6,
+                    }}
+                  >
+                    {djiCaption}
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <View
+                style={{
+                  width: '100%',
+                  height: 200,
+                  position: 'relative',
+                  marginBottom: 20,
+                  border: '1px solid #E5E7EB',
+                }}
+              >
+                {showMapImage && (
+                  <>
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <Image
+                      src={reportImageSrc!}
                       style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         width: '100%',
                         height: '100%',
+                        objectFit: 'fill',
                       }}
-                      viewBox={`0 0 ${mapWidth} ${mapHeight}`}
-                      preserveAspectRatio='none'
-                    >
-                      {plotPolygonPathDs.map((d, i) => (
-                        <Path
-                          key={`plot-poly-${plotId}-${i}`}
-                          d={d}
-                          fill='#3388ff'
-                          fillOpacity={0.35}
-                          fillRule='evenodd'
-                          stroke='#1d4ed8'
-                          strokeWidth={2}
-                        />
-                      ))}
-                    </Svg>
-                  ) : null}
-                </>
-              )}
-              {!showMapImage && (
-                <View
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: '#F3F4F6',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text
+                    />
+                    {!showDjiImage && plotPolygonPathDs?.length ? (
+                      <Svg
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                        }}
+                        viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+                        preserveAspectRatio='none'
+                      >
+                        {plotPolygonPathDs.map((d, i) => (
+                          <Path
+                            key={`plot-poly-${plotId}-${i}`}
+                            d={d}
+                            fill='#3388ff'
+                            fillOpacity={0.35}
+                            fillRule='evenodd'
+                            stroke='#1d4ed8'
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </Svg>
+                    ) : null}
+                  </>
+                )}
+                {!showMapImage && (
+                  <View
                     style={{
-                      fontSize: 14,
-                      color: '#6B7280',
-                      fontWeight: 500,
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: '#F3F4F6',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
                     }}
                   >
-                    {mapPlaceholderMessage ?? 'Mapa indisponível'}
-                  </Text>
-                </View>
-              )}
-            </View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: '#6B7280',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {mapPlaceholderMessage ?? 'Mapa indisponível'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             <View
               style={{
@@ -866,8 +919,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             </View>
 
             {plotApplications.map((application) => {
-              const djiImage = djiImagesByApplicationId?.[application.id];
-
               return (
                 <View
                   key={application.id}
@@ -879,276 +930,47 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     border: '1px solid #E5E7EB',
                   }}
                 >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    marginBottom: 10,
-                    paddingBottom: 8,
-                    borderBottom: '1px solid #E5E7EB',
-                  }}
-                >
-                  <Text
+                  <View
                     style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#EAAE07',
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      marginBottom: 10,
+                      paddingBottom: 8,
+                      borderBottom: '1px solid #E5E7EB',
                     }}
                   >
-                    {application.product?.name || 'N/A'}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: '#6B7280',
-                    }}
-                  >
-                    {formatApplicationDate(application.date)}
-                  </Text>
-                </View>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#EAAE07',
+                      }}
+                    >
+                      {application.product?.name || 'N/A'}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: '#6B7280',
+                      }}
+                    >
+                      {formatApplicationDate(application.date)}
+                    </Text>
+                  </View>
 
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                  }}
-                >
                   <View
                     style={{
-                      width: '50%',
-                      marginBottom: 4,
                       flexDirection: 'row',
+                      flexWrap: 'wrap',
                     }}
                   >
-                    <Text
+                    <View
                       style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
                       }}
                     >
-                      Piloto:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {application.pilot?.name || 'N/A'}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Assistente:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {application.assistant?.name || 'N/A'}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Drone:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {application.drone?.name || 'N/A'} - {application.drone?.model || 'N/A'}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Cultura:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {application.culture?.name || 'N/A'}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Hectares:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {formatHectares(application.hectares)}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Taxa de Fluxo:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {parseFloat(application.flowRate).toFixed(2)} L/ha
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Altitude:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {parseFloat(application.altitude).toFixed(2)} m
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Espaçamento:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {parseFloat(application.routeSpacing).toFixed(2)} m
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      width: '50%',
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#6B7280',
-                        marginRight: 4,
-                      }}
-                    >
-                      Tamanho de Gota:
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        color: '#1F2937',
-                      }}
-                    >
-                      {parseFloat(application.dropletSize).toFixed(2)} µm
-                    </Text>
-                  </View>
-                  {application.observations && (
-                    <View style={{ width: '100%', marginTop: 6 }}>
                       <Text
                         style={{
                           fontSize: 8,
@@ -1157,7 +979,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Observações:
+                        Piloto:
                       </Text>
                       <Text
                         style={{
@@ -1165,19 +987,14 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           color: '#1F2937',
                         }}
                       >
-                        {application.observations}
+                        {application.pilot?.name || 'N/A'}
                       </Text>
                     </View>
-                  )}
-                  </View>
-
-                  {djiImage?.imageSrc && (
                     <View
-                      wrap={false}
                       style={{
-                        marginTop: 10,
-                        paddingTop: 8,
-                        borderTop: '1px solid #E5E7EB',
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
                       }}
                     >
                       <Text
@@ -1185,24 +1002,225 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           fontSize: 8,
                           fontWeight: 700,
                           color: '#6B7280',
-                          marginBottom: 5,
+                          marginRight: 4,
                         }}
                       >
-                        Imagem DJI vinculada
+                        Assistente:
                       </Text>
-                      {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                      <Image
-                        src={djiImage.imageSrc}
+                      <Text
                         style={{
-                          width: '100%',
-                          height: 150,
-                          objectFit: 'cover',
-                          border: '1px solid #E5E7EB',
-                          borderRadius: 6,
+                          fontSize: 8,
+                          color: '#1F2937',
                         }}
-                      />
+                      >
+                        {application.assistant?.name || 'N/A'}
+                      </Text>
                     </View>
-                  )}
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Drone:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {application.drone?.name || 'N/A'} - {application.drone?.model || 'N/A'}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Cultura:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {application.culture?.name || 'N/A'}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Hectares:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {formatHectares(application.hectares)}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Taxa de Fluxo:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {parseFloat(application.flowRate).toFixed(2)} L/ha
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Altitude:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {parseFloat(application.altitude).toFixed(2)} m
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Espaçamento:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {parseFloat(application.routeSpacing).toFixed(2)} m
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: '50%',
+                        marginBottom: 4,
+                        flexDirection: 'row',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginRight: 4,
+                        }}
+                      >
+                        Tamanho de Gota:
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#1F2937',
+                        }}
+                      >
+                        {parseFloat(application.dropletSize).toFixed(2)} µm
+                      </Text>
+                    </View>
+                    {application.observations && (
+                      <View style={{ width: '100%', marginTop: 6 }}>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: '#6B7280',
+                            marginRight: 4,
+                          }}
+                        >
+                          Observações:
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: '#1F2937',
+                          }}
+                        >
+                          {application.observations}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               );
             })}

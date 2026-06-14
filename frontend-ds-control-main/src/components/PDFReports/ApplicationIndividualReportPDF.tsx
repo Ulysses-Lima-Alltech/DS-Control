@@ -36,6 +36,7 @@ const MAP_FALLBACK_BORDER = '#B9C8DA';
 
 const MAP_WIDTH = 1280;
 const MAP_HEIGHT = 480;
+const DJI_REPORT_IMAGE_HEIGHT = 270;
 
 type ApplicationIndividualReportPDFProps = {
   application: Application;
@@ -86,6 +87,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   application,
   generatedAt,
   djiImageDataUrl,
+  djiImageUrl,
   mapImageDataUrl,
   mapOverlayPathDs,
   mapFallbackVectorPathD,
@@ -115,7 +117,8 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   const areaDifference = plannedHectares > 0 ? appliedHectares - plannedHectares : null;
   const completionPercent = plannedHectares > 0 ? (appliedHectares / plannedHectares) * 100 : null;
 
-  const showDjiImage = Boolean(djiImageDataUrl);
+  const applicationDateLabel = formatApplicationDate(application.date);
+  const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
 
@@ -144,7 +147,10 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
+          <Image
+            src='/images/pdf-logo-only.png'
+            style={{ width: 126, height: 32, objectFit: 'contain' }}
+          />
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatorio de Aplicacao</Text>
             <Text style={{ fontSize: 10, color: MUTED_TEXT, marginTop: 2 }}>
@@ -180,7 +186,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             <Info label='Drone' value={droneName} width='50%' />
           </View>
           <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-            <Info label='Data da aplicacao' value={formatApplicationDate(application.date)} width='50%' />
+            <Info label='Data da aplicacao' value={applicationDateLabel} width='50%' />
             <Info label='Status' value={statusLabel} width='50%' />
           </View>
           <View style={{ flexDirection: 'row', marginBottom: 6 }}>
@@ -228,116 +234,137 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
             {showDjiImage ? 'Imagem DJI vinculada' : 'Mapa individual do talhao'}
           </Text>
-          <View
-            style={{
-              width: '100%',
-              height: 200,
-              border: `1px solid ${LIGHT_BORDER}`,
-              borderRadius: 6,
-              backgroundColor: MAP_BG,
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            {showDjiImage && (
-              <>
+          {showDjiImage ? (
+            <>
+              <View
+                style={{
+                  width: '100%',
+                  height: DJI_REPORT_IMAGE_HEIGHT,
+                  border: `1px solid ${LIGHT_BORDER}`,
+                  borderRadius: 6,
+                  backgroundColor: '#F9FAFB',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: 6,
+                  overflow: 'hidden',
+                }}
+              >
                 {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image
                   src={djiImageDataUrl!}
                   style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
+                    objectFit: 'contain',
                   }}
                 />
-              </>
-            )}
-
-            {showMapImage && (
-              <>
-                {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                <Image
-                  src={mapImageDataUrl!}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'fill',
-                  }}
-                />
-                {mapOverlayPathDs?.length ? (
-                  <Svg
+              </View>
+              <Text
+                style={{
+                  fontSize: 8,
+                  color: MUTED_TEXT,
+                  textAlign: 'center',
+                  marginTop: 6,
+                }}
+              >
+                Imagem DJI vinculada à aplicação — {applicationDateLabel}
+              </Text>
+            </>
+          ) : (
+            <View
+              style={{
+                width: '100%',
+                height: 200,
+                border: `1px solid ${LIGHT_BORDER}`,
+                borderRadius: 6,
+                backgroundColor: MAP_BG,
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              {showMapImage && (
+                <>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image
+                    src={mapImageDataUrl!}
                     style={{
                       position: 'absolute',
                       left: 0,
                       top: 0,
                       width: '100%',
                       height: '100%',
+                      objectFit: 'fill',
                     }}
-                    viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-                    preserveAspectRatio='none'
-                  >
-                    {mapOverlayPathDs.map((pathD, index) => (
-                      <Path
-                        key={`overlay-${index}`}
-                        d={pathD}
-                        fill='#3388ff'
-                        fillOpacity={0.35}
-                        fillRule='evenodd'
-                        stroke='#1d4ed8'
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </Svg>
-                ) : null}
-              </>
-            )}
+                  />
+                  {mapOverlayPathDs?.length ? (
+                    <Svg
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: '100%',
+                        height: '100%',
+                      }}
+                      viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+                      preserveAspectRatio='none'
+                    >
+                      {mapOverlayPathDs.map((pathD, index) => (
+                        <Path
+                          key={`overlay-${index}`}
+                          d={pathD}
+                          fill='#3388ff'
+                          fillOpacity={0.35}
+                          fillRule='evenodd'
+                          stroke='#1d4ed8'
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </Svg>
+                  ) : null}
+                </>
+              )}
 
-            {showMapVectorFallback && (
-              <Svg
-                width='100%'
-                height='100%'
-                viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-                preserveAspectRatio='none'
-              >
-                <Path
-                  d={`M 0 0 L ${MAP_WIDTH} 0 L ${MAP_WIDTH} ${MAP_HEIGHT} L 0 ${MAP_HEIGHT} Z`}
-                  fill='#FFFFFF'
-                  stroke={MAP_FALLBACK_BORDER}
-                  strokeWidth={1}
-                />
-                <Path
-                  d={mapFallbackVectorPathD!}
-                  fill='#60A5FA'
-                  fillOpacity={0.58}
-                  fillRule='evenodd'
-                  stroke='#1D4ED8'
-                  strokeWidth={2.2}
-                />
-              </Svg>
-            )}
+              {showMapVectorFallback && (
+                <Svg
+                  width='100%'
+                  height='100%'
+                  viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+                  preserveAspectRatio='none'
+                >
+                  <Path
+                    d={`M 0 0 L ${MAP_WIDTH} 0 L ${MAP_WIDTH} ${MAP_HEIGHT} L 0 ${MAP_HEIGHT} Z`}
+                    fill='#FFFFFF'
+                    stroke={MAP_FALLBACK_BORDER}
+                    strokeWidth={1}
+                  />
+                  <Path
+                    d={mapFallbackVectorPathD!}
+                    fill='#60A5FA'
+                    fillOpacity={0.58}
+                    fillRule='evenodd'
+                    stroke='#1D4ED8'
+                    strokeWidth={2.2}
+                  />
+                </Svg>
+              )}
 
-            {!showDjiImage && !showMapImage && !showMapVectorFallback && (
-              <View
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingHorizontal: 12,
-                }}
-              >
-                <Text style={{ fontSize: 10, color: MUTED_TEXT, textAlign: 'center' }}>
-                  {mapUnavailableMessage || 'Mapa indisponivel para esta aplicacao.'}
-                </Text>
-              </View>
-            )}
-          </View>
+              {!showMapImage && !showMapVectorFallback && (
+                <View
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text style={{ fontSize: 10, color: MUTED_TEXT, textAlign: 'center' }}>
+                    {mapUnavailableMessage || 'Mapa indisponivel para esta aplicacao.'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, overflow: 'hidden' }}>
@@ -353,13 +380,19 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             <Text style={{ width: '20%', fontSize: 8, fontWeight: 700 }}>Data</Text>
             <Text style={{ width: '24%', fontSize: 8, fontWeight: 700 }}>Produto</Text>
             <Text style={{ width: '16%', fontSize: 8, fontWeight: 700 }}>Piloto</Text>
-            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Planejada</Text>
-            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Aplicada</Text>
-            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'center' }}>Status</Text>
+            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              Planejada
+            </Text>
+            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              Aplicada
+            </Text>
+            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'center' }}>
+              Status
+            </Text>
           </View>
 
           <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 6 }}>
-            <Text style={{ width: '20%', fontSize: 8 }}>{formatApplicationDate(application.date)}</Text>
+            <Text style={{ width: '20%', fontSize: 8 }}>{applicationDateLabel}</Text>
             <Text style={{ width: '24%', fontSize: 8 }}>{productName}</Text>
             <Text style={{ width: '16%', fontSize: 8 }}>{pilotName}</Text>
             <Text style={{ width: '14%', fontSize: 8, textAlign: 'right' }}>
@@ -385,7 +418,9 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
+            DS Control - Gerado em {generatedAt}
+          </Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
@@ -416,19 +451,35 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
+          <Image
+            src='/images/pdf-logo-only.png'
+            style={{ width: 126, height: 32, objectFit: 'contain' }}
+          />
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 13, fontWeight: 700 }}>Detalhamento tecnico</Text>
             <Text style={{ fontSize: 9, color: MUTED_TEXT }}>{serviceOrderNumber}</Text>
           </View>
         </View>
 
-        <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        <View
+          style={{
+            border: `1px solid ${LIGHT_BORDER}`,
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 10,
+          }}
+        >
           <Text style={{ fontSize: 11, fontWeight: 700, marginBottom: 8 }}>Dados operacionais</Text>
           <DetailRow label='ID da aplicacao' value={application.id} />
           <DetailRow label='Area aplicada' value={formatHectares(appliedHectares)} />
-          <DetailRow label='Vazao' value={application.flowRate ? `${application.flowRate} L/ha` : 'Nao informada'} />
-          <DetailRow label='Altitude' value={application.altitude ? `${application.altitude} m` : 'Nao informada'} />
+          <DetailRow
+            label='Vazao'
+            value={application.flowRate ? `${application.flowRate} L/ha` : 'Nao informada'}
+          />
+          <DetailRow
+            label='Altitude'
+            value={application.altitude ? `${application.altitude} m` : 'Nao informada'}
+          />
           <DetailRow
             label='Espacamento de rota'
             value={application.routeSpacing ? `${application.routeSpacing} m` : 'Nao informado'}
@@ -440,7 +491,9 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
         </View>
 
         <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 8, padding: 10 }}>
-          <Text style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Historico / observacoes</Text>
+          <Text style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
+            Historico / observacoes
+          </Text>
           <Text style={{ fontSize: 9, color: DARK_TEXT, lineHeight: 1.35 }}>{observations}</Text>
         </View>
 
@@ -457,7 +510,9 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
+            DS Control - Gerado em {generatedAt}
+          </Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
