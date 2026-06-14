@@ -37,6 +37,11 @@ export type Application = {
   djiImageUrl?: string;
   djiImageStatus?: string;
   djiDate?: string;
+  djiImageScope?: 'day' | 'application';
+  djiMatchType?: 'exact_application' | 'high_confidence' | 'date_only' | 'no_match' | string;
+  djiMatchConfidence?: number;
+  djiFlightRecordNumber?: string | null;
+  djiMetadata?: Record<string, unknown> | null;
 };
 
 /** Filtro de listagem alinhado às métricas de inconsistência no backend. */
@@ -93,10 +98,10 @@ export type ApplicationStats = {
 export enum ApplicationOrderBy {
   DATE = 'date',
   PILOT = 'pilot',
-  PRODUCT = 'product'
+  PRODUCT = 'product',
 }
 
 export enum ApplicationOrderType {
   ASC = 'asc',
-  DESC = 'desc'
+  DESC = 'desc',
 }
