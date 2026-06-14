@@ -40,6 +40,8 @@ const MAP_HEIGHT = 480;
 type ApplicationIndividualReportPDFProps = {
   application: Application;
   generatedAt: string;
+  djiImageDataUrl?: string | null;
+  djiImageUrl?: string | null;
   mapImageDataUrl?: string | null;
   mapOverlayPathDs?: string[] | null;
   mapFallbackVectorPathD?: string | null;
@@ -83,6 +85,7 @@ function formatMetricPercent(value: number): string {
 const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFProps> = ({
   application,
   generatedAt,
+  djiImageDataUrl,
   mapImageDataUrl,
   mapOverlayPathDs,
   mapFallbackVectorPathD,
@@ -112,8 +115,9 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   const areaDifference = plannedHectares > 0 ? appliedHectares - plannedHectares : null;
   const completionPercent = plannedHectares > 0 ? (appliedHectares / plannedHectares) * 100 : null;
 
-  const showMapImage = Boolean(mapImageDataUrl);
-  const showMapVectorFallback = !showMapImage && Boolean(mapFallbackVectorPathD);
+  const showDjiImage = Boolean(djiImageDataUrl);
+  const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
+  const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
 
   return (
     <Document>
@@ -221,7 +225,9 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             marginBottom: 10,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Mapa individual do talhao</Text>
+          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+            {showDjiImage ? 'Imagem DJI vinculada' : 'Mapa individual do talhao'}
+          </Text>
           <View
             style={{
               width: '100%',
@@ -233,6 +239,23 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
               overflow: 'hidden',
             }}
           >
+            {showDjiImage && (
+              <>
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                <Image
+                  src={djiImageDataUrl!}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              </>
+            )}
+
             {showMapImage && (
               <>
                 {/* eslint-disable-next-line jsx-a11y/alt-text */}
@@ -299,7 +322,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
               </Svg>
             )}
 
-            {!showMapImage && !showMapVectorFallback && (
+            {!showDjiImage && !showMapImage && !showMapVectorFallback && (
               <View
                 style={{
                   width: '100%',

@@ -34,6 +34,9 @@ export type Application = {
   plot: Plot;
   updatedAt: Date;
   farm: Farm;
+  djiImageUrl?: string;
+  djiImageStatus?: string;
+  djiDate?: string;
 };
 
 /** Filtro de listagem alinhado às métricas de inconsistência no backend. */

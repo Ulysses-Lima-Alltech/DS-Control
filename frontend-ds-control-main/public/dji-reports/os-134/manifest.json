@@ -1,0 +1,144 @@
+{
+  "osId": "134",
+  "generatedAt": "2026-06-14T17:50:30.488Z",
+  "sourceManifestPath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\os-134-v2\\os_134_manifest_relatorio_dji.json",
+  "sourceGeneratedAt": "2026-06-14T17:39:56.537Z",
+  "matchingMode": "DJI_DATE_DAY_SCREENSHOT",
+  "applications": [
+    {
+      "applicationId": "d0a41471-8d13-4a94-a002-06072c4c6114",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/20",
+      "imageUrl": "/dji-reports/os-134/d0a41471-8d13-4a94-a002-06072c4c6114.png",
+      "fileName": "d0a41471-8d13-4a94-a002-06072c4c6114.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_20_dia_completo_2026-06-14_17-30-03.png"
+    },
+    {
+      "applicationId": "e0d7e952-8d60-4ff1-8a14-fb011d3c212e",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/20",
+      "imageUrl": "/dji-reports/os-134/e0d7e952-8d60-4ff1-8a14-fb011d3c212e.png",
+      "fileName": "e0d7e952-8d60-4ff1-8a14-fb011d3c212e.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_20_dia_completo_2026-06-14_17-30-03.png"
+    },
+    {
+      "applicationId": "1cced6d0-ba3b-4e99-98f9-43afa5cd59a4",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/20",
+      "imageUrl": "/dji-reports/os-134/1cced6d0-ba3b-4e99-98f9-43afa5cd59a4.png",
+      "fileName": "1cced6d0-ba3b-4e99-98f9-43afa5cd59a4.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_20_dia_completo_2026-06-14_17-30-03.png"
+    },
+    {
+      "applicationId": "9e520d69-02f3-4634-bdda-6c4522975ef5",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/14",
+      "imageUrl": "/dji-reports/os-134/9e520d69-02f3-4634-bdda-6c4522975ef5.png",
+      "fileName": "9e520d69-02f3-4634-bdda-6c4522975ef5.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_14_dia_completo_2026-06-14_17-34-00.png"
+    },
+    {
+      "applicationId": "7f189d2a-5f81-4821-a4f7-1fa63b385817",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/7f189d2a-5f81-4821-a4f7-1fa63b385817.png",
+      "fileName": "7f189d2a-5f81-4821-a4f7-1fa63b385817.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "2a5a55c7-7a6e-4647-94bc-f0075f4426c2",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/2a5a55c7-7a6e-4647-94bc-f0075f4426c2.png",
+      "fileName": "2a5a55c7-7a6e-4647-94bc-f0075f4426c2.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "c7472bbd-d13e-422f-bf52-ac312ecd8a68",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/c7472bbd-d13e-422f-bf52-ac312ecd8a68.png",
+      "fileName": "c7472bbd-d13e-422f-bf52-ac312ecd8a68.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "e4cd737f-4609-4891-9d3d-b4bea7f85ec7",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/e4cd737f-4609-4891-9d3d-b4bea7f85ec7.png",
+      "fileName": "e4cd737f-4609-4891-9d3d-b4bea7f85ec7.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "a0c0a0ed-7bea-4abc-b26f-1acbff5c641b",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/a0c0a0ed-7bea-4abc-b26f-1acbff5c641b.png",
+      "fileName": "a0c0a0ed-7bea-4abc-b26f-1acbff5c641b.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "ab62b479-f725-4633-8c2a-139c4a76a7c4",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/ab62b479-f725-4633-8c2a-139c4a76a7c4.png",
+      "fileName": "ab62b479-f725-4633-8c2a-139c4a76a7c4.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "c2559d82-9f54-44e9-bdc4-78408008e6d7",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/c2559d82-9f54-44e9-bdc4-78408008e6d7.png",
+      "fileName": "c2559d82-9f54-44e9-bdc4-78408008e6d7.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "c70ddbc1-c249-4465-b9cf-a2bf6479a82e",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/c70ddbc1-c249-4465-b9cf-a2bf6479a82e.png",
+      "fileName": "c70ddbc1-c249-4465-b9cf-a2bf6479a82e.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "0f440bfe-c68f-44d3-933a-5ceb21e1d513",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/0f440bfe-c68f-44d3-933a-5ceb21e1d513.png",
+      "fileName": "0f440bfe-c68f-44d3-933a-5ceb21e1d513.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "852e7b11-544a-4d6c-bad6-8a97f4107fc5",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/852e7b11-544a-4d6c-bad6-8a97f4107fc5.png",
+      "fileName": "852e7b11-544a-4d6c-bad6-8a97f4107fc5.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    },
+    {
+      "applicationId": "a239782b-dbb3-4110-80bf-95687fa8d56b",
+      "imageStatus": "READY",
+      "djiDate": "2026/05/13",
+      "imageUrl": "/dji-reports/os-134/a239782b-dbb3-4110-80bf-95687fa8d56b.png",
+      "fileName": "a239782b-dbb3-4110-80bf-95687fa8d56b.png",
+      "source": "public-local",
+      "djiSourceImagePath": "C:\\Users\\ulyss\\Desktop\\DS Control\\DS Control_Projeto\\dji-smartfarm-robot\\downloads-dji\\dji_2026_05_13_dia_completo_2026-06-14_17-35-08.png"
+    }
+  ]
+}

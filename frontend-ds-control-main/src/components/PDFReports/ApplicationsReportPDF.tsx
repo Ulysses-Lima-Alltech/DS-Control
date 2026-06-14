@@ -2,14 +2,13 @@ import { Document, Font, Image, Page, Path, Svg, Text, View } from '@react-pdf/r
 import React from 'react';
 
 import { Application } from '@/types/applications.type';
-import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
-import { formatOperationalDateBR } from '@/utils/operational-date';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 
 Font.register({
@@ -39,12 +38,21 @@ interface ApplicationsReportPDFProps {
   applications: Application[];
   /** Data URLs pré-carregadas por plotId (evita <Image> com URL remota no react-pdf). */
   prefetchedMapImageDataUrls?: Record<string, string | null>;
+  djiImagesByApplicationId?: Record<
+    string,
+    {
+      imageSrc: string;
+      imageStatus: string;
+      imageUrl?: string;
+    }
+  >;
 }
 
 const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   serviceOrder,
   applications,
   prefetchedMapImageDataUrls,
+  djiImagesByApplicationId,
 }) => {
   const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
 
@@ -583,7 +591,12 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const prefetchedSrc = prefetchedMapImageDataUrls?.[plotId];
         const usePrefetchedMap = prefetchedMapImageDataUrls !== undefined;
         const mapImageSrc = usePrefetchedMap ? prefetchedSrc ?? undefined : mapUrl ?? undefined;
-        const showMapImage = Boolean(mapImageSrc);
+        const plotDjiImage = plotApplications
+          .map((application) => djiImagesByApplicationId?.[application.id])
+          .find((image) => Boolean(image?.imageSrc));
+        const reportImageSrc = plotDjiImage?.imageSrc || mapImageSrc;
+        const showDjiImage = Boolean(plotDjiImage?.imageSrc);
+        const showMapImage = Boolean(reportImageSrc);
 
         if (!showMapImage && typeof console !== 'undefined') {
           const key = plotId;
@@ -596,6 +609,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             phase: 'ApplicationsReportPDF:placeholder',
             plotId: plot.id,
             loopPlotId: plotId,
+            djiImageExists: showDjiImage,
             mapUrlExists: Boolean(mapUrl),
             usePrefetchedMap,
             hasPrefetchKey,
@@ -616,6 +630,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             phase: 'ApplicationsReportPDF',
             plotId: plot.id,
             plotName: plot.name,
+            djiImageExists: showDjiImage,
             mapUrl: mapUrl ?? null,
             mapUrlLength: mapUrl?.length ?? 0,
             usedLongUrlFallback: mapResult.usedLongUrlFallback,
@@ -690,7 +705,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 <>
                   {/* eslint-disable-next-line jsx-a11y/alt-text */}
                   <Image
-                    src={mapImageSrc!}
+                    src={reportImageSrc!}
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -700,7 +715,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       objectFit: 'fill',
                     }}
                   />
-                  {plotPolygonPathDs?.length ? (
+                  {!showDjiImage && plotPolygonPathDs?.length ? (
                     <Svg
                       style={{
                         position: 'absolute',
@@ -850,17 +865,20 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               </View>
             </View>
 
-            {plotApplications.map((application) => (
-              <View
-                key={application.id}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  padding: 12,
-                  borderRadius: 8,
-                  marginBottom: 10,
-                  border: '1px solid #E5E7EB',
-                }}
-              >
+            {plotApplications.map((application) => {
+              const djiImage = djiImagesByApplicationId?.[application.id];
+
+              return (
+                <View
+                  key={application.id}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: 12,
+                    borderRadius: 8,
+                    marginBottom: 10,
+                    border: '1px solid #E5E7EB',
+                  }}
+                >
                 <View
                   style={{
                     flexDirection: 'row',
@@ -1151,9 +1169,43 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       </Text>
                     </View>
                   )}
+                  </View>
+
+                  {djiImage?.imageSrc && (
+                    <View
+                      wrap={false}
+                      style={{
+                        marginTop: 10,
+                        paddingTop: 8,
+                        borderTop: '1px solid #E5E7EB',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: '#6B7280',
+                          marginBottom: 5,
+                        }}
+                      >
+                        Imagem DJI vinculada
+                      </Text>
+                      {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                      <Image
+                        src={djiImage.imageSrc}
+                        style={{
+                          width: '100%',
+                          height: 150,
+                          objectFit: 'cover',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: 6,
+                        }}
+                      />
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </Page>
         );
       })}

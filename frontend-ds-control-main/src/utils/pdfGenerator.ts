@@ -3,26 +3,30 @@ import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
-import PilotApplicationsReportPDF from '@/components/PDFReports/PilotApplicationsReportPDF';
 import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
 import GeneralReportPDF, {
   type GeneralNamedValue,
   type GeneralReportStatusSummary,
   type GeneralReportTotals,
 } from '@/components/PDFReports/GeneralReportPDF';
+import PilotApplicationsReportPDF from '@/components/PDFReports/PilotApplicationsReportPDF';
 import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
 import ServiceOrdersDetailedReportPDF, {
   type ServiceOrderDetailedSection,
 } from '@/components/PDFReports/ServiceOrdersDetailedReportPDF';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import {
+  enrichApplicationsWithDjiImageUrl,
+  prefetchDjiReportImagesByApplicationId,
+  type DjiReportImageByApplicationId,
+} from '@/utils/djiReportAssets';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
-import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
 import {
   buildStrategicMapStaticBaseUrl,
   buildStrategicMapViewport,
@@ -32,6 +36,7 @@ import {
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
+import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
 
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
@@ -355,12 +360,17 @@ export async function generateApplicationsReportPDF({
   applications,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  const prefetchedMapImageDataUrls = await prefetchReportMapImagesByPlotId(applications);
+  const enrichedApplications = await enrichApplicationsWithDjiImageUrl(serviceOrder, applications);
+  const [prefetchedMapImageDataUrls, djiImagesByApplicationId] = await Promise.all([
+    prefetchReportMapImagesByPlotId(enrichedApplications),
+    prefetchDjiReportImagesByApplicationId(enrichedApplications).catch(() => ({})),
+  ]);
 
   const element = ApplicationsReportPDF({
     serviceOrder,
-    applications,
+    applications: enrichedApplications,
     prefetchedMapImageDataUrls,
+    djiImagesByApplicationId,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -494,11 +504,27 @@ export async function generateApplicationIndividualReportPDF({
   generatedAt,
 }: GenerateApplicationIndividualReportPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  const mapData = await prefetchApplicationIndividualMap(application);
+  const [enrichedApplication] = application.serviceOrder
+    ? await enrichApplicationsWithDjiImageUrl(application.serviceOrder, [application])
+    : [application];
+  const djiImagesByApplicationId = await prefetchDjiReportImagesByApplicationId([
+    enrichedApplication,
+  ]).catch(() => ({} as DjiReportImageByApplicationId));
+  const djiImage = djiImagesByApplicationId[enrichedApplication.id];
+  const mapData = djiImage
+    ? {
+        mapImageDataUrl: null,
+        mapOverlayPathDs: null,
+        mapFallbackVectorPathD: null,
+        mapUnavailableMessage: null,
+      }
+    : await prefetchApplicationIndividualMap(enrichedApplication);
 
   const element = ApplicationIndividualReportPDF({
-    application,
+    application: enrichedApplication,
     generatedAt,
+    djiImageDataUrl: djiImage?.imageSrc ?? null,
+    djiImageUrl: enrichedApplication.djiImageUrl ?? null,
     mapImageDataUrl: mapData.mapImageDataUrl,
     mapOverlayPathDs: mapData.mapOverlayPathDs,
     mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,
