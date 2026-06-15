@@ -7,3 +7,4 @@ _MACOSX/
 **/.env.local
 **/.env.production
 **/.DS_Store
+frontend-ds-control-main/frontend-dev.log

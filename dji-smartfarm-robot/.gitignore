@@ -1,0 +1,37 @@
+﻿# Dependências
+node_modules/
+
+# Perfis/sessões do navegador
+.chrome-*/
+.chrome-dji-profile/
+.chrome-dji-profile-headless/
+user-data-dir/
+browser-profile/
+
+# Saídas geradas
+downloads-dji/
+application-review/
+dji-application-images/
+
+# Capturas/debugs/artefatos
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.log
+*.tmp
+debug_*
+*_debug.*
+*.har
+
+# Dados sensíveis/ambiente
+.env
+.env.*
+*.secret.*
+storageState*.json
+auth*.json
+
+# Testes/Playwright
+playwright-report/
+test-results/
