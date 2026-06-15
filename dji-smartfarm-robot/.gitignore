@@ -35,3 +35,6 @@ auth*.json
 # Testes/Playwright
 playwright-report/
 test-results/
+
+# Scripts locais antigos/experimentais não versionados
+_legacy-local/
