@@ -76,3 +76,31 @@ Arquivos gerados localmente e ignorados pelo Git:
 
 - downloads-dji/os-134-v2/os_134_aplicacoes_v2.json
 - downloads-dji/os-134-v2/os_134_aplicacoes_v2.csv
+
+## Manifest final DJI por aplicação validado
+
+Script:
+
+node .\dji-gerar-manifest-aplicacoes-os.js --os-id 134 --date 2026/05/20 --approve-reviewed
+
+Resultado validado:
+
+- manifest gerado por applicationId
+- 3 aplicações no manifest
+- 3 aplicações com imagem
+- 0 reviewRequired
+- 3 aplicações approved
+- 3 high_confidence
+- 0 exact_application
+- 27 voos DJI usados
+- 37.30 ha DS
+- 37.53 ha DJI
+- primaryImagePath existente nas 3 aplicações
+
+Arquivo gerado localmente e ignorado pelo Git:
+
+- downloads-dji/os-134-v2/dji_manifest_applications_os_134.json
+
+Próxima etapa:
+
+Copiar manifest e imagens aprovadas para o frontend ou storage, mantendo a regra de que o PDF apenas consome evidências prontas e nunca executa o robô.
