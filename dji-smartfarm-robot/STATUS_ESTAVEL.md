@@ -148,3 +148,26 @@ Validações:
 Regra mantida:
 
 O PDF não executa robô DJI. Ele apenas consome evidência pronta publicada em public/dji-reports.
+
+## Orquestrador completo DJI por OS validado
+
+Script:
+
+node .\dji-processar-os-completa.js --os-id 134 --os-url "<URL_DA_OS>" --approve-reviewed --export-frontend
+
+Resultado validado na OS 134:
+
+- 15 aplicações DS processadas
+- 15 aplicações com evidência DJI
+- 0 aplicações sem evidência DJI
+- datas processadas: 2026-05-20, 2026-05-14, 2026-05-13
+- 139 voos DJI capturados
+- 80 voos DJI usados no manifest
+- total DS: 132.95 ha
+- total DJI: 133.15 ha
+- manifest frontend exportado com 15 aplicações
+- 15 imagens PNG exportadas para public/dji-reports/os-134/applications
+
+Regra mantida:
+
+O PDF não executa o robô DJI. A automação prepara as evidências antes da geração do relatório.

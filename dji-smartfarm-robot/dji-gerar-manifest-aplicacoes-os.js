@@ -76,6 +76,71 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function parseDateList(value) {
+  return unique(
+    String(value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map(normalizeDate),
+  );
+}
+
+function dateFilePartToDate(value) {
+  const match = String(value || "").match(/^(\d{4})_(\d{2})_(\d{2})$/);
+  return match ? `${match[1]}/${match[2]}/${match[3]}` : "";
+}
+
+function inferGroupDate(filePath) {
+  const match = path
+    .basename(String(filePath || ""))
+    .match(/^dji_application_groups_(\d{4}_\d{2}_\d{2})\.json$/);
+  return match ? dateFilePartToDate(match[1]) : "";
+}
+
+function parsePathList(value) {
+  return unique(
+    String(value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
+function discoverGroupFiles(baseDir, datesFilter, warnings) {
+  if (!fs.existsSync(baseDir)) {
+    warnings.push(`diretorio_base_nao_encontrado:${baseDir}`);
+    return [];
+  }
+
+  if (datesFilter.length) {
+    const groupFiles = [];
+
+    for (const date of datesFilter) {
+      const groupPath = path.join(
+        baseDir,
+        `dji_application_groups_${dateToFilePart(date)}.json`,
+      );
+
+      if (fileExists(groupPath)) {
+        groupFiles.push(groupPath);
+      } else {
+        warnings.push(`grupo_dji_nao_encontrado:${path.basename(groupPath)}`);
+      }
+    }
+
+    return unique(groupFiles);
+  }
+
+  return fs
+    .readdirSync(baseDir)
+    .filter((fileName) =>
+      /^dji_application_groups_\d{4}_\d{2}_\d{2}\.json$/.test(fileName),
+    )
+    .sort()
+    .map((fileName) => path.join(baseDir, fileName));
+}
+
 function isCenteredMapPng(filePath) {
   const normalized = String(filePath || "").toLowerCase();
   return normalized.endsWith(".png") && normalized.includes("map_crop_centered");
@@ -311,20 +376,23 @@ function printSummary(output, outputPath) {
 
 function main() {
   const osId = getArg("--os-id", "134");
-  const targetDate = normalizeDate(getArg("--date", process.argv[2] || "2026/05/20"));
+  const datesFromArg = parseDateList(getArg("--dates", ""));
+  const targetDate = normalizeDate(
+    datesFromArg[0] || getArg("--date", process.argv[2] || "2026/05/20"),
+  );
+  const useAllGroups = hasFlag("--all-groups") || datesFromArg.length > 1;
+  const datesFilter = datesFromArg.length
+    ? datesFromArg
+    : useAllGroups
+      ? []
+      : [targetDate];
+  const datesFilterIso = new Set(datesFilter.map(dateToIso));
   const options = {
     approveReviewed: hasFlag("--approve-reviewed"),
   };
-  const dateFilePart = dateToFilePart(targetDate);
   const baseDir = path.resolve(__dirname, "downloads-dji", `os-${osId}-v2`);
   const applicationsPath = path.resolve(
     getArg("--applications", path.join(baseDir, `os_${osId}_aplicacoes_v2.json`)),
-  );
-  const inventoryPath = path.resolve(
-    getArg("--inventory", path.join(baseDir, `dji_inventory_${dateFilePart}_clean.json`)),
-  );
-  const groupsPath = path.resolve(
-    getArg("--groups", path.join(baseDir, `dji_application_groups_${dateFilePart}.json`)),
   );
   const outputPath = path.resolve(
     getArg(
@@ -332,44 +400,135 @@ function main() {
       path.join(baseDir, `dji_manifest_applications_os_${osId}.json`),
     ),
   );
+  const warnings = [];
+  const groupsArg = getArg("--groups", "");
+  const explicitGroupPaths = parsePathList(groupsArg).map((groupPath) =>
+    path.resolve(groupPath),
+  );
+  const groupPaths = hasFlag("--no-groups")
+    ? []
+    : useAllGroups
+      ? explicitGroupPaths.length
+        ? explicitGroupPaths
+        : discoverGroupFiles(baseDir, datesFilter, warnings)
+      : [
+          path.resolve(
+            getArg(
+              "--groups",
+              path.join(
+                baseDir,
+                `dji_application_groups_${dateToFilePart(targetDate)}.json`,
+              ),
+            ),
+          ),
+        ];
 
   const applications = asArray(readJson(applicationsPath))
     .map(normalizeApplication)
-    .filter((application) => application.date === dateToIso(targetDate));
+    .filter(
+      (application) =>
+        !datesFilterIso.size || datesFilterIso.has(application.date),
+    );
   const applicationById = new Map(
     applications.map((application) => [application.applicationId, application]),
   );
 
-  const inventory = readJson(inventoryPath);
-  const inventoryFlights = asArray(inventory.flights || inventory);
-  const inventoryByRecord = new Map(
-    inventoryFlights
-      .filter((flight) => flight.flightRecordNumber)
-      .map((flight) => [flight.flightRecordNumber, flight]),
-  );
-
-  const groups = readJson(groupsPath);
-  const groupedApplications = asArray(groups.applications || groups);
   const generatedAt = new Date().toISOString();
-  const sourceFileNames = {
-    applications: path.basename(applicationsPath),
-    inventory: path.basename(inventoryPath),
-    groups: path.basename(groupsPath),
-  };
   const applicationsById = {};
+  const inventoryPaths = [];
+  const groupsPaths = [];
 
-  for (const groupedApplication of groupedApplications) {
-    const applicationId = groupedApplication.applicationId;
-    if (!applicationId) continue;
+  for (const groupsPath of groupPaths) {
+    if (!fileExists(groupsPath)) {
+      warnings.push(`grupo_dji_nao_encontrado:${groupsPath}`);
+      continue;
+    }
 
-    applicationsById[applicationId] = buildManifestApplication(
-      groupedApplication,
-      applicationById.get(applicationId),
-      inventoryByRecord,
-      sourceFileNames,
-      options,
-      generatedAt,
+    const groups = readJson(groupsPath);
+    const inferredGroupDate = inferGroupDate(groupsPath);
+    const groupDateIso = dateToIso(groups.date || inferredGroupDate);
+
+    if (datesFilterIso.size && !datesFilterIso.has(groupDateIso)) {
+      warnings.push(
+        `grupo_dji_fora_das_datas:${path.basename(groupsPath)}:${groupDateIso}`,
+      );
+      continue;
+    }
+
+    const inventoryPath = path.resolve(
+      useAllGroups
+        ? path.join(
+            baseDir,
+            `dji_inventory_${dateToFilePart(groupDateIso)}_clean.json`,
+          )
+        : getArg(
+            "--inventory",
+            path.join(
+              baseDir,
+              `dji_inventory_${dateToFilePart(targetDate)}_clean.json`,
+            ),
+          ),
     );
+    const inventory = fileExists(inventoryPath)
+      ? readJson(inventoryPath)
+      : { flights: [] };
+
+    if (!fileExists(inventoryPath)) {
+      warnings.push(`inventario_dji_nao_encontrado:${inventoryPath}`);
+    } else {
+      inventoryPaths.push(inventoryPath);
+    }
+
+    groupsPaths.push(groupsPath);
+
+    const inventoryFlights = asArray(inventory.flights || inventory);
+    const inventoryByRecord = new Map(
+      inventoryFlights
+        .filter((flight) => flight.flightRecordNumber)
+        .map((flight) => [flight.flightRecordNumber, flight]),
+    );
+    const groupedApplications = asArray(groups.applications || groups);
+    const sourceFileNames = {
+      applications: path.basename(applicationsPath),
+      inventory: fileExists(inventoryPath) ? path.basename(inventoryPath) : null,
+      groups: path.basename(groupsPath),
+    };
+
+    for (const groupedApplication of groupedApplications) {
+      const applicationId = groupedApplication.applicationId;
+      if (!applicationId) continue;
+
+      const dsApplication = applicationById.get(applicationId);
+      if (!dsApplication) {
+        warnings.push(
+          `aplicacao_grupo_fora_do_ds:${applicationId}:${path.basename(groupsPath)}`,
+        );
+        continue;
+      }
+
+      if (dsApplication.date && groupDateIso && dsApplication.date !== groupDateIso) {
+        warnings.push(
+          `aplicacao_grupo_data_incompativel:${applicationId}:${dsApplication.date}:${groupDateIso}`,
+        );
+        continue;
+      }
+
+      if (applicationsById[applicationId]) {
+        warnings.push(
+          `aplicacao_duplicada_em_grupos:${applicationId}:${path.basename(groupsPath)}`,
+        );
+        continue;
+      }
+
+      applicationsById[applicationId] = buildManifestApplication(
+        groupedApplication,
+        dsApplication,
+        inventoryByRecord,
+        sourceFileNames,
+        options,
+        generatedAt,
+      );
+    }
   }
 
   const manifestApplications = Object.values(applicationsById);
@@ -410,19 +569,34 @@ function main() {
 
   const output = {
     osId,
-    date: dateToIso(targetDate),
+    date: datesFilter.length === 1 ? dateToIso(datesFilter[0]) : null,
+    dates: datesFilter.length
+      ? datesFilter.map(dateToIso)
+      : unique(groupPaths.map((groupPath) => dateToIso(inferGroupDate(groupPath)))),
     imageScope: "application",
     generatedAt,
     sourceFiles: {
       applicationsPath,
-      inventoryPath,
-      groupsPath,
+      inventoryPaths: unique(inventoryPaths),
+      groupsPaths: unique(groupsPaths),
     },
+    warnings,
     summary,
     applications: applicationsById,
   };
 
+  if (output.sourceFiles.inventoryPaths.length === 1) {
+    output.sourceFiles.inventoryPath = output.sourceFiles.inventoryPaths[0];
+  }
+
+  if (output.sourceFiles.groupsPaths.length === 1) {
+    output.sourceFiles.groupsPath = output.sourceFiles.groupsPaths[0];
+  }
+
   fs.writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf8");
+  for (const warning of warnings) {
+    console.log(`[WARN] ${warning}`);
+  }
   printSummary(output, outputPath);
 }
 
