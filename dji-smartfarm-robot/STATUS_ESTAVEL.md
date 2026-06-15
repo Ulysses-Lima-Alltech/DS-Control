@@ -56,3 +56,23 @@ Grupos gerados:
 Ainda falta substituir o fallback por leitura real do arquivo os_134_aplicacoes_v2.json no fluxo definitivo.
 
 O relatório DS Control não deve executar o robô. O robô deve rodar separado, gerar imagens e manifest, e o PDF deve apenas consumir evidências prontas.
+
+## Extração real DS Control validada
+
+Script:
+
+node .\dscontrol-extrair-aplicacoes-os.js --os-id 134 --os-url "https://dscontrol.dstechbrasil.com.br/dashboard/service-orders/6609d7f5-1279-4005-9c0e-91055159af49"
+
+Resultado validado:
+
+- token encontrado em localStorage: ds-control-access-token
+- API usada: https://control.dstechbrasil.com.br/v1/applications/service-order/{osUuid}
+- 15 aplicações reais extraídas
+- 132.95 ha total
+- datas encontradas: 2026-05-20, 2026-05-14, 2026-05-13
+- agrupador DJI rodou sem fallback para 2026/05/20
+
+Arquivos gerados localmente e ignorados pelo Git:
+
+- downloads-dji/os-134-v2/os_134_aplicacoes_v2.json
+- downloads-dji/os-134-v2/os_134_aplicacoes_v2.csv
