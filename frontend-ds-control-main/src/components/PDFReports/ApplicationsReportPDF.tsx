@@ -48,6 +48,7 @@ interface ApplicationsReportPDFProps {
       imageUrl?: string;
       imageScope?: 'application' | 'day' | string;
       matchType?: 'exact_application' | 'high_confidence' | 'date_only' | 'no_match' | string;
+      djiMetadata?: Application['djiMetadata'];
     }
   >;
 }
@@ -60,6 +61,36 @@ function isTrustedDjiReportImage(
     image?.imageScope === 'application' &&
     (image.matchType === 'exact_application' || image.matchType === 'high_confidence')
   );
+}
+
+function formatDjiArea(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+
+  return `${value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
+}
+
+function buildDjiEvidenceCaption(
+  application: Application,
+  metadata: Application['djiMetadata'] | undefined
+): string {
+  const dsArea = formatDjiArea(metadata?.dsAreaHa);
+  const djiArea = formatDjiArea(metadata?.djiAreaHa);
+  const details = [
+    typeof metadata?.flightCount === 'number' ? `voos DJI: ${metadata.flightCount}` : null,
+    dsArea ? `área DS: ${dsArea}` : null,
+    djiArea ? `área DJI: ${djiArea}` : null,
+    'confiança: Alta',
+  ].filter(Boolean);
+
+  return [
+    `Evidência DJI SmartFarm - ${formatApplicationDate(application.date)}`,
+    details.length ? details.join(' | ') : null,
+  ]
+    .filter(Boolean)
+    .join(' | ');
 }
 
 const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
@@ -615,7 +646,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const showDjiImage = Boolean(plotDjiImage?.imageSrc);
         const showMapImage = Boolean(reportImageSrc);
         const djiCaption = plotDjiApplication
-          ? `Imagem DJI vinculada à aplicação — ${formatApplicationDate(plotDjiApplication.date)}`
+          ? buildDjiEvidenceCaption(plotDjiApplication, plotDjiImage?.djiMetadata)
           : null;
 
         if (!showMapImage && typeof console !== 'undefined') {

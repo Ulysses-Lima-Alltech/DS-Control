@@ -7,6 +7,23 @@ import { User } from '@/types/user.type';
 
 import { Farm } from './farm.type';
 
+export type DjiApplicationMetadata = {
+  plot?: string | null;
+  farm?: string | null;
+  pilot?: string | null;
+  drone?: string | null;
+  dsAreaHa?: number | null;
+  djiAreaHa?: number | null;
+  areaDifferenceHa?: number | null;
+  areaDifferencePercent?: number | null;
+  flightCount?: number | null;
+  flightRecordNumbers?: string[];
+  reviewStatus?: string | null;
+  reviewApprovedAt?: string | null;
+  reviewApprovedBy?: string | null;
+  [key: string]: unknown;
+};
+
 export type Application = {
   id: string;
   serviceOrderId: string;
@@ -41,7 +58,7 @@ export type Application = {
   djiMatchType?: 'exact_application' | 'high_confidence' | 'date_only' | 'no_match' | string;
   djiMatchConfidence?: number;
   djiFlightRecordNumber?: string | null;
-  djiMetadata?: Record<string, unknown> | null;
+  djiMetadata?: DjiApplicationMetadata | null;
 };
 
 /** Filtro de listagem alinhado às métricas de inconsistência no backend. */

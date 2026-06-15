@@ -124,3 +124,27 @@ Arquivos exportados para frontend:
 
 - frontend-ds-control-main/public/dji-reports/os-134/manifest.json
 - frontend-ds-control-main/public/dji-reports/os-134/applications/*.png
+
+## Integração do manifest DJI aprovado no PDF validada
+
+Alterações:
+
+- djiReportAssets.ts agora aceita manifest applications como array ou objeto por applicationId
+- aceita somente evidências:
+  - imageScope application
+  - matchType high_confidence ou exact_application
+  - reviewRequired false
+  - reviewStatus approved
+  - imageUrl preenchida
+- rejeita date_only, day, no_match, candidate_review_required e revisão pendente
+- ApplicationsReportPDF e ApplicationIndividualReportPDF exibem "Evidência DJI SmartFarm"
+- legenda mostra voos DJI, área DS, área DJI e confiança Alta quando houver metadata
+
+Validações:
+
+- npm run type-check OK
+- npm run build OK
+
+Regra mantida:
+
+O PDF não executa robô DJI. Ele apenas consome evidência pronta publicada em public/dji-reports.

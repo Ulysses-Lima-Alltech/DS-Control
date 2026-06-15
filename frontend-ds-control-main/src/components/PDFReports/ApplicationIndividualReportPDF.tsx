@@ -83,6 +83,34 @@ function formatMetricPercent(value: number): string {
   })}%`;
 }
 
+function formatDjiArea(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+
+  return `${value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
+}
+
+function buildDjiEvidenceCaption(application: Application, applicationDateLabel: string): string {
+  const metadata = application.djiMetadata;
+  const dsArea = formatDjiArea(metadata?.dsAreaHa);
+  const djiArea = formatDjiArea(metadata?.djiAreaHa);
+  const details = [
+    typeof metadata?.flightCount === 'number' ? `voos DJI: ${metadata.flightCount}` : null,
+    dsArea ? `área DS: ${dsArea}` : null,
+    djiArea ? `área DJI: ${djiArea}` : null,
+    'confiança: Alta',
+  ].filter(Boolean);
+
+  return [
+    `Evidência DJI SmartFarm - ${applicationDateLabel}`,
+    details.length ? details.join(' | ') : null,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
 const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFProps> = ({
   application,
   generatedAt,
@@ -125,6 +153,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
+  const djiEvidenceCaption = buildDjiEvidenceCaption(application, applicationDateLabel);
 
   return (
     <Document>
@@ -236,7 +265,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-            {showDjiImage ? 'Imagem DJI vinculada' : 'Mapa individual do talhao'}
+            {showDjiImage ? 'Evidência DJI SmartFarm' : 'Mapa individual do talhao'}
           </Text>
           {showDjiImage ? (
             <>
@@ -271,7 +300,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
                   marginTop: 6,
                 }}
               >
-                Imagem DJI vinculada à aplicação — {applicationDateLabel}
+                {djiEvidenceCaption}
               </Text>
             </>
           ) : (
