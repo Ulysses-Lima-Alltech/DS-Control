@@ -104,3 +104,23 @@ Arquivo gerado localmente e ignorado pelo Git:
 Próxima etapa:
 
 Copiar manifest e imagens aprovadas para o frontend ou storage, mantendo a regra de que o PDF apenas consome evidências prontas e nunca executa o robô.
+
+## Exportação de assets DJI para frontend validada
+
+Script:
+
+node .\dji-exportar-assets-frontend-os.js --os-id 134
+
+Resultado validado:
+
+- manifest aprovado lido de downloads-dji/os-134-v2/dji_manifest_applications_os_134.json
+- 3 aplicações aprovadas exportadas
+- 3 imagens PNG copiadas para frontend/public
+- manifest estático gerado por applicationId
+- URLs geradas no padrão /dji-reports/os-134/applications/<applicationId>.png
+- imagem aberta manualmente e validada visualmente como correta
+
+Arquivos exportados para frontend:
+
+- frontend-ds-control-main/public/dji-reports/os-134/manifest.json
+- frontend-ds-control-main/public/dji-reports/os-134/applications/*.png
