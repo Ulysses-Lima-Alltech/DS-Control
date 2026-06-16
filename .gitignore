@@ -8,3 +8,10 @@ _MACOSX/
 **/.env.production
 **/.DS_Store
 frontend-ds-control-main/frontend-dev.log
+
+# DJI SmartFarm robot - arquivos locais/gerados
+dji-smartfarm-robot/.playwright-dji-kml-profile*/
+dji-smartfarm-robot/downloads-dji-kml/
+dji-smartfarm-robot/kml-date-matches/
+dji-smartfarm-robot/kml-mapbox-renders/
+dji-smartfarm-robot/kml-matches/
