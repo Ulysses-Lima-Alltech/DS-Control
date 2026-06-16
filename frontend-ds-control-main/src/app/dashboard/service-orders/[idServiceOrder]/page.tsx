@@ -52,7 +52,6 @@ import { formatOperationalDateBR } from '@/utils/operational-date';
 import {
   downloadPDF,
   generateApplicationsReportPDF,
-  generateServiceOrderStrategicReportPDF,
 } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
@@ -316,32 +315,6 @@ export default function ServiceOrderPage({
     });
   };
 
-  const handleGenerateStrategicReport = async () => {
-    if (!serviceOrderData) {
-      return;
-    }
-
-    try {
-      setIsGeneratingReport(true);
-
-      const blob = await generateServiceOrderStrategicReportPDF({
-        serviceOrder: serviceOrderData,
-        applications: applicationWithPlotData,
-      });
-
-      downloadPDF(blob, `relatorio-os-${serviceOrderData.number}-estrategico.pdf`);
-      toast.success('Relatorio estrategico gerado com sucesso');
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('Erro ao gerar relatorio');
-      }
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
-
   const handleGenerateApplicationsReport = async (mode: ReportMode = 'all') => {
     if (!serviceOrderData) {
       return;
@@ -575,7 +548,13 @@ export default function ServiceOrderPage({
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={() => handleGenerateStrategicReport()}
+            onClick={() =>
+              window.open(
+                `/dashboard/service-orders/${serviceOrderData.id}/strategic-map-print`,
+                '_blank',
+                'noopener,noreferrer'
+              )
+            }
           >
             <FileText className='mr-2 h-4 w-4' />
             Mapa estrategico da OS
