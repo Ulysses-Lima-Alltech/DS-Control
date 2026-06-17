@@ -9,6 +9,11 @@ import type {
   Polygon,
   Position,
 } from 'geojson';
+import mapboxgl, {
+  type AnyLayer,
+  type PaddingOptions,
+} from 'mapbox-gl';
+import type { jsPDF as JsPdf } from 'jspdf';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapboxMap, { Layer, MapRef, ScaleControl, Source } from 'react-map-gl/mapbox';
@@ -20,6 +25,26 @@ import { ServiceOrder } from '@/types/service-order.type';
 
 const MAPBOX_TOKEN =
   'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
+
+const MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
+const STRATEGIC_MAP_SOURCE_ID = 'strategic-map-source';
+const STRATEGIC_MAP_FILL_LAYER_ID = 'strategic-map-fill';
+const STRATEGIC_MAP_OUTLINE_LAYER_ID = 'strategic-map-outline';
+const STRATEGIC_MAP_LABELS_LAYER_ID = 'strategic-map-labels';
+
+const EXPORT_WIDTH_PX = 11235;
+const EXPORT_HEIGHT_PX = 7946;
+const PDF_WIDTH_MM = 1189;
+const PDF_HEIGHT_MM = 841;
+const CSS_PX_TO_MM = 25.4 / 96;
+const CSS_PX_TO_PT = 72 / 96;
+const PAGE_WIDTH_CSS_PX = PDF_WIDTH_MM / CSS_PX_TO_MM;
+const PAGE_HEIGHT_CSS_PX = PDF_HEIGHT_MM / CSS_PX_TO_MM;
+const EXPORT_PX_PER_CSS_PX_X = EXPORT_WIDTH_PX / PAGE_WIDTH_CSS_PX;
+const EXPORT_PX_PER_CSS_PX_Y = EXPORT_HEIGHT_PX / PAGE_HEIGHT_CSS_PX;
+const EXPORT_TILE_WAIT_TIMEOUT_MS = 60000;
+const EXPORT_EXTRA_RENDER_DELAY_MS = 500;
+const LOGO_SRC = '/images/ds-drones-agricolas-logo.png';
 
 const FARM_COLOR_PALETTE = [
   '#e74c3c',
@@ -66,6 +91,62 @@ type StrategicMapData = {
   bounds: LngLatBoundsTuple | null;
 };
 
+type PdfScaleBar = {
+  label: string;
+  widthCssPx: number;
+};
+
+type DevicePixelRatioRestore = () => void;
+
+const STRATEGIC_MAP_FILL_LAYER: AnyLayer = {
+  id: STRATEGIC_MAP_FILL_LAYER_ID,
+  type: 'fill',
+  source: STRATEGIC_MAP_SOURCE_ID,
+  paint: {
+    'fill-color': ['coalesce', ['get', 'fill'], '#3388ff'],
+    'fill-opacity': 0.82,
+  },
+};
+
+const STRATEGIC_MAP_OUTLINE_LAYER: AnyLayer = {
+  id: STRATEGIC_MAP_OUTLINE_LAYER_ID,
+  type: 'line',
+  source: STRATEGIC_MAP_SOURCE_ID,
+  paint: {
+    'line-color': '#111111',
+    'line-opacity': 0.95,
+    'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.4, 13, 2.6, 16, 3.4],
+  },
+};
+
+const STRATEGIC_MAP_LABELS_LAYER: AnyLayer = {
+  id: STRATEGIC_MAP_LABELS_LAYER_ID,
+  type: 'symbol',
+  source: STRATEGIC_MAP_SOURCE_ID,
+  layout: {
+    'text-field': [
+      'format',
+      ['coalesce', ['get', 'plot_name'], ''],
+      {},
+      '\n',
+      {},
+      ['coalesce', ['get', 'hectare_label'], ''],
+      { 'font-scale': 0.82 },
+    ],
+    'text-size': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 12, 16, 15],
+    'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+    'text-anchor': 'center',
+    'text-allow-overlap': true,
+    'text-ignore-placement': true,
+    'text-optional': false,
+  },
+  paint: {
+    'text-color': '#ffffff',
+    'text-halo-color': '#000000',
+    'text-halo-width': 1.2,
+  },
+};
+
 export default function StrategicMapPrintPage({
   params,
 }: {
@@ -75,6 +156,7 @@ export default function StrategicMapPrintPage({
   const mapRef = useRef<MapRef | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [generatedAtLabel, setGeneratedAtLabel] = useState('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const {
     data: serviceOrder,
@@ -122,12 +204,7 @@ export default function StrategicMapPrintPage({
       duration: 0,
       essential: true,
       maxZoom: 16,
-      padding: {
-        top: Math.max(90, height * 0.12),
-        right: Math.max(120, width * 0.08),
-        bottom: Math.max(120, height * 0.16),
-        left: Math.max(120, width * 0.1),
-      },
+      padding: buildFitBoundsPadding(width, height),
     });
   }, [strategicMapData?.bounds]);
 
@@ -162,11 +239,57 @@ export default function StrategicMapPrintPage({
     };
   }, [fitMapToBounds]);
 
+  const handleDownloadReport = useCallback(async () => {
+    if (!strategicMapData?.bounds || strategicMapData.featureCollection.features.length === 0) {
+      alert('Mapa indispon\u00edvel para gerar o PDF em alta resolu\u00e7\u00e3o.');
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+
+    try {
+      const generatedAt = generatedAtLabel || formatGeneratedAt(new Date());
+      const { jsPDF } = await import('jspdf');
+      const { imageDataUrl, scaleBar } = await generateStrategicMapImageDataUrl(strategicMapData);
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [PDF_WIDTH_MM, PDF_HEIGHT_MM],
+        compress: false,
+      });
+
+      pdf.addImage(imageDataUrl, 'PNG', 0, 0, PDF_WIDTH_MM, PDF_HEIGHT_MM, undefined, 'NONE');
+      await drawStrategicMapPdfOverlays(pdf, {
+        title: mapTitle,
+        generatedAt,
+        farms: strategicMapData.farms,
+        totalHectares: strategicMapData.totalHectares,
+        scaleBar,
+      });
+
+      pdf.save(`mapa-estrategico-os-${sanitizeFilePart(serviceOrder?.number ?? idServiceOrder)}.pdf`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF do mapa estrategico em alta resolucao:', error);
+      alert('N\u00e3o foi poss\u00edvel gerar o PDF em alta resolu\u00e7\u00e3o.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [generatedAtLabel, idServiceOrder, mapTitle, serviceOrder?.number, strategicMapData]);
+
   const hasMapFeatures = Boolean(strategicMapData?.featureCollection.features.length);
 
   return (
     <>
       <main className='strategic-map-print-page'>
+        <button
+          type='button'
+          className='strategic-map-download-button'
+          onClick={handleDownloadReport}
+          disabled={isGeneratingPdf || !hasMapFeatures}
+        >
+          {isGeneratingPdf ? 'Gerando PDF...' : 'Baixar relat\u00f3rio'}
+        </button>
+
         <div className='strategic-map-canvas'>
           {hasMapFeatures ? (
             <MapboxMap
@@ -178,70 +301,20 @@ export default function StrategicMapPrintPage({
                 zoom: 4,
               }}
               style={{ width: '100vw', height: '100vh' }}
-              mapStyle='mapbox://styles/mapbox/streets-v12'
+              mapStyle={MAPBOX_STYLE}
               attributionControl={false}
               logoPosition='bottom-left'
               preserveDrawingBuffer={true}
               onLoad={() => setIsMapLoaded(true)}
             >
               <Source
-                id='strategic-map-source'
+                id={STRATEGIC_MAP_SOURCE_ID}
                 type='geojson'
                 data={strategicMapData!.featureCollection}
               >
-                <Layer
-                  id='strategic-map-fill'
-                  type='fill'
-                  paint={{
-                    'fill-color': ['coalesce', ['get', 'fill'], '#3388ff'],
-                    'fill-opacity': 0.82,
-                  }}
-                />
-                <Layer
-                  id='strategic-map-outline'
-                  type='line'
-                  paint={{
-                    'line-color': '#111111',
-                    'line-opacity': 0.95,
-                    'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.4, 13, 2.6, 16, 3.4],
-                  }}
-                />
-                <Layer
-                  id='strategic-map-labels'
-                  type='symbol'
-                  layout={{
-                    'text-field': [
-                      'format',
-                      ['coalesce', ['get', 'plot_name'], ''],
-                      {},
-                      '\n',
-                      {},
-                      ['coalesce', ['get', 'hectare_label'], ''],
-                      { 'font-scale': 0.82 },
-                    ],
-                    'text-size': [
-                      'interpolate',
-                      ['linear'],
-                      ['zoom'],
-                      8,
-                      9,
-                      12,
-                      12,
-                      16,
-                      15,
-                    ],
-                    'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-                    'text-anchor': 'center',
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true,
-                    'text-optional': false,
-                  }}
-                  paint={{
-                    'text-color': '#ffffff',
-                    'text-halo-color': '#000000',
-                    'text-halo-width': 1.2,
-                  }}
-                />
+                <Layer {...STRATEGIC_MAP_FILL_LAYER} />
+                <Layer {...STRATEGIC_MAP_OUTLINE_LAYER} />
+                <Layer {...STRATEGIC_MAP_LABELS_LAYER} />
               </Source>
               <ScaleControl maxWidth={220} unit='metric' position='bottom-left' />
             </MapboxMap>
@@ -327,6 +400,29 @@ export default function StrategicMapPrintPage({
             Segoe UI,
             Arial,
             sans-serif;
+        }
+
+        .strategic-map-download-button {
+          position: absolute;
+          top: 226px;
+          left: 42px;
+          z-index: 30;
+          border: 1px solid rgba(17, 17, 17, 0.22);
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.92);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+          color: #111111;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 900;
+          line-height: 1;
+          padding: 11px 14px;
+          text-transform: uppercase;
+        }
+
+        .strategic-map-download-button:disabled {
+          cursor: wait;
+          opacity: 0.66;
         }
 
         .strategic-map-canvas,
@@ -497,6 +593,10 @@ export default function StrategicMapPrintPage({
         }
 
         @media print {
+          .strategic-map-download-button {
+            display: none !important;
+          }
+
           body * {
             visibility: hidden !important;
           }
@@ -611,6 +711,514 @@ export default function StrategicMapPrintPage({
       `}</style>
     </>
   );
+}
+
+function buildFitBoundsPadding(width: number, height: number): PaddingOptions {
+  return {
+    top: Math.max(90, height * 0.12),
+    right: Math.max(120, width * 0.08),
+    bottom: Math.max(120, height * 0.16),
+    left: Math.max(120, width * 0.1),
+  };
+}
+
+async function generateStrategicMapImageDataUrl(
+  strategicMapData: StrategicMapData
+): Promise<{ imageDataUrl: string; scaleBar: PdfScaleBar | null }> {
+  if (!strategicMapData.bounds) {
+    throw new Error('Strategic map bounds are not available.');
+  }
+
+  const restoreDevicePixelRatio = forceDevicePixelRatio(1);
+  const exportPixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  const exportWidthCssPx = EXPORT_WIDTH_PX / exportPixelRatio;
+  const exportHeightCssPx = EXPORT_HEIGHT_PX / exportPixelRatio;
+  const exportContainer = createExportMapContainer(exportWidthCssPx, exportHeightCssPx);
+  let exportMap: mapboxgl.Map | null = null;
+
+  document.body.appendChild(exportContainer);
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+
+  try {
+    exportMap = new mapboxgl.Map({
+      accessToken: MAPBOX_TOKEN,
+      container: exportContainer,
+      style: MAPBOX_STYLE,
+      center: [-51.9253, -14.235],
+      zoom: 4,
+      interactive: false,
+      attributionControl: false,
+      preserveDrawingBuffer: true,
+      logoPosition: 'bottom-left',
+      trackResize: false,
+      fadeDuration: 0,
+      failIfMajorPerformanceCaveat: false,
+    });
+
+    await waitForMapLoad(exportMap);
+    addStrategicMapSourceAndLayers(exportMap, strategicMapData.featureCollection);
+    exportMap.resize();
+    exportMap.fitBounds(strategicMapData.bounds, {
+      duration: 0,
+      essential: true,
+      maxZoom: 16,
+      padding: buildFitBoundsPadding(exportWidthCssPx, exportHeightCssPx),
+    });
+
+    await waitForMapIdleAndTiles(exportMap);
+    const scaleBar = buildPdfScaleBar(
+      exportMap,
+      exportWidthCssPx,
+      exportHeightCssPx,
+      exportPixelRatio
+    );
+    await delay(EXPORT_EXTRA_RENDER_DELAY_MS);
+
+    const canvas = exportMap.getCanvas();
+    const imageDataUrl = canvas.toDataURL('image/png');
+
+    return { imageDataUrl, scaleBar };
+  } finally {
+    exportMap?.remove();
+    exportContainer.remove();
+    restoreDevicePixelRatio();
+  }
+}
+
+function createExportMapContainer(widthCssPx: number, heightCssPx: number): HTMLDivElement {
+  const container = document.createElement('div');
+  container.className = 'strategic-map-export-container';
+  container.setAttribute('aria-hidden', 'true');
+  Object.assign(container.style, {
+    position: 'fixed',
+    top: '0',
+    left: `-${Math.ceil(widthCssPx) + 100}px`,
+    zIndex: '-1',
+    width: `${widthCssPx}px`,
+    height: `${heightCssPx}px`,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    opacity: '0.01',
+    contain: 'layout size style paint',
+  });
+
+  return container;
+}
+
+function forceDevicePixelRatio(value: number): DevicePixelRatioRestore {
+  const ownDescriptor = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+
+  try {
+    Object.defineProperty(window, 'devicePixelRatio', {
+      configurable: true,
+      get: () => value,
+    });
+
+    return () => {
+      try {
+        if (ownDescriptor) {
+          Object.defineProperty(window, 'devicePixelRatio', ownDescriptor);
+          return;
+        }
+
+        delete (window as unknown as { devicePixelRatio?: number }).devicePixelRatio;
+      } catch {
+        // Best-effort restore. The browser will keep its original DPR when overriding is blocked.
+      }
+    };
+  } catch {
+    return () => undefined;
+  }
+}
+
+function addStrategicMapSourceAndLayers(
+  map: mapboxgl.Map,
+  featureCollection: FeatureCollection<DrawableGeometry>
+): void {
+  map.addSource(STRATEGIC_MAP_SOURCE_ID, {
+    type: 'geojson',
+    data: featureCollection,
+  });
+
+  map.addLayer(STRATEGIC_MAP_FILL_LAYER);
+  map.addLayer(STRATEGIC_MAP_OUTLINE_LAYER);
+  map.addLayer(STRATEGIC_MAP_LABELS_LAYER);
+}
+
+function waitForMapLoad(map: mapboxgl.Map): Promise<void> {
+  if (map.loaded()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for the export map to load.'));
+    }, EXPORT_TILE_WAIT_TIMEOUT_MS);
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      map.off('load', handleLoad);
+      map.off('error', handleError);
+    };
+
+    const handleLoad = () => {
+      cleanup();
+      resolve();
+    };
+
+    const handleError = () => {
+      cleanup();
+      reject(new Error('The export map failed to load.'));
+    };
+
+    map.once('load', handleLoad);
+    map.once('error', handleError);
+  });
+}
+
+async function waitForMapIdleAndTiles(map: mapboxgl.Map): Promise<void> {
+  const deadline = Date.now() + EXPORT_TILE_WAIT_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    if (map.loaded() && map.areTilesLoaded()) {
+      return;
+    }
+
+    await waitForMapIdle(map, Math.min(5000, Math.max(1000, deadline - Date.now())));
+  }
+
+  if (map.areTilesLoaded()) {
+    return;
+  }
+
+  throw new Error('Timed out waiting for export map tiles.');
+}
+
+function waitForMapIdle(map: mapboxgl.Map, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      resolve();
+    }, timeoutMs);
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      map.off('idle', handleIdle);
+    };
+
+    const handleIdle = () => {
+      cleanup();
+      resolve();
+    };
+
+    map.once('idle', handleIdle);
+  });
+}
+
+function buildPdfScaleBar(
+  map: mapboxgl.Map,
+  exportWidthCssPx: number,
+  exportHeightCssPx: number,
+  exportPixelRatio: number
+): PdfScaleBar | null {
+  const maxWidthCssPx = 880;
+  const maxWidthMapPx = cssPxToExportPxX(maxWidthCssPx) / exportPixelRatio;
+  const y = exportHeightCssPx - cssPxToExportPxY(140) / exportPixelRatio;
+  const x1 = exportWidthCssPx / 2 - maxWidthMapPx / 2;
+  const x2 = exportWidthCssPx / 2 + maxWidthMapPx / 2;
+  const left = map.unproject([x1, y]);
+  const right = map.unproject([x2, y]);
+  const maxMeters = left.distanceTo(right);
+
+  if (!Number.isFinite(maxMeters) || maxMeters <= 0) {
+    return null;
+  }
+
+  const niceMeters = getNiceScaleMeters(maxMeters);
+  const widthCssPx = Math.max(80, maxWidthCssPx * (niceMeters / maxMeters));
+
+  return {
+    label: formatScaleDistance(niceMeters),
+    widthCssPx,
+  };
+}
+
+function getNiceScaleMeters(maxMeters: number): number {
+  const unit = Math.pow(10, Math.floor(Math.log10(maxMeters)));
+  const multipliers = [1, 2, 3, 5, 10];
+
+  for (let index = multipliers.length - 1; index >= 0; index -= 1) {
+    const candidate = multipliers[index] * unit;
+    if (candidate <= maxMeters) {
+      return candidate;
+    }
+  }
+
+  return unit;
+}
+
+function formatScaleDistance(meters: number): string {
+  if (meters >= 1000) {
+    const kilometers = meters / 1000;
+    return `${Number.isInteger(kilometers) ? kilometers.toFixed(0) : kilometers.toFixed(1)} km`;
+  }
+
+  return `${Math.round(meters)} m`;
+}
+
+async function drawStrategicMapPdfOverlays(
+  pdf: JsPdf,
+  params: {
+    title: string;
+    generatedAt: string;
+    farms: FarmLegendItem[];
+    totalHectares: number;
+    scaleBar: PdfScaleBar | null;
+  }
+): Promise<void> {
+  drawPdfTitle(pdf, params.title);
+  drawPdfGeneratedAt(pdf, params.generatedAt);
+  await drawPdfNorthArrow(pdf);
+  drawPdfLegend(pdf, params.farms, params.totalHectares);
+  drawPdfScaleBar(pdf, params.scaleBar);
+  await drawPdfLogo(pdf);
+}
+
+function drawPdfTitle(pdf: JsPdf, title: string): void {
+  const maxWidth = PDF_WIDTH_MM - cssPxToMm(1800);
+  const fontSize = fitPdfFontSize(pdf, title, maxWidth, cssPxToPt(100), cssPxToPt(62));
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(fontSize);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(title, PDF_WIDTH_MM / 2, cssPxToMm(50), {
+    align: 'center',
+    baseline: 'top',
+    maxWidth,
+  });
+}
+
+function drawPdfGeneratedAt(pdf: JsPdf, generatedAt: string): void {
+  const fontSize = cssPxToPt(56);
+  const paddingX = cssPxToMm(48);
+  const paddingY = cssPxToMm(24);
+  const borderWidth = cssPxToMm(8);
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(fontSize);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(borderWidth);
+
+  const textWidth = pdf.getTextWidth(generatedAt);
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = ptToMm(fontSize) + paddingY * 2;
+  const x = PDF_WIDTH_MM - cssPxToMm(100) - boxWidth;
+  const y = cssPxToMm(100);
+
+  pdf.rect(x, y, boxWidth, boxHeight);
+  pdf.text(generatedAt, x + paddingX, y + paddingY, {
+    baseline: 'top',
+  });
+}
+
+async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
+  const imageDataUrl = await createNorthArrowDataUrl();
+  pdf.addImage(
+    imageDataUrl,
+    'PNG',
+    cssPxToMm(100),
+    cssPxToMm(100),
+    cssPxToMm(600),
+    cssPxToMm(600),
+    undefined,
+    'NONE'
+  );
+}
+
+function drawPdfLegend(pdf: JsPdf, farms: FarmLegendItem[], totalHectares: number): void {
+  const x = cssPxToMm(100);
+  const legendHeightCss =
+    56 +
+    32 +
+    farms.length * 60 +
+    Math.max(0, farms.length - 1) * 24 +
+    48 +
+    32 +
+    8 +
+    56;
+  let y = PDF_HEIGHT_MM - cssPxToMm(100 + legendHeightCss);
+
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(cssPxToPt(56));
+  pdf.text('LEGENDA', x, y, { baseline: 'top' });
+
+  y += cssPxToMm(56 + 32);
+
+  farms.forEach((farm, index) => {
+    if (index > 0) {
+      y += cssPxToMm(24);
+    }
+
+    const swatchSize = cssPxToMm(60);
+    const itemTop = y;
+
+    pdf.setFillColor(farm.fill);
+    pdf.setDrawColor(255, 255, 255);
+    pdf.setLineWidth(cssPxToMm(4));
+    pdf.rect(x, itemTop, swatchSize, swatchSize, 'FD');
+
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(cssPxToPt(48));
+    pdf.text(
+      `${farm.name} (${formatHectares(farm.hectares)} ha)`,
+      x + swatchSize + cssPxToMm(40),
+      itemTop + swatchSize / 2,
+      {
+        baseline: 'middle',
+        maxWidth: cssPxToMm(1500),
+      }
+    );
+
+    y += cssPxToMm(60);
+  });
+
+  y += cssPxToMm(48);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(cssPxToMm(8));
+  pdf.line(x, y, x + cssPxToMm(720), y);
+  y += cssPxToMm(32);
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(cssPxToPt(56));
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(`TOTAL: ${formatHectares(totalHectares)} HA`, x, y, { baseline: 'top' });
+}
+
+function drawPdfScaleBar(pdf: JsPdf, scaleBar: PdfScaleBar | null): void {
+  if (!scaleBar) {
+    return;
+  }
+
+  const width = cssPxToMm(scaleBar.widthCssPx);
+  const x = PDF_WIDTH_MM / 2 - width / 2;
+  const y = PDF_HEIGHT_MM - cssPxToMm(100);
+  const height = cssPxToMm(40);
+  const lineWidth = cssPxToMm(8);
+
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(lineWidth);
+  pdf.rect(x, y - height, width, height, 'F');
+  pdf.line(x, y, x + width, y);
+  pdf.line(x, y, x, y - cssPxToMm(18));
+  pdf.line(x + width, y, x + width, y - cssPxToMm(18));
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(cssPxToPt(56));
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(scaleBar.label, x + width / 2, y - height + cssPxToMm(4), {
+    align: 'center',
+    baseline: 'top',
+  });
+}
+
+async function drawPdfLogo(pdf: JsPdf): Promise<void> {
+  const image = await loadImage(LOGO_SRC);
+  const width = cssPxToMm(900);
+  const height = width * (image.naturalHeight / Math.max(1, image.naturalWidth));
+
+  pdf.addImage(
+    image,
+    'PNG',
+    PDF_WIDTH_MM - cssPxToMm(100) - width,
+    PDF_HEIGHT_MM - cssPxToMm(100) - height,
+    width,
+    height,
+    undefined,
+    'NONE'
+  );
+}
+
+async function createNorthArrowDataUrl(): Promise<string> {
+  const svg = `<svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><g><path d="M70,70 L95,45 L70,70" stroke="black" stroke-width="0.5"/><path d="M70,70 L95,95 L70,70" stroke="black" stroke-width="0.5"/><path d="M70,70 L45,95 L70,70" stroke="black" stroke-width="0.5"/><path d="M70,70 L45,45 L70,70" stroke="black" stroke-width="0.5"/><path d="M70,70 L95,45 L75,65 Z" fill="black"/><path d="M70,70 L95,45 L85,70 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L95,95 L85,70 Z" fill="black"/><path d="M70,70 L95,95 L75,85 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L45,95 L65,85 Z" fill="black"/><path d="M70,70 L45,95 L55,70 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L45,45 L55,70 Z" fill="black"/><path d="M70,70 L45,45 L65,55 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L70,15 L60,60 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L70,15 L80,60 Z" fill="black" stroke="black" stroke-width="0.5"/><path d="M70,70 L125,70 L80,60 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L125,70 L80,80 Z" fill="black" stroke="black" stroke-width="0.5"/><path d="M70,70 L70,125 L60,80 Z" fill="black" stroke="black" stroke-width="0.5"/><path d="M70,70 L70,125 L80,80 Z" fill="white" stroke="black" stroke-width="0.5"/><path d="M70,70 L15,70 L60,60 Z" fill="black" stroke="black" stroke-width="0.5"/><path d="M70,70 L15,70 L60,80 Z" fill="white" stroke="black" stroke-width="0.5"/><text x="70" y="12" text-anchor="middle" font-family="Times New Roman, serif" font-weight="bold" font-size="16" fill="black">N</text><text x="70" y="138" text-anchor="middle" font-family="Times New Roman, serif" font-weight="bold" font-size="16" fill="black">S</text><text x="6" y="75" text-anchor="middle" font-family="Times New Roman, serif" font-weight="bold" font-size="16" fill="black">W</text><text x="134" y="75" text-anchor="middle" font-family="Times New Roman, serif" font-weight="bold" font-size="16" fill="black">O</text></g></svg>`;
+  const image = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const canvas = document.createElement('canvas');
+  const size = 1800;
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Could not create north arrow canvas.');
+  }
+
+  context.drawImage(image, 0, 0, size, size);
+  return canvas.toDataURL('image/png');
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Could not load image: ${src}`));
+    image.src = src;
+  });
+}
+
+function fitPdfFontSize(
+  pdf: JsPdf,
+  text: string,
+  maxWidthMm: number,
+  initialFontSizePt: number,
+  minFontSizePt: number
+): number {
+  let fontSize = initialFontSizePt;
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(fontSize);
+
+  while (fontSize > minFontSizePt && pdf.getTextWidth(text) > maxWidthMm) {
+    fontSize -= 1;
+    pdf.setFontSize(fontSize);
+  }
+
+  return fontSize;
+}
+
+function cssPxToMm(value: number): number {
+  return value * CSS_PX_TO_MM;
+}
+
+function cssPxToPt(value: number): number {
+  return value * CSS_PX_TO_PT;
+}
+
+function ptToMm(value: number): number {
+  return (value * 25.4) / 72;
+}
+
+function cssPxToExportPxX(value: number): number {
+  return value * EXPORT_PX_PER_CSS_PX_X;
+}
+
+function cssPxToExportPxY(value: number): number {
+  return value * EXPORT_PX_PER_CSS_PX_Y;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function sanitizeFilePart(value: string | number): string {
+  const sanitized = String(value)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-');
+
+  return sanitized || 'sem-numero';
 }
 
 function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
