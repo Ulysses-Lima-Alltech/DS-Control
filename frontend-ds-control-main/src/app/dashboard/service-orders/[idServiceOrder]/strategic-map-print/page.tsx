@@ -11,7 +11,6 @@ import type {
 } from 'geojson';
 import mapboxgl, {
   type AnyLayer,
-  type PaddingOptions,
 } from 'mapbox-gl';
 import type { jsPDF as JsPdf } from 'jspdf';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -94,6 +93,13 @@ type StrategicMapData = {
 type PdfScaleBar = {
   label: string;
   widthCssPx: number;
+};
+
+type StrategicMapPadding = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 };
 
 type DevicePixelRatioRestore = () => void;
@@ -204,7 +210,7 @@ export default function StrategicMapPrintPage({
       duration: 0,
       essential: true,
       maxZoom: 16,
-      padding: buildFitBoundsPadding(width, height),
+      padding: getStrategicMapSafePadding(width, height, 'screen'),
     });
   }, [strategicMapData?.bounds]);
 
@@ -713,12 +719,42 @@ export default function StrategicMapPrintPage({
   );
 }
 
-function buildFitBoundsPadding(width: number, height: number): PaddingOptions {
+function getStrategicMapSafePadding(
+  width: number,
+  height: number,
+  mode: 'screen' | 'export'
+): StrategicMapPadding {
+  const proportionalPadding = {
+    top: height * 0.18,
+    right: width * 0.2,
+    bottom: height * 0.3,
+    left: width * 0.3,
+  };
+
+  if (mode === 'export') {
+    return proportionalPadding;
+  }
+
   return {
-    top: Math.max(90, height * 0.12),
-    right: Math.max(120, width * 0.08),
-    bottom: Math.max(120, height * 0.16),
-    left: Math.max(120, width * 0.1),
+    top: Math.max(140, proportionalPadding.top),
+    right: Math.max(360, proportionalPadding.right),
+    bottom: Math.max(260, proportionalPadding.bottom),
+    left: Math.max(420, proportionalPadding.left),
+  };
+}
+
+function getStrategicMapExportPadding(exportPixelRatio: number): StrategicMapPadding {
+  const padding = getStrategicMapSafePadding(EXPORT_WIDTH_PX, EXPORT_HEIGHT_PX, 'export');
+
+  if (exportPixelRatio === 1) {
+    return padding;
+  }
+
+  return {
+    top: padding.top / exportPixelRatio,
+    right: padding.right / exportPixelRatio,
+    bottom: padding.bottom / exportPixelRatio,
+    left: padding.left / exportPixelRatio,
   };
 }
 
@@ -762,7 +798,7 @@ async function generateStrategicMapImageDataUrl(
       duration: 0,
       essential: true,
       maxZoom: 16,
-      padding: buildFitBoundsPadding(exportWidthCssPx, exportHeightCssPx),
+      padding: getStrategicMapExportPadding(exportPixelRatio),
     });
 
     await waitForMapIdleAndTiles(exportMap);
