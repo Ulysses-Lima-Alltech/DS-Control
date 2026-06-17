@@ -5,6 +5,7 @@ export * from './crop-season-products.schema';
 export * from './crop-seasons.schema';
 export * from './culture-types.schema';
 export * from './customer.schema';
+export * from './dji.schema';
 export * from './drone.schema';
 export * from './farms.schema';
 export * from './flight-records.schema';
