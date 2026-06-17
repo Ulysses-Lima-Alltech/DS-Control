@@ -9,6 +9,13 @@ import { AuthenticationJWT } from "@middleware/authentication-jwt-middleware";
 import { ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
+import { DjiController } from "@modules/dji/dji.controller";
+import {
+  ApplicationDjiFlightLinkParamsSchema,
+  ApplicationDjiFlightsParamsSchema,
+  LinkDjiFlightSchema,
+  PatchDjiFlightLinkSchema,
+} from "@modules/dji/dto/dji.dto";
 import { ApplicationController } from "./application.controller";
 import { CreateApplicationSchema } from "./dto/create-application.dto";
 import { DashboardMetricsQueryStringSchema, DashboardMetricsResponseSchema } from "./dto/dashboard-metrics.dto";
@@ -30,6 +37,7 @@ export function ApplicationV1Routes(
   done: HookHandlerDoneFunction,
 ) {
   const controller = new ApplicationController();
+  const djiController = new DjiController();
 
   // List all applications
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
@@ -81,6 +89,47 @@ export function ApplicationV1Routes(
     },
     preHandler: [AuthenticationJWT],
     handler: controller.createApplication,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/:applicationId/dji-flights",
+    schema: {
+      description: "Get approved DJI flights linked to an application",
+      summary: "Get application DJI flights",
+      tags: ["applications", "dji"],
+      params: ApplicationDjiFlightsParamsSchema,
+    },
+    preHandler: [AuthenticationJWT],
+    handler: djiController.listApprovedFlightsByApplication,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "POST",
+    url: "/:applicationId/dji-flights/:recordNumber/link",
+    schema: {
+      description: "Create or update a manual DJI flight link for an application",
+      summary: "Link DJI flight to application",
+      tags: ["applications", "dji"],
+      params: ApplicationDjiFlightLinkParamsSchema,
+      body: LinkDjiFlightSchema,
+    },
+    preHandler: [AuthenticationJWT],
+    handler: djiController.linkFlightToApplication,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "PATCH",
+    url: "/:applicationId/dji-flights/:recordNumber/link",
+    schema: {
+      description: "Update a DJI flight link status for an application",
+      summary: "Update DJI flight application link",
+      tags: ["applications", "dji"],
+      params: ApplicationDjiFlightLinkParamsSchema,
+      body: PatchDjiFlightLinkSchema,
+    },
+    preHandler: [AuthenticationJWT],
+    handler: djiController.updateFlightApplicationLink,
   });
 
   // Get application by ID
