@@ -1,9 +1,10 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import { app } from "@modules/app/app.module";
 import { DjiRepository } from "@repositories/dji/dji.repository";
-import type { DjiApplicationLinkStatus } from "@repositories/dji/dji.types";
+import type { ApprovedDjiFlightForApplication, DjiApplicationLinkStatus } from "@repositories/dji/dji.types";
 import type { ImportDjiFlightsFromS3DTO, LinkDjiFlightDTO, PatchDjiFlightLinkDTO } from "../dto/dji.dto";
 
 type S3FlightIndex = {
@@ -51,6 +52,7 @@ type ImportError = {
 };
 
 export class DjiService {
+  private static readonly PNG_SIGNED_URL_EXPIRES_IN_SECONDS = 15 * 60;
   private readonly djiRepository = new DjiRepository();
 
   public async importFlightsFromS3(input: ImportDjiFlightsFromS3DTO) {
@@ -120,7 +122,14 @@ export class DjiService {
 
   public async listApprovedFlightsByApplication(applicationId: string) {
     await this.ensureApplicationExists(applicationId);
-    return this.djiRepository.listApprovedFlightsByApplication(applicationId);
+    const flights = await this.djiRepository.listApprovedFlightsByApplication(applicationId);
+
+    return Promise.all(
+      flights.map(async (flight) => ({
+        ...flight,
+        pngSignedUrl: await this.getPngSignedUrl(flight),
+      })),
+    );
   }
 
   public async linkFlightToApplication(
@@ -203,6 +212,20 @@ export class DjiService {
 
     const body = await response.Body.transformToString("utf8");
     return JSON.parse(body) as T;
+  }
+
+  private async getPngSignedUrl(flight: ApprovedDjiFlightForApplication): Promise<string | null> {
+    if (!flight.pngS3Key) return null;
+
+    const s3 = new S3Client({ region: flight.region });
+    const command = new GetObjectCommand({
+      Bucket: flight.bucket,
+      Key: flight.pngS3Key,
+    });
+
+    return getSignedUrl(s3, command, {
+      expiresIn: DjiService.PNG_SIGNED_URL_EXPIRES_IN_SECONDS,
+    });
   }
 
   private parseDate(value: string): Date {

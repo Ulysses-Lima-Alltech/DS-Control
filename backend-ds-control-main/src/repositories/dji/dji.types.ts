@@ -104,6 +104,7 @@ export type ApprovedDjiFlightForApplication = {
   taskAreaHa: string | null;
   estimatedAppliedAreaHa: string | null;
   pngS3Key: string;
+  pngSignedUrl?: string | null;
   metadataS3Key: string;
   bucket: string;
   region: string;
