@@ -95,6 +95,23 @@ export type DjiFlightWithAssets = DjiFlight & {
   assets: DjiFlightAsset | null;
 };
 
+export type DjiApplicationCandidateContext = {
+  id: string;
+  date: Date;
+  hectares: string;
+  observations: string | null;
+  pilot: {
+    name: string;
+  } | null;
+  drone: {
+    name: string;
+  } | null;
+  plot: {
+    name: string;
+    hectare: string;
+  } | null;
+};
+
 export type ApprovedDjiFlightForApplication = {
   recordNumber: string;
   flightDate: Date;
@@ -108,4 +125,10 @@ export type ApprovedDjiFlightForApplication = {
   metadataS3Key: string;
   bucket: string;
   region: string;
+};
+
+export type DjiFlightCandidate = ApprovedDjiFlightForApplication & {
+  id: string;
+  rawMetadata: unknown;
+  alreadyLinkedStatus: DjiApplicationLinkStatus | null;
 };

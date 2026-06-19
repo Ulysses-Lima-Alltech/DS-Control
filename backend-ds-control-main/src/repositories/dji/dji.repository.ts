@@ -3,7 +3,9 @@ import { applications, djiApplicationLinks, djiFlightAssets, djiFlights } from "
 import { and, eq, gte, lt } from "drizzle-orm";
 import type {
   ApprovedDjiFlightForApplication,
+  DjiApplicationCandidateContext,
   DjiApplicationLink,
+  DjiFlightCandidate,
   DjiFlight,
   DjiFlightAsset,
   DjiFlightWithAssets,
@@ -13,6 +15,29 @@ import type {
 } from "./dji.types";
 
 export class DjiRepository {
+  public async getApplicationCandidateContext(applicationId: string): Promise<DjiApplicationCandidateContext | null> {
+    const application = await db.query.applications.findFirst({
+      where: eq(applications.id, applicationId),
+      with: {
+        pilot: { columns: { name: true } },
+        drone: { columns: { name: true } },
+        plot: { columns: { name: true, hectare: true } },
+      },
+    });
+
+    if (!application) return null;
+
+    return {
+      id: application.id,
+      date: application.date,
+      hectares: application.hectares,
+      observations: application.observations,
+      pilot: application.pilot,
+      drone: application.drone,
+      plot: application.plot,
+    };
+  }
+
   public async applicationExists(applicationId: string): Promise<boolean> {
     const application = await db.query.applications.findFirst({
       columns: { id: true },
@@ -157,6 +182,49 @@ export class DjiRepository {
       ));
 
     return rows;
+  }
+
+  public async listFlightCandidatesByApplicationDate(
+    applicationId: string,
+    date: Date,
+  ): Promise<DjiFlightCandidate[]> {
+    const startDate = new Date(date);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const nextDate = new Date(startDate);
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+
+    const rows = await db
+      .select({
+        id: djiFlights.id,
+        recordNumber: djiFlights.recordNumber,
+        flightDate: djiFlights.flightDate,
+        startTime: djiFlights.startTime,
+        aircraftName: djiFlights.aircraftName,
+        pilotName: djiFlights.pilotName,
+        taskAreaHa: djiFlights.taskAreaHa,
+        estimatedAppliedAreaHa: djiFlights.estimatedAppliedAreaHa,
+        rawMetadata: djiFlights.rawMetadata,
+        pngS3Key: djiFlightAssets.pngS3Key,
+        metadataS3Key: djiFlightAssets.metadataS3Key,
+        bucket: djiFlightAssets.bucket,
+        region: djiFlightAssets.region,
+        alreadyLinkedStatus: djiApplicationLinks.status,
+      })
+      .from(djiFlights)
+      .innerJoin(djiFlightAssets, eq(djiFlightAssets.djiFlightId, djiFlights.id))
+      .leftJoin(
+        djiApplicationLinks,
+        and(
+          eq(djiApplicationLinks.djiFlightId, djiFlights.id),
+          eq(djiApplicationLinks.applicationId, applicationId),
+        ),
+      )
+      .where(and(gte(djiFlights.flightDate, startDate), lt(djiFlights.flightDate, nextDate)));
+
+    return rows.map((row) => ({
+      ...row,
+      alreadyLinkedStatus: row.alreadyLinkedStatus as DjiFlightCandidate["alreadyLinkedStatus"],
+    }));
   }
 
   private formatFlight(flight: typeof djiFlights.$inferSelect): DjiFlight {

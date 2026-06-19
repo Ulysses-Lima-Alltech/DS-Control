@@ -105,6 +105,19 @@ export function ApplicationV1Routes(
   });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "GET",
+    url: "/:applicationId/dji-flight-candidates",
+    schema: {
+      description: "Get scored DJI flight candidates for an application",
+      summary: "Get application DJI flight candidates",
+      tags: ["applications", "dji"],
+      params: ApplicationDjiFlightsParamsSchema,
+    },
+    preHandler: [AuthenticationJWT],
+    handler: djiController.listFlightCandidatesByApplication,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
     method: "POST",
     url: "/:applicationId/dji-flights/:recordNumber/link",
     schema: {

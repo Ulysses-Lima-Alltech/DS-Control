@@ -4,7 +4,12 @@ import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import { app } from "@modules/app/app.module";
 import { DjiRepository } from "@repositories/dji/dji.repository";
-import type { ApprovedDjiFlightForApplication, DjiApplicationLinkStatus } from "@repositories/dji/dji.types";
+import type {
+  ApprovedDjiFlightForApplication,
+  DjiApplicationCandidateContext,
+  DjiApplicationLinkStatus,
+  DjiFlightCandidate,
+} from "@repositories/dji/dji.types";
 import type { ImportDjiFlightsFromS3DTO, LinkDjiFlightDTO, PatchDjiFlightLinkDTO } from "../dto/dji.dto";
 
 type S3FlightIndex = {
@@ -49,6 +54,24 @@ type ImportError = {
   recordNumber: string | null;
   metadataS3Key: string | null;
   message: string;
+};
+
+type DjiCandidateRecommendedStatus = "strong_candidate" | "candidate" | "weak_candidate";
+
+type ScoredDjiFlightCandidate = {
+  recordNumber: string;
+  flightDate: Date;
+  startTime: string | null;
+  aircraftName: string | null;
+  pilotName: string | null;
+  taskAreaHa: string | null;
+  estimatedAppliedAreaHa: string | null;
+  pngS3Key: string;
+  pngSignedUrl: string | null;
+  score: number;
+  recommendedStatus: DjiCandidateRecommendedStatus;
+  scoreReasons: string[];
+  alreadyLinkedStatus?: DjiApplicationLinkStatus;
 };
 
 export class DjiService {
@@ -132,6 +155,43 @@ export class DjiService {
     );
   }
 
+  public async listFlightCandidatesByApplication(applicationId: string): Promise<ScoredDjiFlightCandidate[]> {
+    const application = await this.getApplicationCandidateContext(applicationId);
+    const candidates = await this.djiRepository.listFlightCandidatesByApplicationDate(applicationId, application.date);
+    const scoredCandidates = candidates
+      .map((candidate) => {
+        const scoreResult = this.scoreFlightCandidate(application, candidate);
+
+        return {
+          candidate,
+          recordNumber: candidate.recordNumber,
+          flightDate: candidate.flightDate,
+          startTime: candidate.startTime,
+          aircraftName: candidate.aircraftName,
+          pilotName: candidate.pilotName,
+          taskAreaHa: candidate.taskAreaHa,
+          estimatedAppliedAreaHa: candidate.estimatedAppliedAreaHa,
+          pngS3Key: candidate.pngS3Key,
+          score: scoreResult.score,
+          recommendedStatus: this.getRecommendedStatus(scoreResult.score),
+          scoreReasons: scoreResult.reasons,
+          ...(candidate.alreadyLinkedStatus ? { alreadyLinkedStatus: candidate.alreadyLinkedStatus } : {}),
+        };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.recordNumber.localeCompare(b.recordNumber);
+      })
+      .slice(0, 50);
+
+    return Promise.all(
+      scoredCandidates.map(async ({ candidate, ...scoredCandidate }) => ({
+        ...scoredCandidate,
+        pngSignedUrl: await this.getPngSignedUrl(candidate),
+      })),
+    );
+  }
+
   public async linkFlightToApplication(
     applicationId: string,
     recordNumber: string,
@@ -162,6 +222,129 @@ export class DjiService {
     if (!exists) {
       throw new AppError("Aplicacao nao encontrada", HTTP_STATUS_CODES.NOT_FOUND);
     }
+  }
+
+  private async getApplicationCandidateContext(applicationId: string): Promise<DjiApplicationCandidateContext> {
+    const application = await this.djiRepository.getApplicationCandidateContext(applicationId);
+
+    if (!application) {
+      throw new AppError("Aplicacao nao encontrada", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    return application;
+  }
+
+  private scoreFlightCandidate(
+    application: DjiApplicationCandidateContext,
+    flight: DjiFlightCandidate,
+  ): { score: number; reasons: string[] } {
+    let score = 0;
+    const reasons: string[] = [];
+
+    if (this.isSameDate(application.date, flight.flightDate)) {
+      score += 30;
+      reasons.push("flightDate igual a data da aplicacao (+30)");
+    }
+
+    if (this.isTextCompatible(flight.aircraftName, application.drone?.name)) {
+      score += 20;
+      reasons.push("drone compativel com a aplicacao (+20)");
+    }
+
+    if (this.hasRelevantNameIntersection(flight.pilotName, application.pilot?.name)) {
+      score += 20;
+      reasons.push("piloto compativel com a aplicacao (+20)");
+    }
+
+    if (this.hasApplicationTextMatch(application, flight)) {
+      score += 15;
+      reasons.push("texto da aplicacao encontrado nos metadados DJI (+15)");
+    }
+
+    const estimatedAppliedAreaHa = this.number(flight.estimatedAppliedAreaHa);
+    const applicationAreaHa = this.number(application.hectares);
+    if (estimatedAppliedAreaHa > 0 && applicationAreaHa > 0 && estimatedAppliedAreaHa <= applicationAreaHa) {
+      score += 10;
+      reasons.push("area estimada DJI positiva e menor ou igual a area aplicada DS (+10)");
+    }
+
+    if (flight.startTime) {
+      score += 5;
+      reasons.push("voo possui horario de inicio (+5)");
+    }
+
+    return { score, reasons };
+  }
+
+  private getRecommendedStatus(score: number): DjiCandidateRecommendedStatus {
+    if (score >= 80) return "strong_candidate";
+    if (score >= 50) return "candidate";
+    return "weak_candidate";
+  }
+
+  private normalizeText(value: unknown): string {
+    if (value === null || value === undefined) return "";
+
+    return String(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  private tokenize(value: unknown): string[] {
+    return this.normalizeText(value)
+      .split(/[^a-z0-9]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2);
+  }
+
+  private isTextCompatible(a: unknown, b: unknown): boolean {
+    const normalizedA = this.normalizeText(a);
+    const normalizedB = this.normalizeText(b);
+
+    if (!normalizedA || !normalizedB) return false;
+    return normalizedA === normalizedB || normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA);
+  }
+
+  private hasRelevantNameIntersection(a: unknown, b: unknown): boolean {
+    const aTokens = new Set(this.tokenize(a).filter((token) => token.length >= 3));
+    const bTokens = this.tokenize(b).filter((token) => token.length >= 3);
+
+    if (aTokens.size === 0 || bTokens.length === 0) return false;
+    return bTokens.some((token) => aTokens.has(token));
+  }
+
+  private hasApplicationTextMatch(
+    application: DjiApplicationCandidateContext,
+    flight: DjiFlightCandidate,
+  ): boolean {
+    const needles = [
+      ...this.tokenize(application.observations).filter((token) => token.length >= 4),
+      ...this.tokenize(application.plot?.name).filter((token) => token.length >= 3),
+    ];
+
+    if (!needles.length) return false;
+
+    const haystack = this.normalizeText([
+      flight.recordNumber,
+      flight.metadataS3Key,
+      flight.pngS3Key,
+      JSON.stringify(flight.rawMetadata ?? {}),
+    ].join(" "));
+
+    return needles.some((token) => haystack.includes(token));
+  }
+
+  private isSameDate(a: Date, b: Date): boolean {
+    return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+  }
+
+  private number(value: number | string | null | undefined): number {
+    if (value === null || value === undefined || value === "") return 0;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
   }
 
   private normalizeMetadata(

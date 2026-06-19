@@ -65,6 +65,21 @@ export class DjiController {
     }
   };
 
+  public listFlightCandidatesByApplication = async (
+    request: FastifyRequest<{ Params: { applicationId: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const candidates = await this.service.listFlightCandidatesByApplication(request.params.applicationId);
+      return reply.status(200).send({
+        message: "Application DJI flight candidates listed successfully",
+        candidates,
+      });
+    } catch (error) {
+      this.handleError(reply, error, "[DjiController] - Failed to list application DJI flight candidates");
+    }
+  };
+
   public linkFlightToApplication = async (
     request: FastifyRequest<{
       Params: { applicationId: string; recordNumber: string };
