@@ -37,12 +37,26 @@ const MAP_FALLBACK_BORDER = '#B9C8DA';
 const MAP_WIDTH = 1280;
 const MAP_HEIGHT = 480;
 const DJI_REPORT_IMAGE_HEIGHT = 270;
+const DJI_MULTI_REPORT_IMAGE_HEIGHT = 220;
+
+type DjiFlightMap = {
+  imageSrc: string;
+  imageUrl: string;
+  recordNumber: string;
+  flightDate?: string | null;
+  startTime?: string | null;
+  pilotName?: string | null;
+  aircraftName?: string | null;
+  djiTaskAreaHa?: string | number | null;
+  djiEstimatedAppliedAreaHa?: string | number | null;
+};
 
 type ApplicationIndividualReportPDFProps = {
   application: Application;
   generatedAt: string;
   djiImageDataUrl?: string | null;
   djiImageUrl?: string | null;
+  djiFlightMaps?: DjiFlightMap[];
   mapImageDataUrl?: string | null;
   mapOverlayPathDs?: string[] | null;
   mapFallbackVectorPathD?: string | null;
@@ -93,6 +107,50 @@ function formatDjiArea(value: unknown): string | null {
   })} ha`;
 }
 
+function formatDjiFlightDateTime(flight: DjiFlightMap): string | null {
+  const datePart = typeof flight.flightDate === 'string' ? flight.flightDate.slice(0, 10) : null;
+  const formattedDate = datePart
+    ? datePart.split('-').reverse().join('/')
+    : null;
+
+  return [formattedDate, flight.startTime].filter(Boolean).join(' ') || null;
+}
+
+function buildDjiSectionCaption(application: Application, djiFlightMaps: DjiFlightMap[]): string {
+  const metadata = application.djiMetadata;
+  const dsPlannedArea = formatDjiArea(metadata?.dsPlannedAreaHa || application.plot?.hectare);
+  const dsAppliedArea = formatDjiArea(metadata?.dsAppliedAreaHa || application.hectares);
+  const linkedFlightCount =
+    typeof metadata?.djiLinkedFlightCount === 'number'
+      ? metadata.djiLinkedFlightCount
+      : djiFlightMaps.length;
+  const estimatedAppliedAreaTotal = formatDjiArea(metadata?.djiEstimatedAppliedAreaTotalHa);
+  const details = [
+    dsPlannedArea ? `Área planejada DS: ${dsPlannedArea}` : null,
+    dsAppliedArea ? `Área aplicada DS: ${dsAppliedArea}` : null,
+    `Voos DJI vinculados: ${linkedFlightCount}`,
+    estimatedAppliedAreaTotal ? `Soma da área estimada DJI: ${estimatedAppliedAreaTotal}` : null,
+  ].filter(Boolean);
+
+  return details.join(' | ');
+}
+
+function buildDjiFlightCaption(flight: DjiFlightMap): string {
+  const dateTime = formatDjiFlightDateTime(flight);
+  const djiTaskArea = formatDjiArea(flight.djiTaskAreaHa);
+  const djiEstimatedAppliedArea = formatDjiArea(flight.djiEstimatedAppliedAreaHa);
+  const details = [
+    flight.recordNumber ? `Registro DJI: ${flight.recordNumber}` : null,
+    dateTime ? `data/hora: ${dateTime}` : null,
+    flight.pilotName ? `piloto: ${flight.pilotName}` : null,
+    flight.aircraftName ? `drone: ${flight.aircraftName}` : null,
+    djiTaskArea ? `Área tarefa DJI: ${djiTaskArea}` : null,
+    djiEstimatedAppliedArea ? `Área estimada DJI: ${djiEstimatedAppliedArea}` : null,
+  ].filter(Boolean);
+
+  return details.join(' | ');
+}
+
 function buildDjiEvidenceCaption(application: Application, applicationDateLabel: string): string {
   const metadata = application.djiMetadata;
   const dsPlannedArea = formatDjiArea(metadata?.dsPlannedAreaHa);
@@ -127,6 +185,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   generatedAt,
   djiImageDataUrl,
   djiImageUrl,
+  djiFlightMaps = [],
   mapImageDataUrl,
   mapOverlayPathDs,
   mapFallbackVectorPathD,
@@ -162,10 +221,12 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
     (application.djiMatchType === 'exact_application' ||
       application.djiMatchType === 'high_confidence' ||
       application.djiMatchType === 'manual');
-  const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
+  const showLinkedDjiFlightMaps = djiFlightMaps.length > 0;
+  const showDjiImage = showLinkedDjiFlightMaps || Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
   const djiEvidenceCaption = buildDjiEvidenceCaption(application, applicationDateLabel);
+  const djiSectionCaption = buildDjiSectionCaption(application, djiFlightMaps);
 
   return (
     <Document>
@@ -277,43 +338,114 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-            {showDjiImage ? 'Mapa de Aplicação DJI' : 'Mapa individual do talhao'}
+            {showDjiImage
+              ? djiFlightMaps.length > 1
+                ? 'Mapas de Aplicação DJI'
+                : 'Mapa de Aplicação DJI'
+              : 'Mapa individual do talhao'}
           </Text>
           {showDjiImage ? (
             <>
-              <View
-                style={{
-                  width: '100%',
-                  height: DJI_REPORT_IMAGE_HEIGHT,
-                  border: `1px solid ${LIGHT_BORDER}`,
-                  borderRadius: 6,
-                  backgroundColor: '#F9FAFB',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: 6,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                <Image
-                  src={djiImageDataUrl!}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                  }}
-                />
-              </View>
-              <Text
-                style={{
-                  fontSize: 8,
-                  color: MUTED_TEXT,
-                  textAlign: 'center',
-                  marginTop: 6,
-                }}
-              >
-                {djiEvidenceCaption}
-              </Text>
+              {showLinkedDjiFlightMaps ? (
+                <>
+                  <Text
+                    style={{
+                      fontSize: 8,
+                      color: MUTED_TEXT,
+                      textAlign: 'center',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {djiSectionCaption}
+                  </Text>
+                  {djiFlightMaps.map((flightMap, index) => (
+                    <View
+                      key={`${flightMap.recordNumber}-${index}`}
+                      wrap={false}
+                      style={{
+                        marginTop: index === 0 ? 0 : 10,
+                        padding: djiFlightMaps.length > 1 ? 8 : 0,
+                        border:
+                          djiFlightMaps.length > 1 ? `1px solid ${LIGHT_BORDER}` : undefined,
+                        borderRadius: djiFlightMaps.length > 1 ? 6 : 0,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: '100%',
+                          height:
+                            djiFlightMaps.length > 1
+                              ? DJI_MULTI_REPORT_IMAGE_HEIGHT
+                              : DJI_REPORT_IMAGE_HEIGHT,
+                          border: `1px solid ${LIGHT_BORDER}`,
+                          borderRadius: 6,
+                          backgroundColor: '#F9FAFB',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          padding: 6,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                        <Image
+                          src={flightMap.imageSrc}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                          }}
+                        />
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: MUTED_TEXT,
+                          textAlign: 'center',
+                          marginTop: 6,
+                        }}
+                      >
+                        {buildDjiFlightCaption(flightMap)}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <View
+                    style={{
+                      width: '100%',
+                      height: DJI_REPORT_IMAGE_HEIGHT,
+                      border: `1px solid ${LIGHT_BORDER}`,
+                      borderRadius: 6,
+                      backgroundColor: '#F9FAFB',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      padding: 6,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <Image
+                      src={djiImageDataUrl!}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 8,
+                      color: MUTED_TEXT,
+                      textAlign: 'center',
+                      marginTop: 6,
+                    }}
+                  >
+                    {djiEvidenceCaption}
+                  </Text>
+                </>
+              )}
             </>
           ) : (
             <View

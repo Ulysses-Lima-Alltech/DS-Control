@@ -18,6 +18,9 @@ export type DjiApplicationMetadata = {
   dsAppliedAreaHa?: string | number | null;
   djiTaskAreaHa?: string | number | null;
   djiEstimatedAppliedAreaHa?: string | number | null;
+  djiLinkedFlightCount?: number | null;
+  djiRenderedFlightCount?: number | null;
+  djiEstimatedAppliedAreaTotalHa?: string | number | null;
   areaDifferenceHa?: number | null;
   areaDifferencePercent?: number | null;
   flightCount?: number | null;

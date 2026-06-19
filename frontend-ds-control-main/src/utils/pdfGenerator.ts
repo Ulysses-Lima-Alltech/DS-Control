@@ -356,63 +356,101 @@ async function prefetchApplicationIndividualMap(application: Application): Promi
   };
 }
 
-async function enrichApplicationWithLinkedDjiFlight(
-  application: Application
-): Promise<{ application: Application; imageSrc: string | null }> {
+type LinkedDjiFlightMap = {
+  imageSrc: string;
+  imageUrl: string;
+  recordNumber: string;
+  flightDate?: string | null;
+  startTime?: string | null;
+  pilotName?: string | null;
+  aircraftName?: string | null;
+  djiTaskAreaHa?: string | number | null;
+  djiEstimatedAppliedAreaHa?: string | number | null;
+};
+
+async function fetchLinkedDjiFlightMaps(application: Application): Promise<{
+  flights: ApplicationDjiFlight[];
+  maps: LinkedDjiFlightMap[];
+}> {
   try {
     const response = await getApplicationDjiFlights(application.id);
-    const flight = response.flights[0];
+    const flights = response.flights || [];
+    const maps: LinkedDjiFlightMap[] = [];
 
-    if (!flight?.pngSignedUrl) {
-      return { application, imageSrc: null };
+    for (const flight of flights) {
+      if (!flight.pngSignedUrl) {
+        continue;
+      }
+
+      const imageSrc = await fetchRemoteImageAsDataUrl(flight.pngSignedUrl).catch(() => null);
+      if (!imageSrc) {
+        continue;
+      }
+
+      maps.push({
+        imageSrc,
+        imageUrl: flight.pngSignedUrl,
+        recordNumber: flight.recordNumber,
+        flightDate: flight.flightDate,
+        startTime: flight.startTime,
+        pilotName: flight.pilotName,
+        aircraftName: flight.aircraftName,
+        djiTaskAreaHa: flight.taskAreaHa,
+        djiEstimatedAppliedAreaHa: flight.estimatedAppliedAreaHa,
+      });
     }
 
-    const imageSrc = await fetchRemoteImageAsDataUrl(flight.pngSignedUrl);
-    if (!imageSrc) {
-      return { application, imageSrc: null };
-    }
-
-    return {
-      application: buildApplicationWithLinkedDjiFlight(application, flight),
-      imageSrc,
-    };
+    return { flights, maps };
   } catch {
-    return { application, imageSrc: null };
+    return { flights: [], maps: [] };
   }
 }
 
-function buildApplicationWithLinkedDjiFlight(
+function buildApplicationWithLinkedDjiFlights(
   application: Application,
-  flight: ApplicationDjiFlight
+  flights: ApplicationDjiFlight[],
+  maps: LinkedDjiFlightMap[]
 ): Application {
+  const firstMappedFlight = maps[0];
+  const estimatedAppliedAreaTotal = flights.reduce(
+    (total, flight) => total + parseReportNumber(flight.estimatedAppliedAreaHa),
+    0
+  );
+
   return {
     ...application,
-    djiImageUrl: flight.pngSignedUrl || undefined,
-    djiImageStatus: 'approved',
-    djiDate: flight.flightDate || application.djiDate,
-    djiImageScope: 'application',
-    djiMatchType: flight.matchType || 'manual',
-    djiMatchConfidence: application.djiMatchConfidence ?? 1,
-    djiFlightRecordNumber: flight.recordNumber,
+    djiImageUrl: firstMappedFlight?.imageUrl || application.djiImageUrl,
+    djiImageStatus: maps.length ? 'approved' : application.djiImageStatus,
+    djiDate: firstMappedFlight?.flightDate || application.djiDate,
+    djiImageScope: maps.length ? 'application' : application.djiImageScope,
+    djiMatchType: maps.length ? 'manual' : application.djiMatchType,
+    djiMatchConfidence: maps.length ? application.djiMatchConfidence ?? 1 : application.djiMatchConfidence,
+    djiFlightRecordNumber: firstMappedFlight?.recordNumber || application.djiFlightRecordNumber,
     djiMetadata: {
       ...(application.djiMetadata || {}),
-      source: 'linked_application_dji_flight',
-      approved: true,
-      recordNumber: flight.recordNumber,
+      source: maps.length ? 'linked_application_dji_flights' : application.djiMetadata?.source,
+      approved: maps.length ? true : application.djiMetadata?.approved,
+      recordNumber: firstMappedFlight?.recordNumber || application.djiMetadata?.recordNumber,
       dsPlannedAreaHa: application.plot?.hectare,
       dsAppliedAreaHa: application.hectares,
-      djiTaskAreaHa: flight.taskAreaHa,
-      djiEstimatedAppliedAreaHa: flight.estimatedAppliedAreaHa,
-      pilotName: flight.pilotName,
-      aircraftName: flight.aircraftName,
-      flightDate: flight.flightDate,
-      startTime: flight.startTime,
-      pngS3Key: flight.pngS3Key,
-      metadataS3Key: flight.metadataS3Key,
-      bucket: flight.bucket,
-      region: flight.region,
+      djiLinkedFlightCount: flights.length,
+      djiRenderedFlightCount: maps.length,
+      djiEstimatedAppliedAreaTotalHa: estimatedAppliedAreaTotal,
     },
   };
+}
+
+function parseReportNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = Number.parseFloat(value.replace(',', '.'));
+    return Number.isFinite(normalized) ? normalized : 0;
+  }
+
+  return 0;
 }
 
 export async function generateApplicationsReportPDF({
@@ -568,19 +606,25 @@ export async function generateApplicationIndividualReportPDF({
     ? await enrichApplicationsWithDjiImageUrl(application.serviceOrder, [application])
     : [application];
 
-  const linkedDjiFlight = await enrichApplicationWithLinkedDjiFlight(enrichedApplication);
-  const applicationForPdf = linkedDjiFlight.application;
+  const linkedDjiFlights = await fetchLinkedDjiFlightMaps(enrichedApplication);
+  const applicationForPdf = linkedDjiFlights.maps.length
+    ? buildApplicationWithLinkedDjiFlights(
+        enrichedApplication,
+        linkedDjiFlights.flights,
+        linkedDjiFlights.maps
+      )
+    : enrichedApplication;
 
   const djiImagesByApplicationId =
-    linkedDjiFlight.imageSrc
+    linkedDjiFlights.maps.length
       ? ({} as DjiReportImageByApplicationId)
       : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
           () => ({} as DjiReportImageByApplicationId)
         );
-  const djiImage = linkedDjiFlight.imageSrc
+  const djiImage = linkedDjiFlights.maps[0]
     ? {
-        imageSrc: linkedDjiFlight.imageSrc,
-        imageUrl: applicationForPdf.djiImageUrl!,
+        imageSrc: linkedDjiFlights.maps[0].imageSrc,
+        imageUrl: linkedDjiFlights.maps[0].imageUrl,
       }
     : djiImagesByApplicationId[applicationForPdf.id];
   const mapData = djiImage
@@ -597,6 +641,7 @@ export async function generateApplicationIndividualReportPDF({
     generatedAt,
     djiImageDataUrl: djiImage?.imageSrc ?? null,
     djiImageUrl: applicationForPdf.djiImageUrl ?? null,
+    djiFlightMaps: linkedDjiFlights.maps,
     mapImageDataUrl: mapData.mapImageDataUrl,
     mapOverlayPathDs: mapData.mapOverlayPathDs,
     mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,
