@@ -84,9 +84,10 @@ function formatMetricPercent(value: number): string {
 }
 
 function formatDjiArea(value: unknown): string | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const area = parseNumber(value);
+  if (!Number.isFinite(area) || area <= 0) return null;
 
-  return `${value.toLocaleString('pt-BR', {
+  return `${area.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ha`;
@@ -96,7 +97,13 @@ function buildDjiEvidenceCaption(application: Application, applicationDateLabel:
   const metadata = application.djiMetadata;
   const dsArea = formatDjiArea(metadata?.dsAreaHa);
   const djiArea = formatDjiArea(metadata?.djiAreaHa);
+  const recordNumber = application.djiFlightRecordNumber || metadata?.recordNumber;
+  const pilotName = metadata?.pilotName || metadata?.pilot;
+  const aircraftName = metadata?.aircraftName || metadata?.drone;
   const details = [
+    recordNumber ? `Registro DJI: ${recordNumber}` : null,
+    pilotName ? `piloto: ${pilotName}` : null,
+    aircraftName ? `drone: ${aircraftName}` : null,
     typeof metadata?.flightCount === 'number' ? `voos DJI: ${metadata.flightCount}` : null,
     dsArea ? `área DS: ${dsArea}` : null,
     djiArea ? `área DJI: ${djiArea}` : null,
@@ -149,7 +156,8 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   const hasTrustedDjiMatch =
     application.djiImageScope === 'application' &&
     (application.djiMatchType === 'exact_application' ||
-      application.djiMatchType === 'high_confidence');
+      application.djiMatchType === 'high_confidence' ||
+      application.djiMatchType === 'manual');
   const showDjiImage = Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
@@ -265,7 +273,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-            {showDjiImage ? 'Evidência DJI SmartFarm' : 'Mapa individual do talhao'}
+            {showDjiImage ? 'Mapa de Aplicação DJI' : 'Mapa individual do talhao'}
           </Text>
           {showDjiImage ? (
             <>

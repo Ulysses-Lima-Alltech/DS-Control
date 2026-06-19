@@ -14,6 +14,7 @@ import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrder
 import ServiceOrdersDetailedReportPDF, {
   type ServiceOrderDetailedSection,
 } from '@/components/PDFReports/ServiceOrdersDetailedReportPDF';
+import { getApplicationDjiFlights, type ApplicationDjiFlight } from '@/services/application.service';
 import { Application } from '@/types/applications.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import {
@@ -355,6 +356,63 @@ async function prefetchApplicationIndividualMap(application: Application): Promi
   };
 }
 
+async function enrichApplicationWithLinkedDjiFlight(
+  application: Application
+): Promise<{ application: Application; imageSrc: string | null }> {
+  try {
+    const response = await getApplicationDjiFlights(application.id);
+    const flight = response.flights[0];
+
+    if (!flight?.pngSignedUrl) {
+      return { application, imageSrc: null };
+    }
+
+    const imageSrc = await fetchRemoteImageAsDataUrl(flight.pngSignedUrl);
+    if (!imageSrc) {
+      return { application, imageSrc: null };
+    }
+
+    return {
+      application: buildApplicationWithLinkedDjiFlight(application, flight),
+      imageSrc,
+    };
+  } catch {
+    return { application, imageSrc: null };
+  }
+}
+
+function buildApplicationWithLinkedDjiFlight(
+  application: Application,
+  flight: ApplicationDjiFlight
+): Application {
+  return {
+    ...application,
+    djiImageUrl: flight.pngSignedUrl || undefined,
+    djiImageStatus: 'approved',
+    djiDate: flight.flightDate || application.djiDate,
+    djiImageScope: 'application',
+    djiMatchType: flight.matchType || 'manual',
+    djiMatchConfidence: application.djiMatchConfidence ?? 1,
+    djiFlightRecordNumber: flight.recordNumber,
+    djiMetadata: {
+      ...(application.djiMetadata || {}),
+      source: 'linked_application_dji_flight',
+      approved: true,
+      recordNumber: flight.recordNumber,
+      djiAreaHa: flight.estimatedAppliedAreaHa,
+      dsAreaHa: flight.taskAreaHa,
+      pilotName: flight.pilotName,
+      aircraftName: flight.aircraftName,
+      flightDate: flight.flightDate,
+      startTime: flight.startTime,
+      pngS3Key: flight.pngS3Key,
+      metadataS3Key: flight.metadataS3Key,
+      bucket: flight.bucket,
+      region: flight.region,
+    },
+  };
+}
+
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
@@ -507,10 +565,22 @@ export async function generateApplicationIndividualReportPDF({
   const [enrichedApplication] = application.serviceOrder
     ? await enrichApplicationsWithDjiImageUrl(application.serviceOrder, [application])
     : [application];
-  const djiImagesByApplicationId = await prefetchDjiReportImagesByApplicationId([
-    enrichedApplication,
-  ]).catch(() => ({} as DjiReportImageByApplicationId));
-  const djiImage = djiImagesByApplicationId[enrichedApplication.id];
+
+  const linkedDjiFlight = await enrichApplicationWithLinkedDjiFlight(enrichedApplication);
+  const applicationForPdf = linkedDjiFlight.application;
+
+  const djiImagesByApplicationId =
+    linkedDjiFlight.imageSrc
+      ? ({} as DjiReportImageByApplicationId)
+      : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
+          () => ({} as DjiReportImageByApplicationId)
+        );
+  const djiImage = linkedDjiFlight.imageSrc
+    ? {
+        imageSrc: linkedDjiFlight.imageSrc,
+        imageUrl: applicationForPdf.djiImageUrl!,
+      }
+    : djiImagesByApplicationId[applicationForPdf.id];
   const mapData = djiImage
     ? {
         mapImageDataUrl: null,
@@ -518,13 +588,13 @@ export async function generateApplicationIndividualReportPDF({
         mapFallbackVectorPathD: null,
         mapUnavailableMessage: null,
       }
-    : await prefetchApplicationIndividualMap(enrichedApplication);
+    : await prefetchApplicationIndividualMap(applicationForPdf);
 
   const element = ApplicationIndividualReportPDF({
-    application: enrichedApplication,
+    application: applicationForPdf,
     generatedAt,
     djiImageDataUrl: djiImage?.imageSrc ?? null,
-    djiImageUrl: enrichedApplication.djiImageUrl ?? null,
+    djiImageUrl: applicationForPdf.djiImageUrl ?? null,
     mapImageDataUrl: mapData.mapImageDataUrl,
     mapOverlayPathDs: mapData.mapOverlayPathDs,
     mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,

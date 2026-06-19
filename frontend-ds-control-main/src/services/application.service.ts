@@ -141,6 +141,27 @@ export type GetApplicationByIdResponse = {
   application: Application;
 };
 
+export type ApplicationDjiFlight = {
+  recordNumber: string;
+  flightDate?: string | null;
+  startTime?: string | null;
+  aircraftName?: string | null;
+  pilotName?: string | null;
+  taskAreaHa?: string | number | null;
+  estimatedAppliedAreaHa?: string | number | null;
+  pngS3Key?: string | null;
+  pngSignedUrl?: string | null;
+  metadataS3Key?: string | null;
+  bucket?: string | null;
+  region?: string | null;
+  matchType?: string | null;
+};
+
+export type GetApplicationDjiFlightsResponse = {
+  message?: string;
+  flights: ApplicationDjiFlight[];
+};
+
 export async function getApplicationById(
   applicationId: string
 ): Promise<GetApplicationByIdResponse> {
@@ -151,6 +172,20 @@ export async function getApplicationById(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(`[Application Service] Erro ao buscar aplicação: ${error.message}`);
+  }
+
+  return await response.json();
+}
+
+export async function getApplicationDjiFlights(
+  applicationId: string
+): Promise<GetApplicationDjiFlightsResponse> {
+  const response = await api(`/applications/${applicationId}/dji-flights`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    return { flights: [] };
   }
 
   return await response.json();
