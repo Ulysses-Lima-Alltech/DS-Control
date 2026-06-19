@@ -95,8 +95,10 @@ function formatDjiArea(value: unknown): string | null {
 
 function buildDjiEvidenceCaption(application: Application, applicationDateLabel: string): string {
   const metadata = application.djiMetadata;
-  const dsArea = formatDjiArea(metadata?.dsAreaHa);
-  const djiArea = formatDjiArea(metadata?.djiAreaHa);
+  const dsPlannedArea = formatDjiArea(metadata?.dsPlannedAreaHa);
+  const dsAppliedArea = formatDjiArea(metadata?.dsAppliedAreaHa);
+  const djiTaskArea = formatDjiArea(metadata?.djiTaskAreaHa);
+  const djiEstimatedAppliedArea = formatDjiArea(metadata?.djiEstimatedAppliedAreaHa);
   const recordNumber = application.djiFlightRecordNumber || metadata?.recordNumber;
   const pilotName = metadata?.pilotName || metadata?.pilot;
   const aircraftName = metadata?.aircraftName || metadata?.drone;
@@ -105,8 +107,10 @@ function buildDjiEvidenceCaption(application: Application, applicationDateLabel:
     pilotName ? `piloto: ${pilotName}` : null,
     aircraftName ? `drone: ${aircraftName}` : null,
     typeof metadata?.flightCount === 'number' ? `voos DJI: ${metadata.flightCount}` : null,
-    dsArea ? `área DS: ${dsArea}` : null,
-    djiArea ? `área DJI: ${djiArea}` : null,
+    dsPlannedArea ? `Área planejada DS: ${dsPlannedArea}` : null,
+    dsAppliedArea ? `Área aplicada DS: ${dsAppliedArea}` : null,
+    djiTaskArea ? `Área tarefa DJI: ${djiTaskArea}` : null,
+    djiEstimatedAppliedArea ? `Área estimada DJI: ${djiEstimatedAppliedArea}` : null,
     'confiança: Alta',
   ].filter(Boolean);
 
