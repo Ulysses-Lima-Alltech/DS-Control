@@ -443,7 +443,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<'li'>) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  'peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding,background-color,color] hover:bg-primary/10 hover:text-primary focus-visible:ring-2 active:bg-primary/15 active:text-primary disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-primary/15 data-[active=true]:font-medium data-[active=true]:text-primary data-[state=open]:hover:bg-primary/10 data-[state=open]:hover:text-primary group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-2.5! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0',
+  'peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-xl px-3.5 py-3 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding,background-color,color] hover:bg-primary/10 hover:text-primary focus-visible:ring-2 active:bg-primary/15 active:text-primary disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-primary/10 data-[active=true]:font-semibold data-[active=true]:text-primary data-[state=open]:hover:bg-primary/10 data-[state=open]:hover:text-primary group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:p-3! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -452,7 +452,7 @@ const sidebarMenuButtonVariants = cva(
           'bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-primary/10 hover:text-primary hover:shadow-[0_0_0_1px_var(--brand-primary)]',
       },
       size: {
-        default: 'h-10 text-sm',
+        default: 'h-11 text-sm',
         sm: 'h-7 text-xs',
         lg: 'h-12 text-sm group-data-[collapsible=icon]:p-0!',
       },

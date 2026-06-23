@@ -39,7 +39,7 @@ import { User } from '@/types/user.type';
 type PlannedDateFilter = { startDate: string; endDate: string };
 
 const TABLE_FILTER_CLASS =
-  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+  'h-14 rounded-2xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
 
 type TableServiceOrdersProps = {
   customerId: string | undefined;
@@ -452,7 +452,7 @@ export const TableServiceOrders = ({
                 {hasAnyFilterActive && (
                   <Button
                     variant='default'
-                    className='h-12 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_rgba(113,167,128,0.22)] hover:bg-primary/90'
+                    className='h-14 rounded-2xl bg-[#0AAA50] px-6 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(10,170,80,0.22)] hover:bg-[#099044]'
                     onClick={clearAllFilters}
                   >
                     <ListFilter className='mr-1 h-4 w-4' />
@@ -479,7 +479,7 @@ export const TableServiceOrders = ({
           <DateRangePicker
             onChange={onPlannedDateFilterChange}
             initialValue={plannedDateFilter}
-            className='h-12 w-full rounded-xl sm:w-[270px]'
+            className='h-14 w-full rounded-2xl sm:w-[290px]'
             placeholder='Periodo'
           />
           {!customerId && (

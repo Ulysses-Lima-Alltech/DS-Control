@@ -52,7 +52,7 @@ type TableRoutesProps = {
 };
 
 const TABLE_FILTER_CLASS =
-  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+  'h-14 rounded-2xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
 
 export default function TableRoutes({
   customerId: initialCustomerId,
