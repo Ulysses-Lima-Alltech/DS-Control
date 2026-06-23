@@ -34,7 +34,7 @@ export function SidebarUser() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size='lg'
-              className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+              className='data-[state=open]:bg-primary/10 data-[state=open]:text-primary'
             >
               <AvatarUser name={user?.name} />
               <div className='grid flex-1 text-left text-sm leading-tight'>

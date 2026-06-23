@@ -193,7 +193,7 @@ export const DashboardCardGeneralMetrics = ({
   const chartConfig = {
     hectares: {
       label: 'Hectares',
-      color: 'hsl(142, 76%, 36%)',
+      color: 'var(--brand-primary)',
     },
     label: {
       color: 'hsl(var(--background))',
@@ -223,45 +223,45 @@ export const DashboardCardGeneralMetrics = ({
           <div className='grid grid-cols-1 lg:grid-cols-4 gap-6'>
             <div className='lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 order-last lg:order-first'>
               <MetricCard
-                icon={<SprayCan className='w-6 h-6 text-emerald-500' />}
+                icon={<SprayCan className='w-6 h-6 text-primary' />}
                 label='Área pulverizada total'
                 value={`${metrics.totalAreaHectares.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha`}
-                colorClass='text-emerald-600 dark:text-emerald-400'
+                colorClass='text-primary'
               />
 
               <MetricCard
-                icon={<Calendar className='w-6 h-6 text-blue-500' />}
+                icon={<Calendar className='w-6 h-6 text-primary' />}
                 label='Dias corridos'
                 value={metrics.daysSinceStart.toString()}
-                colorClass='text-blue-600 dark:text-blue-400'
+                colorClass='text-primary'
               />
 
               <MetricCard
-                icon={<TrendingUp className='w-6 h-6 text-purple-500' />}
+                icon={<TrendingUp className='w-6 h-6 text-primary' />}
                 label='Área pulverizada - Média diária'
                 value={`${metrics.averageDailyArea.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha`}
-                colorClass='text-purple-600 dark:text-purple-400'
+                colorClass='text-primary'
               />
 
               <MetricCard
-                icon={<SprayCan className='w-6 h-6 text-amber-500' />}
+                icon={<SprayCan className='w-6 h-6 text-primary' />}
                 label='Área pulverizada (ontem)'
                 value={`${metrics.yesterdayStats.totalArea.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha`}
-                colorClass='text-amber-600 dark:text-amber-400'
+                colorClass='text-primary'
               />
 
               <MetricCard
-                icon={<Plane className='w-6 h-6 text-cyan-500' />}
+                icon={<Plane className='w-6 h-6 text-primary' />}
                 label='Quantidade de drones (ontem)'
                 value={metrics.yesterdayStats.dronesCount.toString()}
-                colorClass='text-cyan-600 dark:text-cyan-400'
+                colorClass='text-primary'
               />
 
               <MetricCard
-                icon={<TrendingUp className='w-6 h-6 text-rose-500' />}
+                icon={<TrendingUp className='w-6 h-6 text-primary' />}
                 label='Hectares por drone (ontem)'
                 value={`${metrics.yesterdayStats.areaPerDrone.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha`}
-                colorClass='text-rose-600 dark:text-rose-400'
+                colorClass='text-primary'
               />
             </div>
 
@@ -463,7 +463,7 @@ interface MetricCardProps {
 
 const MetricCard = ({ icon, label, value, colorClass, isLoading }: MetricCardProps) => {
   return (
-    <div className='bg-muted/50 rounded-lg p-4 border'>
+    <div className='bg-card rounded-lg p-4 border border-primary/10'>
       <div className='flex items-center gap-3 min-w-0'>
         <div className='flex-shrink-0'>{icon}</div>
         <div className='flex-1 min-w-0'>

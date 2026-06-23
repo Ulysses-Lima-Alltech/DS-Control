@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+
 import { SidebarUser } from '@/components/SidebarUser';
 import {
   SidebarContent,
@@ -16,6 +18,10 @@ import {
 import { pathItems, type PathItem } from '@/types/path.type';
 
 export function Sidebar() {
+  const pathname = usePathname();
+  const isPathActive = (url: string) =>
+    pathname === url || (url !== '/dashboard' && pathname.startsWith(`${url}/`));
+
   return (
     <>
       <SidebarShadcn collapsible='icon'>
@@ -39,7 +45,7 @@ export function Sidebar() {
                   .filter((item: PathItem) => item.showOnSidebar && item.category === 'visualizar')
                   .map((item: PathItem) => (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild isActive={isPathActive(item.url)}>
                         <a href={item.url}>
                           {item.icon && <item.icon className='mr-2' />}
                           <span>{item.title}</span>
@@ -59,7 +65,7 @@ export function Sidebar() {
                   .filter((item: PathItem) => item.showOnSidebar && item.category === 'cadastros')
                   .map((item: PathItem) => (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild isActive={isPathActive(item.url)}>
                         <a href={item.url}>
                           {item.icon && <item.icon className='mr-2' />}
                           <span>{item.title}</span>
@@ -81,7 +87,7 @@ export function Sidebar() {
                   )
                   .map((item: PathItem) => (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild isActive={isPathActive(item.url)}>
                         <a href={item.url}>
                           {item.icon && <item.icon className='mr-2' />}
                           <span>{item.title}</span>
@@ -100,4 +106,3 @@ export function Sidebar() {
     </>
   );
 }
-
