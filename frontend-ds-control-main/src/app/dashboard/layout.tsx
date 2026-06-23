@@ -5,7 +5,6 @@ import Link from 'next/link';
 import BreadcrumbHeader from '@/components/BreadcrumbHeader';
 import DashboardTopbarActions from '@/components/DashboardTopbarActions';
 import { Sidebar } from '@/components/Sidebar';
-import { Separator } from '@/components/ui/separator';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AuthGuard } from '@/guards/auth.guard';
 
@@ -21,10 +20,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className='flex min-h-svh w-full overflow-hidden bg-[color:color-mix(in_oklch,var(--brand-secondary)_8%,white)]'>
           <Sidebar />
           <div className='flex-1 flex flex-col min-w-0 overflow-hidden'>
-            <header className='flex h-16 items-center gap-3 border-b border-border/60 bg-card/95 px-5 shadow-[0_1px_18px_rgba(15,23,42,0.04)] backdrop-blur flex-shrink-0'>
-              <SidebarTrigger className='size-8 rounded-lg text-foreground/70 hover:bg-primary/10 hover:text-primary' />
-              <Separator orientation='vertical' className='mx-1 data-[orientation=vertical]:h-4' />
-              <Link href='/dashboard' className='text-sm font-semibold tracking-normal'>
+            <header className='flex h-20 items-center gap-4 border-b border-border/60 bg-card px-7 shadow-[0_1px_18px_rgba(15,23,42,0.035)] flex-shrink-0'>
+              <SidebarTrigger className='size-10 rounded-xl text-foreground/75 hover:bg-primary/10 hover:text-primary' />
+              <Link
+                href='/dashboard'
+                className='text-base font-semibold tracking-normal text-primary hover:text-primary/85'
+              >
                 DS Control
               </Link>
               <BreadcrumbHeader />

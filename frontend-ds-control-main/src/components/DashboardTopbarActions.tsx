@@ -35,7 +35,7 @@ export default function DashboardTopbarActions() {
       <button
         type='button'
         aria-label='Notificacoes'
-        className='flex size-9 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-primary/10 hover:text-primary'
+        className='flex size-10 items-center justify-center rounded-full text-[color:color-mix(in_oklch,var(--brand-primary)_68%,black)] transition-colors hover:bg-primary/10 hover:text-primary'
       >
         <Bell className='size-5' />
       </button>
@@ -46,7 +46,7 @@ export default function DashboardTopbarActions() {
             type='button'
             className='flex items-center gap-2 rounded-full px-1 py-1 text-sm font-medium text-foreground transition-colors hover:bg-primary/10'
           >
-            <span className='flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_rgba(113,167,128,0.22)]'>
+            <span className='flex size-10 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_rgba(113,167,128,0.22)]'>
               {getInitials(user?.name)}
             </span>
             <ChevronDown className='size-4 text-foreground/70' />

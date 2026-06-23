@@ -3,7 +3,7 @@
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type CellContext } from '@tanstack/react-table';
 import { debounce } from 'lodash';
-import { CheckCircle, Clock, Edit, Eye, X, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, Edit, Eye, ListFilter, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -37,6 +37,9 @@ import {
 import { User } from '@/types/user.type';
 
 type PlannedDateFilter = { startDate: string; endDate: string };
+
+const TABLE_FILTER_CLASS =
+  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
 
 type TableServiceOrdersProps = {
   customerId: string | undefined;
@@ -195,7 +198,9 @@ export const TableServiceOrders = ({
       case 'cancelled':
         return <XCircle className='h-4 w-4 text-red-500' />;
       case 'open':
-        return <Clock className='h-4 w-4 text-blue-500' />;
+        return (
+          <Clock className='h-4 w-4 text-[color:color-mix(in_oklch,var(--brand-accent)_72%,black)]' />
+        );
       default:
         return <XCircle className='h-4 w-4 text-red-500' />;
     }
@@ -438,7 +443,7 @@ export const TableServiceOrders = ({
         onSearchChange: handleSearchChange,
       }}
       renderToolbar={({ searchInput, filters, columnsControl }) => (
-        <div className='mb-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5'>
+        <div className='mb-6 rounded-[22px] border border-border/60 bg-card p-5 shadow-[0_8px_22px_rgba(15,23,42,0.035)]'>
           <div className='flex w-full flex-col gap-3'>
             <div className='grid w-full grid-cols-1 gap-2 xl:grid-cols-[minmax(220px,1fr)_auto]'>
               <div className='min-w-0'>{searchInput}</div>
@@ -446,11 +451,11 @@ export const TableServiceOrders = ({
                 {columnsControl}
                 {hasAnyFilterActive && (
                   <Button
-                    variant='outline'
-                    className='h-9 border-red-200 bg-red-50 px-3 text-sm text-red-600 hover:bg-red-100 hover:text-red-700'
+                    variant='default'
+                    className='h-12 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_rgba(113,167,128,0.22)] hover:bg-primary/90'
                     onClick={clearAllFilters}
                   >
-                    <X className='mr-1 h-4 w-4' />
+                    <ListFilter className='mr-1 h-4 w-4' />
                     Limpar filtros
                   </Button>
                 )}
@@ -469,12 +474,12 @@ export const TableServiceOrders = ({
             placeholder='Status'
             searchPlaceholder='Buscar status...'
             clearable
-            className='h-9 w-full sm:w-[140px]'
+            className={`${TABLE_FILTER_CLASS} w-full sm:w-[160px]`}
           />
           <DateRangePicker
             onChange={onPlannedDateFilterChange}
             initialValue={plannedDateFilter}
-            className='h-9 w-full sm:w-[250px]'
+            className='h-12 w-full rounded-xl sm:w-[270px]'
             placeholder='Periodo'
           />
           {!customerId && (
@@ -494,7 +499,7 @@ export const TableServiceOrders = ({
               hasNextPage={hasNextPage}
               isFetchingNextPage={isFetchingNextPage}
               isLoading={isLoadingCustomers}
-              className='h-9 w-full sm:w-[150px]'
+              className={`${TABLE_FILTER_CLASS} w-full sm:w-[170px]`}
               popoverClassName='w-[250px]'
             />
           )}
@@ -513,7 +518,7 @@ export const TableServiceOrders = ({
             hasNextPage={hasNextPageFarms}
             isFetchingNextPage={isFetchingNextPageFarms}
             isLoading={isLoadingFarms}
-            className='h-9 w-full sm:w-[150px]'
+            className={`${TABLE_FILTER_CLASS} w-full sm:w-[170px]`}
             popoverClassName='w-[250px]'
           />
           <SearchableSelectQuery
@@ -531,7 +536,7 @@ export const TableServiceOrders = ({
             hasNextPage={hasNextPagePilots}
             isFetchingNextPage={isFetchingNextPagePilots}
             isLoading={isLoadingPilots}
-            className='h-9 w-full sm:w-[150px]'
+            className={`${TABLE_FILTER_CLASS} w-full sm:w-[170px]`}
             popoverClassName='w-[250px]'
           />
           <SearchableSelectQuery
@@ -540,7 +545,7 @@ export const TableServiceOrders = ({
             onValueChange={(value) => handleOrderByChange(value as ServiceOrderBy | undefined)}
             placeholder='Ordenar por'
             searchPlaceholder='Buscar...'
-            className='h-9 w-full sm:w-[160px]'
+            className={`${TABLE_FILTER_CLASS} w-full sm:w-[180px]`}
             clearable
           />
           <SearchableSelectQuery
@@ -549,7 +554,7 @@ export const TableServiceOrders = ({
             onValueChange={(value) => handleOrderTypeChange(value as ServiceOrderType | undefined)}
             placeholder='Ordenacao'
             searchPlaceholder='Buscar...'
-            className='h-9 w-full sm:w-[150px]'
+            className={`${TABLE_FILTER_CLASS} w-full sm:w-[170px]`}
             clearable
           />
         </>

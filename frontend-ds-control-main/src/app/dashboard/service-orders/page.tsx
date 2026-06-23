@@ -39,21 +39,35 @@ export default function ServiceOrdersPage() {
   } = useGetStatsServiceorders(statsParams);
 
   return (
-    <div className='min-h-full max-w-screen space-y-6 p-6'>
-      <div className='flex items-center justify-between gap-3'>
+    <div className='relative min-h-full max-w-screen overflow-hidden p-5 lg:p-8'>
+      <div className='pointer-events-none absolute right-0 top-0 h-72 w-[46rem] overflow-hidden opacity-80'>
+        <div className='absolute -right-16 top-0 h-40 w-[34rem] rounded-bl-[80%] bg-[color:color-mix(in_oklch,var(--brand-secondary)_14%,white)]' />
+        <div className='absolute right-16 top-24 h-28 w-[34rem] rounded-tl-full bg-[color:color-mix(in_oklch,var(--brand-primary)_9%,white)]' />
+      </div>
+      <div className='relative z-10 mb-9 flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
         <div>
-          <h1 className='text-2xl font-bold'>Ordens de Serviço</h1>
-          <p className='text-muted-foreground'>Gerencie todas as ordens de serviço do sistema</p>
+          <h1 className='text-3xl font-semibold tracking-normal text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)]'>
+            Ordens de Serviço
+          </h1>
+          <p className='text-base text-muted-foreground'>
+            Gerencie todas as ordens de serviço do sistema
+          </p>
         </div>
         <DialogForm
           form={
-            <FormRegisterNewServiceOrder closeDialog={() => setIsDialogNewServiceOrderOpen(false)} />
+            <FormRegisterNewServiceOrder
+              closeDialog={() => setIsDialogNewServiceOrderOpen(false)}
+            />
           }
           isOpen={isDialogNewServiceOrderOpen}
           setIsOpen={setIsDialogNewServiceOrderOpen}
           trigger={
-            <Button variant='default' onClick={() => setIsDialogNewServiceOrderOpen(true)}>
-              <Plus className='mr-2 h-4 w-4' />
+            <Button
+              variant='default'
+              onClick={() => setIsDialogNewServiceOrderOpen(true)}
+              className='h-12 rounded-xl px-6 text-sm font-semibold shadow-[0_10px_22px_rgba(113,167,128,0.24)]'
+            >
+              <Plus className='mr-2 h-5 w-5' />
               Nova OS
             </Button>
           }
@@ -61,7 +75,7 @@ export default function ServiceOrdersPage() {
         />
       </div>
 
-      <div className='w-full max-w-none'>
+      <div className='relative z-10 w-full max-w-none'>
         <DashboardCardServiceOrders
           stats={stats?.stats || null}
           isLoadingStats={isLoadingStats}
@@ -70,7 +84,7 @@ export default function ServiceOrdersPage() {
         />
       </div>
 
-      <Card className='max-w-full overflow-auto p-0'>
+      <Card className='relative z-10 mt-6 max-w-full overflow-hidden rounded-[22px] border-border/60 bg-card/95 p-0 shadow-[0_14px_34px_rgba(15,23,42,0.06)]'>
         <CardContent className='p-6'>
           <TableServiceOrders
             customerId={undefined}

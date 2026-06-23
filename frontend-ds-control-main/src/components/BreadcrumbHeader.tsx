@@ -33,9 +33,9 @@ export default function BreadcrumbHeader() {
   }
 
   return (
-    <div className='flex items-center justify-between text-xs'>
+    <div className='flex items-center justify-between text-sm'>
       <Breadcrumb>
-        <BreadcrumbList className='gap-1 text-muted-foreground'>
+        <BreadcrumbList className='gap-2 text-muted-foreground'>
           {breadcrumbTranslator(subdividedPathname).map((item, index) => {
             return (
               <Fragment key={`${index}-fragment`}>
@@ -50,10 +50,10 @@ export default function BreadcrumbHeader() {
                             ? '#'
                             : `/${subdividedPathname.slice(1, index + 1).join('/')}`
                         }
-                        className={`text-xs ${
+                        className={`text-sm ${
                           index === subdividedPathname.length - 1
-                            ? 'cursor-text text-foreground/70'
-                            : 'text-muted-foreground hover:text-primary'
+                            ? 'cursor-text text-foreground/75'
+                            : 'font-medium text-primary hover:text-primary/85'
                         }`}
                       >
                         {item}
