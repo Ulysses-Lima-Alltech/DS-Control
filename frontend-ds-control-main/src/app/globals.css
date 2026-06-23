@@ -4,38 +4,41 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --brand-primary: #71A780;
+  --brand-secondary: #95BD75;
+  --brand-accent: #F6DC7F;
   --background: oklch(1 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0 0 0);
-  --primary: oklch(0.7856 0.1604 83.3525);
+  --primary: var(--brand-primary);
   --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0 0 0);
-  --secondary-foreground: oklch(1 0 0);
+  --secondary: var(--brand-secondary);
+  --secondary-foreground: oklch(0 0 0);
   --muted: oklch(0.9249 0 0);
   --muted-foreground: oklch(0.4202 0 0);
-  --accent: oklch(0.9249 0 0);
+  --accent: var(--brand-accent);
   --accent-foreground: oklch(0 0 0);
   --destructive: oklch(0.6795 0.2089 27.7164);
   --destructive-foreground: oklch(0 0 0);
   --border: oklch(0.8699 0 0);
   --input: oklch(0.9821 0 0);
-  --ring: oklch(0.7686 0.1647 70.0804);
-  --chart-1: oklch(0.7686 0.1647 70.0804);
-  --chart-2: oklch(0.6658 0.1574 58.3183);
-  --chart-3: oklch(0.5553 0.1455 48.9975);
-  --chart-4: oklch(0.4732 0.1247 46.2007);
-  --chart-5: oklch(0.4137 0.1054 45.9038);
+  --ring: var(--brand-primary);
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--brand-secondary);
+  --chart-3: var(--brand-accent);
+  --chart-4: color-mix(in oklch, var(--brand-primary) 72%, black);
+  --chart-5: color-mix(in oklch, var(--brand-accent) 74%, var(--brand-primary));
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0 0 0);
-  --sidebar-primary: oklch(0.7856 0.1604 83.3525);
+  --sidebar-primary: var(--brand-primary);
   --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: oklch(0.9249 0 0);
+  --sidebar-accent: var(--brand-accent);
   --sidebar-accent-foreground: oklch(0 0 0);
   --sidebar-border: oklch(0.8699 0 0);
-  --sidebar-ring: oklch(0.7856 0.1604 83.3525);
+  --sidebar-ring: var(--brand-primary);
   --font-sans:
     Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell,
     Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
@@ -73,32 +76,32 @@
   --card-foreground: oklch(1 0 0);
   --popover: oklch(0.2178 0 0);
   --popover-foreground: oklch(1 0 0);
-  --primary: oklch(0.7856 0.1604 83.3525);
+  --primary: var(--brand-primary);
   --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(1 0 0);
+  --secondary: var(--brand-secondary);
   --secondary-foreground: oklch(0 0 0);
   --muted: oklch(0.3211 0 0);
   --muted-foreground: oklch(0.7668 0 0);
-  --accent: oklch(0.2686 0 0);
-  --accent-foreground: oklch(1 0 0);
+  --accent: var(--brand-accent);
+  --accent-foreground: oklch(0 0 0);
   --destructive: oklch(0.6795 0.2089 27.7164);
   --destructive-foreground: oklch(0 0 0);
   --border: oklch(0.3211 0 0);
   --input: oklch(0.2686 0 0);
-  --ring: oklch(0.7686 0.1647 70.0804);
-  --chart-1: oklch(0.8369 0.1644 84.4286);
-  --chart-2: oklch(0.6658 0.1574 58.3183);
-  --chart-3: oklch(0.4732 0.1247 46.2007);
-  --chart-4: oklch(0.5553 0.1455 48.9975);
-  --chart-5: oklch(0.4732 0.1247 46.2007);
+  --ring: var(--brand-primary);
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--brand-secondary);
+  --chart-3: var(--brand-accent);
+  --chart-4: color-mix(in oklch, var(--brand-primary) 72%, white);
+  --chart-5: color-mix(in oklch, var(--brand-accent) 74%, var(--brand-secondary));
   --sidebar: oklch(0.2178 0 0);
   --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.7856 0.1604 83.3525);
+  --sidebar-primary: var(--brand-primary);
   --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: oklch(0.2686 0 0);
-  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--brand-accent);
+  --sidebar-accent-foreground: oklch(0 0 0);
   --sidebar-border: oklch(0.3211 0 0);
-  --sidebar-ring: oklch(0.7856 0.1604 83.3525);
+  --sidebar-ring: var(--brand-primary);
   --font-sans:
     Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell,
     Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
@@ -129,6 +132,9 @@
 }
 
 @theme inline {
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-accent: var(--brand-accent);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
