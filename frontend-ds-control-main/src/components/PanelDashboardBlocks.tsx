@@ -108,42 +108,43 @@ function getCropSeasonIdsFromSearchParams(searchParams: URLSearchParams | null):
 
 const TOP_CARD_STYLES = [
   {
-    card: 'border-primary/40 bg-primary shadow-sm shadow-primary/20',
-    label: 'text-primary-foreground/75',
-    value: 'text-primary-foreground',
-    iconWrap: 'border border-primary-foreground/15 bg-primary-foreground/15',
-    icon: 'text-primary-foreground',
+    card:
+      'border-primary/30 bg-primary py-0 rounded-2xl shadow-[0_12px_28px_rgba(113,167,128,0.28)]',
+    label: 'text-white/80',
+    value: 'text-white',
+    iconWrap: 'border border-white/20 bg-white/20',
+    icon: 'text-white',
   },
   {
-    card: 'border-border/70 bg-card',
+    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-primary/15 bg-primary/10',
     icon: 'text-primary',
   },
   {
-    card: 'border-primary/15 bg-primary/5',
+    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-primary/15 bg-primary/10',
     icon: 'text-primary',
   },
   {
-    card: 'border-accent/50 bg-accent/20',
+    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-accent/60 bg-accent/40',
     icon: 'text-primary',
   },
   {
-    card: 'border-border/70 bg-card',
+    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-secondary/20 bg-secondary/15',
     icon: 'text-primary',
   },
   {
-    card: 'border-secondary/20 bg-secondary/10',
+    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-secondary/25 bg-secondary/20',
@@ -181,8 +182,13 @@ const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>(
 );
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
-  'text-foreground dark:text-slate-100 hover:bg-muted/70 dark:hover:bg-muted/60';
-const PANEL_TOGGLE_ACTIVE_CLASS = 'bg-primary text-primary-foreground hover:bg-primary/90';
+  'text-foreground hover:bg-primary/10 hover:text-primary';
+const PANEL_TOGGLE_ACTIVE_CLASS = 'bg-primary text-white hover:bg-primary/90';
+const PANEL_CARD_CLASS =
+  'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]';
+const FILTER_CONTROL_CLASS =
+  'h-9 rounded-xl border-border/70 bg-card shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+const TOGGLE_GROUP_CLASS = 'flex gap-1 rounded-xl border border-border/60 bg-muted/25 p-1';
 const LIGHT_CHART_TEXT_COLOR = '#334155';
 const DARK_CHART_TEXT_COLOR = '#e5e7eb';
 const LIGHT_CHART_AXIS_COLOR = 'rgba(148, 163, 184, 0.4)';
@@ -1548,19 +1554,19 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           const Icon = card.icon;
           const style = TOP_CARD_STYLES[index];
           return (
-            <Card key={card.title} className={`${style.card} min-h-[96px]`}>
-              <CardContent className='p-3 sm:p-4'>
+            <Card key={card.title} className={`${style.card} min-h-[88px]`}>
+              <CardContent className='p-4'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='space-y-1 min-w-0'>
-                    <p className={`text-[13px] leading-tight ${style.label}`}>
+                    <p className={`text-[11px] font-medium leading-tight ${style.label}`}>
                       {card.title}
                     </p>
-                    <p className={`text-xl sm:text-[22px] leading-tight font-semibold truncate ${style.value}`}>
+                    <p className={`text-xl leading-tight font-semibold tracking-normal truncate ${style.value}`}>
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
-                  <div className={`rounded-md p-1.5 ${style.iconWrap}`}>
-                    <Icon className={`h-3.5 w-3.5 ${style.icon}`} />
+                  <div className={`rounded-xl p-2 ${style.iconWrap}`}>
+                    <Icon className={`h-4 w-4 ${style.icon}`} />
                   </div>
                 </div>
               </CardContent>
@@ -1569,7 +1575,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         })}
       </div>
 
-      <Card className='border-border/70'>
+      <Card className={PANEL_CARD_CLASS}>
         <CardContent className='p-4'>
           <div className='flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
             <div className='space-y-2'>
@@ -1580,10 +1586,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   value={search}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   placeholder='Busca'
-                  className='w-full pl-9'
+                  className={`${FILTER_CONTROL_CLASS} w-full pl-9`}
                 />
               </div>
-              <div className='w-[180px] min-w-0 max-w-[180px] overflow-hidden'>
+              <div className='w-[180px] min-w-0 max-w-[180px] overflow-hidden [&_button]:h-9 [&_button]:rounded-xl [&_button]:border-border/70 [&_button]:bg-card [&_button]:shadow-none [&_button]:hover:border-primary/40'>
                 <DateRangePicker
                   key={datePickerResetKey}
                   className='w-full min-w-0'
@@ -1605,7 +1611,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 onValueChange={(value) => handleCropSeasonChange(value as string[] | undefined)}
                 placeholder='Safra'
                 searchPlaceholder='Buscar safra...'
-                className='w-[140px] min-w-0'
+                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                 clearable={false}
                 isMultipleSelections
                 showCheckbox
@@ -1620,7 +1626,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 onValueChange={(value) => handleCustomerChange(value as string | undefined)}
                 placeholder='Cliente'
                 searchPlaceholder='Buscar cliente...'
-                className='w-[140px] min-w-0'
+                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                 clearable
                 isLoading={isLoadingCustomers}
               />
@@ -1630,7 +1636,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 onValueChange={(value) => handleFarmChange(value as string | undefined)}
                 placeholder='Fazenda'
                 searchPlaceholder='Buscar fazenda...'
-                className='w-[140px] min-w-0'
+                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                 clearable
                 isLoading={isLoadingFarms}
               />
@@ -1640,7 +1646,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 onValueChange={(value) => handlePilotChange(value as string | undefined)}
                 placeholder='Piloto'
                 searchPlaceholder='Buscar piloto...'
-                className='w-[140px] min-w-0'
+                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                 clearable
                 isLoading={isLoadingPilots}
               />
@@ -1650,7 +1656,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 onValueChange={(value) => handleProductChange(value as string | undefined)}
                 placeholder='Produto'
                 searchPlaceholder='Buscar produto...'
-                className='w-[140px] min-w-0'
+                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                 clearable
                 isLoading={isLoadingProducts}
               />
@@ -1663,7 +1669,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   onValueChange={(value) => handleAssistantChange(value as string | undefined)}
                   placeholder='Ajudante'
                   searchPlaceholder='Buscar ajudante...'
-                  className='w-[140px] min-w-0'
+                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                   clearable
                   isLoading={isLoadingAssistants}
                 />
@@ -1675,7 +1681,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   }
                   placeholder='Status da OS'
                   searchPlaceholder='Buscar status...'
-                  className='w-[140px] min-w-0'
+                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                   clearable
                 />
                 <SearchableSelectQuery
@@ -1686,7 +1692,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   }
                   placeholder='Tipo de aplicacao'
                   searchPlaceholder='Buscar tipo...'
-                  className='w-[160px] min-w-0'
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
                   clearable
                 />
                 <SearchableSelectQuery
@@ -1695,7 +1701,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   onValueChange={(value) => handleDroneChange(value as string | undefined)}
                   placeholder='Drone'
                   searchPlaceholder='Buscar drone...'
-                  className='w-[140px] min-w-0'
+                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
                   clearable
                   isLoading={isLoadingDrones}
                 />
@@ -1704,9 +1710,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <div className='shrink-0 xl:ml-auto'>
               <Button
                 type='button'
-                variant='outline'
+                variant='default'
                 onClick={clearFilters}
-                className='border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                className='h-9 rounded-xl bg-primary px-4 text-white shadow-[0_8px_18px_rgba(113,167,128,0.22)] hover:bg-primary/90'
               >
                 Limpar Filtros
               </Button>
@@ -1715,24 +1721,25 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card className='border-border/70'>
-        <CardHeader className='pb-2'>
-          <CardTitle>Lançamentos dos Pilotos</CardTitle>
+      <Card className={`${PANEL_CARD_CLASS} relative overflow-hidden`}>
+        <Sprout className='pointer-events-none absolute -bottom-3 right-9 h-20 w-20 rotate-12 text-primary/15' />
+        <CardHeader className='pb-2 pt-5'>
+          <CardTitle className='text-base font-semibold tracking-normal'>Lançamentos dos Pilotos</CardTitle>
           {!isLoadingPilotLaunchRows && pilotLaunchRows.length > 0 ? (
-            <CardDescription>
+            <CardDescription className='text-xs'>
               {`Lançado: ${formatInteger(launchedPilotsCount)} · Pendente: ${formatInteger(pendingPilotsCount)}`}
             </CardDescription>
           ) : null}
         </CardHeader>
-        <CardContent>
+        <CardContent className='relative pb-5'>
           {isLoadingPilotLaunchRows ? (
             <p className='text-sm text-muted-foreground'>Carregando lançamentos...</p>
           ) : pilotLaunchRows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>Nenhum lançamento encontrado para o período.</p>
           ) : (
-            <div className='rounded-md border divide-y'>
+            <div className='overflow-hidden rounded-xl border border-border/60 divide-y divide-border/60 bg-card/80'>
               {pilotLaunchRows.map((launch) => (
-                <div key={launch.id} className='flex items-center justify-between gap-3 px-3 py-2.5'>
+                <div key={launch.id} className='flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-primary/5'>
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-medium'>{launch.customerName}</p>
                     <p className='truncate text-sm text-muted-foreground'>{launch.pilotName}</p>
@@ -1750,12 +1757,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card className='border-border/70'>
-        <CardHeader className='pb-3'>
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className='pb-3 pt-5'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <CardTitle>Hectares por Piloto/Ajudante</CardTitle>
+            <CardTitle className='text-base font-semibold tracking-normal'>Hectares por Piloto/Ajudante</CardTitle>
             <div className='flex flex-wrap items-center gap-2'>
-              <div className='flex gap-1 rounded-md border border-border/70 p-1'>
+              <div className={TOGGLE_GROUP_CLASS}>
                 <Button
                   type='button'
                   size='sm'
@@ -1791,7 +1798,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   Ajudantes
                 </Button>
               </div>
-              <div className='flex gap-1 rounded-md border border-border/70 p-1'>
+              <div className={TOGGLE_GROUP_CLASS}>
                 <Button
                   type='button'
                   size='sm'
@@ -1818,7 +1825,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </div>
           </div>
           {pilotEntityMode === 'assistants' ? (
-            <CardDescription>
+            <CardDescription className='text-xs'>
               Agrupamento por Ajudante com filtros operacionais do painel.
             </CardDescription>
           ) : null}
@@ -1881,11 +1888,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card className='border-border/70'>
-        <CardHeader className='pb-3'>
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className='pb-3 pt-5'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <CardTitle>Hectares por Cliente</CardTitle>
-            <div className='flex gap-1 rounded-md border border-border/70 p-1'>
+            <CardTitle className='text-base font-semibold tracking-normal'>Hectares por Cliente</CardTitle>
+            <div className={TOGGLE_GROUP_CLASS}>
               <Button
                 type='button'
                 size='sm'
@@ -1989,11 +1996,11 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
         </CardContent>
       </Card>
 
-      <Card className='border-border/70'>
-        <CardHeader className='pb-2'>
-          <CardTitle>Ordens de Serviços em aberto</CardTitle>
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className='pb-2 pt-5'>
+          <CardTitle className='text-base font-semibold tracking-normal'>Ordens de Serviços em aberto</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className='pb-5'>
           {isLoadingAnyOrderStats ? (
             <p className='text-sm text-muted-foreground'>Carregando ordens de serviço...</p>
           ) : visibleOpenServiceOrders.length === 0 ? (
@@ -2025,7 +2032,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 return (
                   <Card
                     key={serviceOrder.id}
-                    className='cursor-pointer border border-border/70 bg-card shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:bg-muted/20'
+                    className='cursor-pointer border border-border/60 bg-card py-0 shadow-[0_8px_20px_rgba(15,23,42,0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary/5'
                     onClick={() => handleOpenServiceOrderClick(serviceOrder.id)}
                     role='button'
                     tabIndex={0}

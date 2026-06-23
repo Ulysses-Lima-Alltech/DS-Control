@@ -1,6 +1,7 @@
 'use client';
 
 import { subDays } from 'date-fns';
+import { Leaf } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 
 import { PanelDashboardBlocks } from '@/components/PanelDashboardBlocks';
@@ -58,10 +59,13 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className='p-6 space-y-6 min-h-full w-full'>
-      <div className='space-y-2'>
-        <h1 className='text-2xl font-bold'>Olá, {user?.name}</h1>
-        <div className='text-sm text-muted-foreground space-y-1'>
+    <div className='min-h-full w-full space-y-5 p-5 lg:p-6'>
+      <div className='relative overflow-hidden rounded-2xl border border-primary/10 bg-card px-6 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]'>
+        <div className='pointer-events-none absolute -right-10 -top-14 h-40 w-64 rounded-full bg-primary/10 blur-3xl' />
+        <Leaf className='pointer-events-none absolute left-4 top-5 h-7 w-7 -rotate-12 text-primary/35' />
+        <Leaf className='pointer-events-none absolute bottom-2 right-10 h-16 w-16 rotate-12 text-primary/20' />
+        <h1 className='relative pl-8 text-2xl font-semibold tracking-normal text-foreground'>Olá, {user?.name}</h1>
+        <div className='relative pl-8 text-sm text-muted-foreground space-y-1'>
           <div>{user?.email}</div>
         </div>
       </div>
