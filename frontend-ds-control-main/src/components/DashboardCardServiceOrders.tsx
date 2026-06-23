@@ -57,29 +57,33 @@ export const DashboardCardServiceOrders = ({
     `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
 
   return (
-    <Card className='w-full max-w-none min-w-0 border-border/70 shadow-sm bg-card/95'>
-      <CardHeader className='pb-3'>
-        <CardTitle className='flex items-center gap-2 min-w-0'>
-          <FileText className='w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0' />
+    <Card className='w-full max-w-none min-w-0 rounded-[22px] border-border/60 bg-card/95 shadow-[0_10px_28px_rgba(15,23,42,0.045)]'>
+      <CardHeader className='pb-4 pt-5'>
+        <CardTitle className='flex items-center gap-3 min-w-0 text-base font-semibold tracking-normal'>
+          <span className='flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+            <FileText className='h-5 w-5 flex-shrink-0' />
+          </span>
           <span className='truncate'>Ordens de Servico</span>
         </CardTitle>
 
         <CardDescription className='truncate'>Visao geral das ordens de servico</CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col h-full pt-0'>
-        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7'>
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7'>
           <SummaryItem
-            icon={<FileText className='h-4 w-4 text-blue-600 dark:text-blue-400' />}
+            icon={<FileText className='h-4 w-4 text-primary' />}
             label='Total de Ordens'
             value={formatCount(totalOrders)}
           />
           <SummaryItem
-            icon={<Clock className='h-4 w-4 text-sky-600 dark:text-sky-400' />}
+            icon={
+              <Clock className='h-4 w-4 text-[color:color-mix(in_oklch,var(--brand-accent)_75%,black)]' />
+            }
             label='Abertas'
             value={formatCount(openOrdersCount)}
           />
           <SummaryItem
-            icon={<CheckCircle className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />}
+            icon={<CheckCircle className='h-4 w-4 text-primary' />}
             label='Concluídas'
             value={formatCount(completedOrdersCount)}
           />
@@ -89,17 +93,19 @@ export const DashboardCardServiceOrders = ({
             value={formatCount(cancelledOrdersCount)}
           />
           <SummaryItem
-            icon={<Map className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />}
+            icon={<Map className='h-4 w-4 text-primary' />}
             label='Área Total'
             value={formatHectare(totalAreaHectares)}
           />
           <SummaryItem
-            icon={<Sprout className='h-4 w-4 text-teal-600 dark:text-teal-400' />}
+            icon={<Sprout className='h-4 w-4 text-primary' />}
             label='Área Aplicada'
             value={formatHectare(totalAppliedHectares)}
           />
           <SummaryItem
-            icon={<User className='h-4 w-4 text-amber-600 dark:text-amber-400' />}
+            icon={
+              <User className='h-4 w-4 text-[color:color-mix(in_oklch,var(--brand-accent)_75%,black)]' />
+            }
             label='Pilotos com Ordens Abertas'
             value={formatCount(pilotsWithOpenOrders)}
           />
@@ -110,7 +116,7 @@ export const DashboardCardServiceOrders = ({
             variant='outline'
             size='sm'
             onClick={handleViewServiceOrders}
-            className='w-full flex items-center justify-center gap-2 mt-4'
+            className='w-full flex items-center justify-center gap-2 mt-4 rounded-xl border-primary/25 text-primary hover:bg-primary/10 hover:text-primary'
           >
             Ver Ordens de Servico
             <ArrowRight className='w-4 h-4' />
@@ -131,9 +137,11 @@ function SummaryItem({
   value: string;
 }) {
   return (
-    <div className='rounded-lg border border-border bg-background/70 p-3'>
+    <div className='rounded-2xl border border-border/60 bg-card p-4 shadow-[0_8px_18px_rgba(15,23,42,0.035)]'>
       <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
-        {icon}
+        <span className='flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10'>
+          {icon}
+        </span>
         <span className='truncate'>{label}</span>
       </div>
       <p className='mt-2 text-lg font-semibold text-foreground truncate'>{value}</p>
@@ -146,7 +154,7 @@ const ServiceOrdersPageSkeleton = () => {
     <Card>
       <CardHeader className='pb-3'>
         <CardTitle className='flex items-center gap-2'>
-          <FileText className='w-5 h-5 text-blue-500' />
+          <FileText className='w-5 h-5 text-primary' />
           Ordens de Servico
         </CardTitle>
       </CardHeader>

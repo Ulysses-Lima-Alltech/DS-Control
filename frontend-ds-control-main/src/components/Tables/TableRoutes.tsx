@@ -51,6 +51,9 @@ type TableRoutesProps = {
   farmId?: string;
 };
 
+const TABLE_FILTER_CLASS =
+  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+
 export default function TableRoutes({
   customerId: initialCustomerId,
   farmId: initialFarmId,
@@ -268,13 +271,15 @@ export default function TableRoutes({
         const route = row.original;
 
         return (
-          <div className='flex items-start space-x-3 py-2'>
-            <div className='flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center'>
-              <RouteIcon className='h-5 w-5 text-black dark:text-white' />
+          <div className='flex items-start gap-4 py-2'>
+            <div className='flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary'>
+              <RouteIcon className='h-6 w-6' />
             </div>
             <div className='flex-1 min-w-0'>
               <div className='flex items-center space-x-2'>
-                <h4 className='text-sm font-semibold text-foreground truncate'>{route.name}</h4>
+                <h4 className='truncate text-base font-semibold text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)]'>
+                  {route.name}
+                </h4>
               </div>
               <div className='flex items-center space-x-4 mt-1 text-xs text-muted-foreground'>
                 <div className='flex items-center space-x-1'>
@@ -296,12 +301,12 @@ export default function TableRoutes({
       'farm',
       'Fazenda',
       ({ row }) => (
-        <div className='flex items-center space-x-2 py-2'>
-          <div className='flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center'>
-            <MapPin className='h-4 w-4 text-black dark:text-white' />
+        <div className='flex items-center gap-3 py-2'>
+          <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+            <MapPin className='h-4 w-4' />
           </div>
           <div className='flex-1 min-w-0'>
-            <p className='text-sm font-medium text-foreground truncate'>
+            <p className='truncate text-sm font-medium text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)]'>
               {(row.getValue('farm') as { name: string }).name}
             </p>
           </div>
@@ -317,12 +322,12 @@ export default function TableRoutes({
       'customer',
       'Cliente',
       ({ row }) => (
-        <div className='flex items-center space-x-2 py-2'>
-          <div className='flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center'>
-            <Users className='h-4 w-4 text-black dark:text-white' />
+        <div className='flex items-center gap-3 py-2'>
+          <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+            <Users className='h-4 w-4' />
           </div>
           <div className='flex-1 min-w-0'>
-            <p className='text-sm font-medium text-foreground truncate'>
+            <p className='truncate text-sm font-medium text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)]'>
               {(row.getValue('customer') as { name: string }).name}
             </p>
           </div>
@@ -366,7 +371,7 @@ export default function TableRoutes({
                 <Button
                   variant='outline'
                   size='icon'
-                  className='h-8 w-8'
+                  className='h-12 w-12 rounded-xl border-border/70 bg-card text-primary shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
                   disabled={isDeletingRoute}
                 >
                   <MoreHorizontal className='h-4 w-4' />
@@ -395,7 +400,12 @@ export default function TableRoutes({
         <div className='flex justify-center'>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant='ghost' size='icon' className='h-8 w-8' onClick={toggleAllRows}>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-10 w-10 rounded-xl text-primary hover:bg-primary/10 hover:text-primary'
+                onClick={toggleAllRows}
+              >
                 <ChevronDown
                   className={`h-4 w-4 transition-transform duration-300 ${expandedRows.size > 0 ? 'rotate-270' : ''}`}
                 />
@@ -414,7 +424,7 @@ export default function TableRoutes({
             <Button
               variant='ghost'
               size='icon'
-              className='h-8 w-8'
+              className='h-10 w-10 rounded-xl text-primary hover:bg-primary/10 hover:text-primary'
               onClick={() => toggleRowExpansion(row.id)}
             >
               <Tooltip>
@@ -440,12 +450,12 @@ export default function TableRoutes({
 
   const renderExpandedRow = (route: RouteWithFarmAndCustomer) => {
     return (
-      <div className='border-l-4'>
-        <div className='p-4'>
+      <div className='border-l-4 border-primary/20 bg-primary/5'>
+        <div className='p-6'>
           <div className='flex items-center justify-between mb-4'>
             <div className='flex items-center space-x-3'>
-              <div className='w-8 h-8 rounded-full flex items-center justify-center'>
-                <RouteIcon className='h-4 w-4 text-black dark:text-white' />
+              <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+                <RouteIcon className='h-5 w-5' />
               </div>
               <div>
                 <h3 className='text-lg font-semibold text-foreground'>Detalhes de {route.name}</h3>
@@ -454,12 +464,18 @@ export default function TableRoutes({
                 </p>
               </div>
             </div>
-            <Badge variant='outline' className='text-xs'>
+            <Badge
+              variant='outline'
+              className='border-primary/20 bg-primary/10 text-xs text-primary'
+            >
               Visualização da rota
             </Badge>
           </div>
 
-          <div className='rounded-lg border overflow-hidden' style={{ height: '400px' }}>
+          <div
+            className='overflow-hidden rounded-2xl border border-border/60 shadow-[0_10px_24px_rgba(15,23,42,0.05)]'
+            style={{ height: '400px' }}
+          >
             {/* eslint-disable-next-line */}
             <MapViewer geoData={route.geoJson as any} />
           </div>
@@ -528,7 +544,7 @@ export default function TableRoutes({
                 onValueChange={(value) => handleCustomerChange(value as string | undefined)}
                 placeholder='Todos os clientes'
                 searchPlaceholder='Buscar cliente...'
-                className='w-[200px]'
+                className={`${TABLE_FILTER_CLASS} w-[220px]`}
                 clearable
                 disabled={!!initialCustomerId}
                 onSearchChange={(search) => {
@@ -551,7 +567,7 @@ export default function TableRoutes({
                 onValueChange={(value) => handleFarmChange(value as string | undefined)}
                 placeholder='Todas as fazendas'
                 searchPlaceholder='Buscar fazenda...'
-                className='w-[200px]'
+                className={`${TABLE_FILTER_CLASS} w-[220px]`}
                 clearable
                 disabled={!!initialFarmId}
                 onSearchChange={(search) => {
@@ -570,7 +586,7 @@ export default function TableRoutes({
               onValueChange={(value) => handleOrderByChange(value as RouteOrderBy | undefined)}
               placeholder='Ordenar por'
               searchPlaceholder='Buscar...'
-              className='w-[150px]'
+              className={`${TABLE_FILTER_CLASS} w-[180px]`}
               clearable
             />
 
@@ -580,7 +596,7 @@ export default function TableRoutes({
               onValueChange={(value) => handleOrderTypeChange(value as RouteOrderType | undefined)}
               placeholder='Ordenação'
               searchPlaceholder='Buscar...'
-              className='w-[150px]'
+              className={`${TABLE_FILTER_CLASS} w-[180px]`}
               clearable
             />
           </>

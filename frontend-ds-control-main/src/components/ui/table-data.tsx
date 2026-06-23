@@ -12,7 +12,14 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+} from 'lucide-react';
 import * as React from 'react';
 
 declare module '@tanstack/react-table' {
@@ -197,18 +204,24 @@ export function DataTable<TData, TValue>({
   };
 
   const searchInput = (
-    <Input
-      placeholder={searchConfig?.placeholder || 'Buscar...'}
-      value={searchValue}
-      onChange={(event) => handleSearchChange(event.target.value)}
-      className={`max-w-sm min-w-[150px] w-full md:w-[18rem] text-ellipsis ${searchConfig?.className || ''}`}
-    />
+    <div className={`relative w-full min-w-[220px] md:w-[20rem] ${searchConfig?.className || ''}`}>
+      <Search className='pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+      <Input
+        placeholder={searchConfig?.placeholder || 'Buscar...'}
+        value={searchValue}
+        onChange={(event) => handleSearchChange(event.target.value)}
+        className='h-12 rounded-xl border-border/70 bg-card pl-11 text-sm shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20'
+      />
+    </div>
   );
 
   const columnsControl = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' className='ml-auto'>
+        <Button
+          variant='outline'
+          className='ml-auto h-12 rounded-xl border-border/70 bg-card px-5 text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
+        >
           Colunas <ChevronDown className='ml-2 h-4 w-4' />
         </Button>
       </DropdownMenuTrigger>
@@ -248,10 +261,10 @@ export function DataTable<TData, TValue>({
   );
 
   const defaultToolbar = (
-    <div className='flex flex-col items-center gap-4 py-4 w-auto md:flex-row'>
-      <div className='flex flex-row justify-between w-full overflow-x-scroll scrollbar-hide space-x-2 p-2 px-0'>
+    <div className='flex w-full flex-col gap-5 pb-7'>
+      <div className='flex w-full flex-row items-center justify-between gap-5 overflow-x-auto scrollbar-hide'>
         {searchInput}
-        {filters && <div className='flex items-center gap-2 w-fit'>{filters}</div>}
+        {filters && <div className='flex w-fit items-center gap-4'>{filters}</div>}
         {columnsControl}
       </div>
     </div>
@@ -334,7 +347,7 @@ export function DataTable<TData, TValue>({
         </>
       ) : (
         <>
-          <div className='rounded-md border w-full overflow-hidden'>
+          <div className='w-full overflow-hidden rounded-2xl border border-border/60 bg-card'>
             <div className='overflow-x-auto w-full'>
               <Table className='w-full'>
                 <TableHeader>
@@ -344,7 +357,7 @@ export function DataTable<TData, TValue>({
                         return (
                           <TableHead
                             key={header.id}
-                            className='px-3 py-2 text-left align-middle whitespace-nowrap'
+                            className='px-6 py-5 text-left align-middle text-sm font-semibold text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] whitespace-nowrap'
                           >
                             {header.isPlaceholder
                               ? null
@@ -359,14 +372,17 @@ export function DataTable<TData, TValue>({
                   {table.getRowModel().rows?.length ? (
                     table.getRowModel().rows.map((row, index) => (
                       <React.Fragment key={row.id}>
-                        <TableRow data-state={row.getIsSelected() && 'selected'}>
+                        <TableRow
+                          data-state={row.getIsSelected() && 'selected'}
+                          className='hover:bg-primary/5'
+                        >
                           {row.getVisibleCells().map((cell) => {
                             const onCellClick = cell.column.columnDef.meta?.onCellClick;
 
                             return (
                               <TableCell
                                 key={cell.id}
-                                className={`px-3 py-2 ${onCellClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                                className={`px-6 py-4 ${onCellClick ? 'cursor-pointer hover:bg-primary/5' : ''}`}
                                 onClick={onCellClick ? () => onCellClick(row.original) : undefined}
                               >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -411,14 +427,14 @@ export function DataTable<TData, TValue>({
               </Table>
             </div>
           </div>
-          <div className='flex items-center justify-between space-x-2 py-4'>
+          <div className='flex items-center justify-between gap-4 px-3 py-6'>
             <div className='hidden sm:flex items-center space-x-2'>
-              <p className='text-sm font-medium'>Linhas por página</p>
+              <p className='text-sm text-muted-foreground'>Linhas por página</p>
               <Select
                 value={`${pageSize}`}
                 onValueChange={(value) => handlePageSizeChange(Number(value))}
               >
-                <SelectTrigger className='h-8 w-[70px]'>
+                <SelectTrigger className='h-11 w-[82px] rounded-xl border-border/70 bg-card shadow-none'>
                   <SelectValue placeholder={pageSize} />
                 </SelectTrigger>
                 <SelectContent side='top'>
@@ -441,7 +457,7 @@ export function DataTable<TData, TValue>({
                 <div className='flex items-center space-x-2'>
                   <Button
                     variant='outline'
-                    className='h-8 w-8 p-0'
+                    className='h-11 w-11 rounded-xl border-border/70 p-0 shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
                     onClick={() => handlePageChange(1)}
                     disabled={currentPage === 1}
                   >
@@ -450,7 +466,7 @@ export function DataTable<TData, TValue>({
                   </Button>
                   <Button
                     variant='outline'
-                    className='h-8 w-8 p-0'
+                    className='h-11 w-11 rounded-xl border-border/70 p-0 shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                   >
@@ -466,7 +482,7 @@ export function DataTable<TData, TValue>({
                 <div className='flex items-center space-x-2'>
                   <Button
                     variant='outline'
-                    className='h-8 w-8 p-0'
+                    className='h-11 w-11 rounded-xl border-border/70 p-0 shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
                     onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                   >
@@ -475,7 +491,7 @@ export function DataTable<TData, TValue>({
                   </Button>
                   <Button
                     variant='outline'
-                    className='h-8 w-8 p-0'
+                    className='h-11 w-11 rounded-xl border-border/70 p-0 shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
                     onClick={() => handlePageChange(totalPages)}
                     disabled={currentPage === totalPages}
                   >

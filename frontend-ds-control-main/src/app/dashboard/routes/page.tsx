@@ -3,6 +3,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
+import { DashboardPageShell } from '@/components/DashboardPageShell';
 import DialogForm from '@/components/DialogForm';
 import FormRegisterNewRoute from '@/components/Forms/FormRegisterNewRoute';
 import TableRoutes from '@/components/Tables/TableRoutes';
@@ -13,31 +14,33 @@ export default function RoutesPage() {
   const [isNewRouteDialogOpen, setIsNewRouteDialogOpen] = useState(false);
 
   return (
-    <div className='p-6 space-y-6 min-h-full max-w-screen'>
-      <div className='flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold'>Rotas</h1>
-          <p>Gerencie todas as rotas cadastradas</p>
-        </div>
+    <DashboardPageShell
+      title='Rotas'
+      description='Gerencie todas as rotas cadastradas'
+      action={
         <DialogForm
           form={<FormRegisterNewRoute closeDialog={() => setIsNewRouteDialogOpen(false)} />}
           isOpen={isNewRouteDialogOpen}
           setIsOpen={setIsNewRouteDialogOpen}
           trigger={
-            <Button variant='default' onClick={() => setIsNewRouteDialogOpen(true)}>
-              <Plus className='w-4 h-4 mr-2' />
+            <Button
+              variant='default'
+              onClick={() => setIsNewRouteDialogOpen(true)}
+              className='h-12 rounded-xl px-6 text-sm font-semibold shadow-[0_10px_22px_rgba(113,167,128,0.24)]'
+            >
+              <Plus className='mr-2 h-5 w-5' />
               Nova rota
             </Button>
           }
           className='sm:max-w-5xl p-0'
         />
-      </div>
-
-      <Card className='max-w-full overflow-auto gap-0 py-0'>
-        <CardContent>
+      }
+    >
+      <Card className='max-w-full gap-0 overflow-hidden rounded-[22px] border-border/60 bg-card/95 py-0 shadow-[0_14px_34px_rgba(15,23,42,0.06)]'>
+        <CardContent className='p-6'>
           <TableRoutes />
         </CardContent>
       </Card>
-    </div>
+    </DashboardPageShell>
   );
 }

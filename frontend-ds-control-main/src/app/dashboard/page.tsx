@@ -1,7 +1,7 @@
 'use client';
 
 import { subDays } from 'date-fns';
-import { Leaf } from 'lucide-react';
+import { Sprout } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 
 import { PanelDashboardBlocks } from '@/components/PanelDashboardBlocks';
@@ -59,18 +59,23 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className='min-h-full w-full space-y-5 p-5 lg:p-6'>
-      <div className='relative overflow-hidden rounded-2xl border border-primary/10 bg-card px-6 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]'>
-        <div className='pointer-events-none absolute -right-10 -top-14 h-40 w-64 rounded-full bg-primary/10 blur-3xl' />
-        <Leaf className='pointer-events-none absolute left-4 top-5 h-7 w-7 -rotate-12 text-primary/35' />
-        <Leaf className='pointer-events-none absolute bottom-2 right-10 h-16 w-16 rotate-12 text-primary/20' />
-        <h1 className='relative pl-8 text-2xl font-semibold tracking-normal text-foreground'>Olá, {user?.name}</h1>
-        <div className='relative pl-8 text-sm text-muted-foreground space-y-1'>
-          <div>{user?.email}</div>
+    <div className='relative min-h-full w-full overflow-hidden p-5 lg:p-8'>
+      <div className='pointer-events-none absolute bottom-0 right-0 h-44 w-[46rem] rounded-tl-full bg-[color:color-mix(in_oklch,var(--brand-secondary)_12%,white)]' />
+      <div className='relative z-10 space-y-6'>
+        <div className='flex items-center gap-5 px-2 py-2'>
+          <Sprout className='h-16 w-16 shrink-0 -rotate-12 text-primary/45' />
+          <div>
+            <h1 className='text-3xl font-semibold tracking-normal text-foreground'>
+              Olá, {user?.name}
+            </h1>
+            <div className='space-y-1 text-sm text-muted-foreground'>
+              <div>{user?.email}</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <PanelDashboardBlocks startDate={startDate} endDate={endDate} yesterday={yesterday} />
+        <PanelDashboardBlocks startDate={startDate} endDate={endDate} yesterday={yesterday} />
+      </div>
     </div>
   );
 }

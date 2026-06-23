@@ -2,16 +2,18 @@
 
 import { InfiniteData, useQueries } from '@tanstack/react-query';
 import { differenceInCalendarDays, endOfMonth, format, isValid, startOfMonth } from 'date-fns';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
-  CalendarClock,
-  ClipboardList,
+  CalendarDays,
+  CheckCircle2,
+  ListFilter,
   Map as MapIcon,
   Search,
   Sprout,
-  UserCheck,
+  UserRound,
 } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bar,
@@ -23,7 +25,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useTheme } from 'next-themes';
 
 import DateRangePicker from '@/components/DateRangePicker';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +33,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
-import { useGetAllApplications, useGetApplicationsByPilotStats, useGetDashboardMetrics, useGetStatsApplications } from '@/queries/application.query';
+import {
+  useGetAllApplications,
+  useGetApplicationsByPilotStats,
+  useGetDashboardMetrics,
+  useGetStatsApplications,
+} from '@/queries/application.query';
 import { useGetAllAssistantsInfinite } from '@/queries/assistant.query';
 import { useGetAllCropSeasonsInfinite, useGetCurrentCropSeason } from '@/queries/crop-season.query';
 import { useGetAllCustomers } from '@/queries/customer.query';
@@ -108,43 +114,42 @@ function getCropSeasonIdsFromSearchParams(searchParams: URLSearchParams | null):
 
 const TOP_CARD_STYLES = [
   {
-    card:
-      'border-primary/30 bg-primary py-0 rounded-2xl shadow-[0_12px_28px_rgba(113,167,128,0.28)]',
+    card: 'border-primary/20 bg-[linear-gradient(135deg,var(--brand-primary),color-mix(in_oklch,var(--brand-primary)_78%,black))] py-0 rounded-[22px] shadow-[0_16px_34px_rgba(113,167,128,0.28)]',
     label: 'text-white/80',
     value: 'text-white',
-    iconWrap: 'border border-white/20 bg-white/20',
+    iconWrap: 'border border-white/20 bg-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]',
     icon: 'text-white',
   },
   {
-    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
+    card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-accent/50 bg-accent/30',
+    icon: 'text-primary',
+  },
+  {
+    card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-primary/15 bg-primary/10',
     icon: 'text-primary',
   },
   {
-    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
-    label: 'text-muted-foreground',
-    value: 'text-foreground',
-    iconWrap: 'border border-primary/15 bg-primary/10',
-    icon: 'text-primary',
-  },
-  {
-    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
+    card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-accent/60 bg-accent/40',
     icon: 'text-primary',
   },
   {
-    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
+    card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-secondary/20 bg-secondary/15',
     icon: 'text-primary',
   },
   {
-    card: 'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]',
+    card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-secondary/25 bg-secondary/20',
@@ -153,12 +158,16 @@ const TOP_CARD_STYLES = [
 ];
 
 const DASHBOARD_BAR_COLORS = [
-  'var(--brand-primary)',
-  'var(--brand-secondary)',
-  'var(--brand-accent)',
-  'color-mix(in oklch, var(--brand-primary) 72%, white)',
-  'color-mix(in oklch, var(--brand-secondary) 72%, white)',
-  'color-mix(in oklch, var(--brand-accent) 72%, var(--brand-primary))',
+  '#71A780',
+  '#95BD75',
+  '#F6DC7F',
+  '#8BB896',
+  '#AACB8C',
+  '#F8E59D',
+  '#5E966E',
+  '#7FB065',
+  '#D8C66C',
+  '#B7CF98',
 ];
 const PILOT_BAR_COLORS = DASHBOARD_BAR_COLORS;
 const CUSTOMER_BAR_COLORS = DASHBOARD_BAR_COLORS;
@@ -182,12 +191,13 @@ const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>(
 );
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
-  'text-foreground hover:bg-primary/10 hover:text-primary';
-const PANEL_TOGGLE_ACTIVE_CLASS = 'bg-primary text-white hover:bg-primary/90';
+  'h-9 rounded-lg px-4 text-foreground hover:bg-primary/10 hover:text-primary';
+const PANEL_TOGGLE_ACTIVE_CLASS =
+  'h-9 rounded-lg bg-primary px-4 text-white shadow-[0_8px_18px_rgba(113,167,128,0.18)] hover:bg-primary/90';
 const PANEL_CARD_CLASS =
-  'border-border/60 bg-card py-0 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.04)]';
+  'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_12px_30px_rgba(15,23,42,0.045)]';
 const FILTER_CONTROL_CLASS =
-  'h-9 rounded-xl border-border/70 bg-card shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
 const TOGGLE_GROUP_CLASS = 'flex gap-1 rounded-xl border border-border/60 bg-muted/25 p-1';
 const LIGHT_CHART_TEXT_COLOR = '#334155';
 const DARK_CHART_TEXT_COLOR = '#e5e7eb';
@@ -225,9 +235,7 @@ function isValidDateParam(value: string | null | undefined): value is string {
   return Boolean(value && parseDateParam(value));
 }
 
-function isCompleteDateRange(
-  range: ComparableDateRange
-): range is DashboardDateRange {
+function isCompleteDateRange(range: ComparableDateRange): range is DashboardDateRange {
   return Boolean(range?.startDate && range?.endDate);
 }
 
@@ -246,8 +254,7 @@ function getIntersectingCropSeasonIds(
   if (!range) return [];
   return cropSeasons
     .filter(
-      (cropSeason) =>
-        cropSeason.startDate <= range.endDate && cropSeason.endDate >= range.startDate
+      (cropSeason) => cropSeason.startDate <= range.endDate && cropSeason.endDate >= range.startDate
     )
     .map((cropSeason) => cropSeason.id);
 }
@@ -260,7 +267,8 @@ function areStringArraysEqual(a: string[], b: string[]) {
 function parseDateParam(value: string): Date | undefined {
   if (!DATE_PARAM_REGEX.test(value)) return undefined;
   const [year, month, day] = value.split('-').map(Number);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return undefined;
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day))
+    return undefined;
   const parsed = new Date(year, month - 1, day);
   if (!isValid(parsed)) return undefined;
   if (
@@ -303,7 +311,8 @@ function buildTwoLineTickLabel(
 
   const secondCut = remaining.lastIndexOf(' ', maxCharsPerLine);
   const secondBreak = secondCut > Math.floor(maxCharsPerLine * 0.6) ? secondCut : maxCharsPerLine;
-  const line2Base = remaining.slice(0, secondBreak).trim() || remaining.slice(0, maxCharsPerLine).trim();
+  const line2Base =
+    remaining.slice(0, secondBreak).trim() || remaining.slice(0, maxCharsPerLine).trim();
   const overflow = remaining.slice(secondBreak).trim();
   if (!overflow) return [line1, line2Base];
 
@@ -315,7 +324,11 @@ function buildTwoLineTickLabel(
   return [line1, ellipsed];
 }
 
-function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number, fillColor: string) {
+function renderWrappedXAxisTick(
+  props: WrappedXAxisTickProps,
+  lineChars: number,
+  fillColor: string
+) {
   const x = props.x ?? 0;
   const y = props.y ?? 0;
   const [line1, line2] = buildTwoLineTickLabel(props.payload?.value, lineChars);
@@ -336,7 +349,10 @@ function renderWrappedXAxisTick(props: WrappedXAxisTickProps, lineChars: number,
 
 function getDynamicXAxisConfig(labels: string[]): DynamicXAxisConfig {
   const count = labels.length;
-  const maxLabelLength = labels.reduce((max, label) => Math.max(max, String(label || '').trim().length), 0);
+  const maxLabelLength = labels.reduce(
+    (max, label) => Math.max(max, String(label || '').trim().length),
+    0
+  );
 
   if (count <= 5) {
     return {
@@ -374,7 +390,8 @@ function getRangeByMode(
 ) {
   if (mode === 'total') return undefined;
   if (mode === 'month') {
-    const referenceDate = parseDateParam(filteredStartDate || todayDate) ?? parseDateParam(todayDate);
+    const referenceDate =
+      parseDateParam(filteredStartDate || todayDate) ?? parseDateParam(todayDate);
     if (!referenceDate) return undefined;
     const monthStart = formatDateParam(startOfMonth(referenceDate));
     const isCurrentMonth =
@@ -422,7 +439,11 @@ function getCombinedSeasonElapsedDays(
       continue;
     }
 
-    const nextDayOfLastEnd = new Date(last.end.getFullYear(), last.end.getMonth(), last.end.getDate() + 1);
+    const nextDayOfLastEnd = new Date(
+      last.end.getFullYear(),
+      last.end.getMonth(),
+      last.end.getDate() + 1
+    );
     if (range.start <= nextDayOfLastEnd) {
       if (range.end > last.end) {
         last.end = range.end;
@@ -516,9 +537,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const chartAxisColor = isDarkTheme ? DARK_CHART_AXIS_COLOR : LIGHT_CHART_AXIS_COLOR;
   const chartTooltipBg = isDarkTheme ? DARK_CHART_TOOLTIP_BG : LIGHT_CHART_TOOLTIP_BG;
   const chartTooltipFg = isDarkTheme ? DARK_CHART_TOOLTIP_FG : LIGHT_CHART_TOOLTIP_FG;
-  const chartTooltipBorder = isDarkTheme
-    ? DARK_CHART_TOOLTIP_BORDER
-    : LIGHT_CHART_TOOLTIP_BORDER;
+  const chartTooltipBorder = isDarkTheme ? DARK_CHART_TOOLTIP_BORDER : LIGHT_CHART_TOOLTIP_BORDER;
 
   const chartTooltipContentStyle = useMemo<CSSProperties>(
     () => ({
@@ -555,30 +574,35 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const manualDateRange =
     hasManualDateRange && isCompleteDateRange(dateRange) ? dateRange : undefined;
   const pilotChartRange = getRangeByMode(pilotPeriodMode, effectiveStartDate, todayDate, yesterday);
-  const customerChartRange = getRangeByMode(customerPeriodMode, effectiveStartDate, todayDate, yesterday);
+  const customerChartRange = getRangeByMode(
+    customerPeriodMode,
+    effectiveStartDate,
+    todayDate,
+    yesterday
+  );
   const currentMonthStartDate = formatDateParam(
     startOfMonth(parseDateParam(todayDate) ?? new Date())
   );
   const panelBaseFilters = useMemo<ApplicationService.GetStatsApplicationsParams>(
     () => ({
-    search: search || undefined,
-    customerId: selectedCustomerId,
-    farmId: selectedFarmId,
-    pilotId: selectedPilotId,
-    productId: selectedProductId,
-    assistantId: selectedAssistantId,
-    droneId: selectedDroneId,
-    serviceOrderStatus: selectedServiceOrderStatus,
-    applicationIssue: selectedApplicationIssue,
-    cropSeasonId: selectedCropSeasonId,
-    cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
-    ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
-    ...(manualDateRange
-      ? {
-          startDate: manualDateRange.startDate,
-          endDate: manualDateRange.endDate,
-        }
-      : {}),
+      search: search || undefined,
+      customerId: selectedCustomerId,
+      farmId: selectedFarmId,
+      pilotId: selectedPilotId,
+      productId: selectedProductId,
+      assistantId: selectedAssistantId,
+      droneId: selectedDroneId,
+      serviceOrderStatus: selectedServiceOrderStatus,
+      applicationIssue: selectedApplicationIssue,
+      cropSeasonId: selectedCropSeasonId,
+      cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
+      ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
+      ...(manualDateRange
+        ? {
+            startDate: manualDateRange.startDate,
+            endDate: manualDateRange.endDate,
+          }
+        : {}),
     }),
     [
       manualDateRange,
@@ -619,24 +643,29 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   };
   const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
     useGetStatsApplications(cardRangeFilters);
-  const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } = useGetStatsApplications({
-    ...buildPanelStatsFilters(currentMonthCardRange),
-  });
-  const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } = useGetStatsApplications({
-    ...buildPanelStatsFilters(yesterdayCardRange),
-  });
-  const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics({
-    startDate: effectiveStartDate ?? todayDate,
-    customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
-    farmIds: selectedFarmId ? [selectedFarmId] : undefined,
-    pilotId: selectedPilotId,
-    search: search || undefined,
-    ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
-    cropSeasonId: selectedCropSeasonId,
-    cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
-  }, {
-    enabled: selectedCropSeasonIds.length === 0 && !manualDateRange,
-  });
+  const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } =
+    useGetStatsApplications({
+      ...buildPanelStatsFilters(currentMonthCardRange),
+    });
+  const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } =
+    useGetStatsApplications({
+      ...buildPanelStatsFilters(yesterdayCardRange),
+    });
+  const { data: dashboardMetrics, isPending: isLoadingDashboardMetrics } = useGetDashboardMetrics(
+    {
+      startDate: effectiveStartDate ?? todayDate,
+      customerIds: selectedCustomerId ? [selectedCustomerId] : undefined,
+      farmIds: selectedFarmId ? [selectedFarmId] : undefined,
+      pilotId: selectedPilotId,
+      search: search || undefined,
+      ...(selectedCropSeasonIds.length === 0 && !manualDateRange ? { currentSeason: true } : {}),
+      cropSeasonId: selectedCropSeasonId,
+      cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
+    },
+    {
+      enabled: selectedCropSeasonIds.length === 0 && !manualDateRange,
+    }
+  );
   const { data: byPilotStats, isPending: isLoadingByPilotStats } = useGetApplicationsByPilotStats({
     search: search || undefined,
     customerId: selectedCustomerId,
@@ -706,7 +735,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     limit: '50',
     status: 'active',
   });
-  const { data: currentCropSeasonData, isLoading: isLoadingCurrentCropSeason } = useGetCurrentCropSeason();
+  const { data: currentCropSeasonData, isLoading: isLoadingCurrentCropSeason } =
+    useGetCurrentCropSeason();
 
   const { data: pilotLaunchesData, isPending: isLoadingPilotLaunches } = useGetAllApplications({
     page: '1',
@@ -731,49 +761,48 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     orderBy: ApplicationOrderBy.DATE,
     orderType: ApplicationOrderType.DESC,
   });
-  const {
-    data: assistantChartApplicationsData,
-    isPending: isLoadingAssistantChartApplications,
-  } = useGetAllApplications(
-    {
+  const { data: assistantChartApplicationsData, isPending: isLoadingAssistantChartApplications } =
+    useGetAllApplications(
+      {
+        page: '1',
+        limit: '5000',
+        search: search || undefined,
+        customerId: selectedCustomerId,
+        farmId: selectedFarmId,
+        pilotId: selectedPilotId,
+        productId: selectedProductId,
+        serviceOrderStatus: selectedServiceOrderStatus,
+        cropSeasonId: selectedCropSeasonId,
+        cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
+        assistantId: selectedAssistantId,
+        droneId: selectedDroneId,
+        applicationIssue: selectedApplicationIssue,
+        ...(pilotChartRange?.startDate && pilotChartRange?.endDate
+          ? {
+              startDate: pilotChartRange.startDate,
+              endDate: pilotChartRange.endDate,
+            }
+          : {}),
+      },
+      {
+        enabled: pilotEntityMode === 'assistants',
+      }
+    );
+
+  const { data: openServiceOrdersData, isPending: isLoadingOpenServiceOrders } =
+    useGetAllServiceOrders({
       page: '1',
-      limit: '5000',
+      limit: '1000',
       search: search || undefined,
+      status: 'open',
       customerId: selectedCustomerId,
       farmId: selectedFarmId,
       pilotId: selectedPilotId,
-      productId: selectedProductId,
-      serviceOrderStatus: selectedServiceOrderStatus,
-      cropSeasonId: selectedCropSeasonId,
-      cropSeasonIds: selectedCropSeasonIds.length > 0 ? selectedCropSeasonIds : undefined,
-      assistantId: selectedAssistantId,
-      droneId: selectedDroneId,
-      applicationIssue: selectedApplicationIssue,
-      ...(pilotChartRange?.startDate && pilotChartRange?.endDate
-        ? {
-            startDate: pilotChartRange.startDate,
-            endDate: pilotChartRange.endDate,
-          }
-        : {}),
-    },
-    {
-      enabled: pilotEntityMode === 'assistants',
-    }
-  );
-
-  const { data: openServiceOrdersData, isPending: isLoadingOpenServiceOrders } = useGetAllServiceOrders({
-    page: '1',
-    limit: '1000',
-    search: search || undefined,
-    status: 'open',
-    customerId: selectedCustomerId,
-    farmId: selectedFarmId,
-    pilotId: selectedPilotId,
-    includePlots: 'true',
-    includeFarms: 'true',
-    includePilots: 'true',
-    includeCustomers: 'true',
-  });
+      includePlots: 'true',
+      includeFarms: 'true',
+      includePilots: 'true',
+      includeCustomers: 'true',
+    });
 
   const customers = customersData?.data || [];
   const farms = farmsData?.data || [];
@@ -950,13 +979,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   });
 
   const hectaresByCustomerData = useMemo(() => {
-    const mapped = customers
-      .map((customer, index) => ({
-        entityId: customer.id,
-        name: customer.name,
-        hectares: Number(customerAreaQueries[index]?.data?.stats?.totalAreaHectares || 0),
-      }));
-    const withData = mapped.filter((item) => item.hectares > 0).sort((a, b) => b.hectares - a.hectares);
+    const mapped = customers.map((customer, index) => ({
+      entityId: customer.id,
+      name: customer.name,
+      hectares: Number(customerAreaQueries[index]?.data?.stats?.totalAreaHectares || 0),
+    }));
+    const withData = mapped
+      .filter((item) => item.hectares > 0)
+      .sort((a, b) => b.hectares - a.hectares);
     if (withData.length > 0) {
       return withData.slice(0, 6);
     }
@@ -1079,13 +1109,13 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     {
       title: 'Este mês',
       value: formatHectares(currentMonthStats?.stats?.totalAreaHectares),
-      icon: CalendarClock,
+      icon: CalendarDays,
       isLoading: isLoadingCurrentMonthStats,
     },
     {
       title: 'Aplicação de Ontem',
       value: formatHectares(yesterdayAreaStats?.stats?.totalAreaHectares),
-      icon: ClipboardList,
+      icon: CheckCircle2,
       isLoading: isLoadingYesterdayAreaStats,
     },
     {
@@ -1108,7 +1138,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
           ? elapsedDaysForCards
           : dashboardMetrics?.metrics?.daysSinceStart
       ),
-      icon: CalendarClock,
+      icon: CalendarDays,
       isLoading:
         manualDateRange || selectedCropSeasonIds.length > 0
           ? manualDateRange
@@ -1119,7 +1149,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     {
       title: 'Pilotos Ativos Ontem',
       value: formatInteger(pilotsActiveYesterdayCount),
-      icon: UserCheck,
+      icon: UserRound,
       isLoading: isLoadingByPilotYesterdayStats,
     },
   ];
@@ -1395,7 +1425,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       };
 
       append('cropSeasonId', filters.cropSeasonId);
-      filters.cropSeasonIds?.forEach((cropSeasonId) => params.append('cropSeasonIds', cropSeasonId));
+      filters.cropSeasonIds?.forEach((cropSeasonId) =>
+        params.append('cropSeasonIds', cropSeasonId)
+      );
       append('customerId', filters.customerId);
       append('farmId', filters.farmId);
       append('pilotId', filters.pilotId);
@@ -1526,7 +1558,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   const isLoadingPilotLaunchRows = isLoadingPilotLaunches || isLoadingOpenServiceOrders;
   const isLoadingPilotChart =
     pilotEntityMode === 'assistants' ? isLoadingAssistantChartApplications : isLoadingByPilotStats;
-  const launchedPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'launched').length;
+  const launchedPilotsCount = pilotLaunchRows.filter(
+    (row) => row.launchStatus === 'launched'
+  ).length;
   const pendingPilotsCount = pilotLaunchRows.filter((row) => row.launchStatus === 'pending').length;
   const isLoadingAnyOrderStats =
     isLoadingOpenServiceOrders ||
@@ -1549,24 +1583,26 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
 
   return (
     <div className='space-y-5'>
-      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6'>
         {topCards.map((card, index) => {
           const Icon = card.icon;
           const style = TOP_CARD_STYLES[index];
           return (
-            <Card key={card.title} className={`${style.card} min-h-[88px]`}>
-              <CardContent className='p-4'>
-                <div className='flex items-start justify-between gap-3'>
-                  <div className='space-y-1 min-w-0'>
-                    <p className={`text-[11px] font-medium leading-tight ${style.label}`}>
+            <Card key={card.title} className={`${style.card} min-h-[132px]`}>
+              <CardContent className='flex h-full p-5'>
+                <div className='flex w-full items-start justify-between gap-4'>
+                  <div className='flex min-w-0 flex-col justify-between self-stretch'>
+                    <p className={`text-sm font-medium leading-tight ${style.label}`}>
                       {card.title}
                     </p>
-                    <p className={`text-xl leading-tight font-semibold tracking-normal truncate ${style.value}`}>
+                    <p
+                      className={`mt-5 truncate text-2xl font-semibold leading-tight tracking-normal ${style.value}`}
+                    >
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
-                  <div className={`rounded-xl p-2 ${style.iconWrap}`}>
-                    <Icon className={`h-4 w-4 ${style.icon}`} />
+                  <div className={`rounded-2xl p-3 ${style.iconWrap}`}>
+                    <Icon className={`h-6 w-6 ${style.icon}`} />
                   </div>
                 </div>
               </CardContent>
@@ -1576,100 +1612,106 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </div>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardContent className='p-4'>
-          <div className='flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
-            <div className='space-y-2'>
-              <div className='flex flex-wrap items-center justify-start gap-2'>
-              <div className='relative w-[200px] min-w-0'>
-                <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-                <Input
-                  value={search}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder='Busca'
-                  className={`${FILTER_CONTROL_CLASS} w-full pl-9`}
+        <CardContent className='p-5'>
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+            <div className='space-y-3'>
+              <div className='flex flex-wrap items-center justify-start gap-3'>
+                <div className='relative w-[240px] min-w-0'>
+                  <Search className='absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    value={search}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    placeholder='Busca'
+                    className={`${FILTER_CONTROL_CLASS} w-full pl-11`}
+                  />
+                </div>
+                <div className='w-[280px] min-w-0 max-w-[280px] overflow-hidden [&_button]:h-12 [&_button]:rounded-xl [&_button]:border-border/70 [&_button]:bg-card [&_button]:shadow-none [&_button]:hover:border-primary/40'>
+                  <DateRangePicker
+                    key={datePickerResetKey}
+                    className='w-full min-w-0'
+                    initialValue={
+                      effectiveStartDate && effectiveEndDate
+                        ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
+                        : undefined
+                    }
+                    onChange={handleDateRangeChange}
+                    placeholder='Periodo'
+                  />
+                </div>
+                <SearchableSelectQuery
+                  options={cropSeasons.map((cropSeason) => ({
+                    value: cropSeason.id,
+                    label: cropSeason.name,
+                  }))}
+                  value={selectedCropSeasonIds}
+                  onValueChange={(value) => handleCropSeasonChange(value as string[] | undefined)}
+                  placeholder='Safra'
+                  searchPlaceholder='Buscar safra...'
+                  className={`${FILTER_CONTROL_CLASS} w-[170px] min-w-0`}
+                  clearable={false}
+                  isMultipleSelections
+                  showCheckbox
+                  isLoading={isLoadingCropSeasons || isLoadingCurrentCropSeason}
+                  onScrollEnd={fetchNextPageCropSeasons}
+                  hasNextPage={hasNextPageCropSeasons}
+                  isFetchingNextPage={isFetchingNextPageCropSeasons}
                 />
-              </div>
-              <div className='w-[180px] min-w-0 max-w-[180px] overflow-hidden [&_button]:h-9 [&_button]:rounded-xl [&_button]:border-border/70 [&_button]:bg-card [&_button]:shadow-none [&_button]:hover:border-primary/40'>
-                <DateRangePicker
-                  key={datePickerResetKey}
-                  className='w-full min-w-0'
-                  initialValue={
-                    effectiveStartDate && effectiveEndDate
-                      ? { startDate: effectiveStartDate, endDate: effectiveEndDate }
-                      : undefined
-                  }
-                  onChange={handleDateRangeChange}
-                  placeholder='Periodo'
+                <SearchableSelectQuery
+                  options={customers.map((customer) => ({
+                    value: customer.id,
+                    label: customer.name,
+                  }))}
+                  value={selectedCustomerId}
+                  onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                  placeholder='Cliente'
+                  searchPlaceholder='Buscar cliente...'
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
+                  clearable
+                  isLoading={isLoadingCustomers}
                 />
-              </div>
-              <SearchableSelectQuery
-                options={cropSeasons.map((cropSeason) => ({
-                  value: cropSeason.id,
-                  label: cropSeason.name,
-                }))}
-                value={selectedCropSeasonIds}
-                onValueChange={(value) => handleCropSeasonChange(value as string[] | undefined)}
-                placeholder='Safra'
-                searchPlaceholder='Buscar safra...'
-                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
-                clearable={false}
-                isMultipleSelections
-                showCheckbox
-                isLoading={isLoadingCropSeasons || isLoadingCurrentCropSeason}
-                onScrollEnd={fetchNextPageCropSeasons}
-                hasNextPage={hasNextPageCropSeasons}
-                isFetchingNextPage={isFetchingNextPageCropSeasons}
-              />
-              <SearchableSelectQuery
-                options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
-                value={selectedCustomerId}
-                onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-                placeholder='Cliente'
-                searchPlaceholder='Buscar cliente...'
-                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
-                clearable
-                isLoading={isLoadingCustomers}
-              />
-              <SearchableSelectQuery
-                options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
-                value={selectedFarmId}
-                onValueChange={(value) => handleFarmChange(value as string | undefined)}
-                placeholder='Fazenda'
-                searchPlaceholder='Buscar fazenda...'
-                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
-                clearable
-                isLoading={isLoadingFarms}
-              />
-              <SearchableSelectQuery
-                options={pilots.map((pilot) => ({ value: pilot.id, label: pilot.name }))}
-                value={selectedPilotId}
-                onValueChange={(value) => handlePilotChange(value as string | undefined)}
-                placeholder='Piloto'
-                searchPlaceholder='Buscar piloto...'
-                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
-                clearable
-                isLoading={isLoadingPilots}
-              />
-              <SearchableSelectQuery
-                options={products.map((product) => ({ value: product.id, label: product.name }))}
-                value={selectedProductId}
-                onValueChange={(value) => handleProductChange(value as string | undefined)}
-                placeholder='Produto'
-                searchPlaceholder='Buscar produto...'
-                className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
-                clearable
-                isLoading={isLoadingProducts}
-              />
+                <SearchableSelectQuery
+                  options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
+                  value={selectedFarmId}
+                  onValueChange={(value) => handleFarmChange(value as string | undefined)}
+                  placeholder='Fazenda'
+                  searchPlaceholder='Buscar fazenda...'
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
+                  clearable
+                  isLoading={isLoadingFarms}
+                />
+                <SearchableSelectQuery
+                  options={pilots.map((pilot) => ({ value: pilot.id, label: pilot.name }))}
+                  value={selectedPilotId}
+                  onValueChange={(value) => handlePilotChange(value as string | undefined)}
+                  placeholder='Piloto'
+                  searchPlaceholder='Buscar piloto...'
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
+                  clearable
+                  isLoading={isLoadingPilots}
+                />
+                <SearchableSelectQuery
+                  options={products.map((product) => ({ value: product.id, label: product.name }))}
+                  value={selectedProductId}
+                  onValueChange={(value) => handleProductChange(value as string | undefined)}
+                  placeholder='Produto'
+                  searchPlaceholder='Buscar produto...'
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
+                  clearable
+                  isLoading={isLoadingProducts}
+                />
               </div>
 
-              <div className='flex flex-wrap items-center justify-start gap-2'>
+              <div className='flex flex-wrap items-center justify-start gap-3'>
                 <SearchableSelectQuery
-                  options={assistants.map((assistant) => ({ value: assistant.id, label: assistant.name }))}
+                  options={assistants.map((assistant) => ({
+                    value: assistant.id,
+                    label: assistant.name,
+                  }))}
                   value={selectedAssistantId}
                   onValueChange={(value) => handleAssistantChange(value as string | undefined)}
                   placeholder='Ajudante'
                   searchPlaceholder='Buscar ajudante...'
-                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
                   clearable
                   isLoading={isLoadingAssistants}
                 />
@@ -1681,7 +1723,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   }
                   placeholder='Status da OS'
                   searchPlaceholder='Buscar status...'
-                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
+                  className={`${FILTER_CONTROL_CLASS} w-[170px] min-w-0`}
                   clearable
                 />
                 <SearchableSelectQuery
@@ -1692,7 +1734,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   }
                   placeholder='Tipo de aplicacao'
                   searchPlaceholder='Buscar tipo...'
-                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
+                  className={`${FILTER_CONTROL_CLASS} w-[190px] min-w-0`}
                   clearable
                 />
                 <SearchableSelectQuery
@@ -1701,7 +1743,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   onValueChange={(value) => handleDroneChange(value as string | undefined)}
                   placeholder='Drone'
                   searchPlaceholder='Buscar drone...'
-                  className={`${FILTER_CONTROL_CLASS} w-[140px] min-w-0`}
+                  className={`${FILTER_CONTROL_CLASS} w-[160px] min-w-0`}
                   clearable
                   isLoading={isLoadingDrones}
                 />
@@ -1712,8 +1754,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 variant='default'
                 onClick={clearFilters}
-                className='h-9 rounded-xl bg-primary px-4 text-white shadow-[0_8px_18px_rgba(113,167,128,0.22)] hover:bg-primary/90'
+                className='h-12 rounded-xl bg-primary px-5 text-white shadow-[0_10px_22px_rgba(113,167,128,0.24)] hover:bg-primary/90'
               >
+                <ListFilter className='mr-1 h-4 w-4' />
                 Limpar Filtros
               </Button>
             </div>
@@ -1722,31 +1765,42 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={`${PANEL_CARD_CLASS} relative overflow-hidden`}>
-        <Sprout className='pointer-events-none absolute -bottom-3 right-9 h-20 w-20 rotate-12 text-primary/15' />
-        <CardHeader className='pb-2 pt-5'>
-          <CardTitle className='text-base font-semibold tracking-normal'>Lançamentos dos Pilotos</CardTitle>
+        <div className='pointer-events-none absolute -bottom-12 right-0 h-28 w-[28rem] rounded-tl-full bg-primary/10' />
+        <Sprout className='pointer-events-none absolute -bottom-2 right-14 h-28 w-28 rotate-12 text-primary/30' />
+        <CardHeader className='relative pb-3 pt-6'>
+          <CardTitle className='text-lg font-semibold tracking-normal'>
+            Lançamentos dos Pilotos
+          </CardTitle>
           {!isLoadingPilotLaunchRows && pilotLaunchRows.length > 0 ? (
             <CardDescription className='text-xs'>
               {`Lançado: ${formatInteger(launchedPilotsCount)} · Pendente: ${formatInteger(pendingPilotsCount)}`}
             </CardDescription>
           ) : null}
         </CardHeader>
-        <CardContent className='relative pb-5'>
+        <CardContent className='relative pb-6'>
           {isLoadingPilotLaunchRows ? (
             <p className='text-sm text-muted-foreground'>Carregando lançamentos...</p>
           ) : pilotLaunchRows.length === 0 ? (
-            <p className='text-sm text-muted-foreground'>Nenhum lançamento encontrado para o período.</p>
+            <p className='text-sm text-muted-foreground'>
+              Nenhum lançamento encontrado para o período.
+            </p>
           ) : (
-            <div className='overflow-hidden rounded-xl border border-border/60 divide-y divide-border/60 bg-card/80'>
+            <div className='overflow-hidden rounded-2xl border border-border/60 divide-y divide-border/60 bg-card/80'>
               {pilotLaunchRows.map((launch) => (
-                <div key={launch.id} className='flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-primary/5'>
+                <div
+                  key={launch.id}
+                  className='flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-primary/5'
+                >
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-medium'>{launch.customerName}</p>
                     <p className='truncate text-sm text-muted-foreground'>{launch.pilotName}</p>
                   </div>
                   <div className='flex items-center gap-2'>
                     <span className='text-xs text-muted-foreground'>{`OS #${launch.serviceOrderNumber}`}</span>
-                    <Badge variant='outline' className={getLaunchStatusBadgeClass(launch.launchStatus)}>
+                    <Badge
+                      variant='outline'
+                      className={getLaunchStatusBadgeClass(launch.launchStatus)}
+                    >
                       {mapLaunchStatusLabel(launch.launchStatus)}
                     </Badge>
                   </div>
@@ -1758,18 +1812,27 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardHeader className='pb-3 pt-5'>
+        <CardHeader className='pb-4 pt-6'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <CardTitle className='text-base font-semibold tracking-normal'>Hectares por Piloto/Ajudante</CardTitle>
+            <div className='flex items-center gap-3'>
+              <span className='flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary'>
+                <BarChart3 className='h-6 w-6' />
+              </span>
+              <CardTitle className='text-xl font-semibold tracking-normal'>
+                Hectares por Piloto/Ajudante
+              </CardTitle>
+            </div>
             <div className='flex flex-wrap items-center gap-2'>
               <div className={TOGGLE_GROUP_CLASS}>
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
-                    className={
-                      pilotPeriodMode === 'total' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
-                    }
+                  variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'total'
+                      ? PANEL_TOGGLE_ACTIVE_CLASS
+                      : PANEL_TOGGLE_INACTIVE_CLASS
+                  }
                   onClick={selectPilotTotalMode}
                   disabled={selectedCropSeasonIds.length === 0}
                 >
@@ -1778,10 +1841,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
-                    className={
-                      pilotEntityMode === 'pilots' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
-                    }
+                  variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
+                  className={
+                    pilotEntityMode === 'pilots'
+                      ? PANEL_TOGGLE_ACTIVE_CLASS
+                      : PANEL_TOGGLE_INACTIVE_CLASS
+                  }
                   onClick={() => setPilotEntityMode('pilots')}
                 >
                   Pilotos
@@ -1789,10 +1854,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
-                    className={
-                      pilotEntityMode === 'assistants' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
-                    }
+                  variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
+                  className={
+                    pilotEntityMode === 'assistants'
+                      ? PANEL_TOGGLE_ACTIVE_CLASS
+                      : PANEL_TOGGLE_INACTIVE_CLASS
+                  }
                   onClick={() => setPilotEntityMode('assistants')}
                 >
                   Ajudantes
@@ -1802,10 +1869,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
-                    className={
-                      pilotPeriodMode === 'month' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
-                    }
+                  variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'month'
+                      ? PANEL_TOGGLE_ACTIVE_CLASS
+                      : PANEL_TOGGLE_INACTIVE_CLASS
+                  }
                   onClick={selectPilotMonthMode}
                 >
                   Mês
@@ -1813,10 +1882,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <Button
                   type='button'
                   size='sm'
-                    variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
-                    className={
-                      pilotPeriodMode === 'day' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
-                    }
+                  variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
+                  className={
+                    pilotPeriodMode === 'day'
+                      ? PANEL_TOGGLE_ACTIVE_CLASS
+                      : PANEL_TOGGLE_INACTIVE_CLASS
+                  }
                   onClick={selectPilotDayMode}
                 >
                   Dia
@@ -1849,7 +1920,9 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 <CartesianGrid strokeDasharray='3 3' vertical={false} stroke={chartAxisColor} />
                 <XAxis
                   dataKey='name'
-                  tick={(props) => renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars, chartTextColor)}
+                  tick={(props) =>
+                    renderWrappedXAxisTick(props, pilotXAxisConfig.lineChars, chartTextColor)
+                  }
                   axisLine={{ stroke: chartAxisColor }}
                   tickLine={{ stroke: chartAxisColor }}
                   interval={pilotXAxisConfig.interval}
@@ -1872,14 +1945,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}
                 />
-                <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
+                <Bar dataKey='hectares' radius={[10, 10, 0, 0]}>
                   {pilotChartData.map((entry, index) => (
-                      <Cell
-                        key={`${entry.name}-${index}`}
-                        onClick={entry.entityId ? () => handlePilotChartRowClick(entry) : undefined}
-                        style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
-                        fill={PILOT_BAR_COLORS[index % PILOT_BAR_COLORS.length]}
-                      />
+                    <Cell
+                      key={`${entry.name}-${index}`}
+                      onClick={entry.entityId ? () => handlePilotChartRowClick(entry) : undefined}
+                      style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
+                      fill={PILOT_BAR_COLORS[index % PILOT_BAR_COLORS.length]}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -1889,9 +1962,16 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardHeader className='pb-3 pt-5'>
+        <CardHeader className='pb-4 pt-6'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <CardTitle className='text-base font-semibold tracking-normal'>Hectares por Cliente</CardTitle>
+            <div className='flex items-center gap-3'>
+              <span className='flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary'>
+                <UserRound className='h-6 w-6' />
+              </span>
+              <CardTitle className='text-xl font-semibold tracking-normal'>
+                Hectares por Cliente
+              </CardTitle>
+            </div>
             <div className={TOGGLE_GROUP_CLASS}>
               <Button
                 type='button'
@@ -1980,14 +2060,16 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}
                 />
-                <Bar dataKey='hectares' radius={[4, 4, 0, 0]}>
+                <Bar dataKey='hectares' radius={[10, 10, 0, 0]}>
                   {hectaresByCustomerData.map((entry, index) => (
-                      <Cell
-                        key={`${entry.name}-${index}`}
-                        onClick={entry.entityId ? () => handleCustomerChartRowClick(entry) : undefined}
-                        style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
-                        fill={CUSTOMER_BAR_COLORS[index % CUSTOMER_BAR_COLORS.length]}
-                      />
+                    <Cell
+                      key={`${entry.name}-${index}`}
+                      onClick={
+                        entry.entityId ? () => handleCustomerChartRowClick(entry) : undefined
+                      }
+                      style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
+                      fill={CUSTOMER_BAR_COLORS[index % CUSTOMER_BAR_COLORS.length]}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -1997,20 +2079,27 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardHeader className='pb-2 pt-5'>
-          <CardTitle className='text-base font-semibold tracking-normal'>Ordens de Serviços em aberto</CardTitle>
+        <CardHeader className='pb-3 pt-6'>
+          <CardTitle className='text-lg font-semibold tracking-normal'>
+            Ordens de Serviços em aberto
+          </CardTitle>
         </CardHeader>
         <CardContent className='pb-5'>
           {isLoadingAnyOrderStats ? (
             <p className='text-sm text-muted-foreground'>Carregando ordens de serviço...</p>
           ) : visibleOpenServiceOrders.length === 0 ? (
-            <p className='text-sm text-muted-foreground'>Nenhuma OS em aberto encontrada para o recorte.</p>
+            <p className='text-sm text-muted-foreground'>
+              Nenhuma OS em aberto encontrada para o recorte.
+            </p>
           ) : (
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
               {visibleOpenServiceOrders.map(({ serviceOrder, queryIndex }) => {
                 const yesterdayStats = orderYesterdayStatsQueries[queryIndex]?.data?.stats;
-                const serviceOrderApplications = orderApplicationsQueries[queryIndex]?.data?.data || [];
-                const totalPlots = Number(serviceOrder.totalPlots ?? serviceOrder.plots?.length ?? 0);
+                const serviceOrderApplications =
+                  orderApplicationsQueries[queryIndex]?.data?.data || [];
+                const totalPlots = Number(
+                  serviceOrder.totalPlots ?? serviceOrder.plots?.length ?? 0
+                );
                 const totalHectaresAllPlots = Number(serviceOrder.plannedHectares || 0);
                 const totalHectaresApplied = Number(serviceOrder.totalAppliedHectares || 0);
                 const filteredHectaresApplied = serviceOrderApplications.reduce(
@@ -2062,14 +2151,17 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <div className='flex items-center justify-between text-sm'>
                           <span>Progresso real da OS</span>
                           <span className='font-medium text-foreground'>
-                            {formatHectares(totalHectaresApplied)} / {formatHectares(totalHectaresAllPlots)}
+                            {formatHectares(totalHectaresApplied)} /{' '}
+                            {formatHectares(totalHectaresAllPlots)}
                           </span>
                         </div>
                         <Progress
                           value={progressValue}
                           className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-primary'
                         />
-                        <p className='text-xs text-muted-foreground'>{rawProgress.toFixed(1)}% concluído</p>
+                        <p className='text-xs text-muted-foreground'>
+                          {rawProgress.toFixed(1)}% concluído
+                        </p>
                         {hasFilteredApplicationsMetric ? (
                           <p className='text-xs text-muted-foreground'>
                             Aplicado no recorte filtrado: {formatHectares(filteredHectaresApplied)}
@@ -2102,4 +2194,3 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
     </div>
   );
 }
-
