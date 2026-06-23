@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 
 import BreadcrumbHeader from '@/components/BreadcrumbHeader';
+import DashboardTopbarActions from '@/components/DashboardTopbarActions';
 import { Sidebar } from '@/components/Sidebar';
-import SwitchToogleTheme from '@/components/SwitchToogleTheme';
 import { Separator } from '@/components/ui/separator';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AuthGuard } from '@/guards/auth.guard';
@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </Link>
               <BreadcrumbHeader />
               <div className='ml-auto'>
-                <SwitchToogleTheme />
+                <DashboardTopbarActions />
               </div>
             </header>
             <div className='flex-1 overflow-y-auto overflow-x-hidden'>{children}</div>
