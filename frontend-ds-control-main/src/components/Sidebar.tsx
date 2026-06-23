@@ -26,12 +26,12 @@ export function Sidebar() {
     <>
       <SidebarShadcn collapsible='icon'>
         <SidebarHeader>
-          <div className='flex items-center gap-2'>
-            <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground grayscale'>
+          <div className='flex items-center gap-3'>
+            <div className='flex aspect-square size-9 items-center justify-center rounded-xl bg-primary text-white shadow-[0_8px_18px_rgba(113,167,128,0.22)]'>
               <span className='text-sm font-bold'>DS</span>
             </div>
             <div className='grid flex-1 text-left text-sm leading-tight'>
-              <span className='truncate font-semibold'>DS Control</span>
+              <span className='truncate font-semibold tracking-normal'>DS Control</span>
               <span className='truncate text-xs text-sidebar-foreground/70'>Painel</span>
             </div>
           </div>

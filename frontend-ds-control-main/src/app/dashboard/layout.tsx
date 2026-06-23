@@ -18,13 +18,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <SidebarProvider
         defaultOpen={sidebarStateCookie === undefined ? true : sidebarStateCookie.value === 'true'}
       >
-        <div className='flex min-h-svh w-full overflow-hidden'>
+        <div className='flex min-h-svh w-full overflow-hidden bg-[color:color-mix(in_oklch,var(--brand-secondary)_8%,white)]'>
           <Sidebar />
           <div className='flex-1 flex flex-col min-w-0 overflow-hidden'>
-            <header className='flex items-center gap-2 p-4 flex-shrink-0'>
-              <SidebarTrigger />
-              <Separator orientation='vertical' className=' mx-2 data-[orientation=vertical]:h-4' />
-              <Link href='/dashboard' className='font-bold text-lg'>
+            <header className='flex h-16 items-center gap-3 border-b border-border/60 bg-card/95 px-5 shadow-[0_1px_18px_rgba(15,23,42,0.04)] backdrop-blur flex-shrink-0'>
+              <SidebarTrigger className='size-8 rounded-lg text-foreground/70 hover:bg-primary/10 hover:text-primary' />
+              <Separator orientation='vertical' className='mx-1 data-[orientation=vertical]:h-4' />
+              <Link href='/dashboard' className='text-sm font-semibold tracking-normal'>
                 DS Control
               </Link>
               <BreadcrumbHeader />
@@ -32,7 +32,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <SwitchToogleTheme />
               </div>
             </header>
-            <Separator />
             <div className='flex-1 overflow-y-auto overflow-x-hidden'>{children}</div>
           </div>
         </div>
