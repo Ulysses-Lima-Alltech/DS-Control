@@ -114,60 +114,60 @@ function getCropSeasonIdsFromSearchParams(searchParams: URLSearchParams | null):
 
 const TOP_CARD_STYLES = [
   {
-    card: 'border-primary/20 bg-[linear-gradient(135deg,var(--brand-primary),color-mix(in_oklch,var(--brand-primary)_78%,black))] py-0 rounded-[22px] shadow-[0_16px_34px_rgba(113,167,128,0.28)]',
-    label: 'text-white/80',
-    value: 'text-white',
-    iconWrap: 'border border-white/20 bg-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]',
+    card: 'border-primary/20 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--brand-primary)_16%,white),white_74%)] py-0 rounded-[22px] shadow-[0_12px_28px_rgba(15,23,42,0.06)]',
+    label: 'text-foreground',
+    value: 'text-[#08783d]',
+    iconWrap: 'border border-primary/15 bg-primary shadow-[0_8px_18px_rgba(113,167,128,0.22)]',
     icon: 'text-white',
   },
   {
     card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
-    iconWrap: 'border border-accent/50 bg-accent/30',
-    icon: 'text-primary',
+    iconWrap: 'border border-[#F6DC7F] bg-[#FFF6D9]',
+    icon: 'text-[#FA780A]',
   },
   {
     card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
     iconWrap: 'border border-primary/15 bg-primary/10',
-    icon: 'text-primary',
+    icon: 'text-[#0AAA50]',
   },
   {
     card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
-    iconWrap: 'border border-accent/60 bg-accent/40',
-    icon: 'text-primary',
+    iconWrap: 'border border-[#E4D6F5] bg-[#F3ECFB]',
+    icon: 'text-[#8C50C8]',
   },
   {
     card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
-    iconWrap: 'border border-secondary/20 bg-secondary/15',
-    icon: 'text-primary',
+    iconWrap: 'border border-[#D8E9FA] bg-[#EAF4FE]',
+    icon: 'text-[#0078D2]',
   },
   {
     card: 'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_10px_26px_rgba(15,23,42,0.045)]',
     label: 'text-muted-foreground',
     value: 'text-foreground',
-    iconWrap: 'border border-secondary/25 bg-secondary/20',
-    icon: 'text-primary',
+    iconWrap: 'border border-[#F8D6A7] bg-[#FFF1DF]',
+    icon: 'text-[#FA780A]',
   },
 ];
 
 const DASHBOARD_BAR_COLORS = [
-  '#71A780',
-  '#95BD75',
-  '#F6DC7F',
-  '#8BB896',
-  '#AACB8C',
-  '#F8E59D',
-  '#5E966E',
-  '#7FB065',
-  '#D8C66C',
-  '#B7CF98',
+  '#0AAA50',
+  '#8CBE3C',
+  '#FABE1E',
+  '#8C50C8',
+  '#FA780A',
+  '#00AAA0',
+  '#FA4664',
+  '#0078D2',
+  '#BE6EDC',
+  '#FA6464',
 ];
 const PILOT_BAR_COLORS = DASHBOARD_BAR_COLORS;
 const CUSTOMER_BAR_COLORS = DASHBOARD_BAR_COLORS;
@@ -191,14 +191,14 @@ const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>(
 );
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
-  'h-9 rounded-lg px-4 text-foreground hover:bg-primary/10 hover:text-primary';
+  'h-10 rounded-xl px-4 text-foreground hover:bg-primary/10 hover:text-primary';
 const PANEL_TOGGLE_ACTIVE_CLASS =
-  'h-9 rounded-lg bg-primary px-4 text-white shadow-[0_8px_18px_rgba(113,167,128,0.18)] hover:bg-primary/90';
+  'h-10 rounded-xl bg-[#0AAA50] px-4 text-white shadow-[0_8px_18px_rgba(10,170,80,0.2)] hover:bg-[#099044]';
 const PANEL_CARD_CLASS =
-  'border-border/60 bg-card py-0 rounded-[22px] shadow-[0_12px_30px_rgba(15,23,42,0.045)]';
+  'border-border/60 bg-card py-0 rounded-[24px] shadow-[0_16px_36px_rgba(15,23,42,0.055)]';
 const FILTER_CONTROL_CLASS =
-  'h-12 rounded-xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
-const TOGGLE_GROUP_CLASS = 'flex gap-1 rounded-xl border border-border/60 bg-muted/25 p-1';
+  'h-14 rounded-2xl border-border/70 bg-card px-4 shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20';
+const TOGGLE_GROUP_CLASS = 'flex gap-1 rounded-2xl border border-border/60 bg-card p-1';
 const LIGHT_CHART_TEXT_COLOR = '#334155';
 const DARK_CHART_TEXT_COLOR = '#e5e7eb';
 const LIGHT_CHART_AXIS_COLOR = 'rgba(148, 163, 184, 0.4)';
@@ -468,7 +468,7 @@ function mapLaunchStatusLabel(status: PilotLaunchStatus) {
 function getLaunchStatusBadgeClass(status: PilotLaunchStatus) {
   if (status === 'launched')
     return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200';
-  return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-400/15 dark:text-amber-200';
+  return 'border-[#F6DC7F] bg-[#FFF4D0] text-[#A46400] dark:border-amber-800/70 dark:bg-amber-400/15 dark:text-amber-200';
 }
 
 export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDashboardBlocksProps) {
@@ -1582,28 +1582,28 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
   );
 
   return (
-    <div className='space-y-5'>
+    <div className='space-y-6'>
       <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6'>
         {topCards.map((card, index) => {
           const Icon = card.icon;
           const style = TOP_CARD_STYLES[index];
           return (
-            <Card key={card.title} className={`${style.card} min-h-[132px]`}>
+            <Card key={card.title} className={`${style.card} min-h-[148px]`}>
               <CardContent className='flex h-full p-5'>
-                <div className='flex w-full items-start justify-between gap-4'>
-                  <div className='flex min-w-0 flex-col justify-between self-stretch'>
-                    <p className={`text-sm font-medium leading-tight ${style.label}`}>
+                <div className='flex w-full flex-col justify-between gap-5'>
+                  <div className='flex min-w-0 items-center gap-4'>
+                    <div className={`rounded-2xl p-3.5 ${style.iconWrap}`}>
+                      <Icon className={`h-7 w-7 ${style.icon}`} />
+                    </div>
+                    <p className={`min-w-0 text-sm font-semibold leading-tight ${style.label}`}>
                       {card.title}
                     </p>
-                    <p
-                      className={`mt-5 truncate text-2xl font-semibold leading-tight tracking-normal ${style.value}`}
-                    >
-                      {card.isLoading ? 'Carregando...' : card.value}
-                    </p>
                   </div>
-                  <div className={`rounded-2xl p-3 ${style.iconWrap}`}>
-                    <Icon className={`h-6 w-6 ${style.icon}`} />
-                  </div>
+                  <p
+                    className={`truncate text-3xl font-semibold leading-tight tracking-normal ${style.value}`}
+                  >
+                    {card.isLoading ? 'Carregando...' : card.value}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -1625,7 +1625,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                     className={`${FILTER_CONTROL_CLASS} w-full pl-11`}
                   />
                 </div>
-                <div className='w-[280px] min-w-0 max-w-[280px] overflow-hidden [&_button]:h-12 [&_button]:rounded-xl [&_button]:border-border/70 [&_button]:bg-card [&_button]:shadow-none [&_button]:hover:border-primary/40'>
+                <div className='w-[300px] min-w-0 max-w-[300px] overflow-hidden [&_button]:h-14 [&_button]:rounded-2xl [&_button]:border-border/70 [&_button]:bg-card [&_button]:shadow-none [&_button]:hover:border-primary/40'>
                   <DateRangePicker
                     key={datePickerResetKey}
                     className='w-full min-w-0'
@@ -1754,7 +1754,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 variant='default'
                 onClick={clearFilters}
-                className='h-12 rounded-xl bg-primary px-5 text-white shadow-[0_10px_22px_rgba(113,167,128,0.24)] hover:bg-primary/90'
+                className='h-14 rounded-2xl bg-[#0AAA50] px-6 text-white shadow-[0_10px_22px_rgba(10,170,80,0.24)] hover:bg-[#099044]'
               >
                 <ListFilter className='mr-1 h-4 w-4' />
                 Limpar Filtros
@@ -1765,8 +1765,8 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={`${PANEL_CARD_CLASS} relative overflow-hidden`}>
-        <div className='pointer-events-none absolute -bottom-12 right-0 h-28 w-[28rem] rounded-tl-full bg-primary/10' />
-        <Sprout className='pointer-events-none absolute -bottom-2 right-14 h-28 w-28 rotate-12 text-primary/30' />
+        <div className='pointer-events-none absolute -bottom-16 right-0 h-36 w-[34rem] rounded-tl-full bg-primary/10' />
+        <Sprout className='pointer-events-none absolute -bottom-3 right-16 h-36 w-36 rotate-12 text-primary/35' />
         <CardHeader className='relative pb-3 pt-6'>
           <CardTitle className='text-lg font-semibold tracking-normal'>
             Lançamentos dos Pilotos
@@ -1789,7 +1789,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               {pilotLaunchRows.map((launch) => (
                 <div
                   key={launch.id}
-                  className='flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-primary/5'
+                  className='flex items-center justify-between gap-4 px-5 py-5 transition-colors hover:bg-primary/5'
                 >
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-medium'>{launch.customerName}</p>
@@ -1812,10 +1812,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardHeader className='pb-4 pt-6'>
+        <CardHeader className='pb-5 pt-6'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <div className='flex items-center gap-3'>
-              <span className='flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary'>
+              <span className='flex size-12 items-center justify-center rounded-full bg-primary/10 text-[#0AAA50]'>
                 <BarChart3 className='h-6 w-6' />
               </span>
               <CardTitle className='text-xl font-semibold tracking-normal'>
@@ -1901,7 +1901,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </CardDescription>
           ) : null}
         </CardHeader>
-        <CardContent className='h-[320px] pt-0'>
+        <CardContent className='h-[380px] pt-0'>
           {isLoadingPilotChart ? (
             <p className='text-sm text-muted-foreground'>Carregando gráfico...</p>
           ) : pilotChartData.length === 0 ? (
@@ -1910,6 +1910,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <ResponsiveContainer width='100%' height='100%'>
               <BarChart
                 data={pilotChartData}
+                barCategoryGap='20%'
                 margin={{
                   top: 8,
                   right: 8,
@@ -1945,7 +1946,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}
                 />
-                <Bar dataKey='hectares' radius={[10, 10, 0, 0]}>
+                <Bar dataKey='hectares' barSize={72} maxBarSize={90} radius={[12, 12, 0, 0]}>
                   {pilotChartData.map((entry, index) => (
                     <Cell
                       key={`${entry.name}-${index}`}
@@ -1962,10 +1963,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
       </Card>
 
       <Card className={PANEL_CARD_CLASS}>
-        <CardHeader className='pb-4 pt-6'>
+        <CardHeader className='pb-5 pt-6'>
           <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <div className='flex items-center gap-3'>
-              <span className='flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary'>
+              <span className='flex size-12 items-center justify-center rounded-full bg-primary/10 text-[#0AAA50]'>
                 <UserRound className='h-6 w-6' />
               </span>
               <CardTitle className='text-xl font-semibold tracking-normal'>
@@ -2016,7 +2017,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             </div>
           </div>
         </CardHeader>
-        <CardContent className='h-[320px] pt-0'>
+        <CardContent className='h-[380px] pt-0'>
           {isLoadingAnyCustomerArea ? (
             <p className='text-sm text-muted-foreground'>Carregando gráfico...</p>
           ) : hectaresByCustomerData.length === 0 ? (
@@ -2025,6 +2026,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
             <ResponsiveContainer width='100%' height='100%'>
               <BarChart
                 data={hectaresByCustomerData}
+                barCategoryGap='20%'
                 margin={{
                   top: 8,
                   right: 8,
@@ -2060,7 +2062,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}
                 />
-                <Bar dataKey='hectares' radius={[10, 10, 0, 0]}>
+                <Bar dataKey='hectares' barSize={72} maxBarSize={90} radius={[12, 12, 0, 0]}>
                   {hectaresByCustomerData.map((entry, index) => (
                     <Cell
                       key={`${entry.name}-${index}`}

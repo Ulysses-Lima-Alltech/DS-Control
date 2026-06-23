@@ -1,6 +1,7 @@
 'use client';
 
 import { Leaf, Sprout } from 'lucide-react';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 import {
@@ -26,22 +27,16 @@ export function Sidebar() {
     <>
       <SidebarShadcn collapsible='icon'>
         <SidebarHeader>
-          <div className='flex min-h-16 items-center group-data-[collapsible=icon]:justify-center'>
-            {/* TODO: replace this CSS placeholder with the official iControl Agras logo asset when available. */}
-            <div className='flex items-center gap-2.5 group-data-[collapsible=icon]:hidden'>
-              <span className='relative flex h-14 w-10 items-center justify-center'>
-                <Leaf className='absolute left-0 top-0 h-9 w-9 -rotate-12 fill-primary/15 text-primary' />
-                <Leaf className='absolute bottom-0 right-0 h-9 w-9 rotate-[28deg] fill-secondary/15 text-secondary' />
-                <span className='absolute left-1 top-1 h-4 w-3 rotate-45 rounded-full bg-accent' />
-              </span>
-              <span className='flex flex-col leading-none'>
-                <span className='text-[25px] font-semibold italic tracking-tight text-[color:color-mix(in_oklch,var(--brand-primary)_62%,black)]'>
-                  icontrol
-                </span>
-                <span className='-mt-0.5 self-end text-[14px] font-semibold lowercase tracking-wide text-primary'>
-                  agras
-                </span>
-              </span>
+          <div className='flex min-h-20 items-center group-data-[collapsible=icon]:justify-center'>
+            <div className='relative h-20 w-full overflow-hidden group-data-[collapsible=icon]:hidden'>
+              <Image
+                src='/images/logo-icontrol-agras.png'
+                alt='iControl Agras'
+                fill
+                priority
+                sizes='220px'
+                className='object-contain object-left'
+              />
             </div>
             <div className='hidden aspect-square size-9 items-center justify-center rounded-xl bg-primary/10 text-primary group-data-[collapsible=icon]:flex'>
               <Leaf className='size-5' />

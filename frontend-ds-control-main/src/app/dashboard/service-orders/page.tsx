@@ -65,7 +65,7 @@ export default function ServiceOrdersPage() {
             <Button
               variant='default'
               onClick={() => setIsDialogNewServiceOrderOpen(true)}
-              className='h-12 rounded-xl px-6 text-sm font-semibold shadow-[0_10px_22px_rgba(113,167,128,0.24)]'
+              className='h-14 rounded-2xl bg-[#0AAA50] px-7 text-sm font-semibold shadow-[0_10px_22px_rgba(10,170,80,0.24)] hover:bg-[#099044]'
             >
               <Plus className='mr-2 h-5 w-5' />
               Nova OS

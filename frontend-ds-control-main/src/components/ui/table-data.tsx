@@ -210,7 +210,7 @@ export function DataTable<TData, TValue>({
         placeholder={searchConfig?.placeholder || 'Buscar...'}
         value={searchValue}
         onChange={(event) => handleSearchChange(event.target.value)}
-        className='h-12 rounded-xl border-border/70 bg-card pl-11 text-sm shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20'
+        className='h-14 rounded-2xl border-border/70 bg-card pl-11 text-sm shadow-none hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20'
       />
     </div>
   );
@@ -220,7 +220,7 @@ export function DataTable<TData, TValue>({
       <DropdownMenuTrigger asChild>
         <Button
           variant='outline'
-          className='ml-auto h-12 rounded-xl border-border/70 bg-card px-5 text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
+          className='ml-auto h-14 rounded-2xl border-border/70 bg-card px-5 text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
         >
           Colunas <ChevronDown className='ml-2 h-4 w-4' />
         </Button>
