@@ -108,57 +108,59 @@ function getCropSeasonIdsFromSearchParams(searchParams: URLSearchParams | null):
 
 const TOP_CARD_STYLES = [
   {
-    card: 'border-t-4 border-t-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20',
-    iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40',
-    icon: 'text-emerald-600 dark:text-emerald-300',
+    card: 'border-primary/40 bg-primary shadow-sm shadow-primary/20',
+    label: 'text-primary-foreground/75',
+    value: 'text-primary-foreground',
+    iconWrap: 'border border-primary-foreground/15 bg-primary-foreground/15',
+    icon: 'text-primary-foreground',
   },
   {
-    card: 'border-t-4 border-t-amber-500 bg-amber-50/40 dark:bg-amber-950/20',
-    iconWrap: 'bg-amber-100 dark:bg-amber-900/40',
-    icon: 'text-amber-600 dark:text-amber-300',
+    card: 'border-border/70 bg-card',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-primary/15 bg-primary/10',
+    icon: 'text-primary',
   },
   {
-    card: 'border-t-4 border-t-orange-500 bg-orange-50/40 dark:bg-orange-950/20',
-    iconWrap: 'bg-orange-100 dark:bg-orange-900/40',
-    icon: 'text-orange-600 dark:text-orange-300',
+    card: 'border-primary/15 bg-primary/5',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-primary/15 bg-primary/10',
+    icon: 'text-primary',
   },
   {
-    card: 'border-t-4 border-t-violet-500 bg-violet-50/40 dark:bg-violet-950/20',
-    iconWrap: 'bg-violet-100 dark:bg-violet-900/40',
-    icon: 'text-violet-600 dark:text-violet-300',
+    card: 'border-accent/50 bg-accent/20',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-accent/60 bg-accent/40',
+    icon: 'text-primary',
   },
   {
-    card: 'border-t-4 border-t-sky-500 bg-sky-50/40 dark:bg-sky-950/20',
-    iconWrap: 'bg-sky-100 dark:bg-sky-900/40',
-    icon: 'text-sky-600 dark:text-sky-300',
+    card: 'border-border/70 bg-card',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-secondary/20 bg-secondary/15',
+    icon: 'text-primary',
   },
   {
-    card: 'border-t-4 border-t-fuchsia-500 bg-fuchsia-50/40 dark:bg-fuchsia-950/20',
-    iconWrap: 'bg-fuchsia-100 dark:bg-fuchsia-900/40',
-    icon: 'text-fuchsia-600 dark:text-fuchsia-300',
+    card: 'border-secondary/20 bg-secondary/10',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    iconWrap: 'border border-secondary/25 bg-secondary/20',
+    icon: 'text-primary',
   },
 ];
 
-const PILOT_NEON_RETRO_BAR_COLORS = [
-  '#00E5FF',
-  '#FF4FD8',
-  '#FFD400',
-  '#7C4DFF',
-  '#A3FF12',
-  '#FF8A00',
-  '#00F5A0',
-  '#FF5C8A',
+const DASHBOARD_BAR_COLORS = [
+  'var(--brand-primary)',
+  'var(--brand-secondary)',
+  'var(--brand-accent)',
+  'color-mix(in oklch, var(--brand-primary) 72%, white)',
+  'color-mix(in oklch, var(--brand-secondary) 72%, white)',
+  'color-mix(in oklch, var(--brand-accent) 72%, var(--brand-primary))',
 ];
-const CUSTOMER_NEON_RETRO_BAR_COLORS = [
-  '#7C4DFF',
-  '#FF8A00',
-  '#00E5FF',
-  '#FF4FD8',
-  '#00F5A0',
-  '#FFD400',
-  '#A3FF12',
-  '#FF5C8A',
-];
+const PILOT_BAR_COLORS = DASHBOARD_BAR_COLORS;
+const CUSTOMER_BAR_COLORS = DASHBOARD_BAR_COLORS;
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const SERVICE_ORDER_STATUS_OPTIONS: Array<{ value: ServiceOrderStatus; label: string }> = [
   { value: 'open', label: 'Aberto' },
@@ -180,6 +182,7 @@ const VALID_APPLICATION_ISSUES = new Set<ApplicationIssueFilter>(
 const AXIS_TICK_MAX_CHARS = 24;
 const PANEL_TOGGLE_INACTIVE_CLASS =
   'text-foreground dark:text-slate-100 hover:bg-muted/70 dark:hover:bg-muted/60';
+const PANEL_TOGGLE_ACTIVE_CLASS = 'bg-primary text-primary-foreground hover:bg-primary/90';
 const LIGHT_CHART_TEXT_COLOR = '#334155';
 const DARK_CHART_TEXT_COLOR = '#e5e7eb';
 const LIGHT_CHART_AXIS_COLOR = 'rgba(148, 163, 184, 0.4)';
@@ -1549,10 +1552,10 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
               <CardContent className='p-3 sm:p-4'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='space-y-1 min-w-0'>
-                    <p className='text-[13px] leading-tight text-muted-foreground dark:text-slate-300'>
+                    <p className={`text-[13px] leading-tight ${style.label}`}>
                       {card.title}
                     </p>
-                    <p className='text-xl sm:text-[22px] leading-tight font-semibold truncate text-foreground dark:text-slate-50'>
+                    <p className={`text-xl sm:text-[22px] leading-tight font-semibold truncate ${style.value}`}>
                       {card.isLoading ? 'Carregando...' : card.value}
                     </p>
                   </div>
@@ -1703,7 +1706,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 type='button'
                 variant='outline'
                 onClick={clearFilters}
-                className='border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'
+                className='border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
               >
                 Limpar Filtros
               </Button>
@@ -1758,9 +1761,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   size='sm'
                     variant={pilotPeriodMode === 'total' ? 'default' : 'ghost'}
                     className={
-                      pilotPeriodMode === 'total'
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                      pilotPeriodMode === 'total' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
                     }
                   onClick={selectPilotTotalMode}
                   disabled={selectedCropSeasonIds.length === 0}
@@ -1772,9 +1773,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   size='sm'
                     variant={pilotEntityMode === 'pilots' ? 'default' : 'ghost'}
                     className={
-                      pilotEntityMode === 'pilots'
-                        ? 'bg-blue-600 text-white hover:bg-blue-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                      pilotEntityMode === 'pilots' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
                     }
                   onClick={() => setPilotEntityMode('pilots')}
                 >
@@ -1785,9 +1784,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   size='sm'
                     variant={pilotEntityMode === 'assistants' ? 'default' : 'ghost'}
                     className={
-                      pilotEntityMode === 'assistants'
-                        ? 'bg-violet-600 text-white hover:bg-violet-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                      pilotEntityMode === 'assistants' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
                     }
                   onClick={() => setPilotEntityMode('assistants')}
                 >
@@ -1800,9 +1797,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   size='sm'
                     variant={pilotPeriodMode === 'month' ? 'default' : 'ghost'}
                     className={
-                      pilotPeriodMode === 'month'
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                      pilotPeriodMode === 'month' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
                     }
                   onClick={selectPilotMonthMode}
                 >
@@ -1813,9 +1808,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   size='sm'
                     variant={pilotPeriodMode === 'day' ? 'default' : 'ghost'}
                     className={
-                      pilotPeriodMode === 'day'
-                        ? 'bg-cyan-600 text-white hover:bg-cyan-600/90'
-                        : PANEL_TOGGLE_INACTIVE_CLASS
+                      pilotPeriodMode === 'day' ? PANEL_TOGGLE_ACTIVE_CLASS : PANEL_TOGGLE_INACTIVE_CLASS
                     }
                   onClick={selectPilotDayMode}
                 >
@@ -1878,9 +1871,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         key={`${entry.name}-${index}`}
                         onClick={entry.entityId ? () => handlePilotChartRowClick(entry) : undefined}
                         style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
-                        fill={
-                          PILOT_NEON_RETRO_BAR_COLORS[index % PILOT_NEON_RETRO_BAR_COLORS.length]
-                        }
+                        fill={PILOT_BAR_COLORS[index % PILOT_BAR_COLORS.length]}
                       />
                   ))}
                 </Bar>
@@ -1901,7 +1892,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 variant={customerPeriodMode === 'total' ? 'default' : 'ghost'}
                 className={
                   customerPeriodMode === 'total'
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                    ? PANEL_TOGGLE_ACTIVE_CLASS
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={selectCustomerTotalMode}
@@ -1915,7 +1906,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 variant={customerPeriodMode === 'month' ? 'default' : 'ghost'}
                 className={
                   customerPeriodMode === 'month'
-                    ? 'bg-teal-600 text-white hover:bg-teal-600/90'
+                    ? PANEL_TOGGLE_ACTIVE_CLASS
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={selectCustomerMonthMode}
@@ -1928,7 +1919,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                 variant={customerPeriodMode === 'day' ? 'default' : 'ghost'}
                 className={
                   customerPeriodMode === 'day'
-                    ? 'bg-orange-600 text-white hover:bg-orange-600/90'
+                    ? PANEL_TOGGLE_ACTIVE_CLASS
                     : PANEL_TOGGLE_INACTIVE_CLASS
                 }
                 onClick={selectCustomerDayMode}
@@ -1988,9 +1979,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         key={`${entry.name}-${index}`}
                         onClick={entry.entityId ? () => handleCustomerChartRowClick(entry) : undefined}
                         style={{ cursor: entry.entityId ? 'pointer' : 'default' }}
-                        fill={
-                          CUSTOMER_NEON_RETRO_BAR_COLORS[index % CUSTOMER_NEON_RETRO_BAR_COLORS.length]
-                        }
+                        fill={CUSTOMER_BAR_COLORS[index % CUSTOMER_BAR_COLORS.length]}
                       />
                   ))}
                 </Bar>
@@ -2058,7 +2047,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                             </p>
                           ) : null}
                         </div>
-                        <Badge className='border border-emerald-300/70 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:border-emerald-800/70 dark:bg-emerald-400/15 dark:text-emerald-200'>
+                        <Badge className='border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10'>
                           OS #{serviceOrder.number}
                         </Badge>
                       </div>
@@ -2071,7 +2060,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         </div>
                         <Progress
                           value={progressValue}
-                          className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-emerald-500'
+                          className='h-2 bg-muted [&>[data-slot=progress-indicator]]:bg-primary'
                         />
                         <p className='text-xs text-muted-foreground'>{rawProgress.toFixed(1)}% concluído</p>
                         {hasFilteredApplicationsMetric ? (
@@ -2083,14 +2072,14 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                       <div className='grid grid-cols-2 gap-4 border-t border-border/70 pt-4 text-sm'>
                         <div>
                           <p className='text-muted-foreground'>Aplicação ontem</p>
-                          <p className='font-semibold text-emerald-700 dark:text-emerald-300'>
+                          <p className='font-semibold text-primary'>
                             {formatHectares(yesterdayStats?.totalAreaHectares)}
                           </p>
                         </div>
                         <div>
                           <p className='text-muted-foreground'>Mapas</p>
-                          <p className='font-semibold flex items-center gap-1 text-cyan-700 dark:text-cyan-300'>
-                            <MapIcon className='h-4 w-4 text-cyan-600 dark:text-cyan-300' />
+                          <p className='font-semibold flex items-center gap-1 text-primary'>
+                            <MapIcon className='h-4 w-4 text-primary' />
                             {`${formatInteger(plotsWithApplications)} concluidos / ${formatInteger(totalPlots)} total`}
                           </p>
                         </div>

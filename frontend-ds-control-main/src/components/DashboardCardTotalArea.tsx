@@ -43,7 +43,7 @@ export const DashboardCardTotalArea = ({
       <Card className='h-full min-h-[132px] border-border/70 bg-card/90 shadow-sm'>
         <CardContent className='p-6'>
           <div className='flex items-center gap-4'>
-            <SprayCan className='w-8 h-8 text-red-500' />
+            <SprayCan className='w-8 h-8 text-destructive' />
             <div className='flex-1'>
               <div className='text-sm text-muted-foreground'>Erro ao carregar dados</div>
             </div>
@@ -54,17 +54,17 @@ export const DashboardCardTotalArea = ({
   }
 
   return (
-    <Card className='min-w-0 h-full min-h-[132px] border-emerald-200/60 dark:border-emerald-900/60 bg-gradient-to-br from-emerald-50/70 via-card to-card dark:from-emerald-950/20 shadow-sm'>
+    <Card className='min-w-0 h-full min-h-[132px] border-primary/30 bg-gradient-to-br from-primary/20 via-card to-card shadow-sm'>
       <CardContent className='px-6 py-5'>
         <div className='flex items-center gap-4 min-w-0'>
-          <div className='rounded-xl p-2.5 bg-emerald-100/80 dark:bg-emerald-900/40 border border-emerald-200/70 dark:border-emerald-800/70'>
-            <SprayCan className='w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0' />
+          <div className='rounded-xl p-2.5 bg-primary/15 border border-primary/25'>
+            <SprayCan className='w-6 h-6 text-primary flex-shrink-0' />
           </div>
           <div className='flex-1 min-w-0'>
             <div className='text-sm font-medium text-muted-foreground mb-1 truncate'>
               Área total aplicada
             </div>
-            <div className='text-3xl font-semibold text-emerald-700 dark:text-emerald-300 truncate'>
+            <div className='text-3xl font-semibold text-primary truncate'>
               {typeof stats?.totalAreaHectares === 'number'
                 ? `${stats.totalAreaHectares.toLocaleString('pt-BR', {
                     maximumFractionDigits: 1,
