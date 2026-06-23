@@ -1,8 +1,9 @@
 'use client';
 
+import { Leaf, Sprout } from 'lucide-react';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
-import { SidebarUser } from '@/components/SidebarUser';
 import {
   SidebarContent,
   SidebarFooter,
@@ -26,13 +27,17 @@ export function Sidebar() {
     <>
       <SidebarShadcn collapsible='icon'>
         <SidebarHeader>
-          <div className='flex items-center gap-3'>
-            <div className='flex aspect-square size-9 items-center justify-center rounded-xl bg-primary text-white shadow-[0_8px_18px_rgba(113,167,128,0.22)]'>
-              <span className='text-sm font-bold'>DS</span>
-            </div>
-            <div className='grid flex-1 text-left text-sm leading-tight'>
-              <span className='truncate font-semibold tracking-normal'>DS Control</span>
-              <span className='truncate text-xs text-sidebar-foreground/70'>Painel</span>
+          <div className='flex min-h-12 items-center group-data-[collapsible=icon]:justify-center'>
+            <Image
+              src='/images/ds-drones-agricolas-logo.png'
+              alt='DS Control'
+              width={156}
+              height={48}
+              priority
+              className='h-12 w-auto object-contain group-data-[collapsible=icon]:hidden'
+            />
+            <div className='hidden aspect-square size-9 items-center justify-center rounded-xl bg-primary/10 text-primary group-data-[collapsible=icon]:flex'>
+              <Leaf className='size-5' />
             </div>
           </div>
         </SidebarHeader>
@@ -99,8 +104,23 @@ export function Sidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <SidebarUser />
+        <SidebarFooter className='group-data-[collapsible=icon]:hidden'>
+          <div className='relative overflow-hidden rounded-2xl border border-primary/10 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--brand-primary)_12%,white),color-mix(in_oklch,var(--brand-secondary)_8%,white))] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]'>
+            <div className='relative z-10 flex items-start gap-2.5'>
+              <span className='flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+                <Leaf className='size-4' />
+              </span>
+              <div className='space-y-0.5'>
+                <p className='text-[11px] font-semibold leading-snug text-foreground'>
+                  Tecnologia que protege.
+                </p>
+                <p className='text-[10px] leading-snug text-muted-foreground'>
+                  Dados que geram resultado.
+                </p>
+              </div>
+            </div>
+            <Sprout className='pointer-events-none absolute -bottom-3 right-2 h-16 w-16 text-primary/25' />
+          </div>
         </SidebarFooter>
       </SidebarShadcn>
     </>
