@@ -18,6 +18,8 @@ import length from '@turf/length';
 import { lineString, polygon } from '@turf/turf';
 import { usePathname } from 'expo-router';
 
+import { COLORS } from '@/constants/colors';
+
 export type ToolData = {
   distanceTool: {
     isActive: boolean;
@@ -905,7 +907,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <LineLayer
             id='distance-line'
             style={{
-              lineColor: '#EAAE07',
+              lineColor: COLORS.accent,
               lineWidth: 3,
               lineDasharray: [2, 2],
             }}
@@ -934,7 +936,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <CircleLayer
             id='distance-point-circles'
             style={{
-              circleColor: ['case', ['get', 'isDragging'], '#EAAE07', '#EAAE07'],
+              circleColor: ['case', ['get', 'isDragging'], COLORS.accent, COLORS.accent],
               circleRadius: ['case', ['get', 'isDragging'], 30, 15],
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: ['case', ['get', 'isDragging'], 3, 2],
@@ -995,7 +997,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <CircleLayer
             id='distance-plus-points-circles'
             style={{
-              circleColor: '#EAAE07',
+              circleColor: COLORS.accent,
               circleRadius: 8,
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: 2,
@@ -1018,7 +1020,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <FillLayer
             id='area-fill'
             style={{
-              fillColor: '#EAAE07',
+              fillColor: COLORS.accent,
               fillOpacity: 0.3,
             }}
           />
@@ -1036,7 +1038,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <LineLayer
             id='area-line'
             style={{
-              lineColor: '#EAAE07',
+              lineColor: COLORS.accent,
               lineWidth: 3,
               lineDasharray: [2, 2],
             }}
@@ -1055,7 +1057,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <LineLayer
             id='area-outline'
             style={{
-              lineColor: '#EAAE07',
+              lineColor: COLORS.accent,
               lineWidth: 3,
               lineDasharray: [1],
             }}
@@ -1084,7 +1086,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <CircleLayer
             id='area-point-circles'
             style={{
-              circleColor: ['case', ['get', 'isDragging'], '#EAAE07', '#EAAE07'],
+              circleColor: ['case', ['get', 'isDragging'], COLORS.accent, COLORS.accent],
               circleRadius: ['case', ['get', 'isDragging'], 30, 15],
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: ['case', ['get', 'isDragging'], 3, 2],
@@ -1145,7 +1147,7 @@ export const useMapTools = (): MapToolsHookReturn => {
           <CircleLayer
             id='area-plus-points-circles'
             style={{
-              circleColor: '#EAAE07',
+              circleColor: COLORS.accent,
               circleRadius: 8,
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: 2,
@@ -1352,24 +1354,24 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 20,
-    backgroundColor: '#000000',
+    backgroundColor: COLORS.text,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
   mainButtonActive: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: COLORS.error,
   },
   mainButtonText: {
     fontSize: 24,
     fontWeight: 'bold',
   },
   mainButtonTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   toolsContainer: {
     marginTop: 15,
@@ -1379,12 +1381,12 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 20,
-    backgroundColor: '#000000',
+    backgroundColor: COLORS.text,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -1393,16 +1395,16 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   activeButton: {
-    backgroundColor: '#EAAE07',
+    backgroundColor: COLORS.primary,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: COLORS.error,
   },
   buttonText: {
     fontSize: 20,
   },
   activeButtonText: {
-    color: '#fff',
+    color: COLORS.white,
   },
   measurementInfo: {
     position: 'absolute',
@@ -1410,7 +1412,7 @@ const styles = StyleSheet.create({
     left: 80,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
     padding: 14,
-    borderRadius: 10,
+    borderRadius: 16,
     minWidth: 200,
     maxWidth: 300,
     shadowColor: '#000',
@@ -1437,19 +1439,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   completeButton: {
-    backgroundColor: '#EAAE07',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 10,
   },
   clearButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: COLORS.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 10,
   },
   clearButtonText: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 12,
     fontWeight: 'bold',
   },

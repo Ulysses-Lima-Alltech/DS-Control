@@ -64,16 +64,16 @@ export default function DatePickeriOSModal({
           onPress={handleOpenModal}
           style={{
             backgroundColor: COLORS.white,
-            padding: 12,
-            borderRadius: 8,
-            height: 50,
+            paddingHorizontal: 16,
+            borderRadius: 16,
+            height: 54,
             borderWidth: 1,
-            borderColor: disabled ? COLORS.lightgray : COLORS.gray,
+            borderColor: disabled ? COLORS.border : COLORS.borderStrong,
             width: '100%',
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: disabled ? COLORS.lightgray : COLORS.black }}>
+          <Text style={{ color: disabled ? COLORS.textMuted : COLORS.text, fontWeight: '600' }}>
             {value.toLocaleDateString('pt-BR')}
           </Text>
         </TouchableOpacity>
@@ -99,16 +99,16 @@ export default function DatePickeriOSModal({
               left: dropdownPosition.left,
               width: dropdownPosition.width,
               backgroundColor: COLORS.white,
-              borderRadius: 12,
+              borderRadius: 18,
               borderWidth: 1,
-              borderColor: COLORS.gray,
-              shadowColor: '#000',
+              borderColor: COLORS.border,
+              shadowColor: COLORS.shadow,
               shadowOffset: {
                 width: 0,
-                height: 4,
+                height: 8,
               },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
+              shadowOpacity: 0.12,
+              shadowRadius: 18,
               elevation: 8,
               zIndex: 1000,
               maxHeight: 350,
@@ -123,7 +123,7 @@ export default function DatePickeriOSModal({
                 paddingHorizontal: 16,
                 paddingVertical: 12,
                 borderBottomWidth: 1,
-                borderBottomColor: COLORS.lightgray,
+                borderBottomColor: COLORS.border,
               }}
             >
               <TouchableOpacity
@@ -132,12 +132,12 @@ export default function DatePickeriOSModal({
                   padding: 8,
                 }}
               >
-                <Text style={{ color: COLORS.gray, fontSize: 16, fontWeight: '500' }}>
+                <Text style={{ color: COLORS.textMuted, fontSize: 16, fontWeight: '600' }}>
                   Cancelar
                 </Text>
               </TouchableOpacity>
 
-              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.black }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
                 Selecionar Data
               </Text>
 
@@ -147,7 +147,7 @@ export default function DatePickeriOSModal({
                   padding: 8,
                 }}
               >
-                <Text style={{ color: COLORS.black, fontSize: 16, fontWeight: '500' }}>
+                <Text style={{ color: COLORS.primaryDark, fontSize: 16, fontWeight: '700' }}>
                   Confirmar
                 </Text>
               </TouchableOpacity>
@@ -161,7 +161,7 @@ export default function DatePickeriOSModal({
                 display='spinner'
                 minimumDate={minimumDate}
                 maximumDate={maximumDate}
-                textColor={COLORS.black}
+                textColor={COLORS.text}
                 onChange={(_, selectedDate) => {
                   if (selectedDate) {
                     setTempDate(selectedDate);

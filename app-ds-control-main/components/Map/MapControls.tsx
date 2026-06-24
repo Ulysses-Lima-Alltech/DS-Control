@@ -3,6 +3,8 @@ import { TouchableOpacity } from 'react-native';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 
+import { COLORS } from '@/constants/colors';
+
 interface ButtonsOffset {
   bottom?: number;
   left?: number;
@@ -41,11 +43,11 @@ export default function MapControls({
           height: 38,
           borderRadius: 20,
           opacity: farmIsLoaded ? 1 : 0.5,
-          backgroundColor: farmIsLoaded ? 'black' : 'gray',
+          backgroundColor: farmIsLoaded ? COLORS.text : COLORS.textMuted,
           justifyContent: 'center',
           alignItems: 'center',
           elevation: 3,
-          shadowColor: '#000',
+          shadowColor: COLORS.shadow,
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.25,
           shadowRadius: 3.84,
@@ -70,11 +72,11 @@ export default function MapControls({
           width: 38,
           height: 38,
           borderRadius: 20,
-          backgroundColor: 'black',
+          backgroundColor: COLORS.text,
           justifyContent: 'center',
           alignItems: 'center',
           elevation: 3,
-          shadowColor: '#000',
+          shadowColor: COLORS.shadow,
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.25,
           shadowRadius: 3.84,
@@ -84,7 +86,7 @@ export default function MapControls({
         <MaterialIcons
           name='gps-fixed'
           size={18}
-          color={isCameraLockedOnUserLocation ? '#EAAE07' : 'white'}
+          color={isCameraLockedOnUserLocation ? COLORS.primary : COLORS.white}
         />
       </TouchableOpacity>
     </View>

@@ -6,6 +6,7 @@ import { TouchableOpacity, View } from 'react-native';
 import LoginScreen from '@/app/auth/login';
 import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import LoadingDSIcon from '@/components/IconLoadingDS';
+import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 
 export default function ScreenLayoutAdminAndFarmers() {
@@ -15,7 +16,14 @@ export default function ScreenLayoutAdminAndFarmers() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: COLORS.background,
+        }}
+      >
         <LoadingDSIcon />
       </View>
     );
@@ -31,12 +39,24 @@ export default function ScreenLayoutAdminAndFarmers() {
         initialRouteName='dashboard'
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#EAAE07',
-          tabBarInactiveTintColor: '#8E8E93',
+          tabBarActiveTintColor: COLORS.primaryDark,
+          tabBarInactiveTintColor: COLORS.textMuted,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '700',
+          },
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
+            backgroundColor: COLORS.surface,
             borderTopWidth: 1,
-            borderTopColor: '#E5E5EA',
+            borderTopColor: COLORS.border,
+            height: 62,
+            paddingTop: 6,
+            paddingBottom: 8,
+            elevation: 8,
+            shadowColor: COLORS.shadow,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
           },
         }}
       >

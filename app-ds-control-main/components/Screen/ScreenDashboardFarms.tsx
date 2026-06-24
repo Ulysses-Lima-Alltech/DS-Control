@@ -15,6 +15,7 @@ import {
 
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import StatsFarms from '@/components/StatsFarms';
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import { Farm } from '@/types/farm.type';
@@ -84,7 +85,7 @@ export default function ScreenDashboardFarms() {
       onScroll={handleScroll}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>DS Control</Text>
+        <Text style={styles.title}>iControl Agras</Text>
         <Text style={styles.subtitle}>
           {isAdministrativeUser ? 'Painel Administrativo' : 'Painel do Fazendeiro'}
         </Text>
@@ -98,7 +99,7 @@ export default function ScreenDashboardFarms() {
             <Text style={styles.sectionTitle}>
               {isAdministrativeUser ? 'Fazendas' : 'Suas Fazendas'}
             </Text>
-            <Ionicons name='business-outline' size={20} color='#007AFF' />
+            <Ionicons name='business-outline' size={20} color={COLORS.primaryDark} />
           </View>
 
           <TextInput
@@ -128,7 +129,7 @@ export default function ScreenDashboardFarms() {
 
           {allListedFarms.length === 0 && (
             <View style={styles.emptyState}>
-              <Ionicons name='business-outline' size={64} color='#C7C7CC' />
+              <Ionicons name='business-outline' size={64} color={COLORS.borderStrong} />
               <Text style={styles.emptyStateTitle}>Nenhuma fazenda encontrada</Text>
               <Text style={styles.emptyStateText}>
                 Entre em contato com o administrador para configurar suas fazendas.
@@ -153,7 +154,7 @@ export default function ScreenDashboardFarms() {
 
                   <View style={styles.farmDetails}>
                     <View style={styles.farmDetailItem}>
-                      <Ionicons name='location-outline' size={16} color='#8E8E93' />
+                      <Ionicons name='location-outline' size={16} color={COLORS.primary} />
                       <Text style={styles.farmDetailText}>
                         {farm.plots
                           .reduce((sum: number, plot) => sum + parseFloat(plot.hectare || '0'), 0)
@@ -162,7 +163,7 @@ export default function ScreenDashboardFarms() {
                       </Text>
                     </View>
                     <View style={styles.farmDetailItem}>
-                      <Ionicons name='time-outline' size={16} color='#8E8E93' />
+                      <Ionicons name='time-outline' size={16} color={COLORS.primary} />
                       <Text style={styles.farmDetailText}>
                         {new Date(farm.createdAt).toLocaleDateString('pt-BR')}
                       </Text>
@@ -207,28 +208,34 @@ export default function ScreenDashboardFarms() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   header: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 10,
+    padding: 22,
+    backgroundColor: COLORS.primary,
+    margin: 16,
+    marginBottom: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    ...SHADOWS.card,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
+    fontWeight: '800',
+    color: COLORS.white,
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: COLORS.primarySoft,
     marginBottom: 5,
+    fontWeight: '600',
   },
   welcomeText: {
     fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
+    color: COLORS.accentSoft,
+    fontWeight: '700',
   },
   section: {
     marginHorizontal: 20,
@@ -242,22 +249,17 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
+    fontWeight: '800',
+    color: COLORS.text,
   },
   farmCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   farmHeader: {
     flexDirection: 'row',
@@ -267,20 +269,20 @@ const styles = StyleSheet.create({
   },
   farmName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
+    fontWeight: '800',
+    color: COLORS.text,
     flex: 1,
   },
   farmStats: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.primarySoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   farmStatsText: {
     fontSize: 12,
-    color: '#8E8E93',
-    fontWeight: '500',
+    color: COLORS.primaryDark,
+    fontWeight: '700',
   },
   farmDetails: {
     flexDirection: 'row',
@@ -294,17 +296,17 @@ const styles = StyleSheet.create({
   },
   farmDetailText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
   plotsPreview: {
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+    borderTopColor: COLORS.border,
     paddingTop: 12,
   },
   plotsPreviewTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginBottom: 8,
   },
   plotsList: {
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   plotChip: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.secondarySoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -323,12 +325,12 @@ const styles = StyleSheet.create({
   },
   plotChipText: {
     fontSize: 12,
-    color: '#1C1C1E',
-    fontWeight: '500',
+    color: COLORS.primaryDark,
+    fontWeight: '700',
   },
   plotChipHectare: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
   emptyState: {
     alignItems: 'center',
@@ -338,15 +340,15 @@ const styles = StyleSheet.create({
   },
   emptyStateTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#8E8E93',
+    fontWeight: '800',
+    color: COLORS.textMuted,
     marginTop: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#C7C7CC',
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -359,17 +361,17 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
   searchInput: {
-    height: 40,
+    height: 52,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     marginBottom: 16,
     fontSize: 16,
-    color: '#1C1C1E',
-    backgroundColor: '#FFFFFF',
+    color: COLORS.text,
+    backgroundColor: COLORS.surface,
   },
 });

@@ -1,5 +1,6 @@
 import { View, ActivityIndicator } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
 import { useLocationPermission } from '@/utils/location-permission';
 
 interface LocationPermissionHandlerProps {
@@ -13,8 +14,15 @@ export const LocationPermissionHandler: React.FC<LocationPermissionHandlerProps>
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size='large' color='#EAAE07' />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: COLORS.background,
+        }}
+      >
+        <ActivityIndicator size='large' color={COLORS.primary} />
       </View>
     );
   }

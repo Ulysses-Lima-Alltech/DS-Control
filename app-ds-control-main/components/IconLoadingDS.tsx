@@ -8,11 +8,12 @@ interface LoadingDSIconProps {
 const LoadingDSIcon = (props: LoadingDSIconProps) => {
   return (
     <Image
-      source={require('@/assets/images/ds-loading.gif')}
+      source={require('@/assets/images/logo-icontrol-agras.png')}
       style={{
-        width: props.width ?? 100,
-        height: props.height ?? 100,
+        width: props.width ?? 180,
+        height: props.height ?? 76,
       }}
+      resizeMode='contain'
     />
   );
 };

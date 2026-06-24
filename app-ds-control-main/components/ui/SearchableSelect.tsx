@@ -89,11 +89,12 @@ export default function SearchableSelect({
             gap: 4,
             justifyContent: 'space-between',
             borderWidth: 1,
-            height: 50,
-            borderColor: disabled ? COLORS.lightgray : COLORS.gray,
-            borderRadius: 10,
-            paddingHorizontal: 15,
+            minHeight: 54,
+            borderColor: disabled ? COLORS.border : COLORS.borderStrong,
+            borderRadius: 16,
+            paddingHorizontal: 16,
             paddingVertical: 10,
+            backgroundColor: disabled ? COLORS.background : COLORS.surface,
           }}
           disabled={disabled}
           onPress={handleToggleDropdown}
@@ -101,7 +102,8 @@ export default function SearchableSelect({
           <Text
             style={{
               fontSize: 14,
-              color: disabled ? COLORS.lightgray : selectedItem ? COLORS.black : COLORS.gray,
+              color: disabled ? COLORS.textMuted : selectedItem ? COLORS.text : COLORS.textMuted,
+              fontWeight: selectedItem ? '600' : '500',
             }}
           >
             {selectedItem ? selectedItem[itemKey] : placeholder}
@@ -134,17 +136,17 @@ export default function SearchableSelect({
               left: dropdownPosition.left,
               width: dropdownPosition.width,
               backgroundColor: COLORS.white,
-              borderRadius: 10,
+              borderRadius: 18,
               borderWidth: 1,
-              borderColor: COLORS.gray,
-              shadowColor: '#000',
+              borderColor: COLORS.border,
+              shadowColor: COLORS.shadow,
               shadowOffset: {
                 width: 0,
-                height: 2,
+                height: 8,
               },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-              elevation: 5,
+              shadowOpacity: 0.12,
+              shadowRadius: 18,
+              elevation: 6,
               maxHeight: 250,
               zIndex: 1000,
             }}
@@ -154,7 +156,7 @@ export default function SearchableSelect({
                 flexDirection: 'row',
                 alignItems: 'center',
                 borderBottomWidth: 1,
-                borderBottomColor: COLORS.gray,
+                borderBottomColor: COLORS.border,
               }}
             >
               <TextInputSearch
@@ -162,16 +164,16 @@ export default function SearchableSelect({
                 placeholder={placeholder}
                 style={{
                   backgroundColor: COLORS.white,
-                  height: 50,
-                  borderTopLeftRadius: 10,
-                  borderBottomLeftRadius: 10,
+                  height: 54,
+                  borderTopLeftRadius: 18,
+                  borderBottomLeftRadius: 0,
                   borderTopRightRadius: 0,
                   borderBottomRightRadius: 0,
                   borderTopWidth: 0,
                   borderBottomWidth: 0,
                   borderLeftWidth: 0,
                   borderRightWidth: 0,
-                  borderColor: COLORS.gray,
+                  borderColor: COLORS.border,
                   flex: 1,
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -184,13 +186,13 @@ export default function SearchableSelect({
               />
               <TouchableOpacity
                 style={{
-                  width: 50,
-                  height: 50,
+                  width: 54,
+                  height: 54,
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: COLORS.white,
-                  borderTopRightRadius: 10,
-                  borderBottomRightRadius: 10,
+                  borderTopRightRadius: 18,
+                  borderBottomRightRadius: 0,
                   borderTopLeftRadius: 0,
                   borderBottomLeftRadius: 0,
                 }}
@@ -198,7 +200,7 @@ export default function SearchableSelect({
                   setIsListVisible(false);
                 }}
               >
-                <Feather name='x' size={20} color={COLORS.gray} />
+                <Feather name='x' size={20} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -217,7 +219,9 @@ export default function SearchableSelect({
                   }}
                 >
                   <MaterialCommunityIcons name='magnify' size={24} color={COLORS.gray} />
-                  <Text style={{ color: 'gray', fontSize: 14 }}>Nenhum resultado encontrado</Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>
+                    Nenhum resultado encontrado
+                  </Text>
                 </View>
               ) : (
                 <>
@@ -233,7 +237,7 @@ export default function SearchableSelect({
                           flexDirection: 'row',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          height: 36,
+                          minHeight: 42,
                           width: '100%',
                           paddingHorizontal: 15,
                           borderBottomEndRadius: 10,
@@ -243,7 +247,7 @@ export default function SearchableSelect({
                       >
                         <Text
                           style={{
-                            color: COLORS.black,
+                          color: COLORS.text,
                             textOverflow: 'ellipsis',
                             fontSize: 14,
                             flex: 1,

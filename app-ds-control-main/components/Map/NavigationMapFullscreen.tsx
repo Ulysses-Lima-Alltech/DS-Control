@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import NavigationInstructionPanel from '@/components/Map/NavigationInstructionPanel';
 import NavigationMapStyleSelector from '@/components/Map/NavigationMapStyleSelector';
+import { COLORS } from '@/constants/colors';
 import {
   MapboxNavigationStep,
   NavigationCoordinate,
@@ -592,7 +593,7 @@ export default function NavigationMapFullscreen({
                   circleColor: [
                     'case',
                     ['==', ['get', 'type'], 'operational-start'],
-                    '#EAAE07',
+                    COLORS.accent,
                     '#DC2626',
                   ],
                   circleStrokeColor: '#FFFFFF',

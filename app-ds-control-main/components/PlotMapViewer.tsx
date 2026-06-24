@@ -6,6 +6,7 @@ import LoadingDSIcon from '@/components/IconLoadingDS';
 import PlotDetails from '@/components/PlotDetails';
 import MapViewer from '@/components/Map/MapViewer';
 import Drawer from '@/components/ui/Drawer';
+import { COLORS } from '@/constants/colors';
 import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 
@@ -224,7 +225,7 @@ export default function PlotMapViewer({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   centerContainer: {
     justifyContent: 'center',
@@ -246,10 +247,10 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -259,8 +260,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   detailsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
     padding: 20,
     paddingTop: 36,
   },
@@ -273,6 +274,6 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
 });

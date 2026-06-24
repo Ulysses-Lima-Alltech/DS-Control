@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
 import { useChangeCurrentUserPassword } from '@/mutations/user.mutation';
 import { ChangeCurrentUserPasswordDialogSchema } from '@/schemas/user.schema';
 
@@ -90,7 +91,7 @@ export default function ModalChangeCurrentUserPassword({
             disabled={isChangingPassword}
           >
             {isChangingPassword ? (
-              <ActivityIndicator size='small' color='#007AFF' />
+              <ActivityIndicator size='small' color={COLORS.primaryDark} />
             ) : (
               <Text style={styles.modalSaveText}>Salvar</Text>
             )}
@@ -175,7 +176,7 @@ export default function ModalChangeCurrentUserPassword({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -183,23 +184,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: COLORS.text,
   },
   modalCancelText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: COLORS.primaryDark,
   },
   modalSaveText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: COLORS.primaryDark,
   },
   modalContent: {
     flex: 1,
@@ -211,25 +212,25 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
+    borderColor: COLORS.border,
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1C1C1E',
+    color: COLORS.text,
   },
   formInputError: {
-    borderColor: '#FF3B30',
+    borderColor: COLORS.error,
   },
   formErrorText: {
     fontSize: 14,
-    color: '#FF3B30',
+    color: COLORS.error,
     marginTop: 4,
   },
 });

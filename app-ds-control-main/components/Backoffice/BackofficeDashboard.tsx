@@ -16,7 +16,7 @@ import {
 import DashboardKpiCard from '@/components/Backoffice/DashboardKpiCard';
 import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
-import { COLORS } from '@/constants/colors';
+import { CHART_COLORS, COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import {
   useGetAllApplications,
@@ -1147,21 +1147,21 @@ export default function BackofficeDashboard() {
       title: 'Area total aplicada',
       value: formatHectares(totalSeasonStats?.stats?.totalAreaHectares),
       icon: 'leaf-outline' as const,
-      accentColor: '#16A34A',
+      accentColor: CHART_COLORS[0],
       isLoading: shouldWaitForCropSeason || isLoadingTotalSeasonStats,
     },
     {
       title: 'Este mes',
       value: formatHectares(currentMonthStats?.stats?.totalAreaHectares),
       icon: 'calendar-outline' as const,
-      accentColor: '#CA8A04',
+      accentColor: CHART_COLORS[2],
       isLoading: shouldWaitForCropSeason || isLoadingCurrentMonthStats,
     },
     {
       title: 'Aplicacao de ontem',
       value: formatHectares(yesterdayAreaStats?.stats?.totalAreaHectares),
       icon: 'time-outline' as const,
-      accentColor: '#EA580C',
+      accentColor: CHART_COLORS[4],
       isLoading: shouldWaitForCropSeason || isLoadingYesterdayAreaStats,
     },
     {
@@ -1172,7 +1172,7 @@ export default function BackofficeDashboard() {
           : dashboardMetrics?.metrics?.averageDailyArea
       ),
       icon: 'bar-chart-outline' as const,
-      accentColor: '#0EA5E9',
+      accentColor: CHART_COLORS[5],
       isLoading:
         shouldWaitForCropSeason
           ? true
@@ -1188,7 +1188,7 @@ export default function BackofficeDashboard() {
           : dashboardMetrics?.metrics?.daysSinceStart
       ),
       icon: 'trending-up-outline' as const,
-      accentColor: '#9333EA',
+      accentColor: CHART_COLORS[3],
       isLoading:
         shouldWaitForCropSeason
           ? true
@@ -1200,7 +1200,7 @@ export default function BackofficeDashboard() {
       title: 'OS em aberto',
       value: formatInteger(openServiceOrdersData?.totalCount ?? openServiceOrders.length),
       icon: 'document-text-outline' as const,
-      accentColor: '#2563EB',
+      accentColor: CHART_COLORS[7],
       isLoading: isLoadingOpenServiceOrders,
     },
   ];
@@ -1649,7 +1649,7 @@ export default function BackofficeDashboard() {
         data={pilotChartData}
         isLoading={isLoadingPilotChart}
         emptyText='Sem dados para exibir.'
-        color='#2563EB'
+        color={CHART_COLORS[7]}
         isTablet={isTablet}
         rightHeader={
           <View style={{ gap: 8 }}>
@@ -1686,7 +1686,7 @@ export default function BackofficeDashboard() {
         data={hectaresByCustomerData}
         isLoading={isLoadingAnyCustomerArea}
         emptyText='Sem dados para exibir.'
-        color='#0D9488'
+        color={CHART_COLORS[5]}
         isTablet={isTablet}
         rightHeader={
           <View style={styles.modeRow}>
@@ -1828,7 +1828,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderWidth: 1,
@@ -1846,7 +1846,7 @@ const styles = StyleSheet.create({
   },
   filterCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
     padding: 12,
@@ -1865,7 +1865,7 @@ const styles = StyleSheet.create({
   toggleFiltersBtn: {
     borderWidth: 1,
     borderColor: COLORS.blue,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -1890,7 +1890,7 @@ const styles = StyleSheet.create({
   },
   searchInputWrap: {
     backgroundColor: COLORS.white,
-    borderRadius: 10,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.gray,
     height: 50,
@@ -1903,7 +1903,7 @@ const styles = StyleSheet.create({
   },
   dateButton: {
     backgroundColor: COLORS.white,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.gray,
     paddingHorizontal: 12,
@@ -1918,7 +1918,7 @@ const styles = StyleSheet.create({
   advancedToggle: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 10,
     backgroundColor: COLORS.background,
@@ -1937,7 +1937,7 @@ const styles = StyleSheet.create({
   clearFiltersBtn: {
     borderWidth: 1,
     borderColor: COLORS.blue,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: COLORS.white,
@@ -1957,7 +1957,7 @@ const styles = StyleSheet.create({
   },
   blockCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
     padding: 12,
@@ -2002,7 +2002,7 @@ const styles = StyleSheet.create({
   launchRow: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 10,
+    borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -2122,7 +2122,7 @@ const styles = StyleSheet.create({
   serviceOrderCard: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 12,
     gap: 10,
     backgroundColor: COLORS.white,

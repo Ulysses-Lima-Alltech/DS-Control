@@ -43,9 +43,9 @@ export default function ModalMapFarmViewer({
           paddingHorizontal: 16,
           paddingTop: 18,
           paddingBottom: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: COLORS.surface,
           borderBottomWidth: 1,
-          borderBottomColor: '#E5E5EA',
+          borderBottomColor: COLORS.border,
           justifyContent: 'space-between',
         }}
       >
@@ -65,7 +65,7 @@ export default function ModalMapFarmViewer({
             style={{
               fontSize: 14,
               fontWeight: '600',
-              color: '#1C1C1E',
+              color: COLORS.text,
               flexWrap: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

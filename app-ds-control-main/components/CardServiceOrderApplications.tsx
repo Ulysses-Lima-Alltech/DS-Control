@@ -54,26 +54,28 @@ export default function CardServiceOrderApplications({
     <View
       style={{
         backgroundColor: COLORS.white,
-        borderRadius: 12,
+        borderRadius: 18,
         padding: 16,
         marginBottom: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
         shadowColor: COLORS.black,
         shadowOffset: {
           width: 0,
           height: 2,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        elevation: 4,
       }}
     >
       {user?.type === 'pilot' && (
         <TouchableOpacity
           style={{
             width: '100%',
-            backgroundColor: COLORS.green,
+            backgroundColor: COLORS.primary,
             marginTop: 12,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 8,
             flexDirection: 'row',
             justifyContent: 'center',
@@ -124,7 +126,7 @@ export default function CardServiceOrderApplications({
         <View
           style={{
             backgroundColor: COLORS.lightgreen,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 4,
             paddingHorizontal: 8,
           }}
@@ -143,7 +145,7 @@ export default function CardServiceOrderApplications({
               flexDirection: 'column',
               gap: 8,
               backgroundColor: COLORS.white,
-              borderRadius: 8,
+              borderRadius: 14,
               padding: 12,
               marginBottom: 12,
               borderWidth: 1,
@@ -316,7 +318,7 @@ export default function CardServiceOrderApplications({
                   marginTop: 16,
                   backgroundColor: COLORS.lightblue,
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   borderColor: COLORS.lightgray,
                   borderWidth: 1,
                 }}
@@ -337,7 +339,7 @@ export default function CardServiceOrderApplications({
                   gap: 10,
                   borderWidth: 1,
                   borderColor: COLORS.blue,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   paddingVertical: 4,
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -471,7 +473,7 @@ const SkeletonError = ({ error }: { error: Error | null }) => {
         alignItems: 'center',
         backgroundColor: COLORS.white,
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 14,
         marginBottom: 12,
       }}
     >
@@ -491,7 +493,7 @@ const SkeletonLoading = () => {
         alignItems: 'center',
         backgroundColor: COLORS.background,
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 14,
       }}
     >
       <ActivityIndicator size='large' color={COLORS.primary} />

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { COLORS } from '@/constants/colors';
+import { COLORS, SHADOWS } from '@/constants/colors';
 
 type DashboardKpiCardProps = {
   title: string;
@@ -35,13 +35,14 @@ export default function DashboardKpiCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.lightgray,
+    borderColor: COLORS.border,
     overflow: 'hidden',
     paddingHorizontal: 12,
     paddingVertical: 12,
     minHeight: 96,
+    ...SHADOWS.card,
   },
   accent: {
     position: 'absolute',
@@ -49,6 +50,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 4,
+    backgroundColor: COLORS.primary,
   },
   headerRow: {
     flexDirection: 'row',
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 28,
     height: 28,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -72,7 +74,7 @@ const styles = StyleSheet.create({
   value: {
     marginTop: 10,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.black,
   },
 });

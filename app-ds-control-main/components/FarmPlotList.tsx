@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
@@ -164,7 +165,7 @@ export default function FarmPlotList({
         placeholder='Buscar fazenda ou talhao...'
         value={searchTerm}
         onChangeText={setSearchTerm}
-        placeholderTextColor='gray'
+        placeholderTextColor={COLORS.textMuted}
       />
       {hasResults ? farmsToShow : hasSearchTerm ? renderEmptyState() : null}
     </View>
@@ -173,15 +174,15 @@ export default function FarmPlotList({
 
 const styles = StyleSheet.create({
   searchInput: {
-    height: 40,
+    height: 52,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     marginBottom: 16,
     fontSize: 16,
-    color: '#1C1C1E',
-    backgroundColor: '#FFFFFF',
+    color: COLORS.text,
+    backgroundColor: COLORS.surface,
   },
   plotsContainer: {
     flexDirection: 'row',
@@ -200,31 +201,31 @@ const styles = StyleSheet.create({
   farmTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1C1C1E',
+    color: COLORS.text,
     flex: 1,
   },
   chevron: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginLeft: 8,
   },
   plotCard: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#EFEFF4',
+    backgroundColor: COLORS.primarySoft,
     marginRight: 8,
     marginBottom: 8,
   },
   selectedPlotCard: {
-    backgroundColor: '#EAAE07',
+    backgroundColor: COLORS.primary,
   },
   plotName: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
   selectedPlotName: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '600',
   },
   emptyState: {
@@ -236,12 +237,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginBottom: 8,
   },
   emptyStateSubtitle: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },

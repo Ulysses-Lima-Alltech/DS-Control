@@ -1331,7 +1331,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
               </Text>
             </View>
           ) : shouldShowMapViewer ? (
-            <View style={{ height: mapHeight, borderRadius: 10, overflow: 'hidden' }}>
+            <View style={{ height: mapHeight, borderRadius: 16, overflow: 'hidden' }}>
               <MapViewer
                 isFetching={isFetchingSelectedFarm || isFetchingRoutes || isFetchingNavigationRoute}
                 selectedFarmId={selectedFarmId || null}
@@ -1630,7 +1630,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 12,
   },
   headerTitle: {
@@ -1647,7 +1647,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 12,
     gap: 8,
   },
@@ -1664,7 +1664,7 @@ const styles = StyleSheet.create({
   toggleFiltersButton: {
     borderWidth: 1,
     borderColor: COLORS.blue,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -1694,7 +1694,7 @@ const styles = StyleSheet.create({
   searchInputWrapper: {
     borderWidth: 1,
     borderColor: COLORS.gray,
-    borderRadius: 10,
+    borderRadius: 16,
     minHeight: 50,
     justifyContent: 'center',
     paddingHorizontal: 12,
@@ -1712,7 +1712,7 @@ const styles = StyleSheet.create({
   clearButton: {
     borderWidth: 1,
     borderColor: COLORS.blue,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: COLORS.white,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1737,7 +1737,7 @@ const styles = StyleSheet.create({
   mapCard: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     padding: 10,
     gap: 10,
@@ -1745,7 +1745,7 @@ const styles = StyleSheet.create({
   detailsCard: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     padding: 10,
     gap: 10,
@@ -1766,7 +1766,7 @@ const styles = StyleSheet.create({
     minHeight: 170,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 10,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -1789,7 +1789,7 @@ const styles = StyleSheet.create({
     minHeight: 170,
     borderWidth: 1,
     borderColor: '#FCD34D',
-    borderRadius: 10,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -1812,7 +1812,7 @@ const styles = StyleSheet.create({
     minHeight: 170,
     borderWidth: 1,
     borderColor: '#FECACA',
-    borderRadius: 10,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -1834,7 +1834,7 @@ const styles = StyleSheet.create({
   retryButton: {
     borderWidth: 1,
     borderColor: '#B91C1C',
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#FFF5F5',
@@ -1852,7 +1852,7 @@ const styles = StyleSheet.create({
   optionalFarmHint: {
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: '#EFF6FF',
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1868,7 +1868,7 @@ const styles = StyleSheet.create({
   detailsEmptyState: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 10,
+    borderRadius: 16,
     backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1890,7 +1890,7 @@ const styles = StyleSheet.create({
     width: '48.6%',
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: COLORS.white,
     paddingHorizontal: 8,
     paddingVertical: 8,
@@ -1909,7 +1909,7 @@ const styles = StyleSheet.create({
   routesListCard: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     padding: 12,
     gap: 10,
@@ -1954,7 +1954,7 @@ const styles = StyleSheet.create({
   routeCard: {
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     paddingHorizontal: 10,
     paddingVertical: 10,
     gap: 8,
@@ -2018,7 +2018,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -2039,7 +2039,7 @@ const styles = StyleSheet.create({
   paginationButton: {
     width: 34,
     height: 34,
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

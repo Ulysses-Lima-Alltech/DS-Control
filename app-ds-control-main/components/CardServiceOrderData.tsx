@@ -63,17 +63,19 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
     <View
       style={{
         backgroundColor: COLORS.white,
-        borderRadius: 12,
+        borderRadius: 18,
         padding: 16,
         marginBottom: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
         shadowColor: COLORS.black,
         shadowOffset: {
           width: 0,
           height: 2,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        elevation: 4,
       }}
     >
       <View
@@ -106,7 +108,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
           color={COLORS.blue}
           style={{
             backgroundColor: COLORS.lightblue,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 4,
             alignSelf: 'flex-start',
           }}
@@ -140,7 +142,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
           color={COLORS.green}
           style={{
             backgroundColor: COLORS.lightgreen,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 4,
             alignSelf: 'flex-start',
           }}
@@ -163,7 +165,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
       <View
         style={{
           backgroundColor: COLORS.background,
-          borderRadius: 10,
+          borderRadius: 16,
           padding: 12,
           marginBottom: 12,
           borderWidth: 1,
@@ -203,7 +205,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
           style={{
             alignSelf: 'flex-start',
             backgroundColor: COLORS.lightorange,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 4,
           }}
         />
@@ -230,7 +232,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
                     key={farm.id}
                     style={{
                       backgroundColor: COLORS.lightblue,
-                      borderRadius: 12,
+                      borderRadius: 18,
                       paddingHorizontal: 12,
                       paddingVertical: 10,
                       flexDirection: 'column',
@@ -285,7 +287,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
                           alignItems: 'center',
                           justifyContent: 'center',
                           backgroundColor: COLORS.lightblue,
-                          borderRadius: 8,
+                          borderRadius: 14,
                           paddingHorizontal: 10,
                           paddingVertical: 2,
                           borderWidth: 1,
@@ -312,10 +314,10 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
                                 gap: 4,
                                 alignItems: 'center',
                                 backgroundColor: 'white',
-                                borderRadius: 8,
+                                borderRadius: 14,
                                 padding: 4,
                                 borderWidth: 1,
-                                borderColor: 'lightgray',
+                                borderColor: COLORS.border,
                                 flexWrap: 'wrap',
                                 flexGrow: 1,
                               }}
@@ -348,7 +350,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
           color={COLORS.purple}
           style={{
             backgroundColor: COLORS.lightpurple,
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 4,
             alignSelf: 'flex-start',
           }}
@@ -382,7 +384,7 @@ const SummaryItem = ({ label, value }: { label: string; value: string }) => {
     <View
       style={{
         backgroundColor: COLORS.white,
-        borderRadius: 8,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor: COLORS.lightgray,
         padding: 10,
@@ -401,18 +403,18 @@ const SkeletonError = ({ error }: { error: Error | null }) => {
   return (
     <View
       style={{
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
+        backgroundColor: COLORS.surface,
+        borderRadius: 18,
         padding: 16,
         marginBottom: 12,
-        shadowColor: '#000',
+        shadowColor: COLORS.shadow,
         shadowOffset: {
           width: 0,
           height: 2,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        elevation: 4,
         justifyContent: 'center',
         alignItems: 'center',
       }}
@@ -430,7 +432,7 @@ const SkeletonLoading = () => {
     <View
       style={{
         backgroundColor: COLORS.white,
-        borderRadius: 12,
+        borderRadius: 18,
         padding: 16,
         marginBottom: 12,
         shadowColor: COLORS.black,
@@ -438,9 +440,9 @@ const SkeletonLoading = () => {
           width: 0,
           height: 2,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        elevation: 4,
       }}
     >
       <ActivityIndicator color={COLORS.primary} />

@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
 import { NavigationMapMode, NavigationMapModeOption } from '@/types/mapNavigation.type';
 
 type NavigationMapStyleSelectorProps = {
@@ -28,7 +29,7 @@ export default function NavigationMapStyleSelector({
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.toggleButton} onPress={onToggle} activeOpacity={0.85}>
-        <MaterialCommunityIcons name='layers-outline' size={17} color='#111827' />
+        <MaterialCommunityIcons name='layers-outline' size={17} color={COLORS.primaryDark} />
         <Text style={styles.toggleTitle}>{getCompactModeLabel(activeOption)}</Text>
       </TouchableOpacity>
 
@@ -57,7 +58,7 @@ export default function NavigationMapStyleSelector({
                   )}
                 </View>
                 {isActive && (
-                  <MaterialCommunityIcons name='check-circle' size={16} color='#0D6EFD' />
+                  <MaterialCommunityIcons name='check-circle' size={16} color={COLORS.primary} />
                 )}
               </TouchableOpacity>
             );
@@ -79,28 +80,32 @@ const styles = StyleSheet.create({
   toggleButton: {
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 11,
   },
   toggleTitle: {
-    color: '#111827',
+    color: COLORS.text,
     fontSize: 12,
     fontWeight: '900',
   },
   menu: {
     width: 116,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     marginTop: 7,
     padding: 5,
     gap: 3,
   },
   option: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -109,26 +114,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   optionActive: {
-    backgroundColor: '#E7F0FF',
+    backgroundColor: COLORS.primarySoft,
   },
   optionTextWrap: {
     flex: 1,
     minWidth: 0,
   },
   optionLabel: {
-    color: '#111827',
+    color: COLORS.text,
     fontSize: 12,
     fontWeight: '900',
   },
   optionLabelActive: {
-    color: '#0D47A1',
+    color: COLORS.primaryDark,
   },
   optionDescription: {
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontSize: 9,
     fontWeight: '800',
   },
   optionDescriptionActive: {
-    color: '#0D47A1',
+    color: COLORS.primaryDark,
   },
 });

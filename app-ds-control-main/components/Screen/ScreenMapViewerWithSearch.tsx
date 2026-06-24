@@ -6,6 +6,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import MapNavigationButton from '@/components/Map/MapNavigationButton';
 import MapViewer from '@/components/Map/MapViewer';
 import TextInputSearchMultipleFarms from '@/components/TextInputSearchMultipleFarms';
+import { COLORS } from '@/constants/colors';
 import { useGetFarmById } from '@/queries/farm.query';
 import { useGetRouteByFarmId } from '@/queries/route.query';
 import { getMapboxDrivingDirections } from '@/services/mapboxDirections.service';
@@ -99,7 +100,7 @@ const getCurrentUserCoordinate = async (): Promise<MapNavigationCoordinate | nul
   if (permission.status !== 'granted') {
     Alert.alert(
       'Permissao de localizacao',
-      'Permita o acesso a sua localizacao para calcular a rota dentro do DS Control.'
+      'Permita o acesso a sua localizacao para calcular a rota dentro do iControl Agras.'
     );
     return null;
   }
@@ -337,7 +338,7 @@ export default function ScreenMapViewerWithSearch({
       {showRouteSelector && (
         <View style={styles.routeSelectorContainer}>
           <View style={styles.routeSelectorHeader}>
-            <MaterialCommunityIcons name='routes' size={14} color='#0D6EFD' />
+            <MaterialCommunityIcons name='routes' size={14} color={COLORS.primaryDark} />
             <Text style={styles.routeSelectorTitle}>Rotas da fazenda</Text>
           </View>
           {isFetchingRoute ? (
@@ -396,8 +397,8 @@ const styles = StyleSheet.create({
     zIndex: 9,
     backgroundColor: 'rgba(255, 255, 255, 0.96)',
     borderWidth: 1,
-    borderColor: '#DADADA',
-    borderRadius: 10,
+    borderColor: COLORS.border,
+    borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 8,
@@ -408,12 +409,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   routeSelectorTitle: {
-    color: '#1D1D1D',
+    color: COLORS.text,
     fontSize: 12,
     fontWeight: '600',
   },
   routeSelectorLoadingText: {
-    color: '#646464',
+    color: COLORS.textMuted,
     fontSize: 12,
   },
   routeChipList: {
@@ -424,23 +425,23 @@ const styles = StyleSheet.create({
   routeChip: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D3D3D3',
+    borderColor: COLORS.border,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     maxWidth: 220,
   },
   routeChipSelected: {
-    borderColor: '#0D6EFD',
-    backgroundColor: '#EAF2FF',
+    borderColor: COLORS.primaryDark,
+    backgroundColor: COLORS.primarySoft,
   },
   routeChipText: {
-    color: '#464646',
+    color: COLORS.textMuted,
     fontSize: 12,
     fontWeight: '500',
   },
   routeChipTextSelected: {
-    color: '#0D6EFD',
+    color: COLORS.primaryDark,
   },
   navigationErrorContainer: {
     position: 'absolute',
@@ -448,13 +449,13 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 58,
     zIndex: 8,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: 'rgba(127, 29, 29, 0.94)',
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   navigationErrorText: {
-    color: '#FFFFFF',
+    color: COLORS.surface,
     fontSize: 12,
     fontWeight: '500',
   },

@@ -12,6 +12,7 @@ import { AuthProvider } from '@/providers/auth.provider';
 import QueryProvider from '@/providers/query.provider';
 import Toast from 'react-native-toast-message';
 import HeaderApp from '@/components/HeaderApp';
+import { COLORS } from '@/constants/colors';
 // import { LogBox } from 'react-native';
 
 function RootContent() {
@@ -19,9 +20,19 @@ function RootContent() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 12,
+          backgroundColor: COLORS.background,
+        }}
+      >
         <LoadingDSIcon />
-        <Text>Carregando DS Control...</Text>
+        <Text style={{ color: COLORS.textMuted, fontWeight: '600' }}>
+          Carregando iControl Agras...
+        </Text>
       </View>
     );
   }
@@ -44,7 +55,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
         <QueryProvider>
           <AuthProvider>
             <RootContent />

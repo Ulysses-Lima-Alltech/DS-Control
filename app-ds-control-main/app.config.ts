@@ -52,7 +52,7 @@ export default {
           image: './assets/images/adaptive-icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
-          backgroundColor: '#EAAE07',
+          backgroundColor: '#F7FBF3',
         },
       ],
       'expo-font',

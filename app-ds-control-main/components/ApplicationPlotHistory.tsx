@@ -2,6 +2,7 @@ import { FlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { useGetApplicationsByPlotId } from '@/queries/application.query';
 import { Application } from '@/types/applications.type';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
@@ -92,15 +93,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   applicationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
     padding: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   applicationHeader: {
     flexDirection: 'column',
@@ -110,27 +109,27 @@ const styles = StyleSheet.create({
   applicationTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1C1C1E',
+    color: COLORS.text,
   },
   applicationDate: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
   },
   applicationInfo: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: 20,
   },
   title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginBottom: 16,
   },
 });

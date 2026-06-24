@@ -5,6 +5,7 @@ import MapContent from '@/components/Map/MapContent';
 import MapControls from '@/components/Map/MapControls';
 import MapTools, { useMapTools } from '@/components/Map/MapTools';
 import ModalPlotViewer from '@/components/Modal/ModalPlotViewer';
+import { COLORS } from '@/constants/colors';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
 import {
@@ -139,7 +140,7 @@ export default function MapViewer({
             alignItems: 'center',
           }}
         >
-          <ActivityIndicator color='#EAAE07' size='large' />
+          <ActivityIndicator color={COLORS.primary} size='large' />
         </View>
       )}
       <MapContent

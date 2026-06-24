@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: COLORS.border,
   },
   headerTitleWrapper: {
     flexDirection: 'row',
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: COLORS.text,
     flexShrink: 1,
   },
   closeButton: {
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
@@ -448,10 +448,10 @@ const styles = StyleSheet.create({
   summaryCard: {
     width: '48%',
     backgroundColor: COLORS.white,
-    borderRadius: 10,
+    borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E6ECF5',
+    borderColor: COLORS.border,
   },
   summaryLabel: {
     fontSize: 11,
@@ -467,10 +467,10 @@ const styles = StyleSheet.create({
     margin: 16,
     marginTop: 12,
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E6ECF5',
+    borderColor: COLORS.border,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -485,11 +485,11 @@ const styles = StyleSheet.create({
   },
   mapCard: {
     height: 190,
-    borderRadius: 10,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E6ECF5',
-    backgroundColor: '#EEF2F7',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.primarySoft,
   },
   mapImage: {
     width: '100%',
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F3F8',
+    borderBottomColor: COLORS.border,
   },
   infoLabel: {
     color: COLORS.gray,
@@ -533,8 +533,8 @@ const styles = StyleSheet.create({
   emptyState: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D4DCE8',
-    borderRadius: 10,
+    borderColor: COLORS.borderStrong,
+    borderRadius: 16,
     paddingVertical: 18,
     paddingHorizontal: 14,
   },
@@ -546,11 +546,11 @@ const styles = StyleSheet.create({
   },
   applicationCard: {
     borderWidth: 1,
-    borderColor: '#E6ECF5',
-    borderRadius: 10,
+    borderColor: COLORS.border,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 10,
-    backgroundColor: '#FCFDFF',
+    backgroundColor: COLORS.surface,
   },
   applicationHeader: {
     flexDirection: 'row',
@@ -582,8 +582,8 @@ const styles = StyleSheet.create({
   },
   applicationDataItem: {
     width: '48%',
-    backgroundColor: '#F3F6FA',
-    borderRadius: 8,
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 14,
     padding: 8,
   },
   applicationDataLabel: {
@@ -598,12 +598,12 @@ const styles = StyleSheet.create({
   },
   observationsBox: {
     marginTop: 10,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D4DCE8',
+    borderColor: COLORS.borderStrong,
     padding: 8,
-    backgroundColor: '#F8FBFF',
+    backgroundColor: COLORS.background,
   },
   observationsLabel: {
     fontSize: 10,

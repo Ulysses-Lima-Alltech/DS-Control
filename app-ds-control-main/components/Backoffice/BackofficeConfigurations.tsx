@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 14,
     gap: 10,
     borderWidth: 1,
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: COLORS.lightgray,
-    borderRadius: 10,
+    borderRadius: 16,
     padding: 12,
   },
   itemTitleRow: {
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 9,
     paddingVertical: 8,
     backgroundColor: COLORS.lightblue,

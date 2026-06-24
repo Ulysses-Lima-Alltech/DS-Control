@@ -20,6 +20,7 @@ import { useLogin } from '@/mutations/auth.mutation';
 import { useAuth } from '@/providers/auth.provider';
 import { LoginSchema } from '@/schemas/auth.schema';
 import { OTA_VERSION_TEXT } from '@/constants/version';
+import { COLORS, SHADOWS } from '@/constants/colors';
 
 export type LoginFormData = z.infer<typeof LoginSchema>;
 
@@ -56,6 +57,83 @@ export default function LoginScreen() {
     login(data);
   };
 
+  const formContent = (
+    <>
+      <Text style={styles.title}>Entrar</Text>
+      <Text style={styles.subtitle}>Acesse sua operação iControl Agras</Text>
+
+      <Controller
+        control={control}
+        name='email'
+        render={({
+          field: { onChange, onBlur, value },
+        }: {
+          field: { onChange: (v: string) => void; onBlur: () => void; value: string };
+        }) => (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>E-mail</Text>
+            <TextInput
+              style={[styles.input, errors.email && styles.inputError]}
+              placeholder='seu@email.com'
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize='none'
+              keyboardType='email-address'
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+          </View>
+        )}
+      />
+
+      <Controller
+        control={control}
+        name='password'
+        render={({
+          field: { onChange, onBlur, value },
+        }: {
+          field: { onChange: (v: string) => void; onBlur: () => void; value: string };
+        }) => (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Senha</Text>
+            <TextInput
+              style={[styles.input, errors.password && styles.inputError]}
+              placeholder='Digite sua senha'
+              placeholderTextColor={COLORS.textMuted}
+              secureTextEntry
+              autoCapitalize='none'
+              autoComplete='password'
+              autoCorrect={false}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+            {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+          </View>
+        )}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, isPending && styles.buttonDisabled]}
+        disabled={isPending}
+        onPress={handleSubmit(onSubmit)}
+      >
+        <Text style={styles.buttonText}>{isPending ? 'Entrando...' : 'Entrar'}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.forgotPasswordLink}
+        onPress={() =>
+          router.push(`/auth/forgot-password?email=${encodeURIComponent(emailValue || '')}`)
+        }
+      >
+        <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+      </TouchableOpacity>
+      <Text style={styles.versionText}>{OTA_VERSION_TEXT}</Text>
+    </>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingView}
@@ -67,172 +145,14 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.container, isLandscape && styles.containerLandscape]}>
-          {isLandscape ? (
-            <>
-              <View style={styles.logoSection}>
-                <Image
-                  source={require('@/assets/images/icon-1080.png')}
-                  style={styles.logoLandscape}
-                  resizeMode='contain'
-                />
-              </View>
-              <View style={styles.formSection}>
-                <Text style={styles.title}>Entrar</Text>
-
-                <Controller
-                  control={control}
-                  name='email'
-                  render={({
-                    field: { onChange, onBlur, value },
-                  }: {
-                    field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                  }) => (
-                    <View style={styles.inputGroup}>
-                      <TextInput
-                        style={[styles.input, errors.email && styles.inputError]}
-                        placeholder='E-mail'
-                        placeholderTextColor='gray'
-                        autoCapitalize='none'
-                        keyboardType='email-address'
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                      />
-                      {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                    </View>
-                  )}
-                />
-
-                <Controller
-                  control={control}
-                  name='password'
-                  render={({
-                    field: { onChange, onBlur, value },
-                  }: {
-                    field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                  }) => (
-                    <View style={styles.inputGroup}>
-                      <TextInput
-                        style={[styles.input, errors.password && styles.inputError]}
-                        placeholder='Senha'
-                        placeholderTextColor='gray'
-                        secureTextEntry
-                        autoCapitalize='none'
-                        autoComplete='password'
-                        autoCorrect={false}
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                      />
-                      {errors.password && (
-                        <Text style={styles.errorText}>{errors.password.message}</Text>
-                      )}
-                    </View>
-                  )}
-                />
-
-                <TouchableOpacity
-                  style={[styles.button, isPending && { opacity: 0.7 }]}
-                  disabled={isPending}
-                  onPress={handleSubmit(onSubmit)}
-                >
-                  <Text style={styles.buttonText}>{isPending ? 'Entrando...' : 'Entrar'}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.forgotPasswordLink}
-                  onPress={() =>
-                    router.push(
-                      `/auth/forgot-password?email=${encodeURIComponent(emailValue || '')}`
-                    )
-                  }
-                >
-                  <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <Image
-                source={require('@/assets/images/icon-1080.png')}
-                style={styles.logo}
-                resizeMode='contain'
-              />
-              <Text style={styles.title}>Entrar</Text>
-
-              <Controller
-                control={control}
-                name='email'
-                render={({
-                  field: { onChange, onBlur, value },
-                }: {
-                  field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                }) => (
-                  <View style={styles.inputGroup}>
-                    <TextInput
-                      style={[styles.input, errors.email && styles.inputError]}
-                      placeholder='E-mail'
-                      placeholderTextColor='gray'
-                      autoCapitalize='none'
-                      keyboardType='email-address'
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value}
-                    />
-                    {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                  </View>
-                )}
-              />
-
-              <Controller
-                control={control}
-                name='password'
-                render={({
-                  field: { onChange, onBlur, value },
-                }: {
-                  field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                }) => (
-                  <View style={styles.inputGroup}>
-                    <TextInput
-                      style={[styles.input, errors.password && styles.inputError]}
-                      placeholder='Senha'
-                      placeholderTextColor='gray'
-                      secureTextEntry
-                      autoCapitalize='none'
-                      autoComplete='password'
-                      autoCorrect={false}
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value}
-                    />
-                    {errors.password && (
-                      <Text style={styles.errorText}>{errors.password.message}</Text>
-                    )}
-                  </View>
-                )}
-              />
-
-              <TouchableOpacity
-                style={[styles.button, isPending && { opacity: 0.7 }]}
-                disabled={isPending}
-                onPress={handleSubmit(onSubmit)}
-              >
-                <Text style={styles.buttonText}>{isPending ? 'Entrando...' : 'Entrar'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.forgotPasswordLink}
-                onPress={() =>
-                  router.push(`/auth/forgot-password?email=${encodeURIComponent(emailValue || '')}`)
-                }
-              >
-                <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
-              </TouchableOpacity>
-              <Text style={{ color: '#8E8E93', fontSize: 12, textAlign: 'center' }}>
-                {OTA_VERSION_TEXT}
-              </Text>
-            </>
-          )}
+          <View style={styles.logoSection}>
+            <Image
+              source={require('@/assets/images/logo-icontrol-agras.png')}
+              style={isLandscape ? styles.logoLandscape : styles.logo}
+              resizeMode='contain'
+            />
+          </View>
+          <View style={styles.formCard}>{formContent}</View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -242,7 +162,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   scrollViewContent: {
     flexGrow: 1,
@@ -252,76 +172,109 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: 'center',
+    gap: 24,
   },
   containerLandscape: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 48,
+    gap: 32,
   },
   logoSection: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  formSection: {
-    flex: 1,
-    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   logo: {
-    width: 240,
-    height: 240,
+    width: 270,
+    height: 120,
     alignSelf: 'center',
-    marginBottom: 12,
   },
   logoLandscape: {
-    width: 240,
-    height: 240,
+    width: 330,
+    height: 148,
+  },
+  formCard: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 26,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 32,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginBottom: 24,
     textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 16,
   },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 8,
+  },
   input: {
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    minHeight: 54,
+    borderRadius: 16,
     fontSize: 16,
-    color: '#1C1C1E',
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   inputError: {
-    borderColor: '#FF3B30',
+    borderColor: COLORS.error,
     borderWidth: 1,
   },
   errorText: {
     marginTop: 4,
     fontSize: 12,
-    color: '#FF3B30',
+    color: COLORS.error,
   },
   button: {
-    backgroundColor: '#EAAE07',
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 18,
     alignItems: 'center',
     marginTop: 8,
+    ...SHADOWS.floating,
+    shadowOpacity: 0.14,
+  },
+  buttonDisabled: {
+    opacity: 0.72,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   forgotPasswordLink: {
     marginTop: 16,
     alignItems: 'center',
   },
   forgotPasswordText: {
-    color: '#8E8E93',
+    color: COLORS.primaryDark,
     fontSize: 14,
-    textDecorationLine: 'underline',
+    fontWeight: '700',
+  },
+  versionText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 14,
   },
 });

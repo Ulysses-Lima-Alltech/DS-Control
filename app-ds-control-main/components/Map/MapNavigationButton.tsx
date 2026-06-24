@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ActivityIndicator, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
+import { COLORS } from '@/constants/colors';
+
 interface MapNavigationButtonProps {
   isNavigationMode: boolean;
   onToggleNavigationMode: () => void;
@@ -30,7 +32,7 @@ export default function MapNavigationButton({
             styles.goNowButton,
             isGoNowDisabled && {
               opacity: 0.5,
-              backgroundColor: '#666666',
+              backgroundColor: COLORS.textMuted,
             },
           ]}
           onPress={onGoNow}
@@ -51,11 +53,11 @@ export default function MapNavigationButton({
         style={[
           styles.navigationButton,
           isNavigationMode && {
-            backgroundColor: '#EAAE07',
+            backgroundColor: COLORS.primary,
           },
           disabled && {
             opacity: 0.5,
-            backgroundColor: '#666666',
+            backgroundColor: COLORS.textMuted,
           },
         ]}
         onPress={onToggleNavigationMode}
@@ -83,11 +85,11 @@ const styles = StyleSheet.create({
   goNowButton: {
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#0D6EFD',
+    backgroundColor: COLORS.primaryDark,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -104,11 +106,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 20,
-    backgroundColor: '#000000',
+    backgroundColor: COLORS.text,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
