@@ -71,6 +71,7 @@ export default {
           },
         },
       ],
+      './plugins/with-ios-fmt-consteval-fix',
       [
         '@rnmapbox/maps',
         {
