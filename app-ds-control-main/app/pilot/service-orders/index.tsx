@@ -212,7 +212,7 @@ export default function ServiceOrders() {
                 <View
                   style={{
                     backgroundColor: COLORS.lightblue,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     padding: 4,
                     paddingHorizontal: 8,
                   }}
@@ -226,9 +226,9 @@ export default function ServiceOrders() {
               <View
                 style={{
                   backgroundColor: COLORS.white,
-                  borderRadius: 12,
+                  borderRadius: 18,
                   padding: 12,
-                  borderColor: COLORS.lightblue,
+                  borderColor: COLORS.border,
                   borderWidth: 1,
                   gap: 12,
                 }}
@@ -252,7 +252,7 @@ export default function ServiceOrders() {
                     style={{
                       backgroundColor: COLORS.white,
                       height: 50,
-                      borderRadius: 10,
+                      borderRadius: 16,
                       borderWidth: 1,
                       borderColor: COLORS.gray,
                       flexDirection: 'row',
@@ -275,7 +275,7 @@ export default function ServiceOrders() {
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 12,
-                            borderRadius: 8,
+                            borderRadius: 14,
                             borderWidth: 1,
                             borderColor: COLORS.gray,
                           }}
@@ -330,7 +330,7 @@ export default function ServiceOrders() {
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 12,
-                            borderRadius: 8,
+                            borderRadius: 14,
                             borderWidth: 1,
                             borderColor: COLORS.gray,
                           }}
@@ -396,7 +396,7 @@ export default function ServiceOrders() {
                     alignItems: 'center',
                     borderColor: COLORS.lightgray,
                     borderWidth: 1,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     paddingHorizontal: 10,
                     paddingVertical: 10,
                     backgroundColor: COLORS.background,
@@ -467,7 +467,7 @@ export default function ServiceOrders() {
                       alignItems: 'center',
                       borderColor: COLORS.blue,
                       borderWidth: 1,
-                      borderRadius: 8,
+                      borderRadius: 14,
                       paddingVertical: 6,
                       paddingHorizontal: 10,
                       backgroundColor: COLORS.white,
@@ -488,7 +488,7 @@ export default function ServiceOrders() {
               key={id}
               style={{
                 backgroundColor: COLORS.white,
-                borderRadius: 12,
+                borderRadius: 18,
                 padding: 16,
                 marginBottom: 12,
                 shadowColor: COLORS.black,
@@ -496,9 +496,9 @@ export default function ServiceOrders() {
                   width: 0,
                   height: 2,
                 },
-                shadowOpacity: 0.1,
-                shadowRadius: 3.84,
-                elevation: 5,
+                shadowOpacity: 0.08,
+                shadowRadius: 16,
+                elevation: 4,
               }}
               onPress={() => {
                 router.push(`/pilot/service-orders/${id}`);
@@ -529,7 +529,7 @@ export default function ServiceOrders() {
                 <TouchableOpacity
                   style={{
                     backgroundColor: COLORS.white,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     paddingHorizontal: 8,
                     paddingVertical: 4,
                   }}
@@ -547,10 +547,10 @@ export default function ServiceOrders() {
                 <Feather
                   name='user'
                   size={20}
-                  color='blue'
+                  color={COLORS.primaryDark}
                   style={{
                     backgroundColor: COLORS.lightblue,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     padding: 4,
                     alignSelf: 'flex-start',
                   }}
@@ -584,7 +584,7 @@ export default function ServiceOrders() {
                   color={COLORS.green}
                   style={{
                     backgroundColor: COLORS.lightgreen,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     padding: 4,
                     alignSelf: 'flex-start',
                   }}
@@ -618,7 +618,7 @@ export default function ServiceOrders() {
                   style={{
                     alignSelf: 'flex-start',
                     backgroundColor: COLORS.lightyellow,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     padding: 4,
                   }}
                 />
@@ -647,7 +647,7 @@ export default function ServiceOrders() {
                               backgroundColor: COLORS.white,
                               borderWidth: 1,
                               borderColor: COLORS.lightgray,
-                              borderRadius: 8,
+                              borderRadius: 14,
                               paddingHorizontal: 8,
                               paddingVertical: 4,
                               flexDirection: 'row',
@@ -656,7 +656,7 @@ export default function ServiceOrders() {
                             }}
                           >
                             <Entypo name='location-pin' size={16} color={COLORS.gray} />
-                            <Text style={{ fontSize: 12, color: 'gray' }}>{farm.name}</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.textMuted }}>{farm.name}</Text>
                           </View>
                         );
                       })}
@@ -669,10 +669,10 @@ export default function ServiceOrders() {
                 style={{
                   width: '100%',
                   backgroundColor: COLORS.white,
-                  borderColor: COLORS.lightblue,
+                  borderColor: COLORS.border,
                   borderWidth: 1,
                   marginTop: 12,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   padding: 2,
                   flexDirection: 'row',
                   justifyContent: 'center',
@@ -839,7 +839,7 @@ const SkeletonLoadingCard = () => {
     <View
       style={{
         backgroundColor: COLORS.white,
-        borderRadius: 12,
+        borderRadius: 18,
         padding: 16,
         marginBottom: 12,
         height: 150,

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet } from 'react-native';
 
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { useGetAllFarms } from '@/queries/farm.query';
 import { useAuth } from '../providers/auth.provider';
 import { Farm } from '../types/farm.type';
@@ -29,19 +30,25 @@ export default function StatsFarms() {
   return (
     <View style={styles.statsContainer}>
       <View style={styles.statCard}>
-        <Ionicons name='business' size={24} color='#007AFF' />
+        <View style={[styles.iconBubble, { backgroundColor: COLORS.primarySoft }]}>
+          <Ionicons name='business-outline' size={22} color={COLORS.primaryDark} />
+        </View>
         <Text style={styles.statNumber}>{statistics.totalFarms}</Text>
         <Text style={styles.statLabel}>Fazendas</Text>
       </View>
 
       <View style={styles.statCard}>
-        <Ionicons name='map' size={24} color='#34C759' />
+        <View style={[styles.iconBubble, { backgroundColor: COLORS.secondarySoft }]}>
+          <Ionicons name='map-outline' size={22} color={COLORS.secondary} />
+        </View>
         <Text style={styles.statNumber}>{statistics.totalPlots}</Text>
         <Text style={styles.statLabel}>Talhões</Text>
       </View>
 
       <View style={styles.statCard}>
-        <Ionicons name='leaf' size={24} color='#FF9500' />
+        <View style={[styles.iconBubble, { backgroundColor: COLORS.accentSoft }]}>
+          <Ionicons name='leaf-outline' size={22} color={COLORS.warning} />
+        </View>
         <Text style={styles.statNumber}>
           {statistics.totalHectares > 9999
             ? statistics.totalHectares.toFixed(0)
@@ -62,29 +69,32 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    padding: 14,
+    borderRadius: 18,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
+  },
+  iconBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   statNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginTop: 5,
+    fontWeight: '800',
+    color: COLORS.text,
     textOverflow: 'hidden',
   },
   statLabel: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginTop: 2,
+    fontWeight: '600',
   },
 });

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Dimensions } from 'react-native';
 
+import { COLORS, SHADOWS } from '@/constants/colors';
+
 export type DrawerProps = {
   title: string;
   children: React.ReactNode;
@@ -139,13 +141,11 @@ export default function Drawer({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
     overflow: 'hidden',
   },
   leftPosition: {
@@ -165,9 +165,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.primarySoft,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.border,
     minHeight: 50,
   },
   headerLandscapeClosed: {
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: COLORS.text,
     flex: 1,
   },
   hiddenTitle: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   arrow: {
     fontSize: 12,
-    color: '#EAAE07',
+    color: COLORS.primaryDark,
     fontWeight: 'bold',
   },
   content: {

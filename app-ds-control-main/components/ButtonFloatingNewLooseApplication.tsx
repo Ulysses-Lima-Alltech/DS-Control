@@ -1,5 +1,5 @@
 import { TouchableOpacity, Text } from 'react-native';
-import { COLORS } from '../constants/colors';
+import { COLORS, SHADOWS } from '../constants/colors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -10,16 +10,13 @@ export default function ButtonFloatingNewLooseApplication() {
         position: 'absolute',
         alignSelf: 'center',
         bottom: 16,
-        padding: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
         borderRadius: 28,
-        backgroundColor: COLORS.green,
+        backgroundColor: COLORS.primary,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        ...SHADOWS.floating,
         zIndex: 1000,
         flexDirection: 'row',
         gap: 8,

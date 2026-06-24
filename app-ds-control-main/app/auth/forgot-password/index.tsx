@@ -18,6 +18,7 @@ import type { z } from 'zod';
 
 import { useForgotPassword } from '@/mutations/user.mutation';
 import { ForgotPasswordSchema } from '@/schemas/user.schema';
+import { COLORS, SHADOWS } from '@/constants/colors';
 
 export type ForgotPasswordFormData = z.infer<typeof ForgotPasswordSchema>;
 
@@ -59,6 +60,52 @@ export default function ForgotPasswordScreen() {
     forgotPassword(data);
   };
 
+  const formContent = (
+    <>
+      <Text style={styles.title}>Esqueceu sua senha?</Text>
+      <Text style={styles.subtitle}>
+        Digite seu e-mail e enviaremos um link para redefinir sua senha.
+      </Text>
+
+      <Controller
+        control={control}
+        name='email'
+        render={({
+          field: { onChange, onBlur, value },
+        }: {
+          field: { onChange: (v: string) => void; onBlur: () => void; value: string };
+        }) => (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>E-mail</Text>
+            <TextInput
+              style={[styles.input, errors.email && styles.inputError]}
+              placeholder='seu@email.com'
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize='none'
+              keyboardType='email-address'
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+          </View>
+        )}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, isPending && styles.buttonDisabled]}
+        disabled={isPending}
+        onPress={handleSubmit(onSubmit)}
+      >
+        <Text style={styles.buttonText}>{isPending ? 'Enviando...' : 'Enviar e-mail'}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backToLoginLink} onPress={() => router.back()}>
+        <Text style={styles.backToLoginText}>Voltar para o login</Text>
+      </TouchableOpacity>
+    </>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingView}
@@ -70,109 +117,14 @@ export default function ForgotPasswordScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.container, isLandscape && styles.containerLandscape]}>
-          {isLandscape ? (
-            <>
-              <View style={styles.logoSection}>
-                <Image
-                  source={require('@/assets/images/icon-1080.png')}
-                  style={styles.logoLandscape}
-                  resizeMode='contain'
-                />
-              </View>
-              <View style={styles.formSection}>
-                <Text style={styles.title}>Esqueceu sua senha?</Text>
-                <Text style={styles.subtitle}>
-                  Digite seu e-mail e enviaremos um link para redefinir sua senha.
-                </Text>
-
-                <Controller
-                  control={control}
-                  name='email'
-                  render={({
-                    field: { onChange, onBlur, value },
-                  }: {
-                    field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                  }) => (
-                    <View style={styles.inputGroup}>
-                      <TextInput
-                        style={[styles.input, errors.email && styles.inputError]}
-                        placeholder='E-mail'
-                        placeholderTextColor='gray'
-                        autoCapitalize='none'
-                        keyboardType='email-address'
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                      />
-                      {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                    </View>
-                  )}
-                />
-
-                <TouchableOpacity
-                  style={[styles.button, isPending && { opacity: 0.7 }]}
-                  disabled={isPending}
-                  onPress={handleSubmit(onSubmit)}
-                >
-                  <Text style={styles.buttonText}>
-                    {isPending ? 'Enviando...' : 'Enviar e-mail'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.backToLoginLink} onPress={() => router.back()}>
-                  <Text style={styles.backToLoginText}>Voltar para o login</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <Image
-                source={require('@/assets/images/icon-1080.png')}
-                style={styles.logo}
-                resizeMode='contain'
-              />
-              <Text style={styles.title}>Esqueceu sua senha?</Text>
-              <Text style={styles.subtitle}>
-                Digite seu e-mail e enviaremos um link para redefinir sua senha.
-              </Text>
-
-              <Controller
-                control={control}
-                name='email'
-                render={({
-                  field: { onChange, onBlur, value },
-                }: {
-                  field: { onChange: (v: string) => void; onBlur: () => void; value: string };
-                }) => (
-                  <View style={styles.inputGroup}>
-                    <TextInput
-                      style={[styles.input, errors.email && styles.inputError]}
-                      placeholder='E-mail'
-                      placeholderTextColor='gray'
-                      autoCapitalize='none'
-                      keyboardType='email-address'
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value}
-                    />
-                    {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                  </View>
-                )}
-              />
-
-              <TouchableOpacity
-                style={[styles.button, isPending && { opacity: 0.7 }]}
-                disabled={isPending}
-                onPress={handleSubmit(onSubmit)}
-              >
-                <Text style={styles.buttonText}>{isPending ? 'Enviando...' : 'Enviar e-mail'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.backToLoginLink} onPress={() => router.back()}>
-                <Text style={styles.backToLoginText}>Voltar para o login</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <View style={styles.logoSection}>
+            <Image
+              source={require('@/assets/images/logo-icontrol-agras.png')}
+              style={isLandscape ? styles.logoLandscape : styles.logo}
+              resizeMode='contain'
+            />
+          </View>
+          <View style={styles.formCard}>{formContent}</View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -182,7 +134,7 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   scrollViewContent: {
     flexGrow: 1,
@@ -192,41 +144,48 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: 'center',
+    gap: 24,
   },
   containerLandscape: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 48,
+    gap: 32,
   },
   logoSection: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  formSection: {
-    flex: 1,
-    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   logo: {
-    width: 240,
-    height: 240,
+    width: 270,
+    height: 120,
     alignSelf: 'center',
-    marginBottom: 12,
   },
   logoLandscape: {
-    width: 240,
-    height: 240,
+    width: 330,
+    height: 148,
+  },
+  formCard: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 26,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
+    fontWeight: '800',
+    color: COLORS.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginBottom: 32,
     textAlign: 'center',
     lineHeight: 22,
@@ -234,41 +193,55 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 16,
   },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 8,
+  },
   input: {
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    minHeight: 54,
+    borderRadius: 16,
     fontSize: 16,
-    color: '#1C1C1E',
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   inputError: {
-    borderColor: '#FF3B30',
+    borderColor: COLORS.error,
     borderWidth: 1,
   },
   errorText: {
     marginTop: 4,
     fontSize: 12,
-    color: '#FF3B30',
+    color: COLORS.error,
   },
   button: {
-    backgroundColor: '#EAAE07',
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 18,
     alignItems: 'center',
     marginTop: 8,
+    ...SHADOWS.floating,
+    shadowOpacity: 0.14,
+  },
+  buttonDisabled: {
+    opacity: 0.72,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   backToLoginLink: {
     marginTop: 16,
     alignItems: 'center',
   },
   backToLoginText: {
-    color: '#8E8E93',
+    color: COLORS.primaryDark,
     fontSize: 14,
-    textDecorationLine: 'underline',
+    fontWeight: '700',
   },
 });

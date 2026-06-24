@@ -9,6 +9,8 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { RefObject, useEffect, useState } from 'react';
 
+import { COLORS } from '@/constants/colors';
+
 interface TextInputSearchProps extends Omit<TextInputProps, 'style'> {
   ref?: RefObject<TextInput>;
   placeholder?: string;
@@ -36,16 +38,17 @@ export default function TextInputSearch({
 
   return (
     <View style={style}>
-      <Ionicons name='search' size={20} color='gray' style={{ marginRight: 10 }} />
+      <Ionicons name='search' size={20} color={COLORS.primary} style={{ marginRight: 10 }} />
       <TextInput
         ref={ref}
         style={{
           flex: 1,
           height: '100%',
           fontSize: 16,
+          color: COLORS.text,
         }}
         placeholder={placeholder}
-        placeholderTextColor='gray'
+        placeholderTextColor={COLORS.textMuted}
         value={searchText}
         onChangeText={setSearchText}
         inputMode='search'
@@ -53,7 +56,7 @@ export default function TextInputSearch({
       />
       {searchText.length > 0 && (
         <TouchableOpacity onPress={handleClearSearch} style={{ padding: 5 }}>
-          <Ionicons name='close-circle' size={20} color='gray' />
+          <Ionicons name='close-circle' size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
       )}
     </View>

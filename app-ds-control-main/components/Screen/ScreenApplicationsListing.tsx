@@ -375,14 +375,17 @@ export default function ScreenApplicationsListing() {
   const handleLastPage = () => setCurrentPage(totalPages);
 
   return (
-    <ScrollView style={{ padding: 12 }} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={{ padding: 12, backgroundColor: COLORS.background }}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Filters */}
       <View
         style={{
           backgroundColor: COLORS.white,
-          borderRadius: 12,
+          borderRadius: 18,
           padding: 12,
-          borderColor: COLORS.lightblue,
+          borderColor: COLORS.border,
           borderWidth: 1,
           marginBottom: 12,
           gap: 12,
@@ -407,9 +410,9 @@ export default function ScreenApplicationsListing() {
                   style={{
                     backgroundColor: COLORS.white,
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: COLORS.gray,
+                    borderColor: COLORS.borderStrong,
                   }}
                 >
                   <Text style={{ color: COLORS.black }}>
@@ -461,9 +464,9 @@ export default function ScreenApplicationsListing() {
                   style={{
                     backgroundColor: COLORS.white,
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: COLORS.gray,
+                    borderColor: COLORS.borderStrong,
                   }}
                 >
                   <Text style={{ color: COLORS.black }}>
@@ -522,7 +525,7 @@ export default function ScreenApplicationsListing() {
             alignItems: 'center',
             borderColor: COLORS.lightgray,
             borderWidth: 1,
-            borderRadius: 8,
+            borderRadius: 14,
             paddingHorizontal: 10,
             paddingVertical: 10,
             backgroundColor: COLORS.background,
@@ -698,9 +701,9 @@ export default function ScreenApplicationsListing() {
               flexDirection: 'row',
               gap: 6,
               alignItems: 'center',
-              borderColor: COLORS.blue,
+              borderColor: COLORS.primary,
               borderWidth: 1,
-              borderRadius: 8,
+              borderRadius: 14,
               paddingVertical: 6,
               paddingHorizontal: 10,
               backgroundColor: COLORS.white,
@@ -720,16 +723,16 @@ export default function ScreenApplicationsListing() {
           marginBottom: 12,
         }}
       >
-        <Text style={{ fontSize: 16, fontWeight: 'bold', color: 'black' }}>Aplicações</Text>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.text }}>Aplicações</Text>
         <View
           style={{
-            backgroundColor: 'lightblue',
-            borderRadius: 8,
+            backgroundColor: COLORS.primarySoft,
+            borderRadius: 14,
             padding: 4,
             paddingHorizontal: 8,
           }}
         >
-          <Text style={{ fontSize: 12, color: 'blue' }}>
+          <Text style={{ fontSize: 12, color: COLORS.primaryDark }}>
             {applicationsData.totalCount} aplicações
           </Text>
         </View>
@@ -740,16 +743,16 @@ export default function ScreenApplicationsListing() {
             key={application.id}
             style={{
               backgroundColor: COLORS.white,
-              borderRadius: 12,
+              borderRadius: 18,
               padding: 12,
-              borderColor: COLORS.lightblue,
+              borderColor: COLORS.border,
               borderWidth: 1,
               marginBottom: 12,
               shadowColor: COLORS.black,
               shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 3.84,
-              elevation: 5,
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+              elevation: 4,
             }}
           >
             <View
@@ -792,7 +795,7 @@ export default function ScreenApplicationsListing() {
               <View
                 style={{
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   backgroundColor: COLORS.lightpink,
                   borderColor: COLORS.red,
                   borderWidth: 1,
@@ -822,13 +825,13 @@ export default function ScreenApplicationsListing() {
                   gap: 8,
                   backgroundColor: COLORS.lightblue,
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   borderColor: COLORS.lightgray,
                   borderWidth: 1,
                   shadowColor: COLORS.black,
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.15,
-                  shadowRadius: 3.84,
+                  shadowRadius: 16,
                   marginBottom: 12,
                 }}
               >
@@ -1051,7 +1054,7 @@ export default function ScreenApplicationsListing() {
                   marginTop: 16,
                   backgroundColor: COLORS.lightblue,
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   borderColor: COLORS.lightgray,
                   borderWidth: 1,
                 }}
@@ -1072,9 +1075,9 @@ export default function ScreenApplicationsListing() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginTop: 16,
-                  borderColor: COLORS.blue,
+                  borderColor: COLORS.primary,
                   borderWidth: 1,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   padding: 6,
                   backgroundColor: COLORS.white,
                 }}

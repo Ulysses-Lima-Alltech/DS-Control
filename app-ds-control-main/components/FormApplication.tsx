@@ -513,7 +513,7 @@ export default function FormApplication({
         enabled
         keyboardVerticalOffset={125}
       >
-        <ScrollView style={{ flex: 1, padding: 12, backgroundColor: COLORS.white, gap: 24 }}>
+        <ScrollView style={{ flex: 1, padding: 12, backgroundColor: COLORS.background, gap: 24 }}>
           {/* DATE */}
           <Controller
             control={control}
@@ -544,10 +544,10 @@ export default function FormApplication({
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 12,
-                            borderRadius: 8,
+                            borderRadius: 16,
                             height: 50,
                             borderWidth: 1,
-                            borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                            borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                             width: '100%',
                           }}
                         >
@@ -873,7 +873,7 @@ export default function FormApplication({
                   </View>
                   <TextInput
                     placeholder='Digite suas observações...'
-                    placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                    placeholderTextColor={COLORS.textMuted}
                     multiline
                     numberOfLines={3}
                     value={field.value ?? ''}
@@ -881,10 +881,10 @@ export default function FormApplication({
                     style={{
                       backgroundColor: COLORS.white,
                       padding: 12,
-                      borderRadius: 8,
+                      borderRadius: 16,
                       borderWidth: 1,
                       height: 80,
-                      borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                      borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                     }}
                     editable={!isSubmitting}
                   />
@@ -919,7 +919,7 @@ export default function FormApplication({
                   </View>
                   <TextInput
                     placeholder='0.00'
-                    placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                    placeholderTextColor={COLORS.textMuted}
                     keyboardType='numeric'
                     value={field.value}
                     onChangeText={(text) => {
@@ -961,9 +961,9 @@ export default function FormApplication({
                     style={{
                       backgroundColor: COLORS.white,
                       padding: 12,
-                      borderRadius: 8,
+                      borderRadius: 16,
                       borderWidth: 1,
-                      borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                      borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                     }}
                     editable={!isSubmitting}
                   />
@@ -1007,7 +1007,7 @@ export default function FormApplication({
                     >
                       <Text style={{ fontSize: 14, color: COLORS.black }}>Vazão (L/ha)</Text>
                       <TextInput
-                        placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                        placeholderTextColor={COLORS.textMuted}
                         keyboardType='numeric'
                         placeholder='0.00'
                         value={field.value}
@@ -1023,9 +1023,9 @@ export default function FormApplication({
                         style={{
                           backgroundColor: COLORS.white,
                           padding: 12,
-                          borderRadius: 8,
+                          borderRadius: 16,
                           borderWidth: 1,
-                          borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                          borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                           width: '100%',
                         }}
                         editable={!isSubmitting}
@@ -1058,7 +1058,7 @@ export default function FormApplication({
                     >
                       <Text style={{ fontSize: 14, color: COLORS.black }}>Altitude de voo (m)</Text>
                       <TextInput
-                        placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                        placeholderTextColor={COLORS.textMuted}
                         keyboardType='numeric'
                         placeholder='0.00'
                         value={field.value}
@@ -1074,9 +1074,9 @@ export default function FormApplication({
                         style={{
                           backgroundColor: COLORS.white,
                           padding: 12,
-                          borderRadius: 8,
+                          borderRadius: 16,
                           borderWidth: 1,
-                          borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                          borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                           width: '100%',
                         }}
                         editable={!isSubmitting}
@@ -1121,7 +1121,7 @@ export default function FormApplication({
                         Espaçamento de rota (m)
                       </Text>
                       <TextInput
-                        placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                        placeholderTextColor={COLORS.textMuted}
                         keyboardType='numeric'
                         placeholder='0.00'
                         value={field.value}
@@ -1137,9 +1137,9 @@ export default function FormApplication({
                         style={{
                           backgroundColor: COLORS.white,
                           padding: 12,
-                          borderRadius: 8,
+                          borderRadius: 16,
                           borderWidth: 1,
-                          borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                          borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                           width: '100%',
                         }}
                         editable={!isSubmitting}
@@ -1174,7 +1174,7 @@ export default function FormApplication({
                         Tamanho de gota (µm)
                       </Text>
                       <TextInput
-                        placeholderTextColor={isSubmitting ? COLORS.lightgray : COLORS.gray}
+                        placeholderTextColor={COLORS.textMuted}
                         keyboardType='numeric'
                         placeholder='0.00'
                         value={field.value}
@@ -1190,9 +1190,9 @@ export default function FormApplication({
                         style={{
                           backgroundColor: COLORS.white,
                           padding: 12,
-                          borderRadius: 8,
+                          borderRadius: 16,
                           borderWidth: 1,
-                          borderColor: isSubmitting ? COLORS.lightgray : COLORS.gray,
+                          borderColor: isSubmitting ? COLORS.border : COLORS.borderStrong,
                           width: '100%',
                         }}
                         editable={!isSubmitting}
@@ -1224,14 +1224,18 @@ export default function FormApplication({
               disabled={isSubmitting}
               style={{
                 flex: 1,
-                backgroundColor: COLORS.black,
+                backgroundColor: COLORS.surface,
                 padding: 12,
-                borderRadius: 8,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: COLORS.primary,
                 opacity: isSubmitting ? 0.7 : 1,
               }}
               onPress={handleCancelButtonClick}
             >
-              <Text style={{ color: COLORS.white, textAlign: 'center' }}>Cancelar</Text>
+              <Text style={{ color: COLORS.primaryDark, textAlign: 'center', fontWeight: '700' }}>
+                Cancelar
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               disabled={isSubmitting}
@@ -1241,15 +1245,15 @@ export default function FormApplication({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 4,
-                backgroundColor: COLORS.green,
+                backgroundColor: COLORS.primary,
                 padding: 12,
-                borderRadius: 8,
+                borderRadius: 16,
                 opacity: isSubmitting ? 0.7 : 1,
               }}
               onPress={handleSaveButtonClick}
             >
               <Ionicons name='save-outline' size={14} color={COLORS.white} />
-              <Text style={{ color: COLORS.white }}>Salvar Aplicação</Text>
+              <Text style={{ color: COLORS.white, fontWeight: '700' }}>Salvar Aplicação</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

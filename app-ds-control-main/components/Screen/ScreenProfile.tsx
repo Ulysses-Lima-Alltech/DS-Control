@@ -202,7 +202,7 @@ export default function Profile() {
       title: 'Alterar senha',
       subtitle: 'Altere sua senha de acesso',
       icon: 'shield-checkmark',
-      color: '#34C759',
+      color: COLORS.success,
       onPress: () => {
         setIsPasswordModalVisible(true);
       },
@@ -212,7 +212,7 @@ export default function Profile() {
       title: 'Ajuda e Suporte',
       subtitle: 'Entre em contato com o suporte',
       icon: 'help-circle',
-      color: '#5856D6',
+      color: COLORS.purple,
       onPress: () => {
         Linking.openURL('https://wa.me/5599984778466');
       },
@@ -231,7 +231,7 @@ export default function Profile() {
           paddingHorizontal: 20,
           paddingVertical: 15,
           borderBottomWidth: 1,
-          borderBottomColor: '#F2F2F7',
+          borderBottomColor: COLORS.background,
         },
         item.disabled && {
           opacity: 0.6,
@@ -276,11 +276,11 @@ export default function Profile() {
               {
                 fontSize: 16,
                 fontWeight: '600',
-                color: '#1C1C1E',
+                color: COLORS.text,
                 marginBottom: 2,
               },
               item.disabled && {
-                color: '#C7C7CC',
+                color: COLORS.borderStrong,
               },
             ]}
           >
@@ -291,10 +291,10 @@ export default function Profile() {
               style={[
                 {
                   fontSize: 14,
-                  color: '#8E8E93',
+                  color: COLORS.textMuted,
                 },
                 item.disabled && {
-                  color: '#C7C7CC',
+                  color: COLORS.borderStrong,
                 },
               ]}
             >
@@ -304,7 +304,7 @@ export default function Profile() {
         </View>
       </View>
       {item.onPress && !item.disabled && (
-        <Ionicons name='chevron-forward' size={20} color='#C7C7CC' />
+        <Ionicons name='chevron-forward' size={20} color={COLORS.borderStrong} />
       )}
     </TouchableOpacity>
   );
@@ -313,16 +313,25 @@ export default function Profile() {
     <ScrollView
       style={{
         flex: 1,
-        backgroundColor: '#F2F2F7',
+        backgroundColor: COLORS.background,
       }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
     >
       <View
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: COLORS.surface,
           padding: 20,
           alignItems: 'center',
-          marginBottom: 10,
+          margin: 16,
+          marginBottom: 12,
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          shadowColor: COLORS.shadow,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.08,
+          shadowRadius: 18,
+          elevation: 4,
         }}
       >
         <View
@@ -336,12 +345,12 @@ export default function Profile() {
               width: 80,
               height: 80,
               borderRadius: 40,
-              backgroundColor: '#007AFF',
+              backgroundColor: COLORS.primary,
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <Ionicons name='person' size={40} color='#FFFFFF' />
+            <Ionicons name='person' size={40} color={COLORS.surface} />
           </View>
         </View>
 
@@ -349,7 +358,7 @@ export default function Profile() {
           style={{
             fontSize: 24,
             fontWeight: 'bold',
-            color: '#1C1C1E',
+            color: COLORS.text,
             marginBottom: 5,
           }}
         >
@@ -359,7 +368,7 @@ export default function Profile() {
           <Text
             style={{
               fontSize: 16,
-              color: '#007AFF',
+              color: COLORS.primary,
               fontWeight: '600',
               marginBottom: 5,
             }}
@@ -370,7 +379,7 @@ export default function Profile() {
         <Text
           style={{
             fontSize: 14,
-            color: '#8E8E93',
+            color: COLORS.textMuted,
           }}
         >
           {user?.email || ''}
@@ -378,19 +387,24 @@ export default function Profile() {
       </View>
       <View
         style={{
-          backgroundColor: '#FFFFFF',
-          marginBottom: 10,
+          backgroundColor: COLORS.surface,
+          marginHorizontal: 16,
+          marginBottom: 12,
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          overflow: 'hidden',
         }}
       >
         <Text
           style={{
             fontSize: 18,
             fontWeight: 'bold',
-            color: '#1C1C1E',
+            color: COLORS.text,
             paddingHorizontal: 20,
             paddingVertical: 15,
             borderBottomWidth: 1,
-            borderBottomColor: '#E5E5EA',
+            borderBottomColor: COLORS.border,
           }}
         >
           Configurações
@@ -406,12 +420,16 @@ export default function Profile() {
       <TouchableOpacity
         style={[
           {
-            backgroundColor: '#FFFFFF',
+            backgroundColor: COLORS.surface,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             paddingVertical: 15,
+            marginHorizontal: 16,
             marginBottom: 10,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: COLORS.errorSoft,
           },
           isPending && { opacity: 0.7 },
         ]}
@@ -419,15 +437,15 @@ export default function Profile() {
         onPress={() => logout()}
       >
         {isPending ? (
-          <ActivityIndicator size='small' color='#FF3B30' />
+          <ActivityIndicator size='small' color={COLORS.error} />
         ) : (
           <>
-            <Ionicons name='log-out' size={20} color='#FF3B30' />
+            <Ionicons name='log-out' size={20} color={COLORS.error} />
             <Text
               style={{
                 fontSize: 16,
                 fontWeight: '600',
-                color: '#FF3B30',
+                color: COLORS.error,
                 marginLeft: 10,
               }}
             >
@@ -436,7 +454,7 @@ export default function Profile() {
           </>
         )}
       </TouchableOpacity>
-      <Text style={{ fontSize: 12, color: '#8E8E93', textAlign: 'center', marginTop: 10 }}>
+      <Text style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 10 }}>
         {OTA_VERSION_TEXT}
       </Text>
       <ModalChangeCurrentUserPassword

@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import PlotMapViewer from '@/components/PlotMapViewer';
+import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarms } from '@/queries/farm.query';
 import { Farm } from '@/types/farm.type';
@@ -74,7 +75,7 @@ export default function ScreenPlotMapViewer() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text>Erro ao carregar fazendas</Text>
-        <Text style={{ color: 'red' }}>{farmsError.message}</Text>
+        <Text style={{ color: COLORS.error }}>{farmsError.message}</Text>
       </View>
     );
   }
@@ -98,7 +99,7 @@ export default function ScreenPlotMapViewer() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   customerHeader: {
     flexDirection: 'row',
@@ -108,17 +109,17 @@ const styles = StyleSheet.create({
   customerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginRight: 10,
   },
   customerInfo: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginBottom: 6,
   },
   plotDetailsInfo: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginBottom: 4,
   },
 });

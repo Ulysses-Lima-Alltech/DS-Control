@@ -6,6 +6,7 @@ import {
   Animated,
   Modal,
   Pressable,
+  Image,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -90,7 +91,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
             width: '78%',
             maxWidth: 320,
             height: '100%',
-            backgroundColor: COLORS.white,
+            backgroundColor: COLORS.surface,
             paddingTop: 56,
             paddingHorizontal: 16,
             transform: [
@@ -101,7 +102,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
                 }),
               },
             ],
-            shadowColor: '#000',
+            shadowColor: COLORS.shadow,
             shadowOffset: { width: 2, height: 0 },
             shadowOpacity: 0.2,
             shadowRadius: 10,
@@ -109,7 +110,11 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
           }}
         >
           <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.black }}>DS Control</Text>
+            <Image
+              source={require('@/assets/images/logo-icontrol-agras.png')}
+              style={{ width: 174, height: 48, marginBottom: 8 }}
+              resizeMode='contain'
+            />
             <Text style={{ fontSize: 13, color: COLORS.gray, marginTop: 4 }}>
               {user?.name || 'Usuario'}
             </Text>
@@ -136,19 +141,19 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 10,
-                    borderRadius: 10,
+                    borderRadius: 16,
                     paddingVertical: 12,
                     paddingHorizontal: 10,
-                    backgroundColor: isActive ? COLORS.lightblue : COLORS.white,
+                    backgroundColor: isActive ? COLORS.primarySoft : COLORS.surface,
                     borderWidth: 1,
-                    borderColor: isActive ? COLORS.blue : COLORS.lightgray,
+                    borderColor: isActive ? COLORS.primary : COLORS.border,
                     opacity: isDisabled ? 0.6 : 1,
                   }}
                 >
                   <Ionicons
                     name={item.icon}
                     size={18}
-                    color={isDisabled ? COLORS.gray : isActive ? COLORS.blue : COLORS.black}
+                    color={isDisabled ? COLORS.gray : isActive ? COLORS.primaryDark : COLORS.black}
                   />
                   <View style={{ flex: 1 }}>
                     <Text
@@ -177,7 +182,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
             style={{
               marginBottom: 24,
               marginTop: 12,
-              borderRadius: 10,
+              borderRadius: 16,
               borderWidth: 1,
               borderColor: COLORS.red,
               paddingVertical: 12,
@@ -186,7 +191,7 @@ export default function AdminSideMenu({ visible, onClose, pathname }: AdminSideM
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              backgroundColor: '#FFF5F5',
+              backgroundColor: COLORS.errorSoft,
               opacity: isLoggingOut ? 0.65 : 1,
             }}
           >

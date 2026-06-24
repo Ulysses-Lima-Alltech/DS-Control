@@ -13,6 +13,7 @@ import { usePathname } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { MapToolsHookReturn } from '@/components/Map/MapTools';
+import { COLORS } from '@/constants/colors';
 import {
   createFillColorExpression,
   createFillOpacityExpression,
@@ -263,9 +264,9 @@ export default function MapContent({
         <FillLayer
           id='selected-fill'
           style={{
-            fillColor: '#EAAE07',
+            fillColor: COLORS.accent,
             fillOpacity: 0.7,
-            fillOutlineColor: '#EAAE07',
+            fillOutlineColor: COLORS.accent,
           }}
         />
         <SymbolLayer
@@ -317,7 +318,7 @@ export default function MapContent({
               circleColor: [
                 'case',
                 ['==', ['get', 'type'], 'operational-start'],
-                '#EAAE07',
+                COLORS.accent,
                 '#DC2626',
               ],
               circleStrokeColor: '#FFFFFF',

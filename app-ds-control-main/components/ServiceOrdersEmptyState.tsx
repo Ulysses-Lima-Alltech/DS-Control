@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { COLORS } from '@/constants/colors';
+
 export type EmptyStateProps = {
   title: string;
   description?: string;
@@ -19,7 +21,7 @@ export default function ServiceOrdersEmptyState({
   return (
     <View style={styles.container}>
       <View style={styles.illustration}>
-        <MaterialCommunityIcons name={iconName} size={56} color='#C7C7CC' />
+        <MaterialCommunityIcons name={iconName} size={56} color={COLORS.primary} />
       </View>
 
       <Text style={styles.title}>{title}</Text>
@@ -47,30 +49,30 @@ const styles = StyleSheet.create({
     borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.primarySoft,
     marginBottom: 16,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: COLORS.text,
     textAlign: 'center',
   },
   description: {
     marginTop: 6,
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   button: {
     marginTop: 16,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#EAAE07',
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '600',
     fontSize: 14,
   },

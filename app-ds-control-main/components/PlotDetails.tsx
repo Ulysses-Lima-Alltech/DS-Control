@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import ApplicationPlotHistory from '@/components/ApplicationPlotHistory';
+import { COLORS } from '@/constants/colors';
 import { Plot } from '@/types/plot.type';
 
 export type PlotDetailsProps = {
@@ -36,7 +37,7 @@ export default function PlotDetails({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 20,
   },
   plotDetails: {
@@ -45,12 +46,12 @@ const styles = StyleSheet.create({
   plotDetailsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1C1C1E',
+    color: COLORS.text,
     marginBottom: 8,
   },
   plotDetailsInfo: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.textMuted,
     marginBottom: 4,
   },
 });
