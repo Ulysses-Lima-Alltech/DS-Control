@@ -88,6 +88,7 @@ export default {
           isAndroidBackgroundLocationEnabled: true,
         },
       ],
+      './plugins/with-ios-fmt-consteval-fix',
     ],
     experiments: {
       typedRoutes: true,
