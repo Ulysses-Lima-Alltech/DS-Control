@@ -71,7 +71,6 @@ export default {
           },
         },
       ],
-      './plugins/with-ios-fmt-consteval-fix',
       [
         '@rnmapbox/maps',
         {
@@ -89,6 +88,7 @@ export default {
           isAndroidBackgroundLocationEnabled: true,
         },
       ],
+      './plugins/with-ios-fmt-consteval-fix',
     ],
     experiments: {
       typedRoutes: true,
