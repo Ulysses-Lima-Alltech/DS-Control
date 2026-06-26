@@ -1,8 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { getConfig } from '@/lib/config';
+import {
+  AUTH_ACCESS_TOKEN_KEY,
+  getStoredAccessToken,
+  setStoredAccessToken,
+} from '@/services/auth-token-storage.service';
 
-export const AUTH_ACCESS_TOKEN_KEY = 'ds-control-access-token';
+export { AUTH_ACCESS_TOKEN_KEY };
 
 export async function api(
   input: string | URL | globalThis.Request,
@@ -10,7 +13,7 @@ export async function api(
 ): Promise<Response> {
   const defaultHeaders: Record<string, string> = {};
 
-  const storedAccessToken = await AsyncStorage.getItem(AUTH_ACCESS_TOKEN_KEY);
+  const storedAccessToken = await getStoredAccessToken();
 
   if (storedAccessToken) {
     defaultHeaders['Authorization'] = `Bearer ${storedAccessToken}`;
@@ -41,7 +44,7 @@ export async function api(
       throw new Error("Can't refresh access token");
     }
 
-    await AsyncStorage.setItem(AUTH_ACCESS_TOKEN_KEY, refreshedAccessToken);
+    await setStoredAccessToken(refreshedAccessToken);
 
     if (init?.body) {
       defaultHeaders['Content-Type'] = 'application/json';

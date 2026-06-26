@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
+import OfflineModeCard from '@/components/Offline/OfflineModeCard';
 import {
   useRegisterNewCropSeason,
   useUpdateCropSeasonById,
@@ -186,6 +187,8 @@ export default function BackofficeConfigurations() {
         <Text style={styles.title}>Configurações</Text>
         <Text style={styles.subtitle}>Gerencie safras e produtos usados nos filtros.</Text>
       </View>
+
+      <OfflineModeCard />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{form.id ? 'Editar safra' : 'Criar safra'}</Text>

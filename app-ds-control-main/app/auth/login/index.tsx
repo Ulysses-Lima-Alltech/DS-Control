@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   Alert,
@@ -16,7 +17,9 @@ import {
 } from 'react-native';
 import type { z } from 'zod';
 
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
 import { useLogin } from '@/mutations/auth.mutation';
+import { getValidOfflineAuthSession } from '@/offline/offlineAuth';
 import { useAuth } from '@/providers/auth.provider';
 import { LoginSchema } from '@/schemas/auth.schema';
 import { OTA_VERSION_TEXT } from '@/constants/version';
@@ -26,8 +29,10 @@ export type LoginFormData = z.infer<typeof LoginSchema>;
 
 export default function LoginScreen() {
   const { refreshUser } = useAuth();
+  const { isConnected } = useNetworkConnectivity();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
   const {
     control,
@@ -57,10 +62,40 @@ export default function LoginScreen() {
     login(data);
   };
 
+  useEffect(() => {
+    if (isConnected !== false) {
+      setOfflineMessage(null);
+      return;
+    }
+
+    getValidOfflineAuthSession().then(({ reason }) => {
+      if (reason === 'expired') {
+        setOfflineMessage(
+          'Sessao offline expirada. Por seguranca, conecte-se a internet para renovar seu acesso.'
+        );
+        return;
+      }
+
+      if (reason === 'not-ready') {
+        setOfflineMessage(
+          'Modo offline ainda nao configurado. Conecte-se e baixe os dados em Configuracoes.'
+        );
+        return;
+      }
+
+      setOfflineMessage('Primeiro acesso requer internet para autenticar e baixar dados offline.');
+    });
+  }, [isConnected]);
+
   const formContent = (
     <>
       <Text style={styles.title}>Entrar</Text>
       <Text style={styles.subtitle}>Acesse sua operação iControl Agras</Text>
+      {offlineMessage && (
+        <View style={styles.offlineAlert}>
+          <Text style={styles.offlineAlertText}>{offlineMessage}</Text>
+        </View>
+      )}
 
       <Controller
         control={control}
@@ -215,6 +250,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textMuted,
     marginBottom: 24,
+    textAlign: 'center',
+  },
+  offlineAlert: {
+    borderRadius: 14,
+    backgroundColor: COLORS.warningSoft,
+    borderWidth: 1,
+    borderColor: COLORS.warning,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  offlineAlertText: {
+    color: COLORS.warning,
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
   },
   inputGroup: {

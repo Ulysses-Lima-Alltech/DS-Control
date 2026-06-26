@@ -7,6 +7,12 @@ import MapNavigationButton from '@/components/Map/MapNavigationButton';
 import MapViewer from '@/components/Map/MapViewer';
 import TextInputSearchMultipleFarms from '@/components/TextInputSearchMultipleFarms';
 import { COLORS } from '@/constants/colors';
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import {
+  getOfflineFarmById,
+  getOfflineRoutesByFarmId,
+  getOfflineStatus,
+} from '@/offline/offlineStorage';
 import { useGetFarmById } from '@/queries/farm.query';
 import { useGetRouteByFarmId } from '@/queries/route.query';
 import { getMapboxDrivingDirections } from '@/services/mapboxDirections.service';
@@ -144,7 +150,13 @@ export default function ScreenMapViewerWithSearch({
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [isFetchingNavigation, setIsFetchingNavigation] = useState(false);
   const [isNavigationMode, setIsNavigationMode] = useState(false);
+  const [offlineInitialFarm, setOfflineInitialFarm] = useState<Farm | null>(null);
+  const [offlineRoutes, setOfflineRoutes] = useState<Route[]>([]);
+  const [isLoadingOfflineRoutes, setIsLoadingOfflineRoutes] = useState(false);
+  const [offlineBannerText, setOfflineBannerText] = useState<string | null>(null);
   const appliedInitialFarmIdRef = useRef<string | null>(null);
+  const { isConnected } = useNetworkConnectivity();
+  const isOffline = isConnected === false;
 
   const normalizedInitialFarmId = useMemo(() => {
     return Array.isArray(initialFarmId) ? initialFarmId[0] : initialFarmId;
@@ -159,9 +171,20 @@ export default function ScreenMapViewerWithSearch({
     },
     {
       queryKey: ['initial-map-farm', normalizedInitialFarmId],
-      enabled: !!normalizedInitialFarmId,
+      enabled: !!normalizedInitialFarmId && !isOffline,
     }
   );
+
+  useEffect(() => {
+    if (!isOffline || !normalizedInitialFarmId) {
+      setOfflineInitialFarm(null);
+      return;
+    }
+
+    getOfflineFarmById(normalizedInitialFarmId).then(setOfflineInitialFarm);
+  }, [isOffline, normalizedInitialFarmId]);
+
+  const effectiveInitialFarm = isOffline ? offlineInitialFarm : initialFarmData?.farm;
 
   useEffect(() => {
     if (!normalizedInitialFarmId) {
@@ -169,9 +192,9 @@ export default function ScreenMapViewerWithSearch({
       return;
     }
 
-    if (!initialFarmData?.farm) return;
+    if (!effectiveInitialFarm) return;
     if (appliedInitialFarmIdRef.current === normalizedInitialFarmId) return;
-    const normalizedFarm = normalizeFarm(initialFarmData.farm);
+    const normalizedFarm = normalizeFarm(effectiveInitialFarm);
     if (!normalizedFarm) return;
 
     setSelectedFarms((previousSelectedFarms) => {
@@ -185,7 +208,7 @@ export default function ScreenMapViewerWithSearch({
       return [normalizedFarm];
     });
     appliedInitialFarmIdRef.current = normalizedInitialFarmId;
-  }, [initialFarmData?.farm, normalizedInitialFarmId]);
+  }, [effectiveInitialFarm, normalizedInitialFarmId]);
 
   const safeSelectedFarms = useMemo<Farm[]>(() => {
     if (!Array.isArray(selectedFarms)) return [];
@@ -203,16 +226,66 @@ export default function ScreenMapViewerWithSearch({
   const selectedFarmId =
     safeSelectedFarms.length === 1 ? String(primarySelectedFarm?.id ?? '') : null;
 
-  const { data: routeData, isFetching: isFetchingRoute } = useGetRouteByFarmId(selectedFarmId, {
-    includeGeoJson: 'true',
-  });
+  const { data: routeData, isFetching: isFetchingRoute } = useGetRouteByFarmId(
+    selectedFarmId,
+    {
+      includeGeoJson: 'true',
+    },
+    {
+      queryKey: ['routes', 'farm', selectedFarmId, { includeGeoJson: 'true' }],
+      enabled: !!selectedFarmId && !isOffline,
+    }
+  );
+
+  useEffect(() => {
+    if (!isOffline || !selectedFarmId) {
+      setOfflineRoutes([]);
+      setIsLoadingOfflineRoutes(false);
+      return;
+    }
+
+    const loadOfflineRoutes = async () => {
+      setIsLoadingOfflineRoutes(true);
+      try {
+        setOfflineRoutes(await getOfflineRoutesByFarmId(selectedFarmId));
+      } finally {
+        setIsLoadingOfflineRoutes(false);
+      }
+    };
+
+    loadOfflineRoutes();
+  }, [isOffline, selectedFarmId]);
+
+  useEffect(() => {
+    if (!isOffline) {
+      setOfflineBannerText(null);
+      return;
+    }
+
+    getOfflineStatus().then((status) => {
+      if (!status?.lastSyncAt) {
+        setOfflineBannerText('Modo offline ativo.');
+        return;
+      }
+
+      setOfflineBannerText(
+        `Modo offline ativo - usando dados salvos em ${new Date(
+          status.lastSyncAt
+        ).toLocaleString('pt-BR')}.`
+      );
+    });
+  }, [isOffline]);
 
   const allRoutes = useMemo<Route[]>(() => {
+    if (isOffline) {
+      return offlineRoutes;
+    }
+
     if (safeSelectedFarms.length === 1 && routeData?.routes) {
       return routeData.routes;
     }
     return [];
-  }, [safeSelectedFarms.length, routeData]);
+  }, [isOffline, offlineRoutes, routeData, safeSelectedFarms.length]);
 
   useEffect(() => {
     if (allRoutes.length === 0) {
@@ -250,6 +323,14 @@ export default function ScreenMapViewerWithSearch({
   }, [selectedFarmId, selectedRoute?.id]);
 
   const handleStartNavigationToRoute = async () => {
+    if (isOffline) {
+      Alert.alert(
+        'Recurso online indisponivel',
+        'O calculo de rota ate o inicio da operacao depende de internet.'
+      );
+      return;
+    }
+
     if (!selectedRouteStartCoordinate) {
       logIrAgoraDev('Route start coordinate unavailable', {
         selectedRouteId: selectedRoute?.id,
@@ -312,12 +393,13 @@ export default function ScreenMapViewerWithSearch({
   const showNavigationButton = safeSelectedFarms.length === 1;
   const showRouteSelector =
     safeSelectedFarms.length === 1 && allRoutes.length > 0 && !isNavigationMode;
-  const canStartNavigation = Boolean(selectedRouteStartCoordinate) && !isFetchingRoute;
+  const isRouteLoading = isOffline ? isLoadingOfflineRoutes : isFetchingRoute;
+  const canStartNavigation = Boolean(selectedRouteStartCoordinate) && !isRouteLoading && !isOffline;
 
   return (
     <View style={{ flex: 1, flexDirection: 'column' }}>
       <MapViewer
-        isFetching={isFetchingRoute || isFetchingNavigation}
+        isFetching={isRouteLoading || isFetchingNavigation}
         selectedFarmId={primarySelectedFarm?.id ?? null}
         plots={allPlots}
         routes={routesForMap}
@@ -335,13 +417,18 @@ export default function ScreenMapViewerWithSearch({
           selectedFarmsExternal={safeSelectedFarms}
         />
       )}
+      {offlineBannerText && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>{offlineBannerText}</Text>
+        </View>
+      )}
       {showRouteSelector && (
         <View style={styles.routeSelectorContainer}>
           <View style={styles.routeSelectorHeader}>
             <MaterialCommunityIcons name='routes' size={14} color={COLORS.primaryDark} />
             <Text style={styles.routeSelectorTitle}>Rotas da fazenda</Text>
           </View>
-          {isFetchingRoute ? (
+          {isRouteLoading ? (
             <Text style={styles.routeSelectorLoadingText}>Carregando rotas...</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -458,5 +545,21 @@ const styles = StyleSheet.create({
     color: COLORS.surface,
     fontSize: 12,
     fontWeight: '500',
+  },
+  offlineBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 104,
+    zIndex: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(21, 94, 117, 0.94)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  offlineBannerText: {
+    color: COLORS.surface,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

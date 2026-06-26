@@ -1,4 +1,6 @@
 import { api } from '@/services/api.service';
+import NetInfo from '@react-native-community/netinfo';
+import { getOfflineFarmById, getOfflineFarms } from '@/offline/offlineStorage';
 import { Farm } from '@/types/farm.type';
 
 export type GetAllFarmsResponse = {
@@ -13,10 +15,25 @@ export type GetAllFarmsParams = {
   includeCustomer?: string;
 };
 
+const shouldUseOfflineData = async () => {
+  const state = await NetInfo.fetch();
+  return state.isConnected === false || state.isInternetReachable === false;
+};
+
 export async function getAllFarms(
   customerId?: string,
   params?: GetAllFarmsParams
 ): Promise<GetAllFarmsResponse> {
+  if (await shouldUseOfflineData()) {
+    const farms = (await getOfflineFarms()).filter(
+      (farm) => !customerId || farm.customer?.id === customerId
+    );
+    return {
+      message: 'Offline farms retrieved successfully',
+      farms,
+    };
+  }
+
   const searchParams = new URLSearchParams();
   if (customerId) searchParams.append('customerId', customerId);
   if (params?.includePlots) searchParams.append('includePlots', params.includePlots);
@@ -60,6 +77,30 @@ export async function getAllFarmsPaginated(
   customerId?: string,
   params?: GetAllFarmsPaginatedParams
 ): Promise<GetAllFarmsPaginatedResponse> {
+  if (await shouldUseOfflineData()) {
+    const page = Number(params?.page ?? '1') || 1;
+    const limit = Number(params?.limit ?? '10') || 10;
+    const search = params?.search?.trim().toLowerCase();
+    const farms = (await getOfflineFarms()).filter((farm) => {
+      const matchesCustomer = !customerId || farm.customer?.id === customerId;
+      const matchesSearch =
+        !search ||
+        farm.name.toLowerCase().includes(search) ||
+        farm.customer?.name?.toLowerCase().includes(search);
+
+      return matchesCustomer && matchesSearch;
+    });
+    const start = (page - 1) * limit;
+
+    return {
+      data: farms.slice(start, start + limit),
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(farms.length / limit)),
+      totalCount: farms.length,
+    };
+  }
+
   const searchParams = new URLSearchParams();
   if (customerId) searchParams.append('customerId', customerId);
   if (params?.page) searchParams.append('page', params.page);
@@ -101,6 +142,18 @@ export async function getFarmById(
   farmId: string,
   params?: GetFarmByIdParams
 ): Promise<GetFarmByIdResponse> {
+  if (await shouldUseOfflineData()) {
+    const farm = await getOfflineFarmById(farmId);
+    if (!farm) {
+      throw new Error('Fazenda nao disponivel offline');
+    }
+
+    return {
+      message: 'Offline farm retrieved successfully',
+      farm,
+    };
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.includePlots) searchParams.append('includePlots', params.includePlots);
   if (params?.includeGeoJson) searchParams.append('includeGeoJson', params.includeGeoJson);

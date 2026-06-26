@@ -1,4 +1,6 @@
 import { api } from '@/services/api.service';
+import NetInfo from '@react-native-community/netinfo';
+import { getOfflineRoutesByFarmId } from '@/offline/offlineStorage';
 import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 
 export type GetAllRoutesResponse = {
@@ -20,6 +22,11 @@ export type GetAllRoutesParams = {
   includeGeoJson?: string;
   orderBy?: RouteOrderBy;
   orderType?: RouteOrderType;
+};
+
+const shouldUseOfflineData = async () => {
+  const state = await NetInfo.fetch();
+  return state.isConnected === false || state.isInternetReachable === false;
 };
 
 export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllRoutesResponse> {
@@ -115,6 +122,13 @@ export async function getRouteByFarmId(
   farmId: string,
   params?: GetRouteByFarmIdParams
 ): Promise<GetRouteByFarmIdResponse> {
+  if (await shouldUseOfflineData()) {
+    return {
+      message: 'Offline routes retrieved successfully',
+      routes: await getOfflineRoutesByFarmId(farmId),
+    };
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.includeFarm) searchParams.append('includeFarm', params.includeFarm);
   if (params?.includeCustomer) searchParams.append('includeCustomer', params.includeCustomer);

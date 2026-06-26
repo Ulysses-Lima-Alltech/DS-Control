@@ -7,7 +7,6 @@ import { Text, View } from 'react-native';
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
 import { useAuth } from '@/providers/auth.provider';
-import { getOfflineDataCache } from '@/utils/offline-storage';
 import {
   getDefaultRouteByUserType,
   isAdministrativeRole,
@@ -36,19 +35,10 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const path = '/' + pathname.split('/')[1];
-  const { isConnected, isLoading: isLoadingConnectivity } = useNetworkConnectivity();
-  const [hasOfflineData, setHasOfflineData] = useState(false);
+  const { isLoading: isLoadingConnectivity } = useNetworkConnectivity();
 
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
-
-  useEffect(() => {
-    const checkOfflineData = async () => {
-      const cache = await getOfflineDataCache();
-      setHasOfflineData(!!cache && !!cache.pilot);
-    };
-    checkOfflineData();
-  }, []);
 
   useEffect(() => {
     if (__DEV__) {
@@ -75,17 +65,6 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
       }
       const targetPath = isAuthenticated ? getDefaultRouteByUserType(user?.type) : '/auth/login';
       replaceIfNeeded(targetPath);
-      return;
-    }
-
-    // If pilot is offline but has cached data, redirect to offline mode
-    if (
-      isPilotRole(user?.type) &&
-      isConnected === false &&
-      hasOfflineData &&
-      pathname !== '/pilot/applications/offline'
-    ) {
-      replaceIfNeeded('/pilot/applications/offline');
       return;
     }
 
@@ -134,9 +113,7 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     path,
     pathname,
     user,
-    isConnected,
     isLoadingConnectivity,
-    hasOfflineData,
   ]);
 
   useEffect(() => {

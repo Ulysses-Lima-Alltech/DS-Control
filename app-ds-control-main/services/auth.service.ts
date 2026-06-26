@@ -1,8 +1,13 @@
 import { z } from 'zod';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { LoginSchema } from '@/schemas/auth.schema';
-import { api, AUTH_ACCESS_TOKEN_KEY } from '@/services/api.service';
+import { api } from '@/services/api.service';
+import { clearOfflineAuthSession } from '@/offline/offlineAuth';
+import { removeOfflineModeData } from '@/offline/offlineSync';
+import {
+  removeStoredAccessToken,
+  setStoredAccessToken,
+} from '@/services/auth-token-storage.service';
 
 export type LoginParams = z.infer<typeof LoginSchema>;
 
@@ -31,7 +36,7 @@ export async function login(data: LoginParams): Promise<void> {
       throw new Error('[Auth Service] Token de acesso não encontrado');
     }
 
-    await AsyncStorage.setItem(AUTH_ACCESS_TOKEN_KEY, parsedResponse.accessToken);
+    await setStoredAccessToken(parsedResponse.accessToken);
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error(`[Auth Service] Erro de validação: ${error.message}`);
@@ -54,10 +59,22 @@ export async function logout(): Promise<void> {
       throw new Error(`[Auth Service] Erro ao fazer logout: ${error.message}`);
     }
 
-    await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
+    try {
+      await removeOfflineModeData();
+    } catch (offlineCleanupError) {
+      console.warn('[Auth Service] Erro ao limpar dados offline:', offlineCleanupError);
+    }
+    await clearOfflineAuthSession({ removeSecureToken: true });
+    await removeStoredAccessToken();
   } catch (error) {
     console.error(`[Auth Service] Erro ao fazer logout: ${error}`);
-    await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
+    try {
+      await removeOfflineModeData();
+    } catch (offlineCleanupError) {
+      console.warn('[Auth Service] Erro ao limpar dados offline:', offlineCleanupError);
+    }
+    await clearOfflineAuthSession({ removeSecureToken: true });
+    await removeStoredAccessToken();
     throw error;
   }
 }

@@ -5,6 +5,11 @@ import {
   ServiceOrderType,
 } from '@/types/service-order.type';
 import { toOperationalDateYMD } from '@/utils/operational-date';
+import NetInfo from '@react-native-community/netinfo';
+import {
+  getOfflineServiceOrderById,
+  getOfflineServiceOrders,
+} from '@/offline/offlineStorage';
 
 import { api } from './api.service';
 
@@ -14,6 +19,41 @@ const toCivilYYYYMMDD = (value: string) => {
   if (!value) return '';
   if (DATE_PARAM_REGEX.test(value)) return value;
   return toOperationalDateYMD(value) ?? '';
+};
+
+const shouldUseOfflineData = async () => {
+  const state = await NetInfo.fetch();
+  return state.isConnected === false || state.isInternetReachable === false;
+};
+
+const paginateOfflineServiceOrders = (
+  serviceOrders: ServiceOrder[],
+  params?: { page?: string; limit?: string; search?: string; status?: ServiceOrderStatus; farmId?: string }
+) => {
+  const normalizedSearch = params?.search?.trim().toLowerCase();
+  const page = Number(params?.page ?? '1') || 1;
+  const limit = Number(params?.limit ?? '100') || 100;
+  const filtered = serviceOrders.filter((serviceOrder) => {
+    const matchesStatus = !params?.status || serviceOrder.status === params.status;
+    const matchesFarm =
+      !params?.farmId || serviceOrder.farms?.some((farm) => farm.id === params.farmId);
+    const matchesSearch =
+      !normalizedSearch ||
+      String(serviceOrder.number).includes(normalizedSearch) ||
+      serviceOrder.customer?.name?.toLowerCase().includes(normalizedSearch) ||
+      serviceOrder.farms?.some((farm) => farm.name.toLowerCase().includes(normalizedSearch));
+
+    return matchesStatus && matchesFarm && matchesSearch;
+  });
+  const start = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(start, start + limit),
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+    totalCount: filtered.length,
+  };
 };
 
 export type GetAllMyOpenServiceOrdersResponse = {
@@ -47,6 +87,11 @@ export type GetAllMyOpenServiceOrdersParams = {
 export async function getAllMyOpenServiceOrders(
   params?: GetAllMyOpenServiceOrdersParams
 ): Promise<GetAllMyOpenServiceOrdersResponse> {
+  if (await shouldUseOfflineData()) {
+    const serviceOrders = await getOfflineServiceOrders();
+    return paginateOfflineServiceOrders(serviceOrders, { ...params, status: params?.status ?? 'open' });
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.append('page', params.page);
   if (params?.limit) searchParams.append('limit', params.limit);
@@ -99,6 +144,14 @@ export type GetServiceOrderByIdParams = {
 export async function getServiceOrderById(
   params: GetServiceOrderByIdParams
 ): Promise<ServiceOrder> {
+  if (await shouldUseOfflineData()) {
+    const serviceOrder = await getOfflineServiceOrderById(params.serviceOrderId);
+    if (!serviceOrder) {
+      throw new Error('[Service Order Service] Ordem de servico nao disponivel offline');
+    }
+    return serviceOrder;
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.includePlots) searchParams.append('includePlots', params.includePlots);
   if (params?.includeFarms) searchParams.append('includeFarms', params.includeFarms);
@@ -155,6 +208,11 @@ export type GetAllServiceOrdersParams = {
 export async function getAllServiceOrders(
   params?: GetAllServiceOrdersParams
 ): Promise<GetAllServiceOrdersResponse> {
+  if (await shouldUseOfflineData()) {
+    const serviceOrders = await getOfflineServiceOrders();
+    return paginateOfflineServiceOrders(serviceOrders, params);
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.append('page', params.page);
   if (params?.limit) searchParams.append('limit', params.limit);

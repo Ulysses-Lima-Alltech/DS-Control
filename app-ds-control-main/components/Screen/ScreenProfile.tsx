@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import ModalChangeCurrentUserPassword from '@/components/Modal/ModalChangeCurrentUserPassword';
+import OfflineModeCard from '@/components/Offline/OfflineModeCard';
 import { COLORS } from '@/constants/colors';
 import { OTA_VERSION_TEXT } from '@/constants/version';
 import { useLogout } from '@/mutations/auth.mutation';
@@ -382,8 +383,11 @@ export default function Profile() {
             color: COLORS.textMuted,
           }}
         >
-          {user?.email || ''}
+        {user?.email || ''}
         </Text>
+      </View>
+      <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+        <OfflineModeCard />
       </View>
       <View
         style={{

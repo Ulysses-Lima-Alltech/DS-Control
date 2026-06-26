@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 
 import TextInputSearch from '@/components/ui/TextInputSearch';
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import { getOfflineFarms } from '@/offline/offlineStorage';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
 import { Farm } from '@/types/farm.type';
 
@@ -67,7 +69,11 @@ export default function TextInputSearchMultipleFarms({
   const [selectedFarms, setSelectedFarms] = useState<Farm[]>([]);
   const [isSelectAllActive, setIsSelectAllActive] = useState<boolean>(false);
   const [hideListTimeout, setHideListTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [offlineFarms, setOfflineFarms] = useState<Farm[]>([]);
+  const [isLoadingOfflineFarms, setIsLoadingOfflineFarms] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const { isConnected } = useNetworkConnectivity();
+  const isOffline = isConnected === false;
 
   const queryLimit = isSelectAllActive ? '5' : '10';
 
@@ -76,7 +82,7 @@ export default function TextInputSearchMultipleFarms({
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-    isFetching: isFetchingInfinite,
+    isFetching: isFetchingOnlineFarms,
     isError: isFarmsError,
     error: farmsError,
   } = useGetAllFarmsInfinite(
@@ -88,10 +94,38 @@ export default function TextInputSearchMultipleFarms({
       includeGeoJson: 'true',
       limit: queryLimit,
     },
-    { enabled: isFarmsListVisible }
+    { enabled: isFarmsListVisible && !isOffline }
   );
 
+  useEffect(() => {
+    if (!isOffline || !isFarmsListVisible) return;
+
+    const loadOfflineFarms = async () => {
+      setIsLoadingOfflineFarms(true);
+      try {
+        setOfflineFarms(await getOfflineFarms());
+      } finally {
+        setIsLoadingOfflineFarms(false);
+      }
+    };
+
+    loadOfflineFarms();
+  }, [isOffline, isFarmsListVisible]);
+
   const queriedFarms = useMemo<Farm[]>(() => {
+    if (isOffline) {
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      return offlineFarms.filter((farm) => {
+        const matchesCustomer = !customerId || farm.customer?.id === customerId;
+        const matchesSearch =
+          !normalizedSearch ||
+          farm.name.toLowerCase().includes(normalizedSearch) ||
+          farm.customer?.name?.toLowerCase().includes(normalizedSearch);
+
+        return matchesCustomer && matchesSearch;
+      });
+    }
+
     const pages = (infiniteData as unknown as InfiniteData<{ data?: unknown }>)?.pages;
     if (!Array.isArray(pages)) return [];
 
@@ -101,7 +135,10 @@ export default function TextInputSearchMultipleFarms({
         .map((farm) => normalizeFarm(farm as FarmLike))
         .filter((farm): farm is Farm => Boolean(farm));
     });
-  }, [infiniteData]);
+  }, [customerId, infiniteData, isOffline, offlineFarms, searchTerm]);
+
+  const hasMoreFarms = !isOffline && hasNextPage;
+  const isFetchingInfinite = isOffline ? isLoadingOfflineFarms : isFetchingOnlineFarms;
 
   const listedFarms = useMemo(() => {
     const selectedFarmIds = new Set(selectedFarms.map((f) => f.id));
@@ -186,13 +223,13 @@ export default function TextInputSearchMultipleFarms({
   }, [isSelectAllActive, queriedFarms]);
 
   useEffect(() => {
-    if (isSelectAllActive && hasNextPage && !isFetchingNextPage && !isFetchingInfinite) {
+    if (isSelectAllActive && hasMoreFarms && !isFetchingNextPage && !isFetchingInfinite) {
       const timer = setTimeout(() => {
         fetchNextPage();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isSelectAllActive, hasNextPage, isFetchingNextPage, isFetchingInfinite, fetchNextPage]);
+  }, [isSelectAllActive, hasMoreFarms, isFetchingNextPage, isFetchingInfinite, fetchNextPage]);
 
   const prevSelectedFarmsRef = useRef<Farm[]>([]);
   useEffect(() => {
@@ -288,7 +325,7 @@ export default function TextInputSearchMultipleFarms({
             const isCloseToBottom =
               layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
 
-            if (isCloseToBottom && hasNextPage && !isFetchingNextPage) {
+            if (isCloseToBottom && hasMoreFarms && !isFetchingNextPage) {
               fetchNextPage();
             }
           }}
@@ -296,7 +333,7 @@ export default function TextInputSearchMultipleFarms({
             const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
             const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 5;
 
-            if (isAtBottom && hasNextPage && !isFetchingNextPage) {
+            if (isAtBottom && hasMoreFarms && !isFetchingNextPage) {
               fetchNextPage();
             }
           }}

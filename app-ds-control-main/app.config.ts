@@ -56,6 +56,8 @@ export default {
         },
       ],
       'expo-font',
+      'expo-secure-store',
+      'expo-sqlite',
       'expo-web-browser',
       [
         'expo-build-properties',

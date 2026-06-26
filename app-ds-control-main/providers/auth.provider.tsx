@@ -1,9 +1,14 @@
 'use client';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-import { AUTH_ACCESS_TOKEN_KEY } from '@/services/api.service';
+import {
+  getOfflineAuthSession,
+  getValidOfflineAuthSession,
+  saveOfflineAuthSession,
+} from '@/offline/offlineAuth';
+import { getStoredAccessToken, removeStoredAccessToken } from '@/services/auth-token-storage.service';
 import { getMe } from '@/services/user.service';
 import { User } from '@/types/user.type';
 
@@ -22,27 +27,75 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
+    setLoading(true);
+
     if (__DEV__) {
       console.log('[AuthProvider] bootstrap start');
     }
 
+    const enterOfflineIfPossible = async () => {
+      const { session, isValid, reason } = await getValidOfflineAuthSession();
+
+      if (isValid && session) {
+        if (__DEV__) {
+          console.log('[AuthProvider] offline session accepted');
+        }
+        setUser(session.user as User);
+        return true;
+      }
+
+      if (__DEV__) {
+        console.log('[AuthProvider] offline session unavailable', reason);
+      }
+      setUser(undefined);
+      return false;
+    };
+
     try {
-      const token = await AsyncStorage.getItem(AUTH_ACCESS_TOKEN_KEY);
+      const token = await getStoredAccessToken();
+      const networkState = await NetInfo.fetch();
+      const connected = Boolean(
+        networkState.isConnected && networkState.isInternetReachable !== false
+      );
 
       if (!token) {
+        if (!connected && (await enterOfflineIfPossible())) {
+          return;
+        }
         setUser(undefined);
         return;
       }
 
+      if (!connected) {
+        await enterOfflineIfPossible();
+        return;
+      }
+
       const userData = await getMe();
+      const previousSession = await getOfflineAuthSession();
       setUser(userData);
+      await saveOfflineAuthSession({
+        user: userData,
+        tenant: previousSession?.tenant ?? null,
+        permissions: previousSession?.permissions ?? [],
+        offlineReady: previousSession?.offlineReady ?? false,
+      });
     } catch (error) {
       if (__DEV__) {
         console.log('[AuthProvider] bootstrap error', error);
       }
       console.error('[Auth Provider] Error fetching user data:', error);
-      await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
-      setUser(undefined);
+      const networkState = await NetInfo.fetch();
+      const connected = Boolean(
+        networkState.isConnected && networkState.isInternetReachable !== false
+      );
+
+      if (!connected) {
+        await enterOfflineIfPossible();
+      } else {
+        await removeStoredAccessToken();
+        setUser(undefined);
+      }
     } finally {
       setLoading(false);
       if (__DEV__) {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import NetInfo from '@react-native-community/netinfo';
 
 import {
   RegisterNewApplicationSchema,
@@ -12,10 +13,65 @@ import {
   ApplicationOrderBy,
   ApplicationOrderType,
 } from '@/types/applications.type';
+import {
+  getOfflineApplications as getOfflineStoredApplications,
+  getOfflineApplicationsByPlotId as getOfflineStoredApplicationsByPlotId,
+  getOfflineApplicationsByServiceOrderId as getOfflineStoredApplicationsByServiceOrderId,
+} from '@/offline/offlineStorage';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 import { toOperationalDateYMD } from '@/utils/operational-date';
 
 import { api } from './api.service';
+
+const shouldUseOfflineData = async () => {
+  const state = await NetInfo.fetch();
+  return state.isConnected === false || state.isInternetReachable === false;
+};
+
+const paginateOfflineApplications = (applications: Application[], params?: GetAllApplicationsParams) => {
+  const normalizedSearch = params?.search?.trim().toLowerCase();
+  const page = Number(params?.page ?? '1') || 1;
+  const limit = Number(params?.limit ?? '100') || 100;
+  const filtered = applications.filter((application) => {
+    const matchesPilot = !params?.pilotId || application.pilotId === params.pilotId;
+    const matchesAssistant = !params?.assistantId || application.assistantId === params.assistantId;
+    const matchesProduct = !params?.productId || application.productId === params.productId;
+    const matchesDrone = !params?.droneId || application.droneId === params.droneId;
+    const matchesCulture = !params?.cultureId || application.cultureId === params.cultureId;
+    const matchesServiceOrder =
+      !params?.serviceOrderId || application.serviceOrderId === params.serviceOrderId;
+    const matchesFarm = !params?.farmId || application.farmId === params.farmId;
+    const matchesPlot = !params?.plotId || application.plotId === params.plotId;
+    const matchesSearch =
+      !normalizedSearch ||
+      application.product?.name?.toLowerCase().includes(normalizedSearch) ||
+      application.farm?.name?.toLowerCase().includes(normalizedSearch) ||
+      application.plot?.name?.toLowerCase().includes(normalizedSearch) ||
+      application.pilot?.name?.toLowerCase().includes(normalizedSearch) ||
+      application.observations?.toLowerCase().includes(normalizedSearch);
+
+    return (
+      matchesPilot &&
+      matchesAssistant &&
+      matchesProduct &&
+      matchesDrone &&
+      matchesCulture &&
+      matchesServiceOrder &&
+      matchesFarm &&
+      matchesPlot &&
+      matchesSearch
+    );
+  });
+  const start = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(start, start + limit),
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+    totalCount: filtered.length,
+  };
+};
 
 export type GetAllApplicationsParams = {
   search?: string;
@@ -85,6 +141,10 @@ export type GetAllApplicationsResponse = {
 export async function getAllApplications(
   params?: GetAllApplicationsParams
 ): Promise<GetAllApplicationsResponse> {
+  if (await shouldUseOfflineData()) {
+    return paginateOfflineApplications(await getOfflineStoredApplications(), params);
+  }
+
   const toCivilYYYYMMDD = (value: string) => {
     if (!value) return '';
     return toOperationalDateYMD(value) ?? '';
@@ -195,6 +255,10 @@ export async function getApplicationsByServiceOrderId(
   serviceOrderId: string,
   params?: GetApplicationsByServiceOrderIdParams
 ): Promise<GetApplicationsByServiceOrderIdResponse> {
+  if (await shouldUseOfflineData()) {
+    return { data: await getOfflineStoredApplicationsByServiceOrderId(serviceOrderId) };
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.includeGeoJson) searchParams.append('includeGeoJson', params.includeGeoJson);
 
@@ -384,6 +448,11 @@ export async function getApplicationsByPilotId(
   pilotId: string,
   params?: GetAllApplicationsParams
 ): Promise<GetApplicationsByPilotIdResponse> {
+  if (await shouldUseOfflineData()) {
+    const applications = await getOfflineStoredApplications();
+    return paginateOfflineApplications(applications, { ...params, pilotId });
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.append('page', params.page);
   if (params?.limit) searchParams.append('limit', params.limit);
@@ -419,6 +488,11 @@ export type GetApplicationsByPlotIdResponse = {
 export async function getApplicationsByPlotId(
   params: GetApplicationsByPlotIdParams
 ): Promise<GetApplicationsByPlotIdResponse> {
+  if (await shouldUseOfflineData()) {
+    const applications = await getOfflineStoredApplicationsByPlotId(params.plotId);
+    return paginateOfflineApplications(applications, params);
+  }
+
   const searchParams = new URLSearchParams();
   if (params.page) searchParams.append('page', params.page);
   if (params.limit) searchParams.append('limit', params.limit);
