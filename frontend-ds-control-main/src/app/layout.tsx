@@ -10,8 +10,8 @@ import QueryProvider from '@/providers/query.provider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'DS Control',
-  description: 'DS Control - Sistema de Controle de Fazendas',
+  title: 'IControl',
+  description: 'IControl - Sistema de Controle de Fazendas',
   icons: {
     icon: '/images/favicon.png',
   },

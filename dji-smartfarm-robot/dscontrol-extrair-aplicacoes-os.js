@@ -323,7 +323,7 @@ async function launchDsControlContext({ headed }) {
   fs.mkdirSync(DS_PROFILE_DIR, { recursive: true });
 
   console.log(
-    `[INFO] Abrindo DS Control com perfil persistente: ${DS_PROFILE_DIR}`,
+    `[INFO] Abrindo IControl com perfil persistente: ${DS_PROFILE_DIR}`,
   );
   console.log(`[INFO] Browser headed: ${!headless}`);
 
@@ -373,7 +373,7 @@ async function waitForManualLogin(page, context) {
   console.log("");
   console.log("[LOGIN] Sessao logada nao encontrada.");
   console.log("[LOGIN] Uma janela do Chrome foi aberta para login manual.");
-  console.log("[LOGIN] Faca login no DS Control e abra/permaneca na OS.");
+  console.log("[LOGIN] Faca login no IControl e abra/permaneca na OS.");
   console.log("[LOGIN] O script continuara automaticamente ao encontrar token.");
   console.log("");
 
@@ -386,7 +386,7 @@ async function waitForManualLogin(page, context) {
   }
 
   throw new Error(
-    "Token nao encontrado apos aguardar login manual no DS Control.",
+    "Token nao encontrado apos aguardar login manual no IControl.",
   );
 }
 
@@ -812,7 +812,7 @@ function printSummary(applications) {
 async function main() {
   ensureDirs();
 
-  console.log("[INFO] Extraindo aplicacoes reais da OS no DS Control");
+  console.log("[INFO] Extraindo aplicacoes reais da OS no IControl");
   console.log(`[INFO] OS ID: ${OS_ID}`);
   console.log(`[INFO] OS UUID: ${OS_UUID}`);
   console.log(`[INFO] Saida: ${OUTPUT_ROOT}`);

@@ -1,4 +1,4 @@
-# Como criar um novo usuário no projeto DS Control
+# Como criar um novo usuário no projeto IControl
 
 Análise baseada no código do backend. Arquivos citados com caminho completo do projeto.
 

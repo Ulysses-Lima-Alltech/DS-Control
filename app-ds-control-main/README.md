@@ -1,4 +1,4 @@
-# Welcome to DS Control app 👋
+# Welcome to IControl app 👋
 
 ## Get started
 

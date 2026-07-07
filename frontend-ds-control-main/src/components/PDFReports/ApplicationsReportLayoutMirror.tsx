@@ -78,7 +78,7 @@ export function ApplicationsReportLayoutMirror({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src='/images/pdf-logo-complete.png'
-          alt='Logo DS Control'
+          alt='Logo IControl'
           width={300}
           height={100}
           className='mb-7 object-contain'

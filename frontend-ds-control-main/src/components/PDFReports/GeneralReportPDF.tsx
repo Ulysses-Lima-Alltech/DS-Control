@@ -112,7 +112,7 @@ const GeneralReportPDF: React.FC<GeneralReportPDFProps> = ({
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatorio Geral</Text>
             <Text style={{ fontSize: 10, color: MUTED_TEXT, marginTop: 2 }}>
-              Consolidado operacional DS Control
+              Consolidado operacional IControl
             </Text>
           </View>
         </View>
@@ -247,7 +247,7 @@ const GeneralReportPDF: React.FC<GeneralReportPDFProps> = ({
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}

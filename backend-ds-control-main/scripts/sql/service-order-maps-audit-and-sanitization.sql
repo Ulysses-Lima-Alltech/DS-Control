@@ -1,4 +1,4 @@
--- DS Control - Auditoria e saneamento de dados de mapas de OS
+-- IControl - Auditoria e saneamento de dados de mapas de OS
 -- Banco alvo: PostgreSQL
 -- Objetivo:
 -- A) Relatorio de vinculos service_order_plots com plots soft-deleted

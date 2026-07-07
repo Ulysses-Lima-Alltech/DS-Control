@@ -39,7 +39,7 @@ export default function ForgotPasswordPage({
             <div className='bg-muted relative hidden md:block'>
               <Image
                 src={imageSrc}
-                alt='DS Control Logo'
+                alt='IControl Logo'
                 width={500}
                 height={500}
                 className='absolute inset-0 h-full w-full object-cover bg-accent dark:bg-accent/50'

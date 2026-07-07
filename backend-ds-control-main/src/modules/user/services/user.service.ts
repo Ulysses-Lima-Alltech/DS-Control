@@ -258,9 +258,9 @@ export class UserService {
     const resetLink = `${env.FRONTEND_URL}/auth/forgot-password/callback?token=${resetToken}&userId=${user.id}`;
 
     const { error } = await resend.emails.send({
-      from: "DS Control <no-reply@dstechbrasil.com.br>",
+      from: "IControl <no-reply@dstechbrasil.com.br>",
       to: [user.email],
-      subject: "Redefina sua senha | DS Control",
+      subject: "Redefina sua senha | IControl",
       html: createForgotPasswordTemplate({ userName: user.name, resetLink }),
     });
 

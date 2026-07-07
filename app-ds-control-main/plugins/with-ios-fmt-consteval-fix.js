@@ -13,7 +13,7 @@ const MARKED_BLOCK_PATTERN = new RegExp(
   'm'
 );
 const LEGACY_BLOCK_PATTERN =
-  /\n?  # DS Control: workaround for fmt consteval failures on newer Xcode toolchains\.\n  installer\.pods_project\.targets\.each do \|target\|\n    next unless target\.name == 'fmt' \|\| target\.name\.downcase\.include\?\('fmt'\)\n\n    target\.build_configurations\.each do \|config\|\n      definitions = config\.build_settings\['GCC_PREPROCESSOR_DEFINITIONS'\] \|\| \['\$\(inherited\)'\]\n      definitions = \[definitions\] if definitions\.is_a\?\(String\)\n      definitions << 'FMT_USE_CONSTEVAL=0' unless definitions\.include\?\('FMT_USE_CONSTEVAL=0'\)\n      config\.build_settings\['GCC_PREPROCESSOR_DEFINITIONS'\] = definitions\n    end\n  end\n?/m;
+  /\n?  # (?:DS\s+Control|IControl): workaround for fmt consteval failures on newer Xcode toolchains\.\n  installer\.pods_project\.targets\.each do \|target\|\n    next unless target\.name == 'fmt' \|\| target\.name\.downcase\.include\?\('fmt'\)\n\n    target\.build_configurations\.each do \|config\|\n      definitions = config\.build_settings\['GCC_PREPROCESSOR_DEFINITIONS'\] \|\| \['\$\(inherited\)'\]\n      definitions = \[definitions\] if definitions\.is_a\?\(String\)\n      definitions << 'FMT_USE_CONSTEVAL=0' unless definitions\.include\?\('FMT_USE_CONSTEVAL=0'\)\n      config\.build_settings\['GCC_PREPROCESSOR_DEFINITIONS'\] = definitions\n    end\n  end\n?/m;
 
 const FMT_CONSTEVAL_FIX = `  ${START_MARKER}
   fmt_base_header = File.join(installer.sandbox.root.to_s, 'fmt', 'include', 'fmt', 'base.h')

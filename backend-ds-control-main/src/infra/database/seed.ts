@@ -88,7 +88,7 @@ const seedUsers: SeedUser[] = [
     email: "gaipara@dsc.com",
     password: "fq}Cp<.v;H~y(-}xAd`8", 
     type: "farmer",
-    customerName: "Agro DS Control",
+    customerName: "Agro IControl",
   },
   {
     name: "Fazenda Açude Manager",
@@ -116,8 +116,8 @@ const seedCustomers: SeedCustomer[] = [
   {
     cnpj: "12345678000195",
     phone: "+5511987654321",
-    name: "Agro DS Control",
-    razaoSocial: "Agro DS Control Tecnologia Agrícola Ltda",
+    name: "Agro IControl",
+    razaoSocial: "Agro IControl Tecnologia Agrícola Ltda",
     document_number: "12345678900123",
     entity_type: "PJ",
   },
@@ -141,11 +141,11 @@ const seedCustomers: SeedCustomer[] = [
 
 const seedContracts: SeedContract[] = [
   {
-    name: "Contrato de Aplicação Agrícola 2024 - Agro DS Control",
+    name: "Contrato de Aplicação Agrícola 2024 - Agro IControl",
     customerId: "", // Will be set based on customer lookup
     dateStart: new Date("2024-01-01"),
     dateEnd: new Date("2024-12-31"),
-    observation: "Contrato anual para serviços de aplicação de defensivos agrícolas com drones em toda a propriedade da Agro DS Control.",
+    observation: "Contrato anual para serviços de aplicação de defensivos agrícolas com drones em toda a propriedade da Agro IControl.",
   },
   {
     name: "Contrato de Monitoramento 2024 - Cooperativa Tecnológica",

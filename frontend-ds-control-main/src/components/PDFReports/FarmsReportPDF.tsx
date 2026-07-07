@@ -97,7 +97,7 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatorio de Fazendas</Text>
             <Text style={{ fontSize: 10, color: MUTED_TEXT, marginTop: 2 }}>
-              Central de Relatorios DS Control
+              Central de Relatorios IControl
             </Text>
           </View>
         </View>
@@ -215,7 +215,7 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
@@ -251,7 +251,7 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
             <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={{ fontSize: 13, fontWeight: 700 }}>Detalhamento de Fazendas</Text>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT }}>Central de Relatorios DS Control</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT }}>Central de Relatorios IControl</Text>
             </View>
           </View>
 
@@ -309,7 +309,7 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>DS Control - Gerado em {generatedAt}</Text>
+            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
             <Text
               style={{ fontSize: 8, color: MUTED_TEXT }}
               render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}

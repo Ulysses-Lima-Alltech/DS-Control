@@ -55,9 +55,9 @@ Grupos gerados:
 
 Ainda falta substituir o fallback por leitura real do arquivo os_134_aplicacoes_v2.json no fluxo definitivo.
 
-O relatório DS Control não deve executar o robô. O robô deve rodar separado, gerar imagens e manifest, e o PDF deve apenas consumir evidências prontas.
+O relatório IControl não deve executar o robô. O robô deve rodar separado, gerar imagens e manifest, e o PDF deve apenas consumir evidências prontas.
 
-## Extração real DS Control validada
+## Extração real IControl validada
 
 Script:
 

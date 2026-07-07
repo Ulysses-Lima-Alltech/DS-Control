@@ -596,7 +596,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
-            DS Control - Gerado em {generatedAt}
+            IControl - Gerado em {generatedAt}
           </Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
@@ -688,7 +688,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
           }}
         >
           <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
-            DS Control - Gerado em {generatedAt}
+            IControl - Gerado em {generatedAt}
           </Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}

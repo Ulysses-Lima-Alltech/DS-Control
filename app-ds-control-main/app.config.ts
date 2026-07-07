@@ -2,7 +2,7 @@ export const appVersion = '1.9.2';
 
 export default {
   expo: {
-    name: 'DS Control',
+    name: 'IControl',
     owner: 'dstechbrasil',
     slug: 'dscontrol',
     version: appVersion,

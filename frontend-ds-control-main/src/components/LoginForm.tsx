@@ -76,7 +76,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
             <div className='flex flex-col gap-6'>
               <div className='flex flex-col items-center text-center'>
                 <h1 className='text-2xl font-bold'>Seja bem-vindo</h1>
-                <p className='text-muted-foreground text-balance'>Acesse sua conta da DS Control</p>
+                <p className='text-muted-foreground text-balance'>Acesse sua conta da IControl</p>
               </div>
               <div className='grid gap-3'>
                 <Label htmlFor='email'>E-mail</Label>

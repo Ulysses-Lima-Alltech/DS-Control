@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 href='/dashboard'
                 className='text-base font-semibold tracking-normal text-primary hover:text-primary/85'
               >
-                DS Control
+                IControl
               </Link>
               <BreadcrumbHeader />
               <div className='ml-auto'>

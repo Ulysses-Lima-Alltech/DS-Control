@@ -299,11 +299,11 @@ function main() {
   );
 
   if (!applications.length) {
-    fail(`Nenhuma aplicacao DS Control encontrada em ${applicationsPath}`);
+    fail(`Nenhuma aplicacao IControl encontrada em ${applicationsPath}`);
   }
 
   if (!dsDates.length) {
-    fail("Nenhuma data de aplicacao DS Control foi encontrada.");
+    fail("Nenhuma data de aplicacao IControl foi encontrada.");
   }
 
   const dsDateSet = new Set(dsDates);
@@ -318,7 +318,7 @@ function main() {
   }
 
   if (!selectedDates.length) {
-    fail("Nenhuma das datas informadas existe nas aplicacoes DS Control da OS.");
+    fail("Nenhuma das datas informadas existe nas aplicacoes IControl da OS.");
   }
 
   const selectedDateSet = new Set(selectedDates);
@@ -329,7 +329,7 @@ function main() {
   let totalDjiFlightsCaptured = 0;
 
   console.log("");
-  console.log(`[INFO] Datas DS Control: ${dsDates.join(", ")}`);
+  console.log(`[INFO] Datas IControl: ${dsDates.join(", ")}`);
   console.log(`[INFO] Datas selecionadas: ${selectedDates.join(", ")}`);
 
   if (skipDji) {
