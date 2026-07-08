@@ -40,7 +40,7 @@ export type RouteFarmGroup = {
   customerId: string;
   customerName: string;
   routeCount: number;
-  lastRouteUpdatedAt: Date | null;
+  lastRouteUpdatedAt: string | null;
   routes: RouteWithFarmAndCustomer[];
 };
 

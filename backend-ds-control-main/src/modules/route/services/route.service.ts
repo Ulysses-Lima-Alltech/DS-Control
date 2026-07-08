@@ -8,14 +8,14 @@ import type { PaginatedRequest } from '@common/types/paginated-request.types';
 import { RouteVM, type RouteViewModelSchema } from '@models/route.vm';
 import { app } from '@modules/app/app.module';
 import { RouteRepository } from '@repositories/routes/route.repository';
-import type {
-  Route,
-  RouteFarmGroup,
+import {
   RouteOrderBy,
   RouteOrderType,
-  RouteWithCustomer,
-  RouteWithFarm,
-  RouteWithFarmAndCustomer,
+  type Route,
+  type RouteFarmGroup,
+  type RouteWithCustomer,
+  type RouteWithFarm,
+  type RouteWithFarmAndCustomer,
 } from '@repositories/routes/route.types';
 import type { CreateRouteDTO } from '../dto/create-route.dto';
 import type { CreateRoutesBatchDTO } from '../dto/create-routes-batch.dto';
@@ -41,6 +41,21 @@ type GroupedRoutesByFarmResult = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const toDateOrNull = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+};
+
+const getDateTime = (value: unknown): number => toDateOrNull(value)?.getTime() ?? 0;
 
 export class RouteService {
   private readonly routeRepository = new RouteRepository();
@@ -282,38 +297,73 @@ export class RouteService {
     orderBy,
     orderType,
   }: GroupedRoutesByFarmQueryString): Promise<GroupedRoutesByFarmResult> {
-    app.log.info('[RouteService] - Listing routes grouped by farm');
-
-    const routesList = await this.routeRepository.getRoutesWithFarmAndCustomerForGrouping(
-      search,
-      customerId,
-      farmId,
-      orderBy,
-      orderType,
-    );
-
-    const groups = this.routeRepository.groupRoutesByFarm(routesList);
-    const sortedGroups = this.sortRouteFarmGroups(groups, orderBy, orderType);
-    const totalCount = sortedGroups.length;
-    const totalPages = Math.ceil(totalCount / limit);
-    const pageStart = (page - 1) * limit;
-    const paginatedGroups = sortedGroups.slice(pageStart, pageStart + limit);
-
-    return {
-      data: paginatedGroups.map((group) => ({
-        ...group,
-        routes: includeGeoJson
-          ? group.routes
-          : group.routes.map((route) => ({
-              ...route,
-              geoJson: {},
-            })),
-      })),
+    app.log.info(
+      '[RouteService] - Listing routes grouped by farm with page=%d limit=%d customerId=%s farmId=%s includeGeoJson=%s orderBy=%s orderType=%s search=%s',
       page,
       limit,
-      totalPages,
-      totalCount,
-    };
+      customerId ?? '',
+      farmId ?? '',
+      String(includeGeoJson),
+      orderBy ?? '',
+      orderType ?? '',
+      search ?? '',
+    );
+
+    try {
+      const routesList = await this.routeRepository.getRoutesWithFarmAndCustomerForGrouping(
+        search,
+        customerId,
+        farmId,
+        orderBy,
+        orderType,
+      );
+
+      const groups = this.routeRepository.groupRoutesByFarm(routesList);
+      const sortedGroups = this.sortRouteFarmGroups(groups, orderBy, orderType);
+      const totalCount = sortedGroups.length;
+      const totalPages = Math.ceil(totalCount / limit);
+      const pageStart = (page - 1) * limit;
+      const paginatedGroups = sortedGroups.slice(pageStart, pageStart + limit);
+
+      app.log.info(
+        '[RouteService] - Routes grouped by farm successfully: routes=%d groups=%d page=%d limit=%d',
+        routesList.length,
+        totalCount,
+        page,
+        limit,
+      );
+
+      return {
+        data: paginatedGroups.map((group) => ({
+          ...group,
+          routes: includeGeoJson
+            ? group.routes
+            : group.routes.map((route) => ({
+                ...route,
+                geoJson: {},
+              })),
+        })),
+        page,
+        limit,
+        totalPages,
+        totalCount,
+      };
+    } catch (error) {
+      app.log.error('[RouteService] - Failed to list routes grouped by farm: %o', {
+        error,
+        query: {
+          page,
+          limit,
+          search,
+          customerId,
+          farmId,
+          includeGeoJson,
+          orderBy,
+          orderType,
+        },
+      });
+      throw error;
+    }
   }
 
   /**
@@ -595,8 +645,8 @@ export class RouteService {
         case RouteOrderBy.FARM:
           return firstGroup.farmName.localeCompare(secondGroup.farmName) * direction;
         default: {
-          const firstTime = firstGroup.lastRouteUpdatedAt?.getTime() ?? 0;
-          const secondTime = secondGroup.lastRouteUpdatedAt?.getTime() ?? 0;
+          const firstTime = getDateTime(firstGroup.lastRouteUpdatedAt);
+          const secondTime = getDateTime(secondGroup.lastRouteUpdatedAt);
           return (firstTime - secondTime) * direction;
         }
       }

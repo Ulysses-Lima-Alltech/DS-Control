@@ -170,7 +170,9 @@ export class RouteController {
     reply: FastifyReply,
   ) => {
     try {
-      app.log.info('[RouteController] - Listing routes grouped by farm');
+      app.log.info('[RouteController] - Listing routes grouped by farm: %o', {
+        query: request.query,
+      });
 
       const result = await this.service.listRoutesGroupedByFarm(request.query);
 
@@ -188,6 +190,9 @@ export class RouteController {
 
       app.log.error('[RouteController] - Unexpected error during grouped route listing: %o', {
         error,
+        query: request.query,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
       reply.status(500).send(new AppError('Internal server error', 500, error).throw());
     }

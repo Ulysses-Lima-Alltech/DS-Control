@@ -12,6 +12,26 @@ import {
   type RouteWithFarmAndCustomer,
 } from './route.types';
 
+const toDateOrNull = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+};
+
+const getDateTime = (value: unknown): number => toDateOrNull(value)?.getTime() ?? 0;
+
+const toIsoStringOrNull = (value: unknown): string | null => {
+  const date = toDateOrNull(value);
+  return date ? date.toISOString() : null;
+};
+
 export class RouteRepository {
   /**
    * @description Create a new route
@@ -479,12 +499,31 @@ export class RouteRepository {
     return results
       .map((row) => {
         const route = this.formatRoute(row.route);
-        if (!route || !row.farm || !row.customer) return null;
+        const farmId = row.farm?.id;
+        const farmName = row.farm?.name;
+        const customerId = row.customer?.id;
+        const customerName = row.customer?.name;
+
+        if (
+          !route ||
+          typeof farmId !== 'string' ||
+          typeof farmName !== 'string' ||
+          typeof customerId !== 'string' ||
+          typeof customerName !== 'string'
+        ) {
+          return null;
+        }
 
         return {
           ...route,
-          farm: row.farm,
-          customer: row.customer,
+          farm: {
+            id: farmId,
+            name: farmName,
+          },
+          customer: {
+            id: customerId,
+            name: customerName,
+          },
         };
       })
       .filter(Boolean) as RouteWithFarmAndCustomer[];
@@ -494,6 +533,10 @@ export class RouteRepository {
     const groups = new Map<string, RouteFarmGroup>();
 
     routesList.forEach((route) => {
+      if (!route.farm?.id || !route.farm?.name || !route.customer?.id || !route.customer?.name) {
+        return;
+      }
+
       const group = groups.get(route.farmId) ?? {
         farmId: route.farmId,
         farmName: route.farm.name,
@@ -505,11 +548,8 @@ export class RouteRepository {
       };
 
       const routeUpdatedAt = route.updatedAt ?? route.createdAt;
-      if (
-        !group.lastRouteUpdatedAt ||
-        (routeUpdatedAt && routeUpdatedAt.getTime() > group.lastRouteUpdatedAt.getTime())
-      ) {
-        group.lastRouteUpdatedAt = routeUpdatedAt;
+      if (getDateTime(routeUpdatedAt) > getDateTime(group.lastRouteUpdatedAt)) {
+        group.lastRouteUpdatedAt = toIsoStringOrNull(routeUpdatedAt);
       }
 
       group.routes.push(route);
