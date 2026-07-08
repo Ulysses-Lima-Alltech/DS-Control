@@ -15,19 +15,23 @@ import {
   createPlotStrokeColorPaintExpression,
 } from '@/utils/map-utils';
 
+type MapboxExpression = boolean | unknown[];
+
 export type MapContentProps = {
   geoData: GeoJSON | undefined;
   layerNameToHighlight?: string | string[];
   /** When set, selection highlight uses stable `plot_id` on features (preferred over `plot_name`). */
   layerPlotIdsToHighlight?: string[];
+  selectedRouteId?: string | null;
   onPlotClick?: (plotId: string) => void;
+  onRouteClick?: (routeId: string) => void;
   animationDuration?: number;
 };
 
 function buildPlotSelectionHighlightExpression(
   layerPlotIds?: string[],
   layerNameToHighlight?: string | string[]
-): any {
+): MapboxExpression {
   const ids = layerPlotIds?.filter(Boolean) ?? [];
   const namesRaw = Array.isArray(layerNameToHighlight)
     ? layerNameToHighlight
@@ -36,7 +40,7 @@ function buildPlotSelectionHighlightExpression(
       : [];
   const names = namesRaw.filter((n) => n !== '');
   if (ids.length === 0 && names.length === 0) return false;
-  const parts: any[] = [];
+  const parts: unknown[][] = [];
   if (ids.length) parts.push(['in', ['get', 'plot_id'], ['literal', ids]]);
   if (names.length) parts.push(['in', ['get', 'plot_name'], ['literal', names]]);
   return parts.length === 1 ? parts[0] : ['any', ...parts];
@@ -46,7 +50,9 @@ export default function MapContent({
   geoData,
   layerNameToHighlight,
   layerPlotIdsToHighlight,
+  selectedRouteId,
   onPlotClick,
+  onRouteClick,
   animationDuration = 2000,
 }: MapContentProps) {
   const { current: map } = useMap();
@@ -62,12 +68,6 @@ export default function MapContent({
     content: '',
   });
   const [hoveredPolygonId, setHoveredPolygonId] = useState<string | null>(null);
-
-  const layerNamesToHighlight = Array.isArray(layerNameToHighlight)
-    ? layerNameToHighlight
-    : layerNameToHighlight
-      ? [layerNameToHighlight]
-      : [];
 
   const selectionHighlight = useMemo(
     () => buildPlotSelectionHighlightExpression(layerPlotIdsToHighlight, layerNameToHighlight),
@@ -200,7 +200,10 @@ export default function MapContent({
         let content: string = '';
         let polygonId: string | null = null;
 
-        if ('plot_name' in properties) {
+        if ('route_id' in properties || 'route_name' in properties) {
+          content = `Rota: ${properties.route_name || properties.name || 'Sem nome'}`;
+          polygonId = properties.route_id ? String(properties.route_id) : null;
+        } else if ('plot_name' in properties) {
           const farmName = properties.farm_name || 'Fazenda desconhecida';
           content = `Fazenda: ${farmName}
 Nome: ${properties.plot_name}
@@ -245,7 +248,9 @@ Hectares: ${properties.hectare} ha`;
         const feature = features[0];
         const properties = feature.properties || {};
 
-        if (properties.plot_id != null && String(properties.plot_id) !== '') {
+        if (properties.route_id != null && String(properties.route_id) !== '') {
+          onRouteClick?.(String(properties.route_id));
+        } else if (properties.plot_id != null && String(properties.plot_id) !== '') {
           onPlotClick?.(String(properties.plot_id));
         } else if ('plot_name' in properties) {
           onPlotClick?.(String(properties.plot_name));
@@ -274,7 +279,7 @@ Hectares: ${properties.hectare} ha`;
       mapInstance.off('mouseleave', handleMouseLeave);
       mapInstance.off('click', handleClick);
     };
-  }, [map, geoData, onPlotClick]);
+  }, [map, geoData, onPlotClick, onRouteClick]);
 
   useEffect(() => {
     if (!map || isLineStringData) return;
@@ -361,9 +366,23 @@ Hectares: ${properties.hectare} ha`;
             id='uploaded-layer'
             type='line'
             paint={{
-              'line-color': ['coalesce', ['get', 'stroke'], '#0080ff'],
-              'line-width': 4,
-              'line-opacity': 0.8,
+              'line-color': selectedRouteId
+                ? [
+                    'case',
+                    ['==', ['get', 'route_id'], selectedRouteId],
+                    '#FF6B35',
+                    ['coalesce', ['get', 'stroke'], '#60A5FA'],
+                  ]
+                : ['coalesce', ['get', 'stroke'], '#0080ff'],
+              'line-width': selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 6, 3]
+                : 4,
+              'line-opacity': selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 0.98, 0.45]
+                : 0.8,
+              'line-blur': selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 0, 0.2]
+                : 0,
             }}
           />
           <Layer

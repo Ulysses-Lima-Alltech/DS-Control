@@ -34,8 +34,14 @@ function buildPreviewFeatureCollection(routes: ConvertedRouteData[]): GeoJSON.Fe
         properties: {
           ...(feature.properties ?? {}),
           route_name: route.name,
+          source_file_name: route.sourceFileName,
           source_file: route.sourceFileName,
+          external_id: route.externalId,
           externalId: route.externalId,
+          point_count: route.pointCount,
+          distance_meters: route.distanceMeters,
+          start: route.start,
+          end: route.end,
         },
       }));
     }),

@@ -16,7 +16,7 @@ export default function RoutesPage() {
   return (
     <DashboardPageShell
       title='Rotas'
-      description='Gerencie todas as rotas cadastradas'
+      description='Gerencie rotas agrupadas por fazenda'
       action={
         <DialogForm
           form={<FormRegisterNewRoute closeDialog={() => setIsNewRouteDialogOpen(false)} />}

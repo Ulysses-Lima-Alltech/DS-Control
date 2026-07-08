@@ -10,6 +10,7 @@ import { app } from '@modules/app/app.module';
 import { RouteRepository } from '@repositories/routes/route.repository';
 import type {
   Route,
+  RouteFarmGroup,
   RouteOrderBy,
   RouteOrderType,
   RouteWithCustomer,
@@ -18,6 +19,7 @@ import type {
 } from '@repositories/routes/route.types';
 import type { CreateRouteDTO } from '../dto/create-route.dto';
 import type { CreateRoutesBatchDTO } from '../dto/create-routes-batch.dto';
+import type { GroupedRoutesByFarmQueryString } from '../dto/grouped-routes-by-farm.dto';
 import type { RouteSearchQueryString } from '../dto/list-all-routes.dto';
 import type { UpdateRouteDTO } from '../dto/update-route.dto';
 
@@ -27,6 +29,14 @@ type CreateRoutesBatchResult = {
   skippedCount: number;
   routes: ReturnType<typeof RouteVM.toViewModel>[];
   errors: Array<{ name?: string; sourceFileName?: string; message: string }>;
+};
+
+type GroupedRoutesByFarmResult = {
+  data: RouteFarmGroup[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  totalCount: number;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -258,6 +268,50 @@ export class RouteService {
       page,
       limit,
       totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+    };
+  }
+
+  public async listRoutesGroupedByFarm({
+    page,
+    limit,
+    search,
+    customerId,
+    farmId,
+    includeGeoJson,
+    orderBy,
+    orderType,
+  }: GroupedRoutesByFarmQueryString): Promise<GroupedRoutesByFarmResult> {
+    app.log.info('[RouteService] - Listing routes grouped by farm');
+
+    const routesList = await this.routeRepository.getRoutesWithFarmAndCustomerForGrouping(
+      search,
+      customerId,
+      farmId,
+      orderBy,
+      orderType,
+    );
+
+    const groups = this.routeRepository.groupRoutesByFarm(routesList);
+    const sortedGroups = this.sortRouteFarmGroups(groups, orderBy, orderType);
+    const totalCount = sortedGroups.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const pageStart = (page - 1) * limit;
+    const paginatedGroups = sortedGroups.slice(pageStart, pageStart + limit);
+
+    return {
+      data: paginatedGroups.map((group) => ({
+        ...group,
+        routes: includeGeoJson
+          ? group.routes
+          : group.routes.map((route) => ({
+              ...route,
+              geoJson: {},
+            })),
+      })),
+      page,
+      limit,
+      totalPages,
       totalCount,
     };
   }
@@ -526,6 +580,29 @@ export class RouteService {
     return candidateName;
   }
 
+  private sortRouteFarmGroups(
+    groups: RouteFarmGroup[],
+    orderBy?: RouteOrderBy,
+    orderType?: RouteOrderType,
+  ): RouteFarmGroup[] {
+    const direction = orderType === RouteOrderType.ASC ? 1 : -1;
+
+    return [...groups].sort((firstGroup, secondGroup) => {
+      switch (orderBy) {
+        case RouteOrderBy.CUSTOMER:
+          return firstGroup.customerName.localeCompare(secondGroup.customerName) * direction;
+        case RouteOrderBy.NAME:
+        case RouteOrderBy.FARM:
+          return firstGroup.farmName.localeCompare(secondGroup.farmName) * direction;
+        default: {
+          const firstTime = firstGroup.lastRouteUpdatedAt?.getTime() ?? 0;
+          const secondTime = secondGroup.lastRouteUpdatedAt?.getTime() ?? 0;
+          return (firstTime - secondTime) * direction;
+        }
+      }
+    });
+  }
+
   private enrichRouteGeoJson(
     geoJson: Record<string, unknown>,
     routeName: string,
@@ -535,8 +612,8 @@ export class RouteService {
     const enrichProperties = (properties: unknown) => ({
       ...(isRecord(properties) ? properties : {}),
       route_name: routeName,
-      ...(sourceFileName ? { source_file: sourceFileName } : {}),
-      ...(externalId ? { externalId } : {}),
+      ...(sourceFileName ? { source_file_name: sourceFileName, source_file: sourceFileName } : {}),
+      ...(externalId ? { external_id: externalId, externalId } : {}),
     });
 
     if (geoJson.type === 'FeatureCollection' && Array.isArray(geoJson.features)) {

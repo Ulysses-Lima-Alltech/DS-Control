@@ -10,28 +10,38 @@ export type Route = {
 };
 
 export type RouteWithFarm = Route & {
-  farm: { 
+  farm: {
     id: string;
     name: string;
   };
 };
 
 export type RouteWithCustomer = Route & {
-  customer: { 
+  customer: {
     id: string;
     name: string;
   };
 };
 
 export type RouteWithFarmAndCustomer = Route & {
-  farm: { 
+  farm: {
     id: string;
     name: string;
   };
-  customer: { 
+  customer: {
     id: string;
     name: string;
   };
+};
+
+export type RouteFarmGroup = {
+  farmId: string;
+  farmName: string;
+  customerId: string;
+  customerName: string;
+  routeCount: number;
+  lastRouteUpdatedAt: Date | null;
+  routes: RouteWithFarmAndCustomer[];
 };
 
 export interface CreateRoute {
@@ -39,16 +49,16 @@ export interface CreateRoute {
   geoJson: Record<string, unknown>;
   farmId: string;
   customerId: string;
-} 
+}
 
 export enum RouteOrderBy {
   NAME = 'name',
   CREATEDAT = 'created_at',
   FARM = 'farm',
-  CUSTOMER = 'customer'
+  CUSTOMER = 'customer',
 }
 
 export enum RouteOrderType {
   ASC = 'asc',
-  DESC = 'desc'
+  DESC = 'desc',
 }

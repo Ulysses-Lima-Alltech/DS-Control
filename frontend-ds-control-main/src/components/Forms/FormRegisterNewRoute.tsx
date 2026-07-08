@@ -44,6 +44,17 @@ const NewRouteFormSchema = z.object({
 type NewRouteFormData = z.infer<typeof NewRouteFormSchema>;
 
 function enrichRouteGeoJson(route: ConvertedRouteData): GeoJSON.FeatureCollection {
+  const metadata = {
+    source_file_name: route.sourceFileName,
+    source_file: route.sourceFileName,
+    external_id: route.externalId,
+    externalId: route.externalId,
+    point_count: route.pointCount,
+    distance_meters: route.distanceMeters,
+    start: route.start,
+    end: route.end,
+  };
+
   return {
     type: 'FeatureCollection',
     features: (route.geoJson?.features ?? []).map((feature) => ({
@@ -51,8 +62,7 @@ function enrichRouteGeoJson(route: ConvertedRouteData): GeoJSON.FeatureCollectio
       properties: {
         ...(feature.properties ?? {}),
         route_name: route.name,
-        source_file: route.sourceFileName,
-        externalId: route.externalId,
+        ...metadata,
       },
     })),
   };
@@ -192,7 +202,9 @@ export default function FormRegisterNewRoute({
   };
 
   const buttonText =
-    validConvertedRoutes.length > 1 ? `Criar ${validConvertedRoutes.length} rotas` : 'Criar rota';
+    validConvertedRoutes.length > 1
+      ? `Criar ${validConvertedRoutes.length} rotas para esta fazenda`
+      : 'Criar rota para esta fazenda';
 
   return (
     <div className='max-w-7xl h-[600px] p-0'>
@@ -201,7 +213,10 @@ export default function FormRegisterNewRoute({
           <Card className='h-full m-0 flex flex-col'>
             <CardHeader className='flex-shrink-0'>
               <CardTitle>Informações da Rota</CardTitle>
-              <CardDescription>Preencha os dados da nova rota</CardDescription>
+              <CardDescription>
+                Selecione a fazenda e um ou mais arquivos KML. As rotas serao agrupadas
+                automaticamente pela fazenda selecionada.
+              </CardDescription>
             </CardHeader>
             <CardContent className='flex-1 flex flex-col overflow-y-auto overflow-x-hidden'>
               <div className='space-y-4'>
@@ -311,7 +326,7 @@ export default function FormRegisterNewRoute({
                 )}
 
                 <div className='space-y-2'>
-                  <Label>Arquivos KML</Label>
+                  <Label>Selecione um ou mais arquivos KML</Label>
                   <InputRouteFile
                     multiple
                     onConvertedRoutes={(routes) => {
@@ -466,7 +481,7 @@ export default function FormRegisterNewRoute({
                       <div className='text-xs'>
                         {validConvertedRoutes.length === 1
                           ? 'Rota carregada e pronta para ser salva'
-                          : 'Todas as rotas válidas serão desenhadas e salvas separadamente'}
+                          : 'Todas as rotas validas serao desenhadas, salvas separadamente e agrupadas pela fazenda'}
                       </div>
                     </div>
                   ) : (

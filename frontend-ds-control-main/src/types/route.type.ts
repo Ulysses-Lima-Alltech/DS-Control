@@ -34,6 +34,16 @@ export type RouteWithFarmAndCustomer = Route & {
   };
 };
 
+export type RouteFarmGroup = {
+  farmId: string;
+  farmName: string;
+  customerId: string;
+  customerName: string;
+  routeCount: number;
+  lastRouteUpdatedAt: string | null;
+  routes: RouteWithFarmAndCustomer[];
+};
+
 export enum RouteOrderBy {
   NAME = 'name',
   CREATEDAT = 'created_at',

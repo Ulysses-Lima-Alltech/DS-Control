@@ -18,6 +18,20 @@ export const useGetAllRoutes = (
   });
 };
 
+export const useGetRoutesGroupedByFarm = (
+  params?: RouteService.GetRoutesGroupedByFarmParams,
+  options?: Omit<
+    UseQueryOptions<RouteService.GetRoutesGroupedByFarmResponse, Error>,
+    'queryKey' | 'queryFn'
+  >
+) => {
+  return useQuery<RouteService.GetRoutesGroupedByFarmResponse, Error>({
+    queryKey: ['routes', 'grouped-by-farm', params],
+    queryFn: () => RouteService.getRoutesGroupedByFarm(params),
+    ...options,
+  });
+};
+
 export const useGetAllRoutesInfinite = (
   params?: Omit<RouteService.GetAllRoutesParams, 'page'>,
   options?: Omit<

@@ -1,8 +1,12 @@
 import NetInfo from '@react-native-community/netinfo';
 
-import { getOfflineRoutesByFarmId } from '@/offline/offlineStorage';
+import {
+  getOfflineFarms,
+  getOfflineRoutes,
+  getOfflineRoutesByFarmId,
+} from '@/offline/offlineStorage';
 import { api } from '@/services/api.service';
-import { type Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
+import { type Route, RouteFarmGroup, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 
 export type GetAllRoutesResponse = {
   data: Route[];
@@ -24,6 +28,19 @@ export type GetAllRoutesParams = {
   orderBy?: RouteOrderBy;
   orderType?: RouteOrderType;
 };
+
+export type GetRoutesGroupedByFarmResponse = {
+  data: RouteFarmGroup[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  totalCount: number;
+};
+
+export type GetRoutesGroupedByFarmParams = Omit<
+  GetAllRoutesParams,
+  'includeFarm' | 'includeCustomer'
+>;
 
 const shouldUseOfflineData = async () => {
   const state = await NetInfo.fetch();
@@ -63,6 +80,129 @@ export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllR
 
   if (!response.ok) {
     throw new Error('Failed to fetch routes');
+  }
+
+  return await response.json();
+}
+
+const routeMatchesSearch = (route: Route, group: RouteFarmGroup, search?: string) => {
+  if (!search?.trim()) return true;
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  return [route.name, group.farmName, group.customerName].some((value) =>
+    value?.toLowerCase().includes(normalizedSearch)
+  );
+};
+
+const buildOfflineRouteGroups = async (
+  params?: GetRoutesGroupedByFarmParams
+): Promise<GetRoutesGroupedByFarmResponse> => {
+  const [routes, farms] = await Promise.all([getOfflineRoutes(), getOfflineFarms()]);
+  const farmsById = new Map(farms.map((farm) => [farm.id, farm]));
+  const groups = new Map<string, RouteFarmGroup>();
+
+  routes.forEach((route) => {
+    if (params?.customerId && route.customerId !== params.customerId) return;
+    if (params?.farmId && route.farmId !== params.farmId) return;
+
+    const farm = farmsById.get(route.farmId);
+    const group = groups.get(route.farmId) ?? {
+      farmId: route.farmId,
+      farmName: farm?.name ?? 'Fazenda nao informada',
+      customerId: route.customerId,
+      customerName: farm?.customer?.name ?? 'Cliente nao informado',
+      routeCount: 0,
+      lastRouteUpdatedAt: null,
+      routes: [],
+    };
+
+    if (!routeMatchesSearch(route, group, params?.search)) return;
+
+    const routeWithRelations = {
+      ...route,
+      farm: {
+        id: route.farmId,
+        name: group.farmName,
+      },
+      customer: {
+        id: route.customerId,
+        name: group.customerName,
+      },
+    };
+    const routeUpdatedAt = route.updatedAt ?? route.createdAt ?? null;
+
+    if (
+      routeUpdatedAt &&
+      (!group.lastRouteUpdatedAt ||
+        new Date(routeUpdatedAt).getTime() > new Date(group.lastRouteUpdatedAt).getTime())
+    ) {
+      group.lastRouteUpdatedAt = routeUpdatedAt;
+    }
+
+    group.routes.push(routeWithRelations);
+    group.routeCount = group.routes.length;
+    groups.set(route.farmId, group);
+  });
+
+  const orderType = params?.orderType ?? RouteOrderType.DESC;
+  const direction = orderType === RouteOrderType.ASC ? 1 : -1;
+  const sortedGroups = Array.from(groups.values()).sort((firstGroup, secondGroup) => {
+    if (params?.orderBy === RouteOrderBy.CUSTOMER) {
+      return firstGroup.customerName.localeCompare(secondGroup.customerName) * direction;
+    }
+    if (params?.orderBy === RouteOrderBy.FARM || params?.orderBy === RouteOrderBy.NAME) {
+      return firstGroup.farmName.localeCompare(secondGroup.farmName) * direction;
+    }
+
+    return (
+      ((new Date(firstGroup.lastRouteUpdatedAt ?? 0).getTime() || 0) -
+        (new Date(secondGroup.lastRouteUpdatedAt ?? 0).getTime() || 0)) *
+      direction
+    );
+  });
+
+  const page = Number(params?.page ?? 1);
+  const limit = Number(params?.limit ?? 10);
+  const pageStart = (page - 1) * limit;
+  const data = sortedGroups.slice(pageStart, pageStart + limit);
+
+  return {
+    data,
+    page,
+    limit,
+    totalPages: Math.ceil(sortedGroups.length / limit),
+    totalCount: sortedGroups.length,
+  };
+};
+
+export async function getRoutesGroupedByFarm(
+  params?: GetRoutesGroupedByFarmParams
+): Promise<GetRoutesGroupedByFarmResponse> {
+  if (await shouldUseOfflineData()) {
+    return buildOfflineRouteGroups(params);
+  }
+
+  const searchParams = new URLSearchParams();
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.page) searchParams.append('page', params.page);
+  if (params?.limit) searchParams.append('limit', params.limit);
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.includeGeoJson)
+    searchParams.append('includeGeoJson', params.includeGeoJson.toString());
+  if (params?.orderBy) searchParams.append('orderBy', params.orderBy.toString());
+  if (params?.orderType) searchParams.append('orderType', params.orderType.toString());
+
+  const baseUrl = `/routes/grouped-by-farm`;
+  const url = `${baseUrl}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch routes grouped by farm');
   }
 
   return await response.json();

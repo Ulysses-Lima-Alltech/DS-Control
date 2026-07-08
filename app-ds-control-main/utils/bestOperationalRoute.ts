@@ -46,6 +46,13 @@ export type FindBestOperationalRouteParams = {
   respectExplicitDirection?: boolean;
 };
 
+export type ResolveSelectedOperationalRouteNavigationParams = Omit<
+  FindBestOperationalRouteParams,
+  'routes' | 'respectExplicitDirection'
+> & {
+  route: Route;
+};
+
 type RouteDirectionContext = {
   route: Route;
   direction: OperationalRouteDirection;
@@ -428,6 +435,21 @@ export async function findBestOperationalRouteCandidate({
   return candidates.reduce((bestCandidate, candidate) =>
     candidate.totalDistanceMeters < bestCandidate.totalDistanceMeters ? candidate : bestCandidate
   );
+}
+
+export async function resolveSelectedOperationalRouteNavigation({
+  route,
+  origin,
+  getDirections,
+  concurrency,
+}: ResolveSelectedOperationalRouteNavigationParams): Promise<BestOperationalRouteCandidate | null> {
+  return findBestOperationalRouteCandidate({
+    routes: [route],
+    origin,
+    getDirections,
+    concurrency,
+    respectExplicitDirection: false,
+  });
 }
 
 export function getOperationalSegmentGeoJson(

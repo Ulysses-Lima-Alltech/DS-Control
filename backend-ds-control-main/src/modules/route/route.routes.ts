@@ -9,6 +9,7 @@ import { CreateRouteSchema } from './dto/create-route.dto';
 import { CreateRoutesBatchSchema } from './dto/create-routes-batch.dto';
 import { GetAllRoutesQueryStringSchema } from './dto/get-all-routes.dto';
 import { GetRouteByIdQueryStringSchema } from './dto/get-route-by-id.dto';
+import { GroupedRoutesByFarmQueryStringSchema } from './dto/grouped-routes-by-farm.dto';
 import { ListRoutesQueryStringSchema } from './dto/list-all-routes.dto';
 import { UpdateRouteSchema } from './dto/update-route.dto';
 import { RouteController } from './route.controller';
@@ -88,6 +89,22 @@ export function RouteV1Routes(
     },
     preHandler: [AuthenticationJWT],
     handler: controller.getAllRoutes,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: 'GET',
+    url: '/grouped-by-farm',
+    schema: {
+      description: 'List routes grouped by farm with optional search and filters',
+      summary: 'List routes grouped by farm',
+      tags: ['routes'],
+      querystring: GroupedRoutesByFarmQueryStringSchema,
+      response: {
+        200: PaginatedRequestSchema(z.any()),
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.listRoutesGroupedByFarm,
   });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({

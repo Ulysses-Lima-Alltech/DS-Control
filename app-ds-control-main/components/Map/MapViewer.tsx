@@ -34,6 +34,7 @@ export type MapViewerProps = {
   selectedRouteId?: string | null;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
+  onRoutePress?: (routeId: string) => void;
   showMapControls?: boolean;
   showMapTools?: boolean;
   showRoute?: boolean;
@@ -52,6 +53,7 @@ export default function MapViewer({
   selectedRouteId = null,
   selectedPlotId,
   onPlotPress,
+  onRoutePress,
   showMapControls = true,
   showMapTools = true,
   showRoute = false,
@@ -155,6 +157,7 @@ export default function MapViewer({
         showNavigationRoute={showNavigationRoute}
         selectedPlotId={selectedPlotId}
         onPlotPress={handlePlotPress}
+        onRoutePress={onRoutePress}
         isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}
         setIsCameraLockedOnUserLocation={setIsCameraLockedOnUserLocation}
         moveCameraToGeodataBbox={moveCameraToGeodataBbox}

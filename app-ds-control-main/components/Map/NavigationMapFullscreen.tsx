@@ -47,6 +47,7 @@ type NavigationMapFullscreenProps = {
   operationalRoute: GeoJSON.FeatureCollection | null;
   operationalRouteMarkers: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
   routeSummary?: {
+    farmName?: string;
     routeName: string;
     routeCount: number;
     mapboxDistanceMeters: number;
@@ -655,8 +656,13 @@ export default function NavigationMapFullscreen({
         {routeSummary ? (
           <View style={[styles.routeSummaryPanel, { bottom: Math.max(insets.bottom + 90, 96) }]}>
             <Text style={styles.routeSummaryTitle} numberOfLines={1}>
-              {routeSummary.routeName}
+              {routeSummary.farmName || routeSummary.routeName}
             </Text>
+            {routeSummary.farmName ? (
+              <Text style={styles.routeSummaryRouteName} numberOfLines={1}>
+                {routeSummary.routeName}
+              </Text>
+            ) : null}
             <View style={styles.routeSummaryMetrics}>
               <TripMetric
                 value={formatTripDistance(routeSummary.mapboxDistanceMeters)}
@@ -675,10 +681,13 @@ export default function NavigationMapFullscreen({
             </View>
             {routeSummary.isAutomatic ? (
               <Text style={styles.routeSummaryHint} numberOfLines={2}>
-                Melhor entrada calculada automaticamente entre {routeSummary.routeCount} rotas
-                cadastradas
+                Entrada calculada automaticamente para a rota escolhida.
               </Text>
-            ) : null}
+            ) : (
+              <Text style={styles.routeSummaryHint} numberOfLines={2}>
+                Entrada calculada automaticamente para a rota escolhida.
+              </Text>
+            )}
           </View>
         ) : null}
 
@@ -790,6 +799,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 14,
     fontWeight: '900',
+  },
+  routeSummaryRouteName: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '800',
   },
   routeSummaryMetrics: {
     flexDirection: 'row',

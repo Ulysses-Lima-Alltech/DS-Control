@@ -34,6 +34,17 @@ export type RouteWithFarmAndCustomer = Route & {
   };
 };
 
+export type RouteFarmGroup = {
+  farmId: string;
+  farmName: string;
+  customerId: string;
+  customerName: string;
+  routeCount: number;
+  lastRouteUpdatedAt: string | null;
+  routes: RouteWithFarmAndCustomer[];
+};
+
+/* eslint-disable no-unused-vars */
 export enum RouteOrderBy {
   NAME = 'name',
   CREATEDAT = 'created_at',
@@ -45,3 +56,4 @@ export enum RouteOrderType {
   ASC = 'asc',
   DESC = 'desc',
 }
+/* eslint-enable no-unused-vars */

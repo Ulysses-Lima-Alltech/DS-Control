@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } 
 import {
   type CreateRoute,
   type Route,
+  type RouteFarmGroup,
   RouteOrderBy,
   RouteOrderType,
   type RouteWithCustomer,
@@ -398,6 +399,125 @@ export class RouteRepository {
         .where(and(...where));
       return result.count;
     }
+  }
+
+  /**
+   * @description Get active routes with farm and customer data for farm-grouped listings
+   * @param {string} search - Optional search term to filter by route, farm or customer name
+   * @param {string} customerId - Optional customer ID to filter by customer
+   * @param {string} farmId - Optional farm ID to filter by farm
+   * @param {RouteOrderBy} orderBy - Order by field
+   * @param {RouteOrderType} orderType - Order type
+   * @returns {Promise<RouteWithFarmAndCustomer[]>} Routes with farm and customer data
+   */
+  public async getRoutesWithFarmAndCustomerForGrouping(
+    search?: string,
+    customerId?: string,
+    farmId?: string,
+    orderBy?: RouteOrderBy,
+    orderType?: RouteOrderType,
+  ): Promise<RouteWithFarmAndCustomer[]> {
+    const where = [isNull(routes.deletedAt)];
+
+    if (search) {
+      where.push(
+        or(
+          ilike(routes.name, `%${search}%`),
+          ilike(farms.name, `%${search}%`),
+          ilike(customers.name, `%${search}%`),
+        ) as SQL<unknown>,
+      );
+    }
+
+    if (customerId) {
+      where.push(eq(routes.customerId, customerId));
+    }
+
+    if (farmId) {
+      where.push(eq(routes.farmId, farmId));
+    }
+
+    let orderByExpression = desc(routes.createdAt);
+
+    switch (orderBy) {
+      case RouteOrderBy.NAME:
+        orderByExpression = orderType === RouteOrderType.ASC ? asc(routes.name) : desc(routes.name);
+        break;
+      case RouteOrderBy.CREATEDAT:
+        orderByExpression =
+          orderType === RouteOrderType.ASC ? asc(routes.createdAt) : desc(routes.createdAt);
+        break;
+      case RouteOrderBy.FARM:
+        orderByExpression = orderType === RouteOrderType.ASC ? asc(farms.name) : desc(farms.name);
+        break;
+      case RouteOrderBy.CUSTOMER:
+        orderByExpression =
+          orderType === RouteOrderType.ASC ? asc(customers.name) : desc(customers.name);
+        break;
+      default:
+        orderByExpression = desc(routes.createdAt);
+    }
+
+    const results = await db
+      .select({
+        route: routes,
+        farm: {
+          id: farms.id,
+          name: farms.name,
+        },
+        customer: {
+          id: customers.id,
+          name: customers.name,
+        },
+      })
+      .from(routes)
+      .leftJoin(farms, eq(routes.farmId, farms.id))
+      .leftJoin(customers, eq(routes.customerId, customers.id))
+      .where(and(...where))
+      .orderBy(orderByExpression);
+
+    return results
+      .map((row) => {
+        const route = this.formatRoute(row.route);
+        if (!route || !row.farm || !row.customer) return null;
+
+        return {
+          ...route,
+          farm: row.farm,
+          customer: row.customer,
+        };
+      })
+      .filter(Boolean) as RouteWithFarmAndCustomer[];
+  }
+
+  public groupRoutesByFarm(routesList: RouteWithFarmAndCustomer[]): RouteFarmGroup[] {
+    const groups = new Map<string, RouteFarmGroup>();
+
+    routesList.forEach((route) => {
+      const group = groups.get(route.farmId) ?? {
+        farmId: route.farmId,
+        farmName: route.farm.name,
+        customerId: route.customerId,
+        customerName: route.customer.name,
+        routeCount: 0,
+        lastRouteUpdatedAt: null,
+        routes: [],
+      };
+
+      const routeUpdatedAt = route.updatedAt ?? route.createdAt;
+      if (
+        !group.lastRouteUpdatedAt ||
+        (routeUpdatedAt && routeUpdatedAt.getTime() > group.lastRouteUpdatedAt.getTime())
+      ) {
+        group.lastRouteUpdatedAt = routeUpdatedAt;
+      }
+
+      group.routes.push(route);
+      group.routeCount = group.routes.length;
+      groups.set(route.farmId, group);
+    });
+
+    return Array.from(groups.values());
   }
 
   /**

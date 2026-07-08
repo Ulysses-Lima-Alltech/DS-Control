@@ -218,6 +218,10 @@ export async function getOfflineRoutesByFarmId(farmId: string): Promise<Route[]>
   return routes.filter((route) => route.farmId === farmId);
 }
 
+export async function getOfflineRoutes(): Promise<Route[]> {
+  return getCollection<Route>('routes');
+}
+
 export async function getOfflineServiceOrders(): Promise<ServiceOrder[]> {
   return getCollection<ServiceOrder>('serviceOrders');
 }

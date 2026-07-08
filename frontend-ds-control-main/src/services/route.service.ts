@@ -6,7 +6,7 @@ import {
   UpdateRouteSchema,
 } from '@/schemas/route.schema';
 import { api } from '@/services/api.service';
-import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
+import { Route, RouteFarmGroup, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 
 export type GetAllRoutesResponse = {
   data: Route[];
@@ -53,6 +53,47 @@ export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllR
 
   if (!response.ok) {
     throw new Error('Failed to fetch routes');
+  }
+
+  return await response.json();
+}
+
+export type GetRoutesGroupedByFarmResponse = {
+  data: RouteFarmGroup[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  totalCount: number;
+};
+
+export type GetRoutesGroupedByFarmParams = Omit<
+  GetAllRoutesParams,
+  'includeFarm' | 'includeCustomer'
+>;
+
+export async function getRoutesGroupedByFarm(
+  params?: GetRoutesGroupedByFarmParams
+): Promise<GetRoutesGroupedByFarmResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.customerId) searchParams.append('customerId', params.customerId);
+  if (params?.farmId) searchParams.append('farmId', params.farmId);
+  if (params?.page) searchParams.append('page', params.page);
+  if (params?.limit) searchParams.append('limit', params.limit);
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.includeGeoJson)
+    searchParams.append('includeGeoJson', params.includeGeoJson.toString());
+  if (params?.orderBy) searchParams.append('orderBy', params.orderBy.toString());
+  if (params?.orderType) searchParams.append('orderType', params.orderType.toString());
+
+  const baseUrl = `/routes/grouped-by-farm`;
+  const url = `${baseUrl}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
+  const response = await api(url, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch routes grouped by farm');
   }
 
   return await response.json();

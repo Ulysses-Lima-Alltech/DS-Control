@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateRouteDTO } from './dto/create-route.dto';
 import type { CreateRoutesBatchDTO } from './dto/create-routes-batch.dto';
+import type { GroupedRoutesByFarmQueryString } from './dto/grouped-routes-by-farm.dto';
 import type { UpdateRouteDTO } from './dto/update-route.dto';
 
 import AppError from '@common/handlers/app-error';
@@ -156,6 +157,36 @@ export class RouteController {
       }
 
       app.log.error('[RouteController] - Unexpected error during route listing: %o', {
+        error,
+      });
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  };
+
+  public listRoutesGroupedByFarm = async (
+    request: FastifyRequest<{
+      Querystring: GroupedRoutesByFarmQueryString;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info('[RouteController] - Listing routes grouped by farm');
+
+      const result = await this.service.listRoutesGroupedByFarm(request.query);
+
+      app.log.info('[RouteController] - Successfully listed grouped routes');
+      return reply.status(200).send({
+        message: 'Routes grouped by farm listed successfully',
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn('[RouteController] - Failed to list grouped routes: %s', error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error('[RouteController] - Unexpected error during grouped route listing: %o', {
         error,
       });
       reply.status(500).send(new AppError('Internal server error', 500, error).throw());

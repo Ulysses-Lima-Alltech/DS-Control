@@ -32,6 +32,7 @@ export type MapContentProps = {
   showNavigationRoute?: boolean;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
+  onRoutePress?: (routeId: string) => void;
   mapTools?: boolean;
   isCameraLockedOnUserLocation?: boolean;
   setIsCameraLockedOnUserLocation?: (isCameraLockedOnUserLocation: boolean) => void;
@@ -51,6 +52,7 @@ export default function MapContent({
   showNavigationRoute = true,
   selectedPlotId,
   onPlotPress,
+  onRoutePress,
   mapTools = true,
   isCameraLockedOnUserLocation,
   setIsCameraLockedOnUserLocation,
@@ -69,15 +71,23 @@ export default function MapContent({
 
   // GEODATA BBOX
   const geodataBBox = useMemo(() => {
-    if (geoData && geoData.features.length > 0) {
-      const bbox = turf.bbox(geoData);
+    const features = [
+      ...(geoData?.features ?? []),
+      ...(showGeoDataRoute ? (geoDataRoute?.features ?? []) : []),
+    ];
+
+    if (features.length > 0) {
+      const bbox = turf.bbox({
+        type: 'FeatureCollection',
+        features,
+      });
       const bounds: [[number, number], [number, number]] = [
         [bbox[0], bbox[1]],
         [bbox[2], bbox[3]],
       ];
       return bounds;
     }
-  }, [geoData]);
+  }, [geoData, geoDataRoute, showGeoDataRoute]);
 
   const handleMoveCameraToGeodataBbox = () => {
     if (!geodataBBox || !cameraRef.current) {
@@ -102,6 +112,10 @@ export default function MapContent({
   useEffect(() => {
     handleMoveCameraToGeodataBbox();
   }, [moveCameraToGeodataBbox]);
+
+  useEffect(() => {
+    handleMoveCameraToGeodataBbox();
+  }, [geodataBBox]);
 
   // PLOT BBOX
   const plotBBox = useMemo(() => {
@@ -147,12 +161,16 @@ export default function MapContent({
       return;
     }
 
-    if (onPlotPress) {
-      if (event.features && event.features.length > 0) {
-        const plotFeature = event.features[0];
-        if (plotFeature?.properties?.plot_id) {
-          onPlotPress(plotFeature.properties.plot_id);
-        }
+    if (event.features && event.features.length > 0) {
+      const pressedFeature = event.features[0];
+
+      if (pressedFeature?.properties?.route_id) {
+        onRoutePress?.(String(pressedFeature.properties.route_id));
+        return;
+      }
+
+      if (pressedFeature?.properties?.plot_id) {
+        onPlotPress?.(String(pressedFeature.properties.plot_id));
       }
     }
   };
@@ -199,7 +217,7 @@ export default function MapContent({
       pitchEnabled={!isDraggingSomePoint && !isNavigationMode}
       rotateEnabled={!isDraggingSomePoint && !isNavigationMode}
       onDidFinishLoadingStyle={() => {
-        if (!geoData || mapToolsHookReturn.isSomeToolActive) return;
+        if (!geodataBBox || mapToolsHookReturn.isSomeToolActive) return;
         handleMoveCameraToGeodataBbox();
       }}
     >
@@ -285,7 +303,7 @@ export default function MapContent({
         />
       </ShapeSource>
       {showGeoDataRoute && geoDataRoute && (
-        <ShapeSource id='routes' shape={geoDataRoute}>
+        <ShapeSource id='routes' shape={geoDataRoute} onPress={handleMapPress}>
           <LineLayer
             id='routes-line'
             style={{

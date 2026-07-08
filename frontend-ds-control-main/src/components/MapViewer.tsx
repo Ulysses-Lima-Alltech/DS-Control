@@ -9,14 +9,18 @@ export type MapViewerProps = {
   geoData: GeoJSON | undefined;
   layerNameToHighlight?: string | string[];
   layerPlotIdsToHighlight?: string[];
+  selectedRouteId?: string | null;
   onPlotClick?: (plotId: string) => void;
+  onRouteClick?: (routeId: string) => void;
 };
 
 export default function MapViewer({
   geoData,
   layerNameToHighlight,
   layerPlotIdsToHighlight,
+  selectedRouteId,
   onPlotClick,
+  onRouteClick,
 }: MapViewerProps) {
   // Temporário: token fixo no código até corrigir NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
   // const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -36,7 +40,9 @@ export default function MapViewer({
         geoData={geoData}
         layerNameToHighlight={layerNameToHighlight}
         layerPlotIdsToHighlight={layerPlotIdsToHighlight}
+        selectedRouteId={selectedRouteId}
         onPlotClick={onPlotClick}
+        onRouteClick={onRouteClick}
       />
     </Map>
   );
