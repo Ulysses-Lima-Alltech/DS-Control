@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { CreateRouteSchema, UpdateRouteSchema } from '@/schemas/route.schema';
+import {
+  CreateRouteSchema,
+  CreateRoutesBatchSchema,
+  UpdateRouteSchema,
+} from '@/schemas/route.schema';
 import { api } from '@/services/api.service';
 import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 
@@ -81,6 +85,40 @@ export async function createRoute(data: CreateRouteParams): Promise<CreateRouteR
     CreateRouteSchema.parse(data);
 
     const response = await api(`/routes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('[Route Service] Response error: ' + response.statusText);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new Error('[Route Service] Validation error: ' + error.message);
+    }
+    throw new Error('[Route Service] Unknown error: ' + error);
+  }
+}
+
+export type CreateRoutesBatchResponse = {
+  message: string;
+  createdCount: number;
+  skippedCount: number;
+  routes: Route[];
+  errors: Array<{ name?: string; sourceFileName?: string; message: string }>;
+};
+
+export type CreateRoutesBatchParams = z.infer<typeof CreateRoutesBatchSchema>;
+
+export async function createRoutesBatch(
+  data: CreateRoutesBatchParams
+): Promise<CreateRoutesBatchResponse> {
+  try {
+    CreateRoutesBatchSchema.parse(data);
+
+    const response = await api(`/routes/batch`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

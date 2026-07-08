@@ -15,6 +15,20 @@ export const useCreateRoute = (
   });
 };
 
+export const useCreateRoutesBatch = (
+  options?: UseMutationOptions<
+    RouteService.CreateRoutesBatchResponse,
+    Error,
+    RouteService.CreateRoutesBatchParams
+  >
+) => {
+  return useMutation({
+    mutationFn: (data: RouteService.CreateRoutesBatchParams) =>
+      RouteService.createRoutesBatch(data),
+    ...options,
+  });
+};
+
 export const useDeleteRouteById = (
   options?: UseMutationOptions<RouteService.DeleteRouteByIdResponse, Error, string>
 ) => {

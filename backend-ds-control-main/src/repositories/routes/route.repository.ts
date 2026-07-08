@@ -1,7 +1,15 @@
 import { db } from '@infra/database';
 import { customers, farms, routes } from '@infra/database/schema';
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
-import { CreateRoute, Route, RouteOrderBy, RouteOrderType, RouteWithCustomer, RouteWithFarm, RouteWithFarmAndCustomer } from './route.types';
+import {
+  type CreateRoute,
+  type Route,
+  RouteOrderBy,
+  RouteOrderType,
+  type RouteWithCustomer,
+  type RouteWithFarm,
+  type RouteWithFarmAndCustomer,
+} from './route.types';
 
 export class RouteRepository {
   /**
@@ -28,6 +36,49 @@ export class RouteRepository {
   }
 
   /**
+   * @description Create many routes in a single transaction
+   * @param {CreateRoute[]} items - The routes data
+   * @returns {Promise<Route[]>} The created routes
+   */
+  public async createRoutesBatch(items: CreateRoute[]): Promise<Route[]> {
+    if (items.length === 0) return [];
+
+    const createdRoutes = await db.transaction(async (tx) => {
+      return await tx
+        .insert(routes)
+        .values(
+          items.map(({ name, geoJson, farmId, customerId }) => ({
+            name,
+            geoJson,
+            farmId,
+            customerId,
+          })),
+        )
+        .returning();
+    });
+
+    if (createdRoutes.length !== items.length) {
+      throw new Error('Failed to create all routes');
+    }
+
+    return createdRoutes.map(this.formatRoute).filter(Boolean) as Route[];
+  }
+
+  /**
+   * @description Get active route names by farm ID
+   * @param {string} farmId - The farm ID
+   * @returns {Promise<string[]>} The active route names
+   */
+  public async getActiveRouteNamesByFarmId(farmId: string): Promise<string[]> {
+    const routeNames = await db
+      .select({ name: routes.name })
+      .from(routes)
+      .where(and(eq(routes.farmId, farmId), isNull(routes.deletedAt)));
+
+    return routeNames.map((route) => route.name);
+  }
+
+  /**
    * @description Get a route by ID
    * @param {string} id - The route's ID
    * @returns {Promise<Route | null>} The route
@@ -48,25 +99,29 @@ export class RouteRepository {
    * @returns {Promise<RouteWithFarm | RouteWithCustomer | RouteWithFarmAndCustomer | Route | null>} The route with relations
    */
   public async getRouteWithRelationsById(
-    id: string, 
+    id: string,
     includeFarm: boolean = false,
     includeCustomer: boolean = false,
   ): Promise<RouteWithFarm | RouteWithCustomer | RouteWithFarmAndCustomer | Route | null> {
     const route = await db.query.routes.findFirst({
       where: and(eq(routes.id, id), isNull(routes.deletedAt)),
       with: {
-        farm: includeFarm ? {
-          columns: {
-            id: true,
-            name: true,
-          }
-        } : undefined,
-        customer: includeCustomer ? {
-          columns: {
-            id: true,
-            name: true,
-          }
-        } : undefined,
+        farm: includeFarm
+          ? {
+              columns: {
+                id: true,
+                name: true,
+              },
+            }
+          : undefined,
+        customer: includeCustomer
+          ? {
+              columns: {
+                id: true,
+                name: true,
+              },
+            }
+          : undefined,
       },
     });
 
@@ -88,48 +143,50 @@ export class RouteRepository {
    * @returns {Promise<RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[]>} The routes list
    */
   public async getAllRoutes(
-    routeId?: string, 
+    routeId?: string,
     farmId?: string,
     customerId?: string,
     includeFarm?: boolean,
     includeCustomer?: boolean,
-    includeGeoJson?: boolean,
+    _includeGeoJson?: boolean,
     orderBy?: RouteOrderBy,
     orderType?: RouteOrderType,
   ): Promise<RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[]> {
     const where = [isNull(routes.deletedAt)];
 
-    if(routeId) {
-      where.push(eq(routes.id, routeId))
+    if (routeId) {
+      where.push(eq(routes.id, routeId));
     }
 
-    if(farmId) {
-      where.push(eq(routes.farmId, farmId))
+    if (farmId) {
+      where.push(eq(routes.farmId, farmId));
     }
 
-    if(customerId) {
-      where.push(eq(routes.customerId, customerId))
+    if (customerId) {
+      where.push(eq(routes.customerId, customerId));
     }
 
-    let orderByExpression;
+    let orderByExpression = desc(routes.createdAt);
 
     switch (orderBy) {
       case RouteOrderBy.NAME:
         orderByExpression = orderType === RouteOrderType.ASC ? asc(routes.name) : desc(routes.name);
         break;
       case RouteOrderBy.CREATEDAT:
-        orderByExpression = orderType === RouteOrderType.ASC ? asc(routes.createdAt) : desc(routes.createdAt);
+        orderByExpression =
+          orderType === RouteOrderType.ASC ? asc(routes.createdAt) : desc(routes.createdAt);
         break;
       case RouteOrderBy.FARM:
-        if(includeFarm) {
+        if (includeFarm) {
           orderByExpression = orderType === RouteOrderType.ASC ? asc(farms.name) : desc(farms.name);
-          break;
         }
+        break;
       case RouteOrderBy.CUSTOMER:
-        if(includeCustomer) {
-          orderByExpression = orderType === RouteOrderType.ASC ? asc(customers.name) : desc(customers.name);
-          break;
+        if (includeCustomer) {
+          orderByExpression =
+            orderType === RouteOrderType.ASC ? asc(customers.name) : desc(customers.name);
         }
+        break;
       default:
         orderByExpression = desc(routes.createdAt);
     }
@@ -139,40 +196,46 @@ export class RouteRepository {
       .select({
         route: routes,
         farm: includeFarm ? farms : sql`NULL`,
-        customer: includeCustomer ? customers : sql`NULL`
+        customer: includeCustomer ? customers : sql`NULL`,
       })
       .from(routes)
       .leftJoin(farms, eq(routes.farmId, farms.id))
       .leftJoin(customers, eq(routes.customerId, customers.id))
       .where(and(...where))
-      .orderBy(orderByExpression)
+      .orderBy(orderByExpression);
 
     const results = await baseQuery;
 
-    return results.map(row => {
-      const baseRoute = this.formatRoute(row.route);
-      if (!baseRoute) return null;
+    return results
+      .map((row) => {
+        const baseRoute = this.formatRoute(row.route);
+        if (!baseRoute) return null;
 
-      if (includeFarm && includeCustomer) {
-        return {
-          ...baseRoute,
-          farm: row.farm as { id: string; name: string },
-          customer: row.customer as { id: string; name: string },
-        } as RouteWithFarmAndCustomer;
-      } else if (includeFarm) {
-        return {
-          ...baseRoute,
-          farm: row.farm as { id: string; name: string },
-        } as RouteWithFarm;
-      } else if (includeCustomer) {
-        return {
-          ...baseRoute,
-          customer: row.customer as { id: string; name: string },
-        } as RouteWithCustomer;
-      }
+        if (includeFarm && includeCustomer) {
+          return {
+            ...baseRoute,
+            farm: row.farm as { id: string; name: string },
+            customer: row.customer as { id: string; name: string },
+          } as RouteWithFarmAndCustomer;
+        } else if (includeFarm) {
+          return {
+            ...baseRoute,
+            farm: row.farm as { id: string; name: string },
+          } as RouteWithFarm;
+        } else if (includeCustomer) {
+          return {
+            ...baseRoute,
+            customer: row.customer as { id: string; name: string },
+          } as RouteWithCustomer;
+        }
 
-      return baseRoute;
-    }).filter(Boolean) as RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[];
+        return baseRoute;
+      })
+      .filter(Boolean) as
+      | RouteWithFarm[]
+      | RouteWithCustomer[]
+      | RouteWithFarmAndCustomer[]
+      | Route[];
   }
 
   /**
@@ -197,7 +260,7 @@ export class RouteRepository {
     farmId?: string,
     includeFarm?: boolean,
     includeCustomer?: boolean,
-    includeGeoJson?: boolean,
+    _includeGeoJson?: boolean,
     orderBy?: RouteOrderBy,
     orderType?: RouteOrderType,
   ): Promise<RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[]> {
@@ -217,25 +280,27 @@ export class RouteRepository {
       where.push(eq(routes.farmId, farmId));
     }
 
-    let orderByExpression;
+    let orderByExpression = desc(routes.createdAt);
 
     switch (orderBy) {
       case RouteOrderBy.NAME:
         orderByExpression = orderType === RouteOrderType.ASC ? asc(routes.name) : desc(routes.name);
         break;
       case RouteOrderBy.CREATEDAT:
-        orderByExpression = orderType === RouteOrderType.ASC ? asc(routes.createdAt) : desc(routes.createdAt);
+        orderByExpression =
+          orderType === RouteOrderType.ASC ? asc(routes.createdAt) : desc(routes.createdAt);
         break;
       case RouteOrderBy.FARM:
-        if(includeFarm) {
+        if (includeFarm) {
           orderByExpression = orderType === RouteOrderType.ASC ? asc(farms.name) : desc(farms.name);
-          break;
         }
+        break;
       case RouteOrderBy.CUSTOMER:
-        if(includeCustomer) {
-          orderByExpression = orderType === RouteOrderType.ASC ? asc(customers.name) : desc(customers.name);
-          break;
+        if (includeCustomer) {
+          orderByExpression =
+            orderType === RouteOrderType.ASC ? asc(customers.name) : desc(customers.name);
         }
+        break;
       default:
         orderByExpression = desc(routes.createdAt);
     }
@@ -245,7 +310,7 @@ export class RouteRepository {
       .select({
         route: routes,
         farm: includeFarm ? farms : sql`NULL`,
-        customer: includeCustomer ? customers : sql`NULL`
+        customer: includeCustomer ? customers : sql`NULL`,
       })
       .from(routes)
       .leftJoin(farms, eq(routes.farmId, farms.id))
@@ -253,34 +318,40 @@ export class RouteRepository {
       .where(and(...where))
       .offset((page - 1) * limit)
       .limit(limit)
-      .orderBy(orderByExpression)
+      .orderBy(orderByExpression);
 
     const results = await baseQuery;
 
-    return results.map(row => {
-      const baseRoute = this.formatRoute(row.route);
-      if (!baseRoute) return null;
+    return results
+      .map((row) => {
+        const baseRoute = this.formatRoute(row.route);
+        if (!baseRoute) return null;
 
-      if (includeFarm && includeCustomer) {
-        return {
-          ...baseRoute,
-          farm: row.farm as { id: string; name: string },
-          customer: row.customer as { id: string; name: string },
-        } as RouteWithFarmAndCustomer;
-      } else if (includeFarm) {
-        return {
-          ...baseRoute,
-          farm: row.farm as { id: string; name: string },
-        } as RouteWithFarm;
-      } else if (includeCustomer) {
-        return {
-          ...baseRoute,
-          customer: row.customer as { id: string; name: string },
-        } as RouteWithCustomer;
-      }
+        if (includeFarm && includeCustomer) {
+          return {
+            ...baseRoute,
+            farm: row.farm as { id: string; name: string },
+            customer: row.customer as { id: string; name: string },
+          } as RouteWithFarmAndCustomer;
+        } else if (includeFarm) {
+          return {
+            ...baseRoute,
+            farm: row.farm as { id: string; name: string },
+          } as RouteWithFarm;
+        } else if (includeCustomer) {
+          return {
+            ...baseRoute,
+            customer: row.customer as { id: string; name: string },
+          } as RouteWithCustomer;
+        }
 
-      return baseRoute;
-    }).filter(Boolean) as RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[];
+        return baseRoute;
+      })
+      .filter(Boolean) as
+      | RouteWithFarm[]
+      | RouteWithCustomer[]
+      | RouteWithFarmAndCustomer[]
+      | Route[];
   }
 
   /**
@@ -290,7 +361,11 @@ export class RouteRepository {
    * @param {string} farmId - Optional farm ID to filter by farm
    * @returns {Promise<number>} The count of routes
    */
-  public async getRoutesCount(search?: string, customerId?: string, farmId?: string): Promise<number> {
+  public async getRoutesCount(
+    search?: string,
+    customerId?: string,
+    farmId?: string,
+  ): Promise<number> {
     const where = [isNull(routes.deletedAt)];
 
     if (search) {
@@ -317,7 +392,10 @@ export class RouteRepository {
 
       return result.count;
     } else {
-      const [result] = await db.select({ count: count() }).from(routes).where(and(...where));
+      const [result] = await db
+        .select({ count: count() })
+        .from(routes)
+        .where(and(...where));
       return result.count;
     }
   }
@@ -435,7 +513,7 @@ export class RouteRepository {
       };
     } | null,
     includeFarm: boolean,
-    includeCustomer: boolean
+    includeCustomer: boolean,
   ): RouteWithFarm | RouteWithCustomer | RouteWithFarmAndCustomer | Route | null {
     if (!route) return null;
 

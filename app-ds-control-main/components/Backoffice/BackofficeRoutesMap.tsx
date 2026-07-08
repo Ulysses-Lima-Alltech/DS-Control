@@ -1,4 +1,5 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
 import { InfiniteData } from '@tanstack/react-query';
 import * as turf from '@turf/turf';
 import * as Location from 'expo-location';
@@ -23,17 +24,21 @@ import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
-import { useGetAllRoutes } from '@/queries/route.query';
+import { useGetAllRoutes, useGetRoutesForNavigationByFarmId } from '@/queries/route.query';
 import { getMapboxDirections } from '@/services/mapboxDirections.service';
 import { Customer } from '@/types/customer.type';
 import { Farm } from '@/types/farm.type';
 import {
   MapboxDirectionsError,
-  MapboxDirectionsRoute,
   MapboxNavigationStep,
   MapNavigationCoordinate,
 } from '@/types/mapNavigation.type';
 import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
+import {
+  buildBestRouteMarkersGeoJson,
+  findBestOperationalRouteCandidate,
+  getOperationalSegmentGeoJson,
+} from '@/utils/bestOperationalRoute';
 import { convertDatabaseRoutesToMapViewerRoutesFeatureCollection } from '@/utils/map-utils';
 import {
   OperationalRouteDirection,
@@ -67,6 +72,15 @@ type RouteGeoStats = {
   destinationCoordinate: LngLatCoordinate | null;
   status?: string;
   observation?: string;
+};
+
+type NavigationBestRouteSummary = {
+  routeName: string;
+  routeCount: number;
+  mapboxDistanceMeters: number;
+  operationalDistanceMeters: number;
+  totalDistanceMeters: number;
+  isAutomatic: boolean;
 };
 
 const routeOrderByOptions: { id: RouteOrderBy; label: string }[] = [
@@ -549,6 +563,14 @@ const getCurrentNavigationLocationWithTimeout = async (): Promise<MapNavigationC
 };
 
 const getNavigationAlertMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'offline-navigation') {
+    return 'Sem internet, não foi possível calcular o trecho viário até a entrada. Você ainda pode visualizar as rotas cadastradas no mapa.';
+  }
+
+  if (error instanceof Error && error.message === 'best-route-not-found') {
+    return 'Não foi possível calcular uma entrada viária válida para as rotas cadastradas desta fazenda.';
+  }
+
   if (error instanceof Error && error.message === 'location-permission-denied') {
     return 'Permissão de localização negada. Ative a localização para calcular a rota.';
   }
@@ -568,44 +590,17 @@ const getNavigationAlertMessage = (error: unknown) => {
   return ROUTE_CALCULATION_GENERIC_MESSAGE;
 };
 
-const getRouteComparisonMetric = (route: MapboxDirectionsRoute) => {
-  return (
-    route.durationSeconds ?? route.duration ?? route.distanceMeters ?? route.distance ?? Infinity
-  );
-};
-
 const buildOperationalRouteMarkerGeoJson = (
-  direction: OperationalRouteDirection | null
+  direction: OperationalRouteDirection | null,
+  origin?: MapNavigationCoordinate | null
 ): GeoJSON.FeatureCollection<GeoJSON.Point> | null => {
   if (!direction) return null;
 
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {
-          label: 'Início',
-          type: 'operational-start',
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [direction.start.longitude, direction.start.latitude],
-        },
-      },
-      {
-        type: 'Feature',
-        properties: {
-          label: 'Fim',
-          type: 'operational-end',
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [direction.end.longitude, direction.end.latitude],
-        },
-      },
-    ],
-  };
+  return buildBestRouteMarkersGeoJson({
+    origin,
+    entry: direction.start,
+    exit: direction.end,
+  });
 };
 
 const formatDistance = (distanceKm: number | null) => {
@@ -679,9 +674,13 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   const [isNavigationFullscreenVisible, setIsNavigationFullscreenVisible] = useState(false);
   const [activeOperationalRouteDirection, setActiveOperationalRouteDirection] =
     useState<OperationalRouteDirection | null>(null);
+  const [activeOperationalRouteGeoJson, setActiveOperationalRouteGeoJson] =
+    useState<GeoJSON.FeatureCollection | null>(null);
   const [operationalRouteMarkerGeoJson, setOperationalRouteMarkerGeoJson] =
     useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
   const [navigationErrorMessage, setNavigationErrorMessage] = useState<string | null>(null);
+  const [navigationBestRouteSummary, setNavigationBestRouteSummary] =
+    useState<NavigationBestRouteSummary | null>(null);
   const [isFetchingNavigationRoute, setIsFetchingNavigationRoute] = useState(false);
 
   useEffect(() => {
@@ -767,6 +766,15 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     orderType,
   });
 
+  const {
+    data: farmNavigationRoutesData,
+    isFetching: isFetchingFarmNavigationRoutes,
+    refetch: refetchFarmNavigationRoutes,
+  } = useGetRoutesForNavigationByFarmId(selectedFarmId ?? null, {
+    queryKey: ['routes', 'farm-navigation', selectedFarmId],
+    enabled: !!selectedFarmId,
+  });
+
   const listedCustomers: Customer[] = useMemo(() => {
     return (
       ((customersData as InfiniteData<{ data: Customer[] }> | undefined)?.pages?.flatMap(
@@ -805,13 +813,28 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     [listedFarms]
   );
 
-  const routeRecords = useMemo<RouteWithRelations[]>(
-    () => (routesData?.data as RouteWithRelations[] | undefined) ?? [],
-    [routesData?.data]
+  const farmNavigationRouteRecords = useMemo<RouteWithRelations[]>(
+    () => (farmNavigationRoutesData?.routes as RouteWithRelations[] | undefined) ?? [],
+    [farmNavigationRoutesData?.routes]
   );
 
-  const totalPages = routesData?.totalPages ?? 1;
-  const totalCount = routesData?.totalCount ?? routeRecords.length;
+  const routeRecords = useMemo<RouteWithRelations[]>(() => {
+    if (selectedFarmId && farmNavigationRouteRecords.length > 0) {
+      return farmNavigationRouteRecords;
+    }
+
+    return (routesData?.data as RouteWithRelations[] | undefined) ?? [];
+  }, [farmNavigationRouteRecords, routesData?.data, selectedFarmId]);
+
+  const totalPages =
+    selectedFarmId && farmNavigationRouteRecords.length > 0 ? 1 : (routesData?.totalPages ?? 1);
+  const totalCount =
+    selectedFarmId && farmNavigationRouteRecords.length > 0
+      ? farmNavigationRouteRecords.length
+      : (routesData?.totalCount ?? routeRecords.length);
+  const isLoadingRouteRecords =
+    isLoadingRoutes ||
+    (Boolean(selectedFarmId) && isFetchingFarmNavigationRoutes && routeRecords.length === 0);
 
   useEffect(() => {
     if (routeRecords.length === 0) {
@@ -918,26 +941,32 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   useEffect(() => {
     setActiveOperationalRouteDirection(operationalRouteDirection);
     setOperationalRouteMarkerGeoJson(buildOperationalRouteMarkerGeoJson(operationalRouteDirection));
-  }, [operationalRouteDirection]);
+    setActiveOperationalRouteGeoJson(
+      selectedRoute
+        ? convertDatabaseRoutesToMapViewerRoutesFeatureCollection([selectedRoute])
+        : null
+    );
+  }, [operationalRouteDirection, selectedRoute]);
 
   const routesForMap = useMemo<RouteWithRelations[]>(() => {
+    if (selectedFarmId) return routeRecords;
     if (selectedRoute) return [selectedRoute];
     return routeRecords;
-  }, [selectedRoute, routeRecords]);
-
-  const operationalRouteGeoJson = useMemo(() => {
-    return convertDatabaseRoutesToMapViewerRoutesFeatureCollection(routesForMap);
-  }, [routesForMap]);
+  }, [routeRecords, selectedFarmId, selectedRoute]);
 
   const handleStartNavigationToRoute = useCallback(async () => {
-    const routeDirection = operationalRouteDirection;
-    const destinationY = routeDirection?.start;
+    const navigationCandidates = selectedFarmId
+      ? farmNavigationRouteRecords
+      : selectedRoute
+        ? [selectedRoute]
+        : [];
 
-    if (!routeDirection || !destinationY) {
-      logIrAgoraDev('Route start coordinate unavailable', {
+    if (navigationCandidates.length === 0) {
+      logIrAgoraDev('No route candidates available', {
+        selectedFarmId,
         selectedRouteId: selectedRoute?.id,
       });
-      Alert.alert('Início da rota indisponível', ROUTE_START_INVALID_MESSAGE);
+      Alert.alert('Rota indisponível', ROUTE_START_INVALID_MESSAGE);
       return;
     }
 
@@ -948,92 +977,67 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       setNavigationOriginCoordinate(null);
       setIsNavigationFullscreenVisible(false);
       setNavigationErrorMessage(null);
+      setNavigationBestRouteSummary(null);
+
+      const networkState = await NetInfo.fetch();
+      if (networkState.isConnected === false || networkState.isInternetReachable === false) {
+        throw new Error('offline-navigation');
+      }
+
+      if (selectedFarmId) {
+        await refetchFarmNavigationRoutes();
+      }
 
       console.warn('[IrAgora][DEV] Navigation calculation started', {
+        selectedFarmId,
         selectedRouteId,
-        destinationY,
+        candidatesCount: navigationCandidates.length,
       });
-
-      console.warn('[IrAgora][DEV] destination resolved', {
-        destinationY,
-      });
-
-      console.warn('[IrAgora][DEV] requesting current location');
 
       const originX = await getCurrentNavigationLocationWithTimeout();
       setNavigationOriginCoordinate(originX);
 
-      console.warn('[IrAgora][DEV] current location resolved', {
-        originX,
+      const bestCandidate = await findBestOperationalRouteCandidate({
+        routes: navigationCandidates,
+        origin: originX,
+        getDirections: getMapboxDirections,
+        concurrency: 6,
+        respectExplicitDirection: !selectedFarmId,
       });
 
-      console.warn('[IrAgora][DEV] requesting mapbox directions');
-
-      let mapboxRoute: MapboxDirectionsRoute;
-
-      if (routeDirection.reason === 'explicit-field') {
-        mapboxRoute = await getMapboxDirections({
-          origin: originX,
-          destination: destinationY,
-        });
-      } else {
-        const firstCandidate = await getMapboxDirections({
-          origin: originX,
-          destination: routeDirection.endpoints.firstEndpoint,
-        });
-
-        console.warn('[RouteNavigation][DEV] endpoint candidate route calculated', {
-          endpointName: 'firstEndpoint',
-          distanceMeters: firstCandidate.distanceMeters,
-          durationSeconds: firstCandidate.durationSeconds,
-        });
-
-        const lastCandidate = await getMapboxDirections({
-          origin: originX,
-          destination: routeDirection.endpoints.lastEndpoint,
-        });
-
-        console.warn('[RouteNavigation][DEV] endpoint candidate route calculated', {
-          endpointName: 'lastEndpoint',
-          distanceMeters: lastCandidate.distanceMeters,
-          durationSeconds: lastCandidate.durationSeconds,
-        });
-
-        const shouldUseFirst =
-          getRouteComparisonMetric(firstCandidate) <= getRouteComparisonMetric(lastCandidate);
-
-        const resolvedStart = shouldUseFirst
-          ? routeDirection.endpoints.firstEndpoint
-          : routeDirection.endpoints.lastEndpoint;
-        const resolvedEnd = shouldUseFirst
-          ? routeDirection.endpoints.lastEndpoint
-          : routeDirection.endpoints.firstEndpoint;
-        const resolvedDirection: OperationalRouteDirection = {
-          ...routeDirection,
-          start: resolvedStart,
-          end: resolvedEnd,
-        };
-
-        console.warn('[RouteNavigation][DEV] operational start resolved', {
-          selectedStartEndpoint: resolvedStart,
-          selectedEndEndpoint: resolvedEnd,
-          reason: 'shortest-mapbox-route',
-        });
-
-        setActiveOperationalRouteDirection(resolvedDirection);
-        setOperationalRouteMarkerGeoJson(buildOperationalRouteMarkerGeoJson(resolvedDirection));
-        mapboxRoute = shouldUseFirst ? firstCandidate : lastCandidate;
+      if (!bestCandidate) {
+        throw new Error('best-route-not-found');
       }
 
-      console.warn('[IrAgora][DEV] mapbox route resolved', {
-        distanceMeters: mapboxRoute.distanceMeters,
-        durationSeconds: mapboxRoute.durationSeconds,
+      setSelectedRouteId(bestCandidate.route.id);
+      setActiveOperationalRouteDirection(bestCandidate.direction);
+      setOperationalRouteMarkerGeoJson(
+        buildOperationalRouteMarkerGeoJson(bestCandidate.direction, originX)
+      );
+      setActiveOperationalRouteGeoJson(getOperationalSegmentGeoJson(bestCandidate.combinedGeoJson));
+      setNavigationBestRouteSummary({
+        routeName: bestCandidate.route.name,
+        routeCount: navigationCandidates.length,
+        mapboxDistanceMeters: bestCandidate.mapboxDistanceMeters,
+        operationalDistanceMeters: bestCandidate.operationalDistanceMeters,
+        totalDistanceMeters: bestCandidate.totalDistanceMeters,
+        isAutomatic: Boolean(selectedFarmId),
       });
-
-      setNavigationRoute(mapboxRoute.geoJson);
-      setNavigationSteps(mapboxRoute.steps);
+      setNavigationRoute(bestCandidate.mapboxRoute.geoJson);
+      setNavigationSteps(bestCandidate.mapboxRoute.steps);
       setIsNavigationMode(true);
       setIsNavigationFullscreenVisible(true);
+
+      if (__DEV__) {
+        console.warn('[IrAgora][DEV] best route selected', {
+          candidatesCount: navigationCandidates.length,
+          routeId: bestCandidate.route.id,
+          routeName: bestCandidate.route.name,
+          mapboxDistanceMeters: bestCandidate.mapboxDistanceMeters,
+          operationalDistanceMeters: bestCandidate.operationalDistanceMeters,
+          totalDistanceMeters: bestCandidate.totalDistanceMeters,
+        });
+      }
     } catch (error) {
       const message = getNavigationAlertMessage(error);
 
@@ -1046,7 +1050,13 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       console.warn('[IrAgora][DEV] navigation calculation finished');
       setIsFetchingNavigationRoute(false);
     }
-  }, [operationalRouteDirection, selectedRoute?.id, selectedRouteId]);
+  }, [
+    farmNavigationRouteRecords,
+    refetchFarmNavigationRoutes,
+    selectedFarmId,
+    selectedRoute,
+    selectedRouteId,
+  ]);
 
   const handleCustomerSelect = (value?: string) => {
     if (isPilotAudience && pilotCustomerId) return;
@@ -1063,6 +1073,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationOriginCoordinate(null);
     setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
+    setNavigationBestRouteSummary(null);
+    setActiveOperationalRouteGeoJson(null);
   };
 
   const handleFarmSelect = (value?: string) => {
@@ -1077,6 +1089,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationOriginCoordinate(null);
     setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
+    setNavigationBestRouteSummary(null);
+    setActiveOperationalRouteGeoJson(null);
   };
 
   const clearFilters = () => {
@@ -1097,6 +1111,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationOriginCoordinate(null);
     setIsNavigationFullscreenVisible(false);
     setNavigationErrorMessage(null);
+    setNavigationBestRouteSummary(null);
+    setActiveOperationalRouteGeoJson(null);
   };
 
   const activeFilters = useMemo(() => {
@@ -1122,6 +1138,10 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   const selectedRouteCustomerName =
     selectedRoute?.customer?.name || selectedFarm?.customer?.name || 'Cliente nao informado';
   const selectedRouteFarmName = selectedRoute?.farm?.name || selectedFarm?.name || 'Fazenda N/A';
+  const navigationCandidateCount = selectedFarmId ? routeRecords.length : selectedRoute ? 1 : 0;
+  const canStartNavigation = selectedFarmId
+    ? navigationCandidateCount > 0
+    : Boolean(operationalRouteDirection);
 
   const shouldShowMapViewer =
     hasMapboxToken && !isSelectedFarmError && (Boolean(selectedFarmId) || Boolean(selectedRoute));
@@ -1333,10 +1353,16 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
           ) : shouldShowMapViewer ? (
             <View style={{ height: mapHeight, borderRadius: 16, overflow: 'hidden' }}>
               <MapViewer
-                isFetching={isFetchingSelectedFarm || isFetchingRoutes || isFetchingNavigationRoute}
+                isFetching={
+                  isFetchingSelectedFarm ||
+                  isFetchingRoutes ||
+                  isFetchingFarmNavigationRoutes ||
+                  isFetchingNavigationRoute
+                }
                 selectedFarmId={selectedFarmId || null}
                 plots={selectedFarmPlots}
                 routes={routesForMap}
+                selectedRouteId={selectedRoute?.id ?? null}
                 navigationRoute={navigationRoute}
                 operationalRouteMarkers={operationalRouteMarkerGeoJson}
                 showMapTools={Boolean(selectedFarmId)}
@@ -1347,9 +1373,9 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
               <MapNavigationButton
                 isNavigationMode={isNavigationMode}
                 onToggleNavigationMode={() => setIsNavigationMode((previous) => !previous)}
-                disabled={!operationalRouteDirection}
-                showGoNow={Boolean(operationalRouteDirection)}
-                goNowDisabled={!operationalRouteDirection}
+                disabled={!canStartNavigation}
+                showGoNow={canStartNavigation}
+                goNowDisabled={!canStartNavigation}
                 goNowLoading={isFetchingNavigationRoute}
                 onGoNow={handleStartNavigationToRoute}
               />
@@ -1376,6 +1402,42 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
 
           {navigationErrorMessage ? (
             <Text style={styles.navigationErrorMessage}>{navigationErrorMessage}</Text>
+          ) : null}
+
+          {isFetchingNavigationRoute && selectedFarmId ? (
+            <Text style={styles.navigationLoadingMessage}>
+              Calculando melhor entrada entre {navigationCandidateCount} rotas...
+            </Text>
+          ) : null}
+
+          {navigationBestRouteSummary ? (
+            <View style={styles.navigationSummaryCard}>
+              <Text style={styles.navigationSummaryTitle} numberOfLines={1}>
+                {navigationBestRouteSummary.routeName}
+              </Text>
+              <View style={styles.navigationSummaryGrid}>
+                <DetailsField
+                  label='Mapbox até entrada'
+                  value={formatDistance(navigationBestRouteSummary.mapboxDistanceMeters / 1000)}
+                />
+                <DetailsField
+                  label='Rota operacional'
+                  value={formatDistance(
+                    navigationBestRouteSummary.operationalDistanceMeters / 1000
+                  )}
+                />
+                <DetailsField
+                  label='Distância total'
+                  value={formatDistance(navigationBestRouteSummary.totalDistanceMeters / 1000)}
+                />
+              </View>
+              {navigationBestRouteSummary.isAutomatic ? (
+                <Text style={styles.navigationSummaryHint}>
+                  Melhor entrada calculada automaticamente entre{' '}
+                  {navigationBestRouteSummary.routeCount} rotas cadastradas
+                </Text>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -1440,7 +1502,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
             : 'Lista geral de rotas. Selecione uma fazenda para filtrar.'}
         </Text>
 
-        {isLoadingRoutes ? (
+        {isLoadingRouteRecords ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size='large' color={COLORS.blue} />
             <Text style={styles.loadingStateText}>Carregando rotas...</Text>
@@ -1606,8 +1668,9 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
         visible={isNavigationFullscreenVisible}
         onClose={() => setIsNavigationFullscreenVisible(false)}
         navigationRoute={navigationRoute as GeoJSON.FeatureCollection<GeoJSON.LineString> | null}
-        operationalRoute={operationalRouteGeoJson}
+        operationalRoute={activeOperationalRouteGeoJson}
         operationalRouteMarkers={operationalRouteMarkerGeoJson}
+        routeSummary={navigationBestRouteSummary}
         steps={navigationSteps}
         originCoordinate={navigationOriginCoordinate}
         startCoordinate={activeOperationalRouteDirection?.start ?? null}
@@ -1848,6 +1911,36 @@ const styles = StyleSheet.create({
     color: '#B45309',
     fontSize: 12,
     marginTop: 2,
+  },
+  navigationLoadingMessage: {
+    color: COLORS.blue,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  navigationSummaryCard: {
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  navigationSummaryTitle: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  navigationSummaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  navigationSummaryHint: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   optionalFarmHint: {
     borderWidth: 1,

@@ -4,17 +4,25 @@ import type { ApiResponse as RouteApiResponse } from '@/app/api/file-converter-r
 // eslint-disable-next-line import/order
 import type { ApiResponse as FarmApiResponse } from '@/app/api/file-converter/route';
 
-export const ConvertKmlToGeoJsonSchema = z.object({
-  file: z
-    .instanceof(File, { message: 'Arquivo KML é obrigatório' })
-    .refine(
-      (file) => file.type === 'application/vnd.google-earth.kml+xml' || file.name.endsWith('.kml'),
-      {
-        message: 'O arquivo deve ser um KML válido',
-      }
-    ),
-  type: z.enum(['farm', 'route']),
-});
+const KmlFileSchema = z
+  .instanceof(File, { message: 'Arquivo KML é obrigatório' })
+  .refine(
+    (file) => file.type === 'application/vnd.google-earth.kml+xml' || file.name.endsWith('.kml'),
+    {
+      message: 'O arquivo deve ser um KML válido',
+    }
+  );
+
+export const ConvertKmlToGeoJsonSchema = z
+  .object({
+    file: KmlFileSchema.optional(),
+    files: z.array(KmlFileSchema).optional(),
+    type: z.enum(['farm', 'route']),
+  })
+  .refine((data) => Boolean(data.file || data.files?.length), {
+    message: 'Arquivo KML é obrigatório',
+    path: ['file'],
+  });
 
 export type ConvertKmlToGeoJsonParams = z.infer<typeof ConvertKmlToGeoJsonSchema>;
 
@@ -25,7 +33,11 @@ export async function convertKmlToGeoJson(
     ConvertKmlToGeoJsonSchema.parse(data);
 
     const formData = new FormData();
-    formData.append('file', data.file);
+    if (data.files?.length) {
+      data.files.forEach((file) => formData.append('files', file));
+    } else if (data.file) {
+      formData.append('file', data.file);
+    }
 
     const endpoint = data.type === 'route' ? '/api/file-converter-route' : '/api/file-converter';
 

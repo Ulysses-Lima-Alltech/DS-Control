@@ -1,10 +1,23 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateRouteDTO } from './dto/create-route.dto';
+import type { CreateRoutesBatchDTO } from './dto/create-routes-batch.dto';
 import type { UpdateRouteDTO } from './dto/update-route.dto';
 
 import AppError from '@common/handlers/app-error';
-import { RouteVM } from '@models/route.vm';
+import {
+  RouteVM,
+  type RouteViewModel,
+  type RouteWithCustomerViewModel,
+  type RouteWithFarmAndCustomerViewModel,
+  type RouteWithFarmViewModel,
+} from '@models/route.vm';
 import { app } from '@modules/app/app.module';
+import type {
+  Route,
+  RouteWithCustomer,
+  RouteWithFarm,
+  RouteWithFarmAndCustomer,
+} from '@repositories/routes/route.types';
 import type { GetAllRoutesQueryString } from './dto/get-all-routes.dto';
 import type { GetRouteByIdQueryString } from './dto/get-route-by-id.dto';
 import type { RouteSearchQueryString } from './dto/list-all-routes.dto';
@@ -24,10 +37,7 @@ export class RouteController {
     reply: FastifyReply,
   ) => {
     try {
-      app.log.info(
-        '[RouteController] - Starting route creation for farm %s',
-        request.body.farmId,
-      );
+      app.log.info('[RouteController] - Starting route creation for farm %s', request.body.farmId);
 
       await this.service.createRoute(request.body);
 
@@ -43,6 +53,36 @@ export class RouteController {
       }
 
       app.log.error('[RouteController] - Unexpected error during route creation: %o', {
+        error,
+      });
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  };
+
+  public createRoutesBatch = async (
+    request: FastifyRequest<{
+      Body: CreateRoutesBatchDTO;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info(
+        '[RouteController] - Starting batch route creation for farm %s',
+        request.body.farmId,
+      );
+
+      const result = await this.service.createRoutesBatch(request.body);
+
+      app.log.info('[RouteController] - Routes batch created successfully');
+      return reply.status(201).send(result);
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn('[RouteController] - Batch route creation failed: %s', error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error('[RouteController] - Unexpected error during batch route creation: %o', {
         error,
       });
       reply.status(500).send(new AppError('Internal server error', 500, error).throw());
@@ -100,7 +140,7 @@ export class RouteController {
         farmId,
         customerId,
         request.query.orderBy,
-        request.query.orderType
+        request.query.orderType,
       );
 
       app.log.info('[RouteController] - Successfully retrieved route details');
@@ -134,16 +174,20 @@ export class RouteController {
         request.query.includeCustomer ?? false,
         request.query.includeGeoJson ?? false,
       );
-      
-      let route;
+
+      let route:
+        | RouteViewModel
+        | RouteWithFarmViewModel
+        | RouteWithCustomerViewModel
+        | RouteWithFarmAndCustomerViewModel;
       if (request.query.includeFarm && request.query.includeCustomer) {
-        route = RouteVM.toViewModelWithFarmAndCustomer(routeDb as any);
+        route = RouteVM.toViewModelWithFarmAndCustomer(routeDb as RouteWithFarmAndCustomer);
       } else if (request.query.includeFarm) {
-        route = RouteVM.toViewModelWithFarm(routeDb as any);
+        route = RouteVM.toViewModelWithFarm(routeDb as RouteWithFarm);
       } else if (request.query.includeCustomer) {
-        route = RouteVM.toViewModelWithCustomer(routeDb as any);
+        route = RouteVM.toViewModelWithCustomer(routeDb as RouteWithCustomer);
       } else {
-        route = RouteVM.toViewModel(routeDb as any);
+        route = RouteVM.toViewModel(routeDb as Route);
       }
 
       app.log.info('[RouteController] - Successfully retrieved route details');
@@ -197,7 +241,10 @@ export class RouteController {
     reply: FastifyReply,
   ) => {
     try {
-      app.log.info('[RouteController] - Fetching routes for customer %s', request.params.customerId);
+      app.log.info(
+        '[RouteController] - Fetching routes for customer %s',
+        request.params.customerId,
+      );
       const routes = await this.service.getRoutesByCustomerId(request.params.customerId);
 
       app.log.info('[RouteController] - Successfully retrieved routes for customer');
@@ -207,7 +254,10 @@ export class RouteController {
       });
     } catch (error) {
       if (error instanceof AppError) {
-        app.log.warn('[RouteController] - Failed to retrieve routes for customer: %s', error.message);
+        app.log.warn(
+          '[RouteController] - Failed to retrieve routes for customer: %s',
+          error.message,
+        );
         reply.status(error.statusCode).send(error.throw());
         return;
       }

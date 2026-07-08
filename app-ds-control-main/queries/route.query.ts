@@ -78,3 +78,18 @@ export const useGetRouteByFarmId = (
     ...options,
   });
 };
+
+export const useGetRoutesForNavigationByFarmId = (
+  farmId: string | null,
+  options?: Omit<
+    UseQueryOptions<RouteService.GetRoutesForNavigationByFarmIdResponse, Error>,
+    'queryFn'
+  >
+) => {
+  return useQuery<RouteService.GetRoutesForNavigationByFarmIdResponse, Error>({
+    queryKey: options?.queryKey || ['routes', 'farm-navigation', farmId],
+    enabled: !!farmId,
+    queryFn: () => RouteService.getRoutesForNavigationByFarmId(farmId as string),
+    ...options,
+  });
+};

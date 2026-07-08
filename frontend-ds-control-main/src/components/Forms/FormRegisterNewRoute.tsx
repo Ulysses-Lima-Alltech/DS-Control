@@ -3,11 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronDown, ChevronRight, Route as RouteIcon } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import type { ConvertedRouteData } from '@/app/api/file-converter-route/route';
 import InputRouteFile from '@/components/InputRouteFile';
 import MapViewer from '@/components/MapViewer';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCreateRoute } from '@/mutations/route.mutation';
+import { useCreateRoutesBatch } from '@/mutations/route.mutation';
 import { useGetAllCustomers } from '@/queries/customer.query';
 import { useGetAllFarms } from '@/queries/farm.query';
 import type { Customer } from '@/types/customer.type';
@@ -34,22 +35,68 @@ type FormRegisterNewRouteProps = {
   closeDialog: () => void;
 };
 
+const NewRouteFormSchema = z.object({
+  customerId: z.string().min(1, { message: 'Cliente é obrigatório' }),
+  farmId: z.string().min(1, { message: 'Fazenda é obrigatória' }),
+  name: z.string().optional(),
+});
+
+type NewRouteFormData = z.infer<typeof NewRouteFormSchema>;
+
+function enrichRouteGeoJson(route: ConvertedRouteData): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: (route.geoJson?.features ?? []).map((feature) => ({
+      ...feature,
+      properties: {
+        ...(feature.properties ?? {}),
+        route_name: route.name,
+        source_file: route.sourceFileName,
+        externalId: route.externalId,
+      },
+    })),
+  };
+}
+
+function buildPreviewFeatureCollection(
+  routes: ConvertedRouteData[]
+): GeoJSON.FeatureCollection | null {
+  const features = routes.flatMap((route) => enrichRouteGeoJson(route).features);
+
+  if (features.length === 0) return null;
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
+function formatDistanceMeters(distanceMeters?: number) {
+  if (!distanceMeters || distanceMeters <= 0) return 'Distância não calculada';
+
+  if (distanceMeters < 1000) {
+    return `${distanceMeters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} m`;
+  }
+
+  return `${(distanceMeters / 1000).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  })} km`;
+}
+
+function isValidConvertedRoute(route: ConvertedRouteData) {
+  return Boolean(route.name.trim() && route.geoJson?.features?.length);
+}
+
 export default function FormRegisterNewRoute({
   customer,
   farm,
   closeDialog,
 }: FormRegisterNewRouteProps) {
   const queryClient = useQueryClient();
-  const [routeGeoJson, setRouteGeoJson] = useState<Record<string, unknown> | null>(null);
+  const [convertedRoutes, setConvertedRoutes] = useState<ConvertedRouteData[]>([]);
   const [convertionFileErrors, setConvertionFileErrors] = useState<string[]>([]);
   const [isConvertionFileErrorsOpen, setIsConvertionFileErrorsOpen] = useState(true);
-  const inputRouteNameRef = useRef<HTMLInputElement>(null);
-
-  const NewRouteFormSchema = z.object({
-    customerId: z.string().min(1, { message: 'Cliente é obrigatório' }),
-    farmId: z.string().min(1, { message: 'Fazenda é obrigatória' }),
-    name: z.string().min(1, { message: 'Nome é obrigatório' }),
-  });
 
   const [customerSearch, setCustomerSearch] = useState('');
   const [farmSearch, setFarmSearch] = useState('');
@@ -67,21 +114,23 @@ export default function FormRegisterNewRoute({
   }, [customers?.data, customerSearch]);
 
   const {
-    register,
     handleSubmit,
     formState: { errors },
     control,
     setValue,
+    getValues,
     watch,
-  } = useForm<z.infer<typeof NewRouteFormSchema>>({
+  } = useForm<NewRouteFormData>({
     resolver: zodResolver(NewRouteFormSchema),
     defaultValues: {
       customerId: customer?.id ?? '',
       farmId: farm?.id ?? '',
+      name: '',
     },
   });
 
   const selectedCustomerId = watch('customerId');
+  const singleRouteName = convertedRoutes.length === 1 ? convertedRoutes[0].name : watch('name');
 
   const { data: farms } = useGetAllFarms(selectedCustomerId, {
     limit: '100',
@@ -95,9 +144,19 @@ export default function FormRegisterNewRoute({
     return farms.data.filter((f) => f.name.toLowerCase().includes(farmSearch.toLowerCase()));
   }, [farms?.data, farmSearch]);
 
-  const { mutate: createRoute, isPending: isCreatingRoute } = useCreateRoute({
-    onSuccess: () => {
-      toast('Rota criada com sucesso');
+  const validConvertedRoutes = useMemo(
+    () => convertedRoutes.filter(isValidConvertedRoute),
+    [convertedRoutes]
+  );
+
+  const previewGeoJson = useMemo(
+    () => buildPreviewFeatureCollection(validConvertedRoutes),
+    [validConvertedRoutes]
+  );
+
+  const { mutate: createRoutesBatch, isPending: isCreatingRoutesBatch } = useCreateRoutesBatch({
+    onSuccess: (response) => {
+      toast(`${response.createdCount} rotas criadas com sucesso`);
       queryClient.invalidateQueries({ queryKey: ['routes'] });
       closeDialog();
     },
@@ -107,14 +166,33 @@ export default function FormRegisterNewRoute({
     },
   });
 
-  const onSubmit = (data: z.infer<typeof NewRouteFormSchema>) => {
-    if (!routeGeoJson) {
-      toast('Arquivo de rota inválido!');
+  const updateConvertedRouteName = (routeIndex: number, name: string) => {
+    setConvertedRoutes((currentRoutes) =>
+      currentRoutes.map((route, index) => (index === routeIndex ? { ...route, name } : route))
+    );
+  };
+
+  const onSubmit = (data: NewRouteFormData) => {
+    if (validConvertedRoutes.length === 0) {
+      toast('Nenhuma rota KML válida para salvar');
       return;
     }
 
-    createRoute({ ...data, geoJson: routeGeoJson });
+    createRoutesBatch({
+      customerId: data.customerId,
+      farmId: data.farmId,
+      duplicateStrategy: 'rename',
+      routes: validConvertedRoutes.map((route) => ({
+        name: route.name.trim(),
+        geoJson: enrichRouteGeoJson(route) as unknown as Record<string, unknown>,
+        externalId: route.externalId,
+        sourceFileName: route.sourceFileName,
+      })),
+    });
   };
+
+  const buttonText =
+    validConvertedRoutes.length > 1 ? `Criar ${validConvertedRoutes.length} rotas` : 'Criar rota';
 
   return (
     <div className='max-w-7xl h-[600px] p-0'>
@@ -213,38 +291,100 @@ export default function FormRegisterNewRoute({
                   {errors.farmId && <p className='text-red-500 text-sm'>{errors.farmId.message}</p>}
                 </div>
 
-                <div className='space-y-2'>
-                  <Label htmlFor='routeName'>Nome da rota</Label>
-                  <Input
-                    id='routeName'
-                    type='text'
-                    placeholder='Digite o nome da rota'
-                    {...register('name')}
-                    className='w-full'
-                    ref={inputRouteNameRef}
-                    onChange={(e) => {
-                      setValue('name', e.target.value);
-                    }}
-                  />
-                  {errors.name && <p className='text-red-500 text-sm'>{errors.name.message}</p>}
-                </div>
+                {convertedRoutes.length <= 1 && (
+                  <div className='space-y-2'>
+                    <Label htmlFor='routeName'>Nome da rota</Label>
+                    <Input
+                      id='routeName'
+                      type='text'
+                      placeholder='O nome será sugerido pelo KML ou arquivo'
+                      value={singleRouteName || ''}
+                      onChange={(e) => {
+                        setValue('name', e.target.value);
+                        if (convertedRoutes.length === 1) {
+                          updateConvertedRouteName(0, e.target.value);
+                        }
+                      }}
+                      className='w-full'
+                    />
+                  </div>
+                )}
 
                 <div className='space-y-2'>
-                  <Label>Arquivo KML</Label>
+                  <Label>Arquivos KML</Label>
                   <InputRouteFile
-                    changeGeoJson={setRouteGeoJson}
+                    multiple
+                    onConvertedRoutes={(routes) => {
+                      setConvertedRoutes(routes);
+                      if (routes.length === 1) {
+                        setValue('name', routes[0].name);
+                      } else if (routes.length > 1) {
+                        setValue('name', '');
+                      }
+                    }}
+                    changeGeoJson={() => undefined}
                     setConvertErrors={(errors) => {
                       setConvertionFileErrors(errors);
-                      setRouteGeoJson(null);
+                      if (errors.length > 0) {
+                        setIsConvertionFileErrorsOpen(true);
+                      }
                     }}
                     setFileName={(fileName) => {
-                      if (inputRouteNameRef.current?.value === '') {
-                        inputRouteNameRef.current!.value = fileName;
+                      if (!getValues('name')) {
                         setValue('name', fileName);
                       }
                     }}
                   />
                 </div>
+
+                {convertedRoutes.length > 1 && (
+                  <div className='space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <div>
+                        <p className='text-sm font-semibold text-gray-900'>Rotas processadas</p>
+                        <p className='text-xs text-gray-500'>
+                          {validConvertedRoutes.length} de {convertedRoutes.length} rota(s) válidas
+                        </p>
+                      </div>
+                      <span className='rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700'>
+                        Total: {convertedRoutes.length}
+                      </span>
+                    </div>
+
+                    <div className='max-h-56 space-y-2 overflow-y-auto pr-1'>
+                      {convertedRoutes.map((route, index) => (
+                        <div
+                          key={`${route.externalId}-${index}`}
+                          className='rounded-md bg-white p-3'
+                        >
+                          <div className='mb-2 flex items-center justify-between gap-3'>
+                            <span className='text-xs font-medium text-gray-500'>
+                              {route.sourceFileName}
+                            </span>
+                            <span className='text-xs text-gray-500'>
+                              {route.pointCount.toLocaleString('pt-BR')} pontos
+                            </span>
+                          </div>
+                          <Input
+                            value={route.name}
+                            onChange={(event) =>
+                              updateConvertedRouteName(index, event.target.value)
+                            }
+                            className='h-9'
+                          />
+                          <div className='mt-2 text-xs text-gray-500'>
+                            {formatDistanceMeters(route.distanceMeters)}
+                          </div>
+                          {!route.name.trim() && (
+                            <p className='mt-1 text-xs text-red-600'>
+                              Informe um nome para salvar.
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {convertionFileErrors.length > 0 && (
                   <div className='space-y-2'>
@@ -277,7 +417,7 @@ export default function FormRegisterNewRoute({
                             <p className='font-medium mb-2'>Foram identificados esses erros:</p>
                             <ul className='list-disc list-inside space-y-1'>
                               {convertionFileErrors.map((error, index) => (
-                                <li key={index} className='text-red-700'>
+                                <li key={`${error}-${index}`} className='text-red-700'>
                                   {error}
                                 </li>
                               ))}
@@ -294,9 +434,9 @@ export default function FormRegisterNewRoute({
               <Button
                 type='submit'
                 className='w-full'
-                disabled={!routeGeoJson || isCreatingRoute || convertionFileErrors.length > 0}
+                disabled={validConvertedRoutes.length === 0 || isCreatingRoutesBatch}
               >
-                {isCreatingRoute ? 'Criando rota...' : 'Criar rota'}
+                {isCreatingRoutesBatch ? 'Criando rota(s)...' : buttonText}
               </Button>
             </div>
           </Card>
@@ -312,24 +452,30 @@ export default function FormRegisterNewRoute({
             <CardContent className='flex-1 flex flex-col p-4 min-h-0'>
               <div className='flex-1 overflow-hidden rounded-lg border mb-4'>
                 {/* eslint-disable-next-line */}
-                <MapViewer geoData={routeGeoJson ? (routeGeoJson as any) : undefined} />
+                <MapViewer geoData={previewGeoJson ? (previewGeoJson as any) : undefined} />
               </div>
               <div className='flex-shrink-0 p-3 bg-gray-50 rounded-lg'>
                 <div className='text-sm text-gray-600'>
-                  {routeGeoJson ? (
+                  {validConvertedRoutes.length > 0 ? (
                     <div className='space-y-1'>
                       <span className='font-medium text-green-700'>
-                        ✓ Arquivo processado com sucesso
+                        {validConvertedRoutes.length === 1
+                          ? 'Arquivo processado com sucesso'
+                          : `${validConvertedRoutes.length} rotas válidas processadas`}
                       </span>
-                      <div className='text-xs'>Rota carregada e pronta para ser salva</div>
+                      <div className='text-xs'>
+                        {validConvertedRoutes.length === 1
+                          ? 'Rota carregada e pronta para ser salva'
+                          : 'Todas as rotas válidas serão desenhadas e salvas separadamente'}
+                      </div>
                     </div>
                   ) : (
-                    <span>Aguardando upload do arquivo KML</span>
+                    <span>Aguardando upload de arquivos KML</span>
                   )}
                   {convertionFileErrors.length > 0 && (
                     <div className='mt-2'>
                       <span className='text-red-600 font-medium'>
-                        ⚠ {convertionFileErrors.length}{' '}
+                        {convertionFileErrors.length}{' '}
                         {convertionFileErrors.length > 1 ? 'erros ' : 'erro '}
                         encontrado{convertionFileErrors.length > 1 ? 's' : ''}
                       </span>

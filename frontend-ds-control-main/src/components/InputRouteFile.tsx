@@ -5,24 +5,58 @@ import type React from 'react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import type { ApiResponse as RouteApiResponse } from '@/app/api/file-converter-route/route';
+import type {
+  ApiResponse as RouteApiResponse,
+  ConvertedRouteData,
+} from '@/app/api/file-converter-route/route';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConvertKmlToGeoJson } from '@/mutations/file.mutation';
 
 type InputRouteFileProps = {
-  changeGeoJson: (geojson: Record<string, unknown>) => void;
+  changeGeoJson?: (geojson: Record<string, unknown>) => void;
   setConvertErrors: (errors: string[]) => void;
   setFileName: (fileName: string) => void;
+  onConvertedRoutes?: (routes: ConvertedRouteData[]) => void;
+  multiple?: boolean;
 };
+
+function buildPreviewFeatureCollection(routes: ConvertedRouteData[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: routes.flatMap((route) => {
+      if (route.geoJson?.type !== 'FeatureCollection' || !Array.isArray(route.geoJson.features)) {
+        return [];
+      }
+
+      return route.geoJson.features.map((feature) => ({
+        ...feature,
+        properties: {
+          ...(feature.properties ?? {}),
+          route_name: route.name,
+          source_file: route.sourceFileName,
+          externalId: route.externalId,
+        },
+      }));
+    }),
+  };
+}
+
+function formatRouteErrors(result: RouteApiResponse) {
+  return result.errors.map((error) =>
+    error.fileName ? `${error.fileName}: ${error.message}` : error.message
+  );
+}
 
 export default function InputRouteFile({
   changeGeoJson,
   setConvertErrors,
   setFileName,
+  onConvertedRoutes,
+  multiple = false,
 }: InputRouteFileProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [selectedFileNames, setSelectedFileNames] = useState<string[]>([]);
 
   const status: Record<string, React.ReactNode> = {
     none: <Upload className='text-gray-500' size={20} />,
@@ -39,40 +73,44 @@ export default function InputRouteFile({
   const { mutate: convertKmlToGeoJson, isPending: isConvertingKmlToGeoJson } =
     useConvertKmlToGeoJson<RouteApiResponse>({
       onSuccess: async (result: RouteApiResponse) => {
-        setConvertErrors(result.errors);
-        setFileStatus('error');
+        const formattedErrors = formatRouteErrors(result);
+        setConvertErrors(formattedErrors);
+        onConvertedRoutes?.(result.routes);
+
+        if (result.routes.length === 0) {
+          changeGeoJson?.({ type: 'FeatureCollection', features: [] });
+          setFileStatus('error');
+          toast('Nenhuma rota válida encontrada nos arquivos KML');
+          return;
+        }
 
         try {
-          const routeGeoJson: GeoJSON.FeatureCollection = {
-            type: 'FeatureCollection',
-            features: result.routes.flatMap((route) => {
-              if (
-                route.geoJson &&
-                typeof route.geoJson === 'object' &&
-                'features' in route.geoJson
-              ) {
-                return (route.geoJson as GeoJSON.FeatureCollection).features;
-              }
-              return [];
-            }),
-          };
-
-          changeGeoJson(routeGeoJson as unknown as Record<string, unknown>);
+          const routeGeoJson = buildPreviewFeatureCollection(result.routes);
+          changeGeoJson?.(routeGeoJson as unknown as Record<string, unknown>);
         } catch {
           toast('Erro ao tentar processar o arquivo', {
             description: 'Erro ao tentar converter KML para rota',
           });
         }
 
-        if (result.errors.length > 0) return;
-
-        toast('Rota convertida com sucesso');
+        setFileName(result.routes[0]?.name || selectedFileNames[0]?.replace(/\.kml$/i, '') || '');
         setFileStatus('converted');
-        setFileName(selectedFileName.split('.kml')[0]);
+
+        if (formattedErrors.length > 0) {
+          toast(`${result.routes.length} rota(s) convertida(s); revise os erros encontrados.`);
+          return;
+        }
+
+        toast(
+          result.routes.length === 1
+            ? 'Rota convertida com sucesso'
+            : `${result.routes.length} rotas convertidas com sucesso`
+        );
       },
       onError: (error: Error) => {
         toast(error.message);
         setFileStatus('error');
+        onConvertedRoutes?.([]);
       },
     });
 
@@ -82,6 +120,11 @@ export default function InputRouteFile({
     }
   };
 
+  const selectedFilesLabel =
+    selectedFileNames.length === 1
+      ? selectedFileNames[0]
+      : `${selectedFileNames.length} arquivos selecionados`;
+
   return (
     <div className='space-y-3 cursor-pointer'>
       <Input
@@ -90,51 +133,78 @@ export default function InputRouteFile({
         className='hidden'
         disabled={isConvertingKmlToGeoJson}
         accept='.kml'
+        multiple={multiple}
         onChange={async (e) => {
+          const selectedFiles = Array.from(e.target.files ?? []);
           setFileStatus('converting');
-          toast('Convertendo KML para rota...');
+          setConvertErrors([]);
+          onConvertedRoutes?.([]);
+          toast(
+            selectedFiles.length > 1
+              ? `Convertendo ${selectedFiles.length} KMLs para rotas...`
+              : 'Convertendo KML para rota...'
+          );
 
-          const kmlFile = e.target.files?.[0];
-
-          if (!kmlFile || kmlFile.size === 0) {
+          if (selectedFiles.length === 0 || selectedFiles.every((file) => file.size === 0)) {
             toast('Arquivo KML não selecionado');
             setFileStatus('error');
+            setConvertErrors(['Arquivo KML não selecionado']);
             return;
           }
 
-          setSelectedFileName(kmlFile.name);
-          convertKmlToGeoJson({ file: kmlFile, type: 'route' });
+          setSelectedFileNames(selectedFiles.map((file) => file.name));
+
+          if (multiple) {
+            convertKmlToGeoJson({ files: selectedFiles, type: 'route' });
+            return;
+          }
+
+          convertKmlToGeoJson({ file: selectedFiles[0], type: 'route' });
         }}
       />
 
-      {!selectedFileName ? (
+      {selectedFileNames.length === 0 ? (
         <div
           className='border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer'
           onClick={handleDivClick}
         >
           <Upload className='h-8 w-8 text-gray-400 mx-auto mb-2' />
           <div className='text-sm text-gray-600 mb-2'>
-            Clique para fazer upload ou arraste o arquivo aqui
+            {multiple
+              ? 'Selecione um ou mais arquivos KML'
+              : 'Clique para fazer upload ou arraste o arquivo aqui'}
           </div>
           <Label className='inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer'>
-            Selecionar arquivo KML
+            {multiple ? 'Selecionar arquivos KML' : 'Selecionar arquivo KML'}
           </Label>
         </div>
       ) : (
         <div
-          className='flex items-center justify-between p-3 border rounded-lg bg-gray-50'
+          className='flex items-start justify-between gap-3 p-3 border rounded-lg bg-gray-50'
           onClick={handleDivClick}
         >
-          <div className='flex items-center space-x-3'>
-            {status[fileStatus]}
-            <div>
-              <div className='text-sm font-medium text-gray-900'>{selectedFileName}</div>
+          <div className='flex items-start space-x-3 min-w-0'>
+            <div className='mt-0.5'>{status[fileStatus]}</div>
+            <div className='min-w-0'>
+              <div className='text-sm font-medium text-gray-900'>{selectedFilesLabel}</div>
               <div className='text-xs text-gray-500'>
-                {fileStatus === 'converting' && 'Processando arquivo...'}
-                {fileStatus === 'converted' && 'Arquivo processado com sucesso'}
+                {fileStatus === 'converting' && 'Processando arquivo(s)...'}
+                {fileStatus === 'converted' && 'Arquivo(s) processado(s) com sucesso'}
                 {fileStatus === 'error' && 'Erro no processamento'}
                 {fileStatus === 'none' && 'Aguardando processamento'}
               </div>
+              {selectedFileNames.length > 1 && (
+                <div className='mt-2 space-y-1 text-xs text-gray-600'>
+                  {selectedFileNames.slice(0, 4).map((fileName) => (
+                    <div key={fileName} className='truncate'>
+                      {fileName}
+                    </div>
+                  ))}
+                  {selectedFileNames.length > 4 && (
+                    <div>+ {selectedFileNames.length - 4} arquivo(s)</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

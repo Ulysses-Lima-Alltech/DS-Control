@@ -28,6 +28,7 @@ export type MapContentProps = {
   showGeoDataRoute?: boolean;
   navigationRoute?: GeoJSON.FeatureCollection | null;
   operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
+  selectedRouteId?: string | null;
   showNavigationRoute?: boolean;
   selectedPlotId?: string;
   onPlotPress?: (plotId: string) => void;
@@ -46,6 +47,7 @@ export default function MapContent({
   showGeoDataRoute = true,
   navigationRoute,
   operationalRouteMarkers,
+  selectedRouteId = null,
   showNavigationRoute = true,
   selectedPlotId,
   onPlotPress,
@@ -287,8 +289,15 @@ export default function MapContent({
           <LineLayer
             id='routes-line'
             style={{
-              lineColor: '#FF6B6B',
-              lineWidth: 3,
+              lineColor: selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], '#FF6B6B', '#94A3B8']
+                : '#FF6B6B',
+              lineWidth: selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 5, 2]
+                : 3,
+              lineOpacity: selectedRouteId
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 0.96, 0.55]
+                : 1,
               lineCap: 'round',
               lineJoin: 'round',
             }}
@@ -317,6 +326,8 @@ export default function MapContent({
               circleRadius: 7,
               circleColor: [
                 'case',
+                ['==', ['get', 'type'], 'user'],
+                '#0D6EFD',
                 ['==', ['get', 'type'], 'operational-start'],
                 COLORS.accent,
                 '#DC2626',

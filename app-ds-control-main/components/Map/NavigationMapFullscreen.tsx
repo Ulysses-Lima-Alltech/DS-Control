@@ -46,6 +46,14 @@ type NavigationMapFullscreenProps = {
   navigationRoute: GeoJSON.FeatureCollection<GeoJSON.LineString> | null;
   operationalRoute: GeoJSON.FeatureCollection | null;
   operationalRouteMarkers: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
+  routeSummary?: {
+    routeName: string;
+    routeCount: number;
+    mapboxDistanceMeters: number;
+    operationalDistanceMeters: number;
+    totalDistanceMeters: number;
+    isAutomatic: boolean;
+  } | null;
   steps: MapboxNavigationStep[];
   originCoordinate: NavigationCoordinate | null;
   startCoordinate: NavigationCoordinate | null;
@@ -140,6 +148,7 @@ export default function NavigationMapFullscreen({
   navigationRoute,
   operationalRoute,
   operationalRouteMarkers,
+  routeSummary,
   steps,
   originCoordinate,
   startCoordinate,
@@ -592,6 +601,8 @@ export default function NavigationMapFullscreen({
                   circleRadius: 8,
                   circleColor: [
                     'case',
+                    ['==', ['get', 'type'], 'user'],
+                    '#0D6EFD',
                     ['==', ['get', 'type'], 'operational-start'],
                     COLORS.accent,
                     '#DC2626',
@@ -640,6 +651,36 @@ export default function NavigationMapFullscreen({
             onPress={toggleVoice}
           />
         </View>
+
+        {routeSummary ? (
+          <View style={[styles.routeSummaryPanel, { bottom: Math.max(insets.bottom + 90, 96) }]}>
+            <Text style={styles.routeSummaryTitle} numberOfLines={1}>
+              {routeSummary.routeName}
+            </Text>
+            <View style={styles.routeSummaryMetrics}>
+              <TripMetric
+                value={formatTripDistance(routeSummary.mapboxDistanceMeters)}
+                label='até entrada'
+              />
+              <View style={styles.metricDivider} />
+              <TripMetric
+                value={formatTripDistance(routeSummary.operationalDistanceMeters)}
+                label='operacional'
+              />
+              <View style={styles.metricDivider} />
+              <TripMetric
+                value={formatTripDistance(routeSummary.totalDistanceMeters)}
+                label='total'
+              />
+            </View>
+            {routeSummary.isAutomatic ? (
+              <Text style={styles.routeSummaryHint} numberOfLines={2}>
+                Melhor entrada calculada automaticamente entre {routeSummary.routeCount} rotas
+                cadastradas
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={[styles.bottomPanel, { bottom: Math.max(insets.bottom + 10, 16) }]}>
           <TouchableOpacity
@@ -733,6 +774,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textShadowColor: '#000000',
     textShadowRadius: 3,
+  },
+  routeSummaryPanel: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    zIndex: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  routeSummaryTitle: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  routeSummaryMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeSummaryHint: {
+    color: '#1D4ED8',
+    fontSize: 11,
+    fontWeight: '800',
   },
   bottomPanel: {
     position: 'absolute',

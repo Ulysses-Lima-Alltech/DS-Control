@@ -1,7 +1,8 @@
-import { api } from '@/services/api.service';
 import NetInfo from '@react-native-community/netinfo';
+
 import { getOfflineRoutesByFarmId } from '@/offline/offlineStorage';
-import { Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
+import { api } from '@/services/api.service';
+import { type Route, RouteOrderBy, RouteOrderType } from '@/types/route.type';
 
 export type GetAllRoutesResponse = {
   data: Route[];
@@ -118,6 +119,11 @@ export type GetRouteByFarmIdResponse = {
   routes: Route[];
 };
 
+export type GetRoutesForNavigationByFarmIdResponse = {
+  message: string;
+  routes: Route[];
+};
+
 export async function getRouteByFarmId(
   farmId: string,
   params?: GetRouteByFarmIdParams
@@ -152,4 +158,31 @@ export async function getRouteByFarmId(
     console.error('[Route Service] Unknown error: ', error);
     throw new Error('[Route Service] Unknown error');
   }
+}
+
+export async function getRoutesForNavigationByFarmId(
+  farmId: string
+): Promise<GetRoutesForNavigationByFarmIdResponse> {
+  if (await shouldUseOfflineData()) {
+    return {
+      message: 'Offline routes retrieved successfully',
+      routes: await getOfflineRoutesByFarmId(farmId),
+    };
+  }
+
+  const response = await getAllRoutes({
+    farmId,
+    page: '1',
+    limit: '100',
+    includeFarm: 'true',
+    includeCustomer: 'true',
+    includeGeoJson: 'true',
+    orderBy: RouteOrderBy.CREATEDAT,
+    orderType: RouteOrderType.DESC,
+  });
+
+  return {
+    message: 'Routes retrieved successfully',
+    routes: response.data,
+  };
 }
