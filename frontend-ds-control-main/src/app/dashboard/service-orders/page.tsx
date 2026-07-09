@@ -40,10 +40,6 @@ export default function ServiceOrdersPage() {
 
   return (
     <div className='relative min-h-full max-w-screen overflow-hidden p-5 lg:p-8'>
-      <div className='pointer-events-none absolute right-0 top-0 h-72 w-[46rem] overflow-hidden opacity-80'>
-        <div className='absolute -right-16 top-0 h-40 w-[34rem] rounded-bl-[80%] bg-[color:color-mix(in_oklch,var(--brand-secondary)_14%,white)]' />
-        <div className='absolute right-16 top-24 h-28 w-[34rem] rounded-tl-full bg-[color:color-mix(in_oklch,var(--brand-primary)_9%,white)]' />
-      </div>
       <div className='relative z-10 mb-9 flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
         <div>
           <h1 className='text-3xl font-semibold tracking-normal text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)]'>
