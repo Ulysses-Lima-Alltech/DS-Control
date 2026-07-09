@@ -7,7 +7,6 @@ import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { ChartConfig } from '@/components/ui/chart';
 import { DatePicker } from '@/components/ui/date-picker';
 import { MultiInfiniteSearchableSelect } from '@/components/ui/multi-infinite-searchable-select';
 import { MultiSearchableSelect } from '@/components/ui/multi-searchable-select';
@@ -189,16 +188,6 @@ export const DashboardCardGeneralMetrics = ({
   const handleFarmChange = (values: string[]) => {
     setSelectedFarmIds(values);
   };
-
-  const chartConfig = {
-    hectares: {
-      label: 'Hectares',
-      color: 'var(--brand-primary)',
-    },
-    label: {
-      color: 'hsl(var(--background))',
-    },
-  } satisfies ChartConfig;
 
   if (isLoadingMetrics) {
     return <GeneralMetricsSkeleton />;

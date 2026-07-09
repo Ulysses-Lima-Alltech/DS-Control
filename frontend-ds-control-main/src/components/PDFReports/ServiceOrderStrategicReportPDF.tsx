@@ -5,10 +5,6 @@ import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
-  buildStrategicPlotColorMap,
-  type StrategicFarmColor,
-} from '@/utils/strategicReportPalette';
-import {
   buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
   extractPlotPolygons,
@@ -17,6 +13,10 @@ import {
   type StrategicMapShapeProjected,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
+import {
+  buildStrategicPlotColorMap,
+  type StrategicFarmColor,
+} from '@/utils/strategicReportPalette';
 
 Font.register({
   family: 'Roboto',
@@ -237,9 +237,7 @@ function bboxEdgeDistance(
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function buildShapeAdjacencyMap(
-  shapes: StrategicMapShapeProjected[]
-): Map<string, Set<string>> {
+function buildShapeAdjacencyMap(shapes: StrategicMapShapeProjected[]): Map<string, Set<string>> {
   const adjacency = new Map<string, Set<string>>();
   shapes.forEach((shape) => adjacency.set(shape.id, new Set<string>()));
 
@@ -277,7 +275,10 @@ function compactPlotCode(label: string, fallbackPlotId: string): string {
     return `T${plotMatch[1]}`;
   }
 
-  const compact = normalized.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const compact = normalized
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!compact) {
     return `TALHAO ${fallbackPlotId.slice(0, 6).toUpperCase()}`;
   }
@@ -389,7 +390,10 @@ function isInsideMapBounds(bounds: LabelBounds, mapWidth: number, mapHeight: num
   );
 }
 
-function pointInRing(point: { x: number; y: number }, ring: Array<{ x: number; y: number }>): boolean {
+function pointInRing(
+  point: { x: number; y: number },
+  ring: Array<{ x: number; y: number }>
+): boolean {
   if (ring.length < 3) {
     return false;
   }
@@ -542,8 +546,16 @@ function resolveLabelPlacement(params: {
     variants.push({ code: vectorShape.labelCode, showArea: true, fontScale: 0.92 });
   }
 
-  variants.push({ code: vectorShape.labelCode, showArea: false, fontScale: density === 'small' ? 0.9 : 1 });
-  variants.push({ code: vectorShape.labelCode, showArea: false, fontScale: density === 'small' ? 0.8 : 0.88 });
+  variants.push({
+    code: vectorShape.labelCode,
+    showArea: false,
+    fontScale: density === 'small' ? 0.9 : 1,
+  });
+  variants.push({
+    code: vectorShape.labelCode,
+    showArea: false,
+    fontScale: density === 'small' ? 0.8 : 0.88,
+  });
 
   if (condensedCode && condensedCode !== vectorShape.labelCode) {
     variants.push({ code: condensedCode, showArea: false, fontScale: 0.8 });
@@ -682,7 +694,6 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   prefetchedMapBaseDataUrl = null,
   prefetchedMapImageDataUrl = null,
   mapViewport = null,
-  farmColorMap: _farmColorMap,
 }) => {
   const generatedAt = formatGeneratedAt();
   const plotRows = (serviceOrder.plots || [])
@@ -751,8 +762,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const estimatedScaleKm = viewport
     ? (() => {
         const lngSpan = viewport.bounds.maxLng - viewport.bounds.minLng;
-        const midLatRad =
-          ((viewport.bounds.minLat + viewport.bounds.maxLat) / 2) * (Math.PI / 180);
+        const midLatRad = ((viewport.bounds.minLat + viewport.bounds.maxLat) / 2) * (Math.PI / 180);
         const widthKm = Math.abs(lngSpan * 111.32 * Math.cos(midLatRad));
         const scaleKm = (widthKm * scaleBarWidthPx) / MAP_LOGICAL_WIDTH;
         return Math.max(0.1, Number(scaleKm.toFixed(2)));
@@ -816,7 +826,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       labelsDrawn: strategicLabelLayout.labelsDrawn,
       labelsOmitted: strategicLabelLayout.labelsOmitted,
       adjacencyPairsApprox:
-        Array.from(plotAdjacencyMap.values()).reduce((sum, neighbors) => sum + neighbors.size, 0) / 2,
+        Array.from(plotAdjacencyMap.values()).reduce((sum, neighbors) => sum + neighbors.size, 0) /
+        2,
       hasBaseMap: hasMap,
       appliedOpacity: APPLIED_FILL_OPACITY,
       pendingOpacity: PENDING_FILL_OPACITY,
@@ -1055,7 +1066,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                     marginRight: 4,
                   }}
                 />
-                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>Aplicado: preenchimento forte</Text>
+                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                  Aplicado: preenchimento forte
+                </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.2 }}>
                 <View
@@ -1074,7 +1087,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               </View>
             </View>
             <View style={{ marginTop: 2, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 2 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.4 }}>
+              <View
+                style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.4 }}
+              >
                 <Text style={{ fontSize: 6.3, color: MUTED_TEXT }}>Progresso real da OS</Text>
                 <Text style={{ fontSize: 6.6, fontWeight: 700 }}>
                   {formatPercent(serviceOrderMetrics.progressPercent)}
@@ -1138,7 +1153,14 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               }}
             >
               <Text style={{ fontSize: 6.1, color: MUTED_TEXT }}>ESCALA VISUAL</Text>
-              <View style={{ marginTop: 2, width: scaleBarWidthPx, height: 2.4, backgroundColor: '#111827' }} />
+              <View
+                style={{
+                  marginTop: 2,
+                  width: scaleBarWidthPx,
+                  height: 2.4,
+                  backgroundColor: '#111827',
+                }}
+              />
               <Text style={{ marginTop: 2, fontSize: 7, fontWeight: 700 }}>
                 {estimatedScaleKm.toFixed(2).replace('.', ',')} km
               </Text>
@@ -1159,7 +1181,10 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               justifyContent: 'center',
             }}
           >
-            <Image src='/images/pdf-logo-only.png' style={{ width: 90, height: 22, objectFit: 'contain' }} />
+            <Image
+              src='/images/pdf-logo-only.png'
+              style={{ width: 90, height: 22, objectFit: 'contain' }}
+            />
           </View>
 
           {!hasMap && !strategicProjection ? (
@@ -1179,7 +1204,8 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 Nao foi possivel montar a imagem do mapa estrategico para esta OS.
               </Text>
               <Text style={{ marginTop: 6, fontSize: 7.5, color: MUTED_TEXT }}>
-                Talhoes validos: {validPlotRows.length} | Talhoes sem geometria: {invalidPlotRows.length}
+                Talhoes validos: {validPlotRows.length} | Talhoes sem geometria:{' '}
+                {invalidPlotRows.length}
               </Text>
             </View>
           ) : null}

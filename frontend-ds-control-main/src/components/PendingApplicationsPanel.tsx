@@ -52,8 +52,6 @@ export const PendingApplicationsPanel = ({
 
   const pendingApplicationsCount = stats?.stats?.pendingApplicationsCount || 0;
   const pendingApplicationsTotalArea = stats?.stats?.pendingApplicationsTotalArea || 0;
-  const pendingFarmsCount = stats?.stats?.pendingFarmsCount || 0;
-  const pendingPlotsCount = stats?.stats?.pendingPlotsCount || 0;
 
   const statsData = [
     {
@@ -85,7 +83,9 @@ export const PendingApplicationsPanel = ({
           </div>
 
           <p className='text-xs text-muted-foreground italic mb-4'>
-            Aplicações avulsas referem-se a registros que não estão associados a uma ordem de serviço, fazenda ou talhão. É necessário revisar e regularizar esses dados manualmente para garantir a correta rastreabilidade e gestão das aplicações.
+            Aplicações avulsas referem-se a registros que não estão associados a uma ordem de
+            serviço, fazenda ou talhão. É necessário revisar e regularizar esses dados manualmente
+            para garantir a correta rastreabilidade e gestão das aplicações.
           </p>
 
           <div className='space-y-3'>

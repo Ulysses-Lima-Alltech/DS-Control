@@ -17,14 +17,13 @@ import {
 import { ptBR } from 'date-fns/locale';
 import {
   AlertCircle,
-  AlertTriangle,
   ChevronRight,
   Info,
   Leaf,
   Map as MapIcon,
-  User as UserIcon,
   RefreshCw,
   TrendingUp,
+  User as UserIcon,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -32,10 +31,12 @@ import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from 'recharts';
 
+import DateRangePicker from '@/components/DateRangePicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import DateRangePicker from '@/components/DateRangePicker';
+import type { ChartConfig } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { SearchableSelectQuery } from '@/components/ui/searchable-select-query';
 import {
   Select,
@@ -44,9 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ChartConfig } from '@/components/ui/chart';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Sheet,
   SheetContent,
@@ -54,6 +52,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGetApplicationsEvolution,
   useGetApplicationsByPilotStats,
@@ -61,20 +60,16 @@ import {
   useGetStatsApplications,
 } from '@/queries/application.query';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
-import { useGetFarmById } from '@/queries/farm.query';
-import { useGetAllFarmsInfinite } from '@/queries/farm.query';
+import { useGetAllFarmsInfinite, useGetFarmById } from '@/queries/farm.query';
 import { useGetAllProductsInfinite, useGetProductById } from '@/queries/product.query';
 import { useGetAllUsersInfinite, useGetUserById } from '@/queries/user.query';
-import type { Farm } from '@/types/farm.type';
+import type { EvolutionGranularity } from '@/services/application.service';
+import { APPLICATION_ISSUE_LABELS, type ApplicationIssueFilter } from '@/types/applications.type';
 import type { Customer } from '@/types/customer.type';
+import type { Farm } from '@/types/farm.type';
 import type { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 import type { User } from '@/types/user.type';
-import type { EvolutionGranularity } from '@/services/application.service';
-import {
-  APPLICATION_ISSUE_LABELS,
-  type ApplicationIssueFilter,
-} from '@/types/applications.type';
 import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 /**
@@ -112,7 +107,6 @@ const formatCompact = (value: number) =>
 
 /** Alturas em px — base real para o ResponsiveContainer (evita %/aspect instável). */
 const CHART_EVOLUTION_H = 260;
-const CHART_BAR_H = 200;
 const CHART_BAR_ROW_H = 34;
 const CHART_BAR_MIN_H = 196;
 const CHART_BAR_MAX_H = 280;
@@ -238,7 +232,11 @@ function mergeEvolutionSeriesWithZeros(
   }));
 }
 
-function formatByGranularity(dateValue: string, g: EvolutionGranularity, forTooltip = false): string {
+function formatByGranularity(
+  dateValue: string,
+  g: EvolutionGranularity,
+  forTooltip = false
+): string {
   const normalized = toOperationalDateYMD(dateValue);
   if (!normalized) return dateValue;
   const parsed = parseCalendarDateStr(normalized);
@@ -336,7 +334,9 @@ function ChartEmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className='flex h-full min-h-[160px] flex-col items-center justify-center gap-1.5 px-4 text-center'>
       <p className='text-sm text-muted-foreground'>{title}</p>
-      {hint ? <p className='text-xs text-muted-foreground/90 max-w-xs leading-relaxed'>{hint}</p> : null}
+      {hint ? (
+        <p className='text-xs text-muted-foreground/90 max-w-xs leading-relaxed'>{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -362,7 +362,9 @@ const OVERVIEW_CHART_CONTAINER_CLASS =
 const DEV_MOCK_EVOLUTION =
   process.env.NEXT_PUBLIC_DEV_MOCK_EVOLUTION === 'true' && process.env.NODE_ENV === 'development';
 
-function getDevMockEvolution(granularity: EvolutionGranularity): Array<{ date: string; applicationsCount: number }> {
+function getDevMockEvolution(
+  granularity: EvolutionGranularity
+): Array<{ date: string; applicationsCount: number }> {
   if (granularity === 'day') {
     return [
       { date: '2026-04-01', applicationsCount: 12 },
@@ -552,8 +554,9 @@ export function ApplicationsOverviewDashboard({
     search: pilotSearchValue || undefined,
   });
   const allPilots =
-    (pilotsData as unknown as InfiniteData<{ data: User[] }>)?.pages?.flatMap((page) => page.data) ||
-    [];
+    (pilotsData as unknown as InfiniteData<{ data: User[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || [];
 
   const farmLabelQuery = useGetFarmById(filters.farmId ?? null);
   const productLabelQuery = useGetProductById(filters.productId ?? '', {
@@ -640,8 +643,7 @@ export function ApplicationsOverviewDashboard({
   ]);
 
   const evolutionCardSubtitle = useMemo(() => {
-    const gLabel =
-      evolutionMode === 'day' ? 'dia' : evolutionMode === 'month' ? 'mês' : 'ano';
+    const gLabel = evolutionMode === 'day' ? 'dia' : evolutionMode === 'month' ? 'mês' : 'ano';
     if (hasManualPeriodFilter) {
       return `Período do painel: ${filters.startDate} a ${filters.endDate} · agregação por ${gLabel}`;
     }
@@ -652,12 +654,7 @@ export function ApplicationsOverviewDashboard({
           ? 'Meses do ano atual até o momento'
           : `Últimos ${EVOLUTION_YEAR_BUCKET_COUNT} anos`;
     return `${segment} · agregação por ${gLabel}`;
-  }, [
-    evolutionMode,
-    filters.endDate,
-    filters.startDate,
-    hasManualPeriodFilter,
-  ]);
+  }, [evolutionMode, filters.endDate, filters.startDate, hasManualPeriodFilter]);
 
   const filtersActive = useMemo(() => hasActiveOverviewFilters(filters), [filters]);
   const statusOptions = useMemo(
@@ -688,8 +685,7 @@ export function ApplicationsOverviewDashboard({
   const totalAreaHectares = stats?.totalAreaHectares ?? 0;
 
   const evolutionMockActive =
-    DEV_MOCK_EVOLUTION ||
-    (process.env.NODE_ENV === 'development' && __devEvolutionMock);
+    DEV_MOCK_EVOLUTION || (process.env.NODE_ENV === 'development' && __devEvolutionMock);
 
   const evolution = useMemo(() => {
     if (process.env.NODE_ENV === 'development' && __devEvolutionEmpty) {
@@ -699,12 +695,7 @@ export function ApplicationsOverviewDashboard({
       return getDevMockEvolution(evolutionMode);
     }
     return evolutionQuery.data?.evolution ?? [];
-  }, [
-    evolutionQuery.data?.evolution,
-    evolutionMode,
-    evolutionMockActive,
-    __devEvolutionEmpty,
-  ]);
+  }, [evolutionQuery.data?.evolution, evolutionMode, evolutionMockActive, __devEvolutionEmpty]);
   const chartData = useMemo(() => {
     if (process.env.NODE_ENV === 'development' && __devEvolutionEmpty) {
       return [] as Array<{ name: string; value: number }>;
@@ -800,8 +791,7 @@ export function ApplicationsOverviewDashboard({
     if (!stats) return [] as { issue: ApplicationIssueFilter; count: number }[];
     const p = stats.pendingApplicationsCount ?? 0;
     const inv = stats.invalidApplication ?? 0;
-    const other =
-      stats.pendingApplicationsOtherThanInvalidOpenCount ?? Math.max(0, p - inv);
+    const other = stats.pendingApplicationsOtherThanInvalidOpenCount ?? Math.max(0, p - inv);
     const rows: { issue: ApplicationIssueFilter; count: number }[] = [];
     if (inv > 0) rows.push({ issue: 'invalid_open_os', count: inv });
     if (other > 0) rows.push({ issue: 'structural_pending_other', count: other });
@@ -825,10 +815,7 @@ export function ApplicationsOverviewDashboard({
     stats != null &&
     (stats.invalidApplication ?? 0) +
       (stats.pendingApplicationsOtherThanInvalidOpenCount ??
-        Math.max(
-          0,
-          (stats.pendingApplicationsCount ?? 0) - (stats.invalidApplication ?? 0)
-        )) ===
+        Math.max(0, (stats.pendingApplicationsCount ?? 0) - (stats.invalidApplication ?? 0))) ===
       (stats.pendingApplicationsCount ?? 0);
 
   const handleInconsistencyViewRecords = (issue: ApplicationIssueFilter) => {
@@ -850,13 +837,13 @@ export function ApplicationsOverviewDashboard({
       filters.serviceOrderStatus
   );
   const farmChipLabel = filters.farmId
-    ? farmLabelQuery.data?.farm?.name ?? `Fazenda ${filters.farmId.slice(0, 8)}…`
+    ? (farmLabelQuery.data?.farm?.name ?? `Fazenda ${filters.farmId.slice(0, 8)}…`)
     : '';
   const productChipLabel = filters.productId
-    ? productLabelQuery.data?.product?.name ?? `Produto ${filters.productId.slice(0, 8)}…`
+    ? (productLabelQuery.data?.product?.name ?? `Produto ${filters.productId.slice(0, 8)}…`)
     : '';
   const pilotChipLabel = filters.pilotId
-    ? pilotLabelQuery.data?.name ?? `Piloto ${filters.pilotId.slice(0, 8)}…`
+    ? (pilotLabelQuery.data?.name ?? `Piloto ${filters.pilotId.slice(0, 8)}…`)
     : '';
 
   const customerOptions = useMemo(() => {
@@ -1023,20 +1010,20 @@ export function ApplicationsOverviewDashboard({
                 </Badge>
               ) : null}
               {filters.farmId ? (
-              <Badge
-                variant='outline'
-                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
-              >
-                <span className='max-w-[220px] truncate'>Fazenda: {farmChipLabel}</span>
-                <button
-                  type='button'
-                  className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  aria-label='Remover filtro de fazenda'
-                  onClick={() => onFarmFilterChange?.(undefined)}
+                <Badge
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
                 >
-                  <X className='h-3.5 w-3.5' />
-                </button>
-              </Badge>
+                  <span className='max-w-[220px] truncate'>Fazenda: {farmChipLabel}</span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de fazenda'
+                    onClick={() => onFarmFilterChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
               ) : null}
               {filters.customerId ? (
                 <Badge
@@ -1055,20 +1042,20 @@ export function ApplicationsOverviewDashboard({
                 </Badge>
               ) : null}
               {filters.productId ? (
-              <Badge
-                variant='outline'
-                className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
-              >
-                <span className='max-w-[220px] truncate'>Produto: {productChipLabel}</span>
-                <button
-                  type='button'
-                  className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  aria-label='Remover filtro de produto'
-                  onClick={() => onProductFilterChange?.(undefined)}
+                <Badge
+                  variant='outline'
+                  className='group max-w-full gap-1.5 py-1 pl-2.5 pr-1 font-normal border-border/70 bg-muted/40'
                 >
-                  <X className='h-3.5 w-3.5' />
-                </button>
-              </Badge>
+                  <span className='max-w-[220px] truncate'>Produto: {productChipLabel}</span>
+                  <button
+                    type='button'
+                    className='rounded-sm p-0.5 opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    aria-label='Remover filtro de produto'
+                    onClick={() => onProductFilterChange?.(undefined)}
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </Badge>
               ) : null}
               {filters.pilotId ? (
                 <Badge
@@ -1106,9 +1093,10 @@ export function ApplicationsOverviewDashboard({
               ) : null}
               {!quickFilterActive && !crossFilterActive ? (
                 <span className='text-xs text-muted-foreground'>
-                Filtros cruzados: clique numa barra em <strong className='font-medium'>Top fazendas</strong>{' '}
-                ou <strong className='font-medium'>Distribuição por produto</strong> para refinar o painel e
-                a aba Registros.
+                  Filtros cruzados: clique numa barra em{' '}
+                  <strong className='font-medium'>Top fazendas</strong> ou{' '}
+                  <strong className='font-medium'>Distribuição por produto</strong> para refinar o
+                  painel e a aba Registros.
                 </span>
               ) : null}
             </div>
@@ -1146,7 +1134,9 @@ export function ApplicationsOverviewDashboard({
               <div className='flex items-start gap-3'>
                 <Info className='h-4 w-4 mt-0.5 shrink-0 text-muted-foreground' aria-hidden />
                 <div className='min-w-0 space-y-1'>
-                  <p className='text-sm font-medium text-foreground'>Nenhuma aplicação neste recorte</p>
+                  <p className='text-sm font-medium text-foreground'>
+                    Nenhuma aplicação neste recorte
+                  </p>
                   <p className='text-xs text-muted-foreground leading-relaxed'>
                     {filtersActive
                       ? 'Os filtros ou o período podem estar muito restritos. Ajuste na aba Registros ou amplie as datas.'
@@ -1239,10 +1229,7 @@ export function ApplicationsOverviewDashboard({
             />
           ) : chartData.length === 0 ? (
             <ChartPlotShell heightPx={CHART_EVOLUTION_H}>
-              <ChartEmptyState
-                title='Sem dados de evolução para exibir.'
-                hint={emptyChartHint}
-              />
+              <ChartEmptyState title='Sem dados de evolução para exibir.' hint={emptyChartHint} />
             </ChartPlotShell>
           ) : (
             <OverviewChartPlot
@@ -1259,11 +1246,7 @@ export function ApplicationsOverviewDashboard({
                   bottom: evolutionMode === 'day' ? 28 : 12,
                 }}
               >
-                <CartesianGrid
-                  vertical={false}
-                  stroke={CHART_GRID_STROKE}
-                  strokeDasharray='3 3'
-                />
+                <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} strokeDasharray='3 3' />
                 <XAxis
                   dataKey='name'
                   tickLine={false}
@@ -1273,9 +1256,7 @@ export function ApplicationsOverviewDashboard({
                   angle={evolutionMode === 'day' ? -30 : 0}
                   textAnchor={evolutionMode === 'day' ? 'end' : 'middle'}
                   height={evolutionMode === 'day' ? 48 : 40}
-                  tickFormatter={(v) =>
-                    formatByGranularity(String(v), evolutionMode, false)
-                  }
+                  tickFormatter={(v) => formatByGranularity(String(v), evolutionMode, false)}
                   interval='preserveStartEnd'
                 />
                 <YAxis
@@ -1304,7 +1285,11 @@ export function ApplicationsOverviewDashboard({
                   stroke={LINE_COLOR}
                   strokeWidth={3}
                   strokeOpacity={1}
-                  dot={(dotProps: { cx?: number; cy?: number; payload?: { name: string; value: number } }) => {
+                  dot={(dotProps: {
+                    cx?: number;
+                    cy?: number;
+                    payload?: { name: string; value: number };
+                  }) => {
                     const { cx, cy, payload } = dotProps;
                     if (cx == null || cy == null || !payload) return <g />;
                     const selected = evolutionSelectedBucketKey === payload.name;
@@ -1333,7 +1318,11 @@ export function ApplicationsOverviewDashboard({
                       />
                     );
                   }}
-                  activeDot={(dotProps: { cx?: number; cy?: number; payload?: { name: string; value: number } }) => {
+                  activeDot={(dotProps: {
+                    cx?: number;
+                    cy?: number;
+                    payload?: { name: string; value: number };
+                  }) => {
                     const { cx, cy, payload } = dotProps;
                     if (cx == null || cy == null || !payload) return <g />;
                     const selected = evolutionSelectedBucketKey === payload.name;
@@ -1493,10 +1482,7 @@ export function ApplicationsOverviewDashboard({
               />
             ) : topFarms.length === 0 ? (
               <ChartPlotShell heightPx={topFarmsChartHeight}>
-                <ChartEmptyState
-                  title='Sem dados de fazendas para exibir.'
-                  hint={emptyChartHint}
-                />
+                <ChartEmptyState title='Sem dados de fazendas para exibir.' hint={emptyChartHint} />
               </ChartPlotShell>
             ) : (
               <OverviewChartPlot
@@ -1706,8 +1692,8 @@ export function ApplicationsOverviewDashboard({
               <SheetHeader className='text-left'>
                 <SheetTitle>Detalhes das inconsistências</SheetTitle>
                 <SheetDescription>
-                  O total abaixo é o número de aplicações distintas com pendência de vínculo ou estrutura
-                  (OS, fazenda ou talhão), nos mesmos filtros da visão geral.
+                  O total abaixo é o número de aplicações distintas com pendência de vínculo ou
+                  estrutura (OS, fazenda ou talhão), nos mesmos filtros da visão geral.
                 </SheetDescription>
               </SheetHeader>
               <div className='mt-5 flex-1 space-y-6 overflow-y-auto px-1 pb-4'>
@@ -1729,15 +1715,16 @@ export function ApplicationsOverviewDashboard({
                     </p>
                   </div>
                   <p className='mt-2 text-xs text-muted-foreground leading-relaxed'>
-                    As categorias em &quot;Composição do total&quot; são exclusivas entre si e somam este
-                    número. Os recortes adicionais são subconjuntos (podem sobrepor o mesmo registro).
+                    As categorias em &quot;Composição do total&quot; são exclusivas entre si e somam
+                    este número. Os recortes adicionais são subconjuntos (podem sobrepor o mesmo
+                    registro).
                   </p>
                 </div>
 
                 {!inconsistencyCompositionAddsUp && operationalInconsistencyTotal > 0 ? (
-                  <p className='text-xs text-amber-800 dark:text-amber-400/90 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-3 py-2'>
-                    A soma das categorias exclusivas não bate com o total retornado pela API. Atualize a
-                    página ou verifique os dados.
+                  <p className='text-xs text-foreground rounded-md border border-border bg-muted/40 px-3 py-2'>
+                    A soma das categorias exclusivas não bate com o total retornado pela API.
+                    Atualize a página ou verifique os dados.
                   </p>
                 ) : null}
 
@@ -1749,8 +1736,8 @@ export function ApplicationsOverviewDashboard({
                     </p>
                   ) : inconsistencyCompositionRows.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>
-                      Não há categorias exclusivas para exibir; o total ainda pode ser consultado nos
-                      indicadores gerais.
+                      Não há categorias exclusivas para exibir; o total ainda pode ser consultado
+                      nos indicadores gerais.
                     </p>
                   ) : (
                     inconsistencyCompositionRows.map(({ issue, count }) => (
@@ -1762,7 +1749,9 @@ export function ApplicationsOverviewDashboard({
                           <p className='text-sm font-medium text-foreground'>
                             {APPLICATION_ISSUE_LABELS[issue]}
                           </p>
-                          <p className='text-2xl font-semibold tabular-nums'>{formatNumber(count)}</p>
+                          <p className='text-2xl font-semibold tabular-nums'>
+                            {formatNumber(count)}
+                          </p>
                         </div>
                         <Button
                           type='button'
@@ -1784,8 +1773,8 @@ export function ApplicationsOverviewDashboard({
                     <div className='space-y-1'>
                       <p className='text-xs font-semibold text-foreground'>Recortes adicionais</p>
                       <p className='text-xs text-muted-foreground leading-relaxed'>
-                        Úteis para priorizar talhão ou fazenda; não some ao total (um mesmo registro pode
-                        aparecer em mais de um recorte).
+                        Úteis para priorizar talhão ou fazenda; não some ao total (um mesmo registro
+                        pode aparecer em mais de um recorte).
                       </p>
                     </div>
                     {inconsistencySubsetRows.map(({ issue, count }) => (
@@ -1797,7 +1786,9 @@ export function ApplicationsOverviewDashboard({
                           <p className='text-sm font-medium text-foreground'>
                             {APPLICATION_ISSUE_LABELS[issue]}
                           </p>
-                          <p className='text-2xl font-semibold tabular-nums'>{formatNumber(count)}</p>
+                          <p className='text-2xl font-semibold tabular-nums'>
+                            {formatNumber(count)}
+                          </p>
                         </div>
                         <Button
                           type='button'
@@ -1842,7 +1833,9 @@ function KpiCard({
       <CardContent className='p-4'>
         <div className='flex items-start justify-between gap-3 h-full'>
           <div className='min-w-0'>
-            <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>{title}</p>
+            <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
+              {title}
+            </p>
             <div className='mt-2 flex items-baseline gap-1'>
               <p className='text-2xl leading-none font-semibold text-foreground'>{value}</p>
               {unit ? <span className='text-xs text-muted-foreground'>{unit}</span> : null}
@@ -1851,7 +1844,7 @@ function KpiCard({
           </div>
           <div
             className={`rounded-md p-2 ${
-              tone === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'
+              tone === 'warning' ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'
             }`}
           >
             <Icon className='h-4 w-4' />
@@ -1877,9 +1870,9 @@ function InconsistenciesAlertCard({
 }) {
   const toneClasses =
     tone === 'danger'
-      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100/80 focus-visible:ring-red-300'
+      ? 'border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/15 focus-visible:ring-destructive/30'
       : tone === 'warning'
-        ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100/80 focus-visible:ring-amber-300'
+        ? 'border-border bg-muted/40 text-foreground hover:bg-muted/60 focus-visible:ring-ring'
         : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 focus-visible:ring-ring';
 
   return (
@@ -1901,9 +1894,7 @@ function InconsistenciesAlertCard({
       </div>
       <div className='mt-2 text-xl font-semibold leading-none tabular-nums'>{value}</div>
       <p className='mt-1.5 text-[11px] text-muted-foreground leading-snug'>{caption}</p>
-      <p className='mt-2 text-[10px] font-medium uppercase tracking-wide opacity-80'>
-        Clique para explorar
-      </p>
+      <p className='mt-2 text-[10px] font-medium uppercase tracking-wide'>Clique para explorar</p>
     </button>
   );
 }
@@ -1919,9 +1910,9 @@ function AlertRow({
 }) {
   const toneClasses =
     tone === 'danger'
-      ? 'border-red-200 bg-red-50 text-red-700'
+      ? 'border-destructive/25 bg-destructive/10 text-destructive'
       : tone === 'warning'
-        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        ? 'border-border bg-muted/40 text-foreground'
         : 'border-border bg-muted/30 text-muted-foreground';
 
   return (

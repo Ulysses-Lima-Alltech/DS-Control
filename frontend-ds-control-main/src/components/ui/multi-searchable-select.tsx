@@ -55,11 +55,6 @@ export function MultiSearchableSelect({
     }
   };
 
-  const handleRemove = (valueToRemove: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onValuesChange(values.filter((v) => v !== valueToRemove));
-  };
-
   const handleClearAll = (e: React.MouseEvent) => {
     e.stopPropagation();
     onValuesChange([]);

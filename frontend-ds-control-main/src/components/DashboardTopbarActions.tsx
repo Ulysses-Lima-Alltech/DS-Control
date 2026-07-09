@@ -3,6 +3,7 @@
 import { Bell, ChevronDown, LogOutIcon, UserCircleIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import SwitchToogleTheme from '@/components/SwitchToogleTheme';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,10 +33,12 @@ export default function DashboardTopbarActions() {
 
   return (
     <div className='flex items-center gap-3'>
+      <SwitchToogleTheme />
+
       <button
         type='button'
         aria-label='Notificacoes'
-        className='flex size-10 items-center justify-center rounded-full text-[color:color-mix(in_oklch,var(--brand-primary)_68%,black)] transition-colors hover:bg-primary/10 hover:text-primary'
+        className='flex size-10 items-center justify-center rounded-full text-foreground/75 transition-colors hover:bg-primary/10 hover:text-primary'
       >
         <Bell className='size-5' />
       </button>

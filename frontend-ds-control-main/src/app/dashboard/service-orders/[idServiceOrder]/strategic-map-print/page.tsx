@@ -9,10 +9,8 @@ import type {
   Polygon,
   Position,
 } from 'geojson';
-import mapboxgl, {
-  type AnyLayer,
-} from 'mapbox-gl';
 import type { jsPDF as JsPdf } from 'jspdf';
+import mapboxgl, { type AnyLayer } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapboxMap, { Layer, MapRef, ScaleControl, Source } from 'react-map-gl/mapbox';
@@ -187,9 +185,7 @@ export default function StrategicMapPrintPage({
     }
 
     const customerName = getCustomerShortName(serviceOrder.customer?.name);
-    const serviceOrderType = (serviceOrder.observation || 'OS')
-      .trim()
-      .toLocaleUpperCase('pt-BR');
+    const serviceOrderType = (serviceOrder.observation || 'OS').trim().toLocaleUpperCase('pt-BR');
 
     return `${customerName} - MAPA ESTRATÉGICO - ${serviceOrderType}`;
   }, [serviceOrder]);
@@ -273,7 +269,9 @@ export default function StrategicMapPrintPage({
         scaleBar,
       });
 
-      pdf.save(`mapa-estrategico-os-${sanitizeFilePart(serviceOrder?.number ?? idServiceOrder)}.pdf`);
+      pdf.save(
+        `mapa-estrategico-os-${sanitizeFilePart(serviceOrder?.number ?? idServiceOrder)}.pdf`
+      );
     } catch (error) {
       console.error('Erro ao gerar PDF do mapa estrategico em alta resolucao:', error);
       alert('N\u00e3o foi poss\u00edvel gerar o PDF em alta resolu\u00e7\u00e3o.');
@@ -1076,14 +1074,7 @@ async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
 function drawPdfLegend(pdf: JsPdf, farms: FarmLegendItem[], totalHectares: number): void {
   const x = cssPxToMm(100);
   const legendHeightCss =
-    56 +
-    32 +
-    farms.length * 60 +
-    Math.max(0, farms.length - 1) * 24 +
-    48 +
-    32 +
-    8 +
-    56;
+    56 + 32 + farms.length * 60 + Math.max(0, farms.length - 1) * 24 + 48 + 32 + 8 + 56;
   let y = PDF_HEIGHT_MM - cssPxToMm(100 + legendHeightCss);
 
   pdf.setTextColor(0, 0, 0);

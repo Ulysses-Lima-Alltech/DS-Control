@@ -3,8 +3,6 @@ export type StrategicFarmColor = {
   stroke: string;
 };
 
-const DEFAULT_STROKE = '#111827';
-
 export const STRATEGIC_FARM_COLORS: StrategicFarmColor[] = [
   { fill: '#38BDF8', stroke: '#0284C7' },
   { fill: '#34D399', stroke: '#059669' },
@@ -145,7 +143,8 @@ export function buildStrategicPlotColorMap(
         neighborDistances.length > 0 ? Math.min(...neighborDistances) : 255;
       const meanNeighborDistance =
         neighborDistances.length > 0
-          ? neighborDistances.reduce((sum, distance) => sum + distance, 0) / neighborDistances.length
+          ? neighborDistances.reduce((sum, distance) => sum + distance, 0) /
+            neighborDistances.length
           : 255;
       const reusePenalty = usageCount[index] * 15;
       const score = minNeighborDistance * 2.4 + meanNeighborDistance * 0.8 - reusePenalty;

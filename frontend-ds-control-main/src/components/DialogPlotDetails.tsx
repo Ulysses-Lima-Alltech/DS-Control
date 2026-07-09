@@ -1,11 +1,5 @@
-import {
-  FileText,
-  Printer,
-  MapPin,
-  SprayCan,
-  X,
-} from 'lucide-react';
 import type * as GeoJSON from 'geojson';
+import { FileText, MapPin, Printer, SprayCan, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -39,10 +33,7 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
-import {
-  buildReportMapboxStaticUrl,
-  parsePlotGeoJson,
-} from '@/utils/mapboxStaticReportMap';
+import { buildReportMapboxStaticUrl, parsePlotGeoJson } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR, toOperationalDateYMD } from '@/utils/operational-date';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
@@ -186,12 +177,7 @@ function extractPlotGeoJson(plot: Plot): GeoJSON.GeoJSON | null {
   }
 
   const rawPlot = plot as unknown as Record<string, unknown>;
-  const candidates = [
-    rawPlot.geoJson,
-    rawPlot.geojson,
-    rawPlot.geometry,
-    rawPlot.coordinates,
-  ];
+  const candidates = [rawPlot.geoJson, rawPlot.geojson, rawPlot.geometry, rawPlot.coordinates];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -209,7 +195,12 @@ function extractPlotGeoJson(plot: Plot): GeoJSON.GeoJSON | null {
     const geo = parsed as Record<string, unknown>;
     const type = geo.type;
 
-    if (type === 'FeatureCollection' || type === 'Feature' || type === 'Polygon' || type === 'MultiPolygon') {
+    if (
+      type === 'FeatureCollection' ||
+      type === 'Feature' ||
+      type === 'Polygon' ||
+      type === 'MultiPolygon'
+    ) {
       return geo as unknown as GeoJSON.GeoJSON;
     }
 
@@ -341,7 +332,9 @@ export default function DialogPlotDetails({
       totalAppliedArea,
       latestApplication,
       latestCulture: latestApplication?.culture?.name || 'N/A',
-      latestApplicationDate: latestApplication ? formatApplicationDate(latestApplication.date) : 'N/A',
+      latestApplicationDate: latestApplication
+        ? formatApplicationDate(latestApplication.date)
+        : 'N/A',
     };
   }, [sortedApplications]);
 
@@ -397,7 +390,9 @@ export default function DialogPlotDetails({
   }, [reportFilteredApplications, historySummary.latestCulture]);
 
   const hasOperationTypeInReport = useMemo(() => {
-    return reportFilteredApplications.some((application) => Boolean(getApplicationOperationType(application)));
+    return reportFilteredApplications.some((application) =>
+      Boolean(getApplicationOperationType(application))
+    );
   }, [reportFilteredApplications]);
 
   const geoData = useMemo(() => {
@@ -426,10 +421,7 @@ export default function DialogPlotDetails({
     };
   }, [activePlot]);
 
-  function updateReportSection(
-    key: keyof ReportSections,
-    checked: boolean | 'indeterminate'
-  ) {
+  function updateReportSection(key: keyof ReportSections, checked: boolean | 'indeterminate') {
     setReportSections((previousState) => ({
       ...previousState,
       [key]: checked === true,
@@ -513,9 +505,7 @@ export default function DialogPlotDetails({
           <DialogHeader className='pr-28 text-left'>
             <DialogTitle className='text-xl sm:text-2xl font-semibold flex items-start gap-2'>
               <MapPin className='h-6 w-6 text-primary mt-0.5' />
-              <span>
-                Historico Completo do Talhao - {activePlot?.name || 'Talhao'}
-              </span>
+              <span>Historico Completo do Talhao - {activePlot?.name || 'Talhao'}</span>
             </DialogTitle>
             <DialogDescription className='text-sm sm:text-base'>
               {data?.farm
@@ -542,7 +532,9 @@ export default function DialogPlotDetails({
 
           {plotOptions.length > 1 && (
             <div className='flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-              <p className='text-sm text-muted-foreground'>Selecione o talhao para visualizar o historico.</p>
+              <p className='text-sm text-muted-foreground'>
+                Selecione o talhao para visualizar o historico.
+              </p>
               <div className='w-full sm:w-[330px]'>
                 <SearchableSelect
                   options={plotOptions}
@@ -560,15 +552,26 @@ export default function DialogPlotDetails({
 
           <div className='flex-1 min-h-0 overflow-y-auto pr-1'>
             {isPrintPreviewOpen ? (
-              <div id='plot-print-preview-root' className='mx-auto w-full max-w-5xl rounded-lg border bg-white p-6 text-black'>
+              <div
+                id='plot-print-preview-root'
+                className='mx-auto w-full max-w-5xl rounded-lg border bg-white p-6 text-black'
+              >
                 <div className='print-actions mb-4 flex flex-wrap items-center justify-between gap-2'>
                   <h2 className='text-xl font-semibold'>Pré-visualização do relatório</h2>
                   <div className='flex items-center gap-2'>
-                    <Button type='button' onClick={handlePrint} className='bg-orange-600 hover:bg-orange-700 text-white'>
+                    <Button
+                      type='button'
+                      onClick={handlePrint}
+                      className='bg-orange-600 hover:bg-orange-700 text-white'
+                    >
                       <Printer className='mr-2 h-4 w-4' />
                       Imprimir
                     </Button>
-                    <Button type='button' variant='outline' onClick={() => setIsPrintPreviewOpen(false)}>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => setIsPrintPreviewOpen(false)}
+                    >
                       Fechar
                     </Button>
                   </div>
@@ -578,8 +581,8 @@ export default function DialogPlotDetails({
                   <header>
                     <h1 className='text-3xl font-bold'>Relatório de Aplicações por Talhão</h1>
                     <p className='mt-2 text-sm text-muted-foreground'>
-                      Talhão: {activePlot?.name || 'N/A'} | Fazenda: {data?.farm?.name || 'N/A'} | Cliente:{' '}
-                      {data?.farm?.customer?.name || 'N/A'}
+                      Talhão: {activePlot?.name || 'N/A'} | Fazenda: {data?.farm?.name || 'N/A'} |
+                      Cliente: {data?.farm?.customer?.name || 'N/A'}
                     </p>
                     <p className='text-sm text-muted-foreground'>
                       Período:{' '}
@@ -614,11 +617,14 @@ export default function DialogPlotDetails({
                       ) : (
                         <div className='flex h-[300px] items-center justify-center rounded-md border border-dashed bg-background px-6 text-center'>
                           <div>
-                            <p className='text-base font-semibold'>{activePlot?.name || 'Talhao'}</p>
+                            <p className='text-base font-semibold'>
+                              {activePlot?.name || 'Talhao'}
+                            </p>
                             <p className='text-sm text-muted-foreground'>
                               {hasReportMapLoadError
                                 ? REPORT_MAP_UNAVAILABLE_MESSAGE
-                                : reportPreviewMap.unavailableMessage || REPORT_MAP_UNAVAILABLE_MESSAGE}
+                                : reportPreviewMap.unavailableMessage ||
+                                  REPORT_MAP_UNAVAILABLE_MESSAGE}
                             </p>
                           </div>
                         </div>
@@ -630,21 +636,29 @@ export default function DialogPlotDetails({
                     <section className='grid grid-cols-2 gap-3 md:grid-cols-4'>
                       <div className='rounded-md border p-3'>
                         <p className='text-xs text-muted-foreground'>Total de aplicações</p>
-                        <p className='mt-1 text-sm font-semibold'>{reportSummary.totalApplications}</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {reportSummary.totalApplications}
+                        </p>
                       </div>
                       <div className='rounded-md border p-3'>
                         <p className='text-xs text-muted-foreground'>Área total aplicada</p>
-                        <p className='mt-1 text-sm font-semibold'>{formatAreaValue(reportSummary.totalAppliedArea)}</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {formatAreaValue(reportSummary.totalAppliedArea)}
+                        </p>
                       </div>
                       <div className='rounded-md border p-3'>
                         <p className='text-xs text-muted-foreground'>Última aplicação</p>
                         <p className='mt-1 text-sm font-semibold'>
-                          {reportFilteredApplications[0] ? formatApplicationDate(reportFilteredApplications[0].date) : 'N/A'}
+                          {reportFilteredApplications[0]
+                            ? formatApplicationDate(reportFilteredApplications[0].date)
+                            : 'N/A'}
                         </p>
                       </div>
                       <div className='rounded-md border p-3'>
                         <p className='text-xs text-muted-foreground'>Cultura</p>
-                        <p className='mt-1 text-sm font-semibold'>{reportSummary.latestCulture || 'N/A'}</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {reportSummary.latestCulture || 'N/A'}
+                        </p>
                       </div>
                     </section>
                   ) : null}
@@ -670,14 +684,22 @@ export default function DialogPlotDetails({
                             {reportFilteredApplications.length ? (
                               reportFilteredApplications.map((application) => (
                                 <tr key={`report-row-${application.id}`}>
-                                  <td className='border-b p-2'>{formatApplicationDate(application.date)}</td>
+                                  <td className='border-b p-2'>
+                                    {formatApplicationDate(application.date)}
+                                  </td>
                                   {hasOperationTypeInReport ? (
-                                    <td className='border-b p-2'>{getApplicationOperationType(application) || '-'}</td>
+                                    <td className='border-b p-2'>
+                                      {getApplicationOperationType(application) || '-'}
+                                    </td>
                                   ) : null}
-                                  <td className='border-b p-2'>{application.product?.name || '-'}</td>
+                                  <td className='border-b p-2'>
+                                    {application.product?.name || '-'}
+                                  </td>
                                   <td className='border-b p-2'>{application.pilot?.name || '-'}</td>
                                   <td className='border-b p-2'>{application.drone?.name || '-'}</td>
-                                  <td className='border-b p-2'>{formatAreaValue(parseNumericValue(application.hectares))}</td>
+                                  <td className='border-b p-2'>
+                                    {formatAreaValue(parseNumericValue(application.hectares))}
+                                  </td>
                                 </tr>
                               ))
                             ) : (
@@ -699,202 +721,227 @@ export default function DialogPlotDetails({
               </div>
             ) : (
               <div className='grid grid-cols-1 gap-4 lg:grid-cols-12'>
-              <Card className='order-1 lg:col-span-12'>
-                <CardHeader className='pb-3'>
-                  <CardTitle className='text-base'>Resumo do Talhao</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
-                    <div className='rounded-md border bg-muted/20 p-3'>
-                      <p className='text-xs text-muted-foreground'>Total de Aplicacoes</p>
-                      <p className='mt-1 text-sm font-semibold'>{historySummary.totalApplications}</p>
+                <Card className='order-1 lg:col-span-12'>
+                  <CardHeader className='pb-3'>
+                    <CardTitle className='text-base'>Resumo do Talhao</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
+                      <div className='rounded-md border bg-muted/20 p-3'>
+                        <p className='text-xs text-muted-foreground'>Total de Aplicacoes</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {historySummary.totalApplications}
+                        </p>
+                      </div>
+                      <div className='rounded-md border bg-muted/20 p-3'>
+                        <p className='text-xs text-muted-foreground'>Area Total Aplicada</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {formatAreaValue(historySummary.totalAppliedArea)}
+                        </p>
+                      </div>
+                      <div className='rounded-md border bg-muted/20 p-3'>
+                        <p className='text-xs text-muted-foreground'>Ultima Aplicacao</p>
+                        <p className='mt-1 text-sm font-semibold'>
+                          {historySummary.latestApplicationDate}
+                        </p>
+                      </div>
+                      <div className='rounded-md border bg-muted/20 p-3'>
+                        <p className='text-xs text-muted-foreground'>Cultura Mais Recente</p>
+                        <p className='mt-1 text-sm font-semibold truncate'>
+                          {historySummary.latestCulture}
+                        </p>
+                      </div>
                     </div>
-                    <div className='rounded-md border bg-muted/20 p-3'>
-                      <p className='text-xs text-muted-foreground'>Area Total Aplicada</p>
-                      <p className='mt-1 text-sm font-semibold'>
-                        {formatAreaValue(historySummary.totalAppliedArea)}
-                      </p>
-                    </div>
-                    <div className='rounded-md border bg-muted/20 p-3'>
-                      <p className='text-xs text-muted-foreground'>Ultima Aplicacao</p>
-                      <p className='mt-1 text-sm font-semibold'>
-                        {historySummary.latestApplicationDate}
-                      </p>
-                    </div>
-                    <div className='rounded-md border bg-muted/20 p-3'>
-                      <p className='text-xs text-muted-foreground'>Cultura Mais Recente</p>
-                      <p className='mt-1 text-sm font-semibold truncate'>
-                        {historySummary.latestCulture}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <div className='order-2 lg:col-span-8 space-y-4'>
-              <Card className='overflow-hidden'>
-                <CardHeader>
-                  <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
-                  <CardDescription>
-                    {activePlot
-                      ? `Talhao em destaque: ${activePlot.name}`
-                      : 'Selecione um talhao para visualizar'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='p-0'>
-                  <div className='h-[320px] sm:h-[380px] lg:h-[420px] min-h-[320px]'>
-                    {isLoadingFarm ? (
-                      <Skeleton className='h-full w-full' />
-                    ) : (
-                      <MapViewer
-                        key={`plot-map-${isOpen ? 'open' : 'closed'}-${activePlot?.id || 'none'}`}
-                        layerNameToHighlight={activePlot?.name}
-                        layerPlotIdsToHighlight={activePlot?.id ? [activePlot.id] : undefined}
-                        geoData={geoData}
-                        onPlotClick={(clickedPlotId) => {
-                          const clickedPlot = farmPlots.find((plot) => plot.id === clickedPlotId);
-                          if (clickedPlot?.id) {
-                            setSelectedPlotFilter(clickedPlot.id);
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                <div className='order-2 lg:col-span-8 space-y-4'>
+                  <Card className='overflow-hidden'>
+                    <CardHeader>
+                      <CardTitle className='text-lg'>Visualizacao do Talhao</CardTitle>
+                      <CardDescription>
+                        {activePlot
+                          ? `Talhao em destaque: ${activePlot.name}`
+                          : 'Selecione um talhao para visualizar'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className='p-0'>
+                      <div className='h-[320px] sm:h-[380px] lg:h-[420px] min-h-[320px]'>
+                        {isLoadingFarm ? (
+                          <Skeleton className='h-full w-full' />
+                        ) : (
+                          <MapViewer
+                            key={`plot-map-${isOpen ? 'open' : 'closed'}-${activePlot?.id || 'none'}`}
+                            layerNameToHighlight={activePlot?.name}
+                            layerPlotIdsToHighlight={activePlot?.id ? [activePlot.id] : undefined}
+                            geoData={geoData}
+                            onPlotClick={(clickedPlotId) => {
+                              const clickedPlot = farmPlots.find(
+                                (plot) => plot.id === clickedPlotId
+                              );
+                              if (clickedPlot?.id) {
+                                setSelectedPlotFilter(clickedPlot.id);
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className='text-lg'>Informacoes do Talhao</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className='grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3'>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Fazenda</p>
-                      <p className='mt-1 font-medium'>{data?.farm?.name || 'N/A'}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Cliente</p>
-                      <p className='mt-1 font-medium'>{data?.farm?.customer?.name || 'N/A'}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Area do Talhao</p>
-                      <p className='mt-1 font-medium'>{formatPlotArea(activePlot?.hectare)}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Data de Cadastro</p>
-                      <p className='mt-1 font-medium'>{formatTimestamp(activePlot?.createdAt)}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Cultura Mais Recente</p>
-                      <p className='mt-1 font-medium'>{historySummary.latestCulture}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3'>
-                      <p className='text-xs text-muted-foreground'>Identificador</p>
-                      <p className='mt-1 font-mono text-xs'>{activePlot?.id || 'N/A'}</p>
-                    </div>
-                    <div className='rounded-sm bg-muted/25 p-3 md:col-span-2 xl:col-span-1'>
-                      <p className='text-xs text-muted-foreground'>Nome do Talhao</p>
-                      <p className='mt-1 font-medium'>{activePlot?.name || 'N/A'}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-lg'>Informacoes do Talhao</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className='grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3'>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Fazenda</p>
+                          <p className='mt-1 font-medium'>{data?.farm?.name || 'N/A'}</p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Cliente</p>
+                          <p className='mt-1 font-medium'>{data?.farm?.customer?.name || 'N/A'}</p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Area do Talhao</p>
+                          <p className='mt-1 font-medium'>{formatPlotArea(activePlot?.hectare)}</p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Data de Cadastro</p>
+                          <p className='mt-1 font-medium'>
+                            {formatTimestamp(activePlot?.createdAt)}
+                          </p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Cultura Mais Recente</p>
+                          <p className='mt-1 font-medium'>{historySummary.latestCulture}</p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3'>
+                          <p className='text-xs text-muted-foreground'>Identificador</p>
+                          <p className='mt-1 font-mono text-xs'>{activePlot?.id || 'N/A'}</p>
+                        </div>
+                        <div className='rounded-sm bg-muted/25 p-3 md:col-span-2 xl:col-span-1'>
+                          <p className='text-xs text-muted-foreground'>Nome do Talhao</p>
+                          <p className='mt-1 font-medium'>{activePlot?.name || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-              <div className='order-3 lg:col-span-4'>
-              <Card className='overflow-hidden flex flex-col lg:h-[760px]'>
-                <CardHeader>
-                  <CardTitle className='text-lg'>Historico de Aplicacoes</CardTitle>
-                  <CardDescription>
-                    {isLoadingApplications
-                      ? 'Carregando aplicacoes...'
-                      : `${sortedApplications.length} aplicacoes registradas`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-3 overflow-y-auto pr-1 flex-1 min-h-0'>
-                  {isLoadingApplications &&
-                    Array.from({ length: 3 }).map((_, index) => (
-                      <Skeleton key={`app-loading-${index}`} className='h-28 w-full rounded-md' />
-                    ))}
+                <div className='order-3 lg:col-span-4'>
+                  <Card className='overflow-hidden flex flex-col lg:h-[760px]'>
+                    <CardHeader>
+                      <CardTitle className='text-lg'>Historico de Aplicacoes</CardTitle>
+                      <CardDescription>
+                        {isLoadingApplications
+                          ? 'Carregando aplicacoes...'
+                          : `${sortedApplications.length} aplicacoes registradas`}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className='space-y-3 overflow-y-auto pr-1 flex-1 min-h-0'>
+                      {isLoadingApplications &&
+                        Array.from({ length: 3 }).map((_, index) => (
+                          <Skeleton
+                            key={`app-loading-${index}`}
+                            className='h-28 w-full rounded-md'
+                          />
+                        ))}
 
-                  {hasNoApplications && (
-                    <div className='rounded-md border border-dashed p-5 text-center'>
-                      <SprayCan className='mx-auto mb-3 h-8 w-8 text-muted-foreground/70' />
-                      <p className='text-sm font-medium'>Nenhuma aplicacao encontrada para este talhao.</p>
-                    </div>
-                  )}
+                      {hasNoApplications && (
+                        <div className='rounded-md border border-dashed p-5 text-center'>
+                          <SprayCan className='mx-auto mb-3 h-8 w-8 text-muted-foreground/70' />
+                          <p className='text-sm font-medium'>
+                            Nenhuma aplicacao encontrada para este talhao.
+                          </p>
+                        </div>
+                      )}
 
-                  {!isLoadingApplications &&
-                    sortedApplications.map((application) => {
-                      const operationType = getApplicationOperationType(application);
+                      {!isLoadingApplications &&
+                        sortedApplications.map((application) => {
+                          const operationType = getApplicationOperationType(application);
 
-                      return (
-                        <Card key={application.id} className='border-muted'>
-                          <CardContent className='p-3 space-y-3'>
-                            <div className='flex items-start justify-between gap-3'>
-                              <div>
-                                <p className='text-sm font-semibold'>{application.product?.name || 'N/A'}</p>
-                                <p className='text-xs text-muted-foreground'>
-                                  {formatApplicationDate(application.date)}
-                                </p>
-                              </div>
-                              <div className='rounded-sm bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
-                                #{application.serviceOrder?.number ?? '-'}
-                              </div>
-                            </div>
-
-                            <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
-                              {operationType && (
-                                <div className='rounded-sm bg-muted/30 p-2'>
-                                  <p className='text-[11px] text-muted-foreground'>Operacao/Tipo</p>
-                                  <p className='text-xs font-semibold'>{operationType}</p>
+                          return (
+                            <Card key={application.id} className='border-muted'>
+                              <CardContent className='p-3 space-y-3'>
+                                <div className='flex items-start justify-between gap-3'>
+                                  <div>
+                                    <p className='text-sm font-semibold'>
+                                      {application.product?.name || 'N/A'}
+                                    </p>
+                                    <p className='text-xs text-muted-foreground'>
+                                      {formatApplicationDate(application.date)}
+                                    </p>
+                                  </div>
+                                  <div className='rounded-sm bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
+                                    #{application.serviceOrder?.number ?? '-'}
+                                  </div>
                                 </div>
-                              )}
 
-                              <div className='rounded-sm bg-muted/30 p-2'>
-                                <p className='text-[11px] text-muted-foreground'>Area aplicada</p>
-                                <p className='text-xs font-semibold'>
-                                  {formatAreaValue(parseNumericValue(application.hectares))}
-                                </p>
-                              </div>
+                                <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+                                  {operationType && (
+                                    <div className='rounded-sm bg-muted/30 p-2'>
+                                      <p className='text-[11px] text-muted-foreground'>
+                                        Operacao/Tipo
+                                      </p>
+                                      <p className='text-xs font-semibold'>{operationType}</p>
+                                    </div>
+                                  )}
 
-                              <div className='rounded-sm bg-muted/30 p-2'>
-                                <p className='text-[11px] text-muted-foreground'>Piloto</p>
-                                <p className='text-xs font-semibold'>{application.pilot?.name || 'N/A'}</p>
-                              </div>
+                                  <div className='rounded-sm bg-muted/30 p-2'>
+                                    <p className='text-[11px] text-muted-foreground'>
+                                      Area aplicada
+                                    </p>
+                                    <p className='text-xs font-semibold'>
+                                      {formatAreaValue(parseNumericValue(application.hectares))}
+                                    </p>
+                                  </div>
 
-                              <div className='rounded-sm bg-muted/30 p-2'>
-                                <p className='text-[11px] text-muted-foreground'>Drone</p>
-                                <p className='text-xs font-semibold'>{application.drone?.name || 'N/A'}</p>
-                              </div>
+                                  <div className='rounded-sm bg-muted/30 p-2'>
+                                    <p className='text-[11px] text-muted-foreground'>Piloto</p>
+                                    <p className='text-xs font-semibold'>
+                                      {application.pilot?.name || 'N/A'}
+                                    </p>
+                                  </div>
 
-                              <div className='rounded-sm bg-muted/30 p-2'>
-                                <p className='text-[11px] text-muted-foreground'>Cultura</p>
-                                <p className='text-xs font-semibold'>{application.culture?.name || 'N/A'}</p>
-                              </div>
+                                  <div className='rounded-sm bg-muted/30 p-2'>
+                                    <p className='text-[11px] text-muted-foreground'>Drone</p>
+                                    <p className='text-xs font-semibold'>
+                                      {application.drone?.name || 'N/A'}
+                                    </p>
+                                  </div>
 
-                              {application.serviceOrder?.number ? (
-                                <div className='rounded-sm bg-muted/30 p-2'>
-                                  <p className='text-[11px] text-muted-foreground'>OS</p>
-                                  <p className='text-xs font-semibold'>#{application.serviceOrder.number}</p>
+                                  <div className='rounded-sm bg-muted/30 p-2'>
+                                    <p className='text-[11px] text-muted-foreground'>Cultura</p>
+                                    <p className='text-xs font-semibold'>
+                                      {application.culture?.name || 'N/A'}
+                                    </p>
+                                  </div>
+
+                                  {application.serviceOrder?.number ? (
+                                    <div className='rounded-sm bg-muted/30 p-2'>
+                                      <p className='text-[11px] text-muted-foreground'>OS</p>
+                                      <p className='text-xs font-semibold'>
+                                        #{application.serviceOrder.number}
+                                      </p>
+                                    </div>
+                                  ) : null}
                                 </div>
-                              ) : null}
-                            </div>
 
-                            {application.observations ? (
-                              <div className='rounded-sm border border-dashed p-2'>
-                                <p className='text-[11px] text-muted-foreground'>Observacoes</p>
-                                <p className='text-xs'>{application.observations}</p>
-                              </div>
-                            ) : null}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                </CardContent>
-              </Card>
-              </div>
+                                {application.observations ? (
+                                  <div className='rounded-sm border border-dashed p-2'>
+                                    <p className='text-[11px] text-muted-foreground'>Observacoes</p>
+                                    <p className='text-xs'>{application.observations}</p>
+                                  </div>
+                                ) : null}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
           </div>
@@ -911,7 +958,12 @@ export default function DialogPlotDetails({
           </DialogHeader>
 
           <DialogClose asChild>
-            <Button type='button' variant='ghost' size='icon' className='absolute right-4 top-4 h-8 w-8'>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='absolute right-4 top-4 h-8 w-8'
+            >
               <X className='h-4 w-4' />
             </Button>
           </DialogClose>
@@ -1019,4 +1071,3 @@ export default function DialogPlotDetails({
     </>
   );
 }
-

@@ -17,7 +17,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <SidebarProvider
         defaultOpen={sidebarStateCookie === undefined ? true : sidebarStateCookie.value === 'true'}
       >
-        <div className='flex min-h-svh w-full overflow-hidden bg-[color:color-mix(in_oklch,var(--brand-secondary)_8%,white)]'>
+        <div className='flex min-h-svh w-full overflow-hidden bg-background'>
           <Sidebar />
           <div className='flex-1 flex flex-col min-w-0 overflow-hidden'>
             <header className='flex h-20 items-center gap-4 border-b border-border/60 bg-card px-7 shadow-[0_1px_18px_rgba(15,23,42,0.035)] flex-shrink-0'>

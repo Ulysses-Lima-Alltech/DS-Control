@@ -281,8 +281,6 @@ export const SectionCultureTypesStats = ({ dateParams }: SectionCultureTypesStat
     return <SkeletonError />;
   }
 
-  const { statsCulture } = statsData;
-
   const horizontalChartConfig = {
     hectares: {
       label: 'Hectares',

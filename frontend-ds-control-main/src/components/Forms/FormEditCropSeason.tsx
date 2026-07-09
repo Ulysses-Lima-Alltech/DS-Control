@@ -14,8 +14,8 @@ import { useGetAllProductsInfinite } from '@/queries/product.query';
 import { UpdateCropSeasonByIdSchema } from '@/schemas/crop-season.schema';
 import { UpdateCropSeasonByIdParams } from '@/services/crop-season.service';
 import * as ProductService from '@/services/product.service';
-import { Product } from '@/types/product.type';
 import { CropSeason } from '@/types/crop-season.type';
+import { Product } from '@/types/product.type';
 
 type FormEditCropSeasonProps = {
   cropSeason: CropSeason;

@@ -220,7 +220,7 @@ export function DataTable<TData, TValue>({
       <DropdownMenuTrigger asChild>
         <Button
           variant='outline'
-          className='ml-auto h-14 rounded-2xl border-border/70 bg-card px-5 text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
+          className='ml-auto h-14 rounded-2xl border-border/70 bg-card px-5 text-foreground shadow-none hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
         >
           Colunas <ChevronDown className='ml-2 h-4 w-4' />
         </Button>
@@ -357,7 +357,7 @@ export function DataTable<TData, TValue>({
                         return (
                           <TableHead
                             key={header.id}
-                            className='px-6 py-5 text-left align-middle text-sm font-semibold text-[color:color-mix(in_oklch,var(--brand-primary)_72%,black)] whitespace-nowrap'
+                            className='px-6 py-5 text-left align-middle text-sm font-semibold text-foreground whitespace-nowrap'
                           >
                             {header.isPlaceholder
                               ? null
