@@ -307,12 +307,16 @@ export default function FormRegisterNewServiceOrder({
     }
   };
 
-  const handleClearCurrentFarmPlots = (farmPlotIds: string[]) => {
-    preserveFarmsOnClearPlotsRef.current = true;
-    setValue(
-      'plotsIds',
-      currentSelectedPlots.filter((plotId) => !farmPlotIds.includes(plotId))
-    );
+  const handleToggleCurrentFarmPlots = (farmPlotIds: string[], areAllPlotsSelected: boolean) => {
+    if (areAllPlotsSelected) {
+      preserveFarmsOnClearPlotsRef.current = true;
+      setValue(
+        'plotsIds',
+        currentSelectedPlots.filter((plotId) => !farmPlotIds.includes(plotId))
+      );
+    } else {
+      setValue('plotsIds', [...new Set([...currentSelectedPlots, ...farmPlotIds])]);
+    }
   };
 
   const toggleFarmSelection = (farmId: string) => {
@@ -802,9 +806,9 @@ export default function FormRegisterNewServiceOrder({
                       allListedPlots
                         ?.filter((plot) => plot.id && !plot.deletedAt)
                         .map((plot) => plot.id!) ?? [];
-                    const hasSelectedCurrentFarmPlots = currentFarmPlotIds.some((plotId) =>
-                      currentSelectedPlots.includes(plotId)
-                    );
+                    const areAllCurrentFarmPlotsSelected =
+                      currentFarmPlotIds.length > 0 &&
+                      currentFarmPlotIds.every((plotId) => currentSelectedPlots.includes(plotId));
 
                     return (
                       <div className='flex flex-col gap-2'>
@@ -813,10 +817,17 @@ export default function FormRegisterNewServiceOrder({
                             type='button'
                             variant='outline'
                             size='sm'
-                            disabled={!hasSelectedCurrentFarmPlots || isSavingData}
-                            onClick={() => handleClearCurrentFarmPlots(currentFarmPlotIds)}
+                            disabled={currentFarmPlotIds.length === 0 || isSavingData}
+                            onClick={() =>
+                              handleToggleCurrentFarmPlots(
+                                currentFarmPlotIds,
+                                areAllCurrentFarmPlotsSelected
+                              )
+                            }
                           >
-                            Desmarcar todos
+                            {areAllCurrentFarmPlotsSelected
+                              ? 'Desmarcar todos'
+                              : 'Selecionar todos'}
                           </Button>
                         </div>
                         <div className='h-40 overflow-y-auto border rounded-md p-2'>
