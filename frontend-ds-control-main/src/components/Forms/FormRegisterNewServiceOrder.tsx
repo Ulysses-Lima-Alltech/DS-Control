@@ -52,6 +52,7 @@ export default function FormRegisterNewServiceOrder({
   const [pilotSearch, setPilotSearch] = useState('');
   const [plotSearch, setPlotSearch] = useState('');
   const [lastClickedFarmId, setLastClickedFarmId] = useState<string | null>(null);
+  const preserveFarmsOnClearPlotsRef = useRef(false);
 
   // TABS
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -306,6 +307,14 @@ export default function FormRegisterNewServiceOrder({
     }
   };
 
+  const handleClearCurrentFarmPlots = (farmPlotIds: string[]) => {
+    preserveFarmsOnClearPlotsRef.current = true;
+    setValue(
+      'plotsIds',
+      currentSelectedPlots.filter((plotId) => !farmPlotIds.includes(plotId))
+    );
+  };
+
   const toggleFarmSelection = (farmId: string) => {
     const selectedFarm = allListedFarms.find((farm) => farm.id === farmId);
 
@@ -379,11 +388,17 @@ export default function FormRegisterNewServiceOrder({
     const currentFarmIds = getValues('farmsIds') || [];
 
     if (selectedPlotIds.length === 0) {
+      if (preserveFarmsOnClearPlotsRef.current) {
+        preserveFarmsOnClearPlotsRef.current = false;
+        return;
+      }
       if (!isEditingServiceOrder && currentFarmIds.length > 0) {
         setValue('farmsIds', []);
       }
       return;
     }
+
+    preserveFarmsOnClearPlotsRef.current = false;
 
     const farmsWithSelectedPlots = allListedFarms.filter((farm) =>
       farm.plots?.some((plot) => selectedPlotIds.includes(plot.id!))
@@ -783,9 +798,27 @@ export default function FormRegisterNewServiceOrder({
                   control={control}
                   render={({ field }) => {
                     const allListedPlots = lastClickedFarmData?.farm.plots;
+                    const currentFarmPlotIds =
+                      allListedPlots
+                        ?.filter((plot) => plot.id && !plot.deletedAt)
+                        .map((plot) => plot.id!) ?? [];
+                    const hasSelectedCurrentFarmPlots = currentFarmPlotIds.some((plotId) =>
+                      currentSelectedPlots.includes(plotId)
+                    );
 
                     return (
                       <div className='flex flex-col gap-2'>
+                        <div className='flex justify-end'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            disabled={!hasSelectedCurrentFarmPlots || isSavingData}
+                            onClick={() => handleClearCurrentFarmPlots(currentFarmPlotIds)}
+                          >
+                            Desmarcar todos
+                          </Button>
+                        </div>
                         <div className='h-40 overflow-y-auto border rounded-md p-2'>
                           {!isLoadingLastClickedFarm &&
                           allListedPlots &&
