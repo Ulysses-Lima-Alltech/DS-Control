@@ -11,8 +11,11 @@ describe("password schemas", () => {
     expect(LoginWithEmailAndPasswordSchema.safeParse({ email: "user@example.com", password }).success).toBe(false);
   });
 
-  it("requires a strong definitive password", () => {
-    expect(ChangePasswordSchema.safeParse({ oldPassword: "temporary", newPassword: "weak" }).success).toBe(false);
-    expect(ChangePasswordSchema.safeParse({ oldPassword: "temporary", newPassword: "Definitiva@123" }).success).toBe(true);
+  it.each(["123456", "abcdef", "a b c "])("accepts any new password with at least 6 characters: %s", (newPassword) => {
+    expect(ChangePasswordSchema.safeParse({ oldPassword: "temporary", newPassword }).success).toBe(true);
+  });
+
+  it("rejects a new password shorter than 6 characters", () => {
+    expect(ChangePasswordSchema.safeParse({ oldPassword: "temporary", newPassword: "12345" }).success).toBe(false);
   });
 });

@@ -32,14 +32,11 @@ describe("UserService.generateTemporaryPassword", () => {
     mocks.findFirst.mockResolvedValue({ id: "selected-user", deletedAt: null, password: "old-hash" });
   });
 
-  it("generates a secure password and updates only the selected user", async () => {
+  it("generates an alphanumeric password and updates only the selected user", async () => {
     const result = await new UserService().generateTemporaryPassword("admin-id", "selected-user");
     expect(result.mustChangePassword).toBe(true);
-    expect(result.temporaryPassword).toHaveLength(14);
-    expect(result.temporaryPassword).toMatch(/[A-Z]/);
-    expect(result.temporaryPassword).toMatch(/[a-z]/);
-    expect(result.temporaryPassword).toMatch(/[0-9]/);
-    expect(result.temporaryPassword).toMatch(/[^A-Za-z0-9]/);
+    expect(result.temporaryPassword).toHaveLength(8);
+    expect(result.temporaryPassword).toMatch(/^[a-z0-9]{8}$/);
     expect(mocks.update).toHaveBeenCalledTimes(1);
     expect(mocks.set).toHaveBeenCalledWith({ password: "generated-hash", mustChangePassword: true });
     expect(mocks.whereUpdate).toHaveBeenCalledWith({ operator: "eq", column: "users.id", value: "selected-user" });
@@ -57,7 +54,7 @@ describe("UserService.generateTemporaryPassword", () => {
     mocks.compare.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     await new UserService().changePassword(
       "selected-user",
-      { oldPassword: "temporary", newPassword: "Definitiva@123" },
+      { oldPassword: "temporary", newPassword: "abcdef" },
       "current-token",
     );
     expect(mocks.set).toHaveBeenCalledWith({ password: "generated-hash", mustChangePassword: false });

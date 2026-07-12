@@ -537,14 +537,7 @@ export class UserService {
   }
 
   private createSecureTemporaryPassword(): string {
-    const required = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%&*"];
-    const alphabet = required.join("");
-    const characters = required.map((group) => group[crypto.randomInt(group.length)]);
-    while (characters.length < 14) characters.push(alphabet[crypto.randomInt(alphabet.length)]);
-    for (let index = characters.length - 1; index > 0; index--) {
-      const swapIndex = crypto.randomInt(index + 1);
-      [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
-    }
-    return characters.join("");
+    const alphabet = "abcdefghijkmnopqrstuvwxyz23456789";
+    return Array.from({ length: 8 }, () => alphabet[crypto.randomInt(alphabet.length)]).join("");
   }
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { StrongPasswordSchema } from '@/schemas/user.schema';
+import { PasswordSchema } from '@/schemas/user.schema';
 import { api } from '@/services/api.service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ export default function ChangeRequiredPasswordPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
-  const validation = StrongPasswordSchema.safeParse(newPassword);
+  const validation = PasswordSchema.safeParse(newPassword);
   const submit = async () => {
     if (!validation.success || newPassword !== confirmation) return;
     setLoading(true);

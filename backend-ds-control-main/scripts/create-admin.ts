@@ -28,15 +28,8 @@ const EMAIL = process.env.CREATE_ADMIN_EMAIL ?? "admin@exemplo.com";
 const NAME = process.env.CREATE_ADMIN_NAME ?? "Admin";
 const PASSWORD = process.env.CREATE_ADMIN_PASSWORD;
 
-if (!PASSWORD || PASSWORD.length < 3) {
-  console.error(
-    "Defina CREATE_ADMIN_PASSWORD (mín. 3 caracteres, com pelo menos uma letra)"
-  );
-  process.exit(1);
-}
-
-if (!/[A-Za-z]/.test(PASSWORD)) {
-  console.error("A senha deve conter pelo menos uma letra");
+if (!PASSWORD || PASSWORD.length < 6) {
+  console.error("Defina CREATE_ADMIN_PASSWORD (mín. 6 caracteres)");
   process.exit(1);
 }
 

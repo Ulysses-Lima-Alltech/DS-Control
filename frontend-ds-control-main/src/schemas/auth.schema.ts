@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PasswordSchema } from '@/schemas/user.schema';
 
 export const LoginSchema = z.object({
   email: z.string().email('Endereço de e-mail inválido'),
@@ -7,7 +8,7 @@ export const LoginSchema = z.object({
 
 export const ResetPasswordSchema = z
   .object({
-    password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
+    password: PasswordSchema,
     confirmPassword: z.string().min(1, 'Confirme a nova senha'),
   })
   .refine((data) => data.password === data.confirmPassword, {

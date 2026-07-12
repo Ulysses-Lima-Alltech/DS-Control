@@ -3,13 +3,18 @@ import { UserType } from '@/types/user.type';
 
 const userTypeValues = Object.values(UserType).map((type) => type.value);
 
+export const PasswordSchema = z
+  .string()
+  .min(1, 'Senha é obrigatória')
+  .min(6, 'A senha deve ter no mínimo 6 caracteres');
+
 export const ChangeCurrentUserPasswordDialogSchema = z
   .object({
-    oldPassword: z.string().min(6, 'A senha atual deve ter pelo menos 6 caracteres'),
-    newPassword: z.string().min(6, 'A nova senha deve ter pelo menos 6 caracteres'),
+    oldPassword: z.string().min(1, 'A senha atual é obrigatória'),
+    newPassword: PasswordSchema,
     confirmNewPassword: z
       .string()
-      .min(6, 'A confirmação da nova senha deve ter pelo menos 6 caracteres'),
+      .min(1, 'Confirme a nova senha'),
   })
   .refine((data) => data.newPassword === data.confirmNewPassword, {
     message: 'As senhas não coincidem',

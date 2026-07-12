@@ -3,15 +3,13 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { changeCurrentUserPassword } from '@/services/user.service';
 
-const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
-
 export default function ChangeRequiredPasswordScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
   const submit = async () => {
-    if (!strongPassword.test(newPassword)) return Alert.alert('Senha inválida', 'Use ao menos 8 caracteres, maiúscula, minúscula, número e caractere especial.');
+    if (newPassword.length < 6) return Alert.alert('Senha inválida', 'A senha deve ter no mínimo 6 caracteres.');
     if (newPassword !== confirmation) return Alert.alert('Senha inválida', 'As senhas não coincidem.');
     setLoading(true);
     try { await changeCurrentUserPassword({ oldPassword: currentPassword, newPassword }); Alert.alert('Sucesso', 'Senha alterada com sucesso.'); router.replace('/auth/login'); }

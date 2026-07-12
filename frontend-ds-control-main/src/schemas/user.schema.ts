@@ -28,6 +28,11 @@ export const cpfCnpjField = z
 
 const userTypeValues = Object.values(UserType).map((type) => type.value);
 
+export const PasswordSchema = z
+  .string()
+  .min(1, 'Senha é obrigatória')
+  .min(6, 'A senha deve ter no mínimo 6 caracteres');
+
 export const RegisterNewUserSchema = z
   .object({
     name: z.string().min(1, 'Nome completo é obrigatório'),
@@ -35,7 +40,7 @@ export const RegisterNewUserSchema = z
       .string()
       .email('Endereço de e-mail inválido')
       .min(1, 'Endereço de e-mail é obrigatório'),
-    password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
+    password: PasswordSchema,
     confirmPassword: z.string().min(1, 'Confirme a senha'),
     type: z.enum(userTypeValues as [string, ...string[]], {
       errorMap: () => ({ message: 'Escolha um tipo de usuário' }),
@@ -71,21 +76,13 @@ export const UpdateCurrentUserSchema = z.object({
 export const ChangeCurrentUserPasswordDialogSchema = z
   .object({
     oldPassword: z.string().min(1, 'Senha atual é obrigatória'),
-    newPassword: z.string().min(1, 'Nova senha é obrigatória'),
+    newPassword: PasswordSchema,
     confirmNewPassword: z.string().min(1, 'Confirme a nova senha'),
   })
   .refine((data) => data.newPassword === data.confirmNewPassword, {
     message: 'As senhas não coincidem',
     path: ['confirmNewPassword'],
   });
-
-export const StrongPasswordSchema = z
-  .string()
-  .min(8, 'A senha deve ter pelo menos 8 caracteres')
-  .regex(/[A-Z]/, 'Inclua uma letra maiúscula')
-  .regex(/[a-z]/, 'Inclua uma letra minúscula')
-  .regex(/[0-9]/, 'Inclua um número')
-  .regex(/[^A-Za-z0-9]/, 'Inclua um caractere especial');
 
 export const UpdateUserByIdSchema = z.object({
   name: z.string().min(1, 'Nome completo é obrigatório'),

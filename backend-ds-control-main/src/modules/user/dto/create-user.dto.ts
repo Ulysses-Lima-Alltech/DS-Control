@@ -1,12 +1,12 @@
 import z from "zod";
 
-import { DefaultPasswordSchema } from "@common/types/password.schema";
+import { PasswordSchema } from "@common/types/password.schema";
 import { UserType } from "@repositories/users/user.types";
 
 
 export const CreateUserSchema = z.object({
   email: z.string().email(),
-  password: DefaultPasswordSchema,
+  password: PasswordSchema,
   name: z.string().min(1),
   type: z.nativeEnum(UserType),
   customerId: z.string().uuid().nullish(),
