@@ -18,7 +18,6 @@ import crypto from "node:crypto";
 import type { ChangePasswordDTO } from "../dto/change-password.dto";
 import type { CreateUserDTO } from "../dto/create-user.dto";
 import type { UpdateUserDTO } from "../dto/update-user.dto";
-import type { ForcePasswordResetDTO } from "../dto/force-password-reset.dto";
 
 export class UserService {
   private readonly userRepository = new UserRepository();
@@ -511,19 +510,15 @@ export class UserService {
     app.log.info("[UserService] - User activated successfully with ID %s", userId);
   }
 
-  public async forcePasswordReset(
+  public async generateTemporaryPassword(
     adminId: string,
     userId: string,
-    { temporaryPassword }: ForcePasswordResetDTO,
-  ): Promise<void> {
+  ): Promise<{ temporaryPassword: string; mustChangePassword: true }> {
     const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!user) throw new AppError("Usuário não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     if (user.deletedAt) throw new AppError("Usuário inativo", HTTP_STATUS_CODES.BAD_REQUEST);
 
-    if (await bcrypt.compare(temporaryPassword, user.password)) {
-      throw new AppError("A senha temporária deve ser diferente da senha atual", HTTP_STATUS_CODES.BAD_REQUEST);
-    }
-
+    const temporaryPassword = this.createSecureTemporaryPassword();
     const hashedPassword = await bcrypt.hash(temporaryPassword, env.BCRYPT_SALT_ROUNDS);
     await db.transaction(async (trx) => {
       await trx.update(users).set({
@@ -537,5 +532,19 @@ export class UserService {
       { adminId, userId, operation: "administrative password reset", occurredAt: new Date().toISOString() },
       "[UserService] Administrative password reset completed",
     );
+
+    return { temporaryPassword, mustChangePassword: true };
+  }
+
+  private createSecureTemporaryPassword(): string {
+    const required = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%&*"];
+    const alphabet = required.join("");
+    const characters = required.map((group) => group[crypto.randomInt(group.length)]);
+    while (characters.length < 14) characters.push(alphabet[crypto.randomInt(alphabet.length)]);
+    for (let index = characters.length - 1; index > 0; index--) {
+      const swapIndex = crypto.randomInt(index + 1);
+      [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+    }
+    return characters.join("");
   }
 }

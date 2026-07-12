@@ -18,7 +18,6 @@ import { ResetPasswordSchema } from "./dto/reset-password.dto";
 import { UpdateMeSchema } from "./dto/update-me.dto";
 import { UpdateUserSchema } from "./dto/update-user.dto";
 import { UserController } from "./user.controller";
-import { ForcePasswordResetSchema } from "./dto/force-password-reset.dto";
 
 export function UserV1Routes(
   app: FastifyInstance,
@@ -29,16 +28,15 @@ export function UserV1Routes(
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
     method: "POST",
-    url: "/:id/force-password-reset",
+    url: "/:id/generate-temporary-password",
     schema: {
       description: "Set a temporary password and require its change on next login (Admin only)",
-      summary: "Force password reset",
+      summary: "Generate temporary password",
       tags: ["users"],
       params: z.object({ id: z.string().uuid() }),
-      body: ForcePasswordResetSchema,
     },
     preHandler: [AuthenticationJWT, BackofficeOnly],
-    handler: controller.forcePasswordReset,
+    handler: controller.generateTemporaryPassword,
   });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({

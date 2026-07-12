@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 import DialogForm from '@/components/DialogForm';
 import FormEditUser from '@/components/Forms/FormEditUser';
-import { ForcePasswordResetDialog } from '@/components/ForcePasswordResetDialog';
+import { GenerateTemporaryPasswordDialog } from '@/components/GenerateTemporaryPasswordDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -318,7 +318,7 @@ export const TableUsers = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuItem onClick={() => setForceResetUserId(user.id)}>
-              Definir senha temporária
+              Criar nova senha
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => requestResetUserPasswordByEmail({ email: user.email })}
@@ -493,7 +493,7 @@ export const TableUsers = ({
         </DialogContent>
       </Dialog>
       {forceResetUserId && (
-        <ForcePasswordResetDialog
+        <GenerateTemporaryPasswordDialog
           userId={forceResetUserId}
           open
           onOpenChange={(open) => !open && setForceResetUserId(null)}

@@ -7,7 +7,6 @@ import {
   UpdateCurrentUserSchema,
   UpdateUserByIdSchema,
 } from '@/schemas/user.schema';
-import { TemporaryPasswordSchema } from '@/schemas/user.schema';
 import { api } from '@/services/api.service';
 import type { User, UserOrderBy, UserOrderType } from '@/types/user.type';
 
@@ -30,16 +29,20 @@ export async function getMe(): Promise<User> {
   }
 }
 
-export async function forcePasswordReset(userId: string, temporaryPassword: string): Promise<void> {
-  TemporaryPasswordSchema.parse(temporaryPassword);
-  const response = await api(`/users/${userId}/force-password-reset`, {
+export type GenerateTemporaryPasswordResponse = {
+  temporaryPassword: string;
+  mustChangePassword: true;
+};
+
+export async function generateTemporaryPassword(userId: string): Promise<GenerateTemporaryPasswordResponse> {
+  const response = await api(`/users/${userId}/generate-temporary-password`, {
     method: 'POST',
-    body: JSON.stringify({ temporaryPassword }),
   });
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || 'Não foi possível definir a senha temporária');
+    throw new Error(error.message || 'Não foi possível gerar a senha temporária');
   }
+  return response.json();
 }
 
 export type GetAllUsersResponse = {

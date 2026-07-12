@@ -12,7 +12,6 @@ import type { RequestPasswordResetDto } from "./dto/request-password-reset.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import { UserService } from "./services/user.service";
 import { UserOrderBy, UserOrderType } from "@repositories/users/user.types";
-import type { ForcePasswordResetDTO } from "./dto/force-password-reset.dto";
 
 export class UserController {
   private service: UserService;
@@ -347,15 +346,13 @@ export class UserController {
     }
   }
 
-  public forcePasswordReset = async (
-    request: FastifyRequest<{ Params: { id: string }; Body: ForcePasswordResetDTO }>,
+  public generateTemporaryPassword = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ) => {
     try {
-      await this.service.forcePasswordReset(request.payload!.userId, request.params.id, request.body);
-      return reply.status(200).send({
-        message: "Senha temporária definida com sucesso. O usuário deverá alterá-la no próximo acesso.",
-      });
+      const result = await this.service.generateTemporaryPassword(request.payload!.userId, request.params.id);
+      return reply.status(200).send(result);
     } catch (error) {
       if (error instanceof AppError) return reply.status(error.statusCode).send(error.throw());
       const err = error instanceof Error ? error : new Error(String(error));

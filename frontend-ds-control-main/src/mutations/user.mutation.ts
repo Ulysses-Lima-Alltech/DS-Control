@@ -2,9 +2,9 @@ import { useMutation, UseMutationOptions } from '@tanstack/react-query';
 
 import * as UserService from '@/services/user.service';
 
-export const useForcePasswordReset = (options?: UseMutationOptions<void, Error, { userId: string; temporaryPassword: string }>) =>
+export const useGenerateTemporaryPassword = (options?: UseMutationOptions<UserService.GenerateTemporaryPasswordResponse, Error, string>) =>
   useMutation({
-    mutationFn: ({ userId, temporaryPassword }) => UserService.forcePasswordReset(userId, temporaryPassword),
+    mutationFn: (userId) => UserService.generateTemporaryPassword(userId),
     ...options,
   });
 

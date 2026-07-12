@@ -79,7 +79,7 @@ export const ChangeCurrentUserPasswordDialogSchema = z
     path: ['confirmNewPassword'],
   });
 
-export const TemporaryPasswordSchema = z
+export const StrongPasswordSchema = z
   .string()
   .min(8, 'A senha deve ter pelo menos 8 caracteres')
   .regex(/[A-Z]/, 'Inclua uma letra maiúscula')
