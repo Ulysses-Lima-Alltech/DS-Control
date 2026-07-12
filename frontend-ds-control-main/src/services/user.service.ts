@@ -29,19 +29,29 @@ export async function getMe(): Promise<User> {
   }
 }
 
-export type GenerateTemporaryPasswordResponse = {
-  temporaryPassword: string;
-  mustChangePassword: true;
+export type AdministrativePasswordUpdateParams = {
+  userId: string;
+  password: string;
 };
 
-export async function generateTemporaryPassword(userId: string): Promise<GenerateTemporaryPasswordResponse> {
-  const response = await api(`/users/${userId}/generate-temporary-password`, {
-    method: 'POST',
+export type AdministrativePasswordUpdateResponse = {
+  message: string;
+};
+
+export async function updateAdministrativePassword({
+  userId,
+  password,
+}: AdministrativePasswordUpdateParams): Promise<AdministrativePasswordUpdateResponse> {
+  const response = await api(`/users/${userId}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ password }),
   });
+
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || 'Não foi possível gerar a senha temporária');
+    throw new Error(error.message || 'Não foi possível alterar a senha');
   }
+
   return response.json();
 }
 

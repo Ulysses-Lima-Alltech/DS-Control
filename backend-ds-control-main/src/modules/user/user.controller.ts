@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { AdministrativePasswordUpdateDTO } from "./dto/administrative-password-update.dto";
 import type { ChangePasswordDTO } from "./dto/change-password.dto";
 import type { CreateUserDTO } from "./dto/create-user.dto";
 import type { UpdateMeDTO } from "./dto/update-me.dto";
@@ -346,17 +347,40 @@ export class UserController {
     }
   }
 
-  public generateTemporaryPassword = async (
-    request: FastifyRequest<{ Params: { id: string } }>,
+  public updatePasswordAdministratively = async (
+    request: FastifyRequest<{
+      Params: { userId: string };
+      Body: AdministrativePasswordUpdateDTO;
+    }>,
     reply: FastifyReply,
   ) => {
+    const adminId = request.payload!.userId;
+    const { userId } = request.params;
+
     try {
-      const result = await this.service.generateTemporaryPassword(request.payload!.userId, request.params.id);
-      return reply.status(200).send(result);
+      await this.service.updatePasswordAdministratively(
+        adminId,
+        userId,
+        request.body.password,
+      );
+
+      return reply.status(200).send({
+        message: "Senha alterada com sucesso.",
+      });
     } catch (error) {
-      if (error instanceof AppError) return reply.status(error.statusCode).send(error.throw());
-      const err = error instanceof Error ? error : new Error(String(error));
-      app.log.error({ adminId: request.payload?.userId, userId: request.params.id, operation: "administrative password reset", err, stack: err.stack }, "[UserController] Administrative password reset failed");
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.throw());
+      }
+
+      app.log.error(
+        {
+          adminId,
+          userId,
+          operation: "administrative password update",
+          occurredAt: new Date().toISOString(),
+        },
+        "[UserController] Administrative password update failed",
+      );
       return reply.status(500).send(new AppError("Internal server error", 500).throw());
     }
   };

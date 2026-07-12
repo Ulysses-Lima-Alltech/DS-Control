@@ -510,34 +510,36 @@ export class UserService {
     app.log.info("[UserService] - User activated successfully with ID %s", userId);
   }
 
-  public async generateTemporaryPassword(
+  public async updatePasswordAdministratively(
     adminId: string,
     userId: string,
-  ): Promise<{ temporaryPassword: string; mustChangePassword: true }> {
+    password: string,
+  ): Promise<void> {
+    if (typeof password !== "string" || password.trim().length === 0) {
+      throw new AppError("Senha é obrigatória", HTTP_STATUS_CODES.BAD_REQUEST);
+    }
+
     const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!user) throw new AppError("Usuário não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     if (user.deletedAt) throw new AppError("Usuário inativo", HTTP_STATUS_CODES.BAD_REQUEST);
 
-    const temporaryPassword = this.createSecureTemporaryPassword();
-    const hashedPassword = await bcrypt.hash(temporaryPassword, env.BCRYPT_SALT_ROUNDS);
-    await db.transaction(async (trx) => {
-      await trx.update(users).set({
+    const hashedPassword = await bcrypt.hash(password, env.BCRYPT_SALT_ROUNDS);
+
+    await db
+      .update(users)
+      .set({
         password: hashedPassword,
-        mustChangePassword: true,
-      }).where(eq(users.id, userId));
-      await trx.delete(userTokens).where(eq(userTokens.userId, userId));
-    });
+      })
+      .where(eq(users.id, userId));
 
     app.log.info(
-      { adminId, userId, operation: "administrative password reset", occurredAt: new Date().toISOString() },
-      "[UserService] Administrative password reset completed",
+      {
+        adminId,
+        userId,
+        operation: "administrative password update",
+        occurredAt: new Date().toISOString(),
+      },
+      "[UserService] Administrative password update completed",
     );
-
-    return { temporaryPassword, mustChangePassword: true };
-  }
-
-  private createSecureTemporaryPassword(): string {
-    const alphabet = "abcdefghijkmnopqrstuvwxyz23456789";
-    return Array.from({ length: 8 }, () => alphabet[crypto.randomInt(alphabet.length)]).join("");
   }
 }

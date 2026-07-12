@@ -7,9 +7,11 @@ import * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 
+import {
+  AdministrativePasswordUpdateDialog,
+} from '@/components/AdministrativePasswordUpdateDialog';
 import DialogForm from '@/components/DialogForm';
 import FormEditUser from '@/components/Forms/FormEditUser';
-import { GenerateTemporaryPasswordDialog } from '@/components/GenerateTemporaryPasswordDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -79,7 +81,7 @@ export const TableUsers = ({
   } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [userToEdit, setUserToEdit] = React.useState<User | null>(null);
-  const [forceResetUserId, setForceResetUserId] = React.useState<string | null>(null);
+  const [passwordUpdateUserId, setPasswordUpdateUserId] = React.useState<string | null>(null);
 
   const [orderBy, setOrderBy] = React.useState<UserOrderBy | undefined>(undefined)
   const [orderType, setOrderType] = React.useState<UserOrderType | undefined>(undefined)
@@ -317,8 +319,8 @@ export const TableUsers = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuItem onClick={() => setForceResetUserId(user.id)}>
-              Criar nova senha
+            <DropdownMenuItem onClick={() => setPasswordUpdateUserId(user.id)}>
+              Alterar senha
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => requestResetUserPasswordByEmail({ email: user.email })}
@@ -492,11 +494,11 @@ export const TableUsers = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {forceResetUserId && (
-        <GenerateTemporaryPasswordDialog
-          userId={forceResetUserId}
+      {passwordUpdateUserId && (
+        <AdministrativePasswordUpdateDialog
+          userId={passwordUpdateUserId}
           open
-          onOpenChange={(open) => !open && setForceResetUserId(null)}
+          onOpenChange={(open) => !open && setPasswordUpdateUserId(null)}
         />
       )}
     </>

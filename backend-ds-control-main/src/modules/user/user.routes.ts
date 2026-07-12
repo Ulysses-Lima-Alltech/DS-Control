@@ -10,6 +10,7 @@ import { BackofficeOnly } from "@middleware/backoffice-only-middleware";
 import { UserViewModelSchema } from "@models/user.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
+import { AdministrativePasswordUpdateSchema } from "./dto/administrative-password-update.dto";
 import { ChangePasswordSchema } from "./dto/change-password.dto";
 import { CreateUserSchema } from "./dto/create-user.dto";
 import { GetUserQueryStringSchema } from "./dto/get-all-user.dto";
@@ -27,16 +28,17 @@ export function UserV1Routes(
   const controller = new UserController();
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
-    method: "POST",
-    url: "/:id/generate-temporary-password",
+    method: "PUT",
+    url: "/:userId/password",
     schema: {
-      description: "Set a temporary password and require its change on next login (Admin only)",
-      summary: "Generate temporary password",
+      description: "Update a user's password administratively (Admin only)",
+      summary: "Update user password administratively",
       tags: ["users"],
-      params: z.object({ id: z.string().uuid() }),
+      params: z.object({ userId: z.string() }),
+      body: AdministrativePasswordUpdateSchema,
     },
     preHandler: [AuthenticationJWT, BackofficeOnly],
-    handler: controller.generateTemporaryPassword,
+    handler: controller.updatePasswordAdministratively,
   });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
