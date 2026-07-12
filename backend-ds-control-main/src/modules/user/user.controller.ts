@@ -50,12 +50,10 @@ export class UserController {
     request: FastifyRequest<{ Body: RequestPasswordResetDto }>,
     reply: FastifyReply,
   ) => {
+    const email = request.body?.email;
     try {
-      app.log.info(
-        "[UserController] - Starting password reset request for email %s",
-        request.body.email,
-      );
-      await this.service.requestPasswordReset(request.body.email);
+      app.log.info({ email }, "[UserController] Starting password reset request");
+      await this.service.requestPasswordReset(email);
 
       app.log.info("[UserController] - Password reset request sent successfully");
       return reply.status(200).send({
@@ -63,12 +61,33 @@ export class UserController {
       });
     } catch (error) {
       if (error instanceof AppError) {
-        app.log.warn("[UserController] - Password reset request failed: %s", error.message);
+        const originalError = error.error instanceof Error ? error.error : error;
+        const log = error.statusCode >= 500 ? app.log.error.bind(app.log) : app.log.warn.bind(app.log);
+        log(
+          {
+            email,
+            operation: "request password reset",
+            error: originalError.message,
+            stack: originalError.stack,
+            err: originalError,
+          },
+          "[UserController] Password reset request rejected",
+        );
         reply.status(error.statusCode).send(error.throw());
         return;
       }
 
-      app.log.error("[UserController] - Unexpected error during password reset request: %s", error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      app.log.error(
+        {
+          email,
+          operation: "request password reset",
+          error: err.message,
+          stack: err.stack,
+          err,
+        },
+        "[UserController] Unexpected error during password reset request",
+      );
       reply.status(500).send(new AppError("Internal server error", 500, error).throw());
     }
   };

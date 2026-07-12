@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { and, eq, gt, or } from "drizzle-orm";
+import { and, eq, gt, ne, or } from "drizzle-orm";
 
 import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
@@ -60,16 +60,34 @@ export class UserService {
    * @throws {AppError} If the user is not found
    */
   public async requestPasswordReset(email: string): Promise<void> {
-    app.log.info("[UserService] - Starting password reset request for email %s", email);
+    const normalizedEmail = email?.trim().toLowerCase();
+    let userId: string | undefined;
+    let operation = "validate reset request";
+
+    if (!normalizedEmail) {
+      throw new AppError("E-mail é obrigatório", HTTP_STATUS_CODES.BAD_REQUEST);
+    }
+
+    app.log.info({ email: normalizedEmail }, "[UserService] Starting password reset request");
 
     try {
-      const user = await this.userRepository.getUserByEmail(email);
+      operation = "find user";
+      const user = await this.userRepository.getUserByEmail(normalizedEmail);
 
       if (!user) {
-        app.log.warn("[UserService] - Password reset failed: User with email %s not found", email);
-        throw new AppError("O usuário não existe", HTTP_STATUS_CODES.NOT_FOUND);
+        throw new AppError("Usuário não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+      }
+      userId = user.id;
+
+      if (!user.email?.trim()) {
+        throw new AppError("Usuário não possui e-mail cadastrado", HTTP_STATUS_CODES.BAD_REQUEST);
       }
 
+      if (user.deletedAt) {
+        throw new AppError("Usuário inativo", HTTP_STATUS_CODES.BAD_REQUEST);
+      }
+
+      operation = "find existing reset token";
       const oldToken = await db.query.userTokens.findFirst({
         where: and(
           eq(userTokens.userId, user.id),
@@ -78,24 +96,56 @@ export class UserService {
         ),
       });
 
-      if (oldToken) {
-        await db.delete(userTokens).where(eq(userTokens.id, oldToken.id));
-      }
-
+      operation = "generate reset token";
       const resetToken = crypto.randomBytes(32).toString("hex");
       const hashedToken = await bcrypt.hash(resetToken, env.BCRYPT_SALT_ROUNDS);
 
-      await db.insert(userTokens).values({
+      operation = "save reset token";
+      const [newToken] = await db.insert(userTokens).values({
         context: "PASSWORD_RESET",
         userId: user.id,
         token: hashedToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes from now
-      });
+      }).returning({ id: userTokens.id });
 
-      await this.sendPasswordResetEmail(user, resetToken);
-      app.log.info("[UserService] - Password reset email sent successfully to %s", email);
+      if (!newToken) throw new Error("Database did not return the created password reset token");
+
+      try {
+        operation = "send password reset email";
+        await this.sendPasswordResetEmail(user, resetToken);
+      } catch (error) {
+        await db.delete(userTokens).where(eq(userTokens.id, newToken.id));
+        throw error;
+      }
+
+      if (oldToken) {
+        operation = "remove previous reset token";
+        await db.delete(userTokens).where(and(
+          eq(userTokens.userId, user.id),
+          eq(userTokens.context, "PASSWORD_RESET"),
+          ne(userTokens.id, newToken.id),
+        ));
+      }
+
+      app.log.info({ userId, email: normalizedEmail }, "[UserService] Password reset email sent");
     } catch (error) {
-      app.log.error("[UserService] - Password reset request failed: %s", error);
+      const err = this.normalizeError(error);
+      const originalError = error instanceof AppError && error.error
+        ? this.normalizeError(error.error)
+        : err;
+      const context = {
+        userId,
+        email: normalizedEmail,
+        operation,
+        error: originalError.message,
+        stack: originalError.stack,
+      };
+      if (error instanceof AppError) {
+        const log = error.statusCode >= 500 ? app.log.error.bind(app.log) : app.log.warn.bind(app.log);
+        log({ ...context, err }, "[UserService] Password reset request rejected");
+        throw error;
+      }
+      app.log.error({ ...context, err }, "[UserService] Password reset request failed");
       throw error;
     }
   }
@@ -265,13 +315,25 @@ export class UserService {
     });
 
     if (error) {
-      app.log.error(
-        "[UserService] - Failed to send password reset email to %s: %s",
-        user.email,
-        error,
+      throw new AppError(
+        "Não foi possível enviar o e-mail de redefinição de senha",
+        HTTP_STATUS_CODES.SERVICE_UNAVAILABLE,
+        this.normalizeError(error),
       );
-      throw error;
     }
+  }
+
+  private normalizeError(error: unknown): Error {
+    if (error instanceof Error) return error;
+    if (error && typeof error === "object") {
+      const data = error as Record<string, unknown>;
+      const normalized = new Error(
+        typeof data.message === "string" ? data.message : JSON.stringify(error),
+      );
+      Object.assign(normalized, data);
+      return normalized;
+    }
+    return new Error(String(error));
   }
 
   /**
