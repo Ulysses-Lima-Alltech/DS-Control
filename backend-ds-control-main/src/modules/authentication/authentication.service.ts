@@ -30,7 +30,7 @@ export class AuthenticationService {
   public async loginWithEmailAndPassword({
     email,
     password,
-  }: LoginWithEmailAndPasswordDTO): Promise<{ accessToken: string; refreshToken: string }> {
+  }: LoginWithEmailAndPasswordDTO): Promise<{ accessToken: string; refreshToken: string; mustChangePassword: boolean }> {
     app.log.info("[AuthenticationService] - Starting login attempt for email %s", email);
 
     try {
@@ -71,6 +71,7 @@ export class AuthenticationService {
       return {
         accessToken,
         refreshToken,
+        mustChangePassword: user.mustChangePassword,
       };
     } catch (error: unknown) {
       app.log.error("[AuthenticationService] - Error during login process: %s", error);

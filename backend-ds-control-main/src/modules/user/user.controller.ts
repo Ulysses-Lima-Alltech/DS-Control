@@ -12,6 +12,7 @@ import type { RequestPasswordResetDto } from "./dto/request-password-reset.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import { UserService } from "./services/user.service";
 import { UserOrderBy, UserOrderType } from "@repositories/users/user.types";
+import type { ForcePasswordResetDTO } from "./dto/force-password-reset.dto";
 
 export class UserController {
   private service: UserService;
@@ -304,7 +305,7 @@ export class UserController {
         request.payload?.userId,
       );
 
-      await this.service.changePassword(request.payload?.userId!, request.body);
+      await this.service.changePassword(request.payload?.userId!, request.body, request.payload?.tokenId);
 
       app.log.info("[UserController] - Password changed successfully");
       return reply.status(200).send({
@@ -345,4 +346,21 @@ export class UserController {
       reply.status(500).send(new AppError("Internal server error", 500, error).throw());
     }
   }
+
+  public forcePasswordReset = async (
+    request: FastifyRequest<{ Params: { id: string }; Body: ForcePasswordResetDTO }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      await this.service.forcePasswordReset(request.payload!.userId, request.params.id, request.body);
+      return reply.status(200).send({
+        message: "Senha temporária definida com sucesso. O usuário deverá alterá-la no próximo acesso.",
+      });
+    } catch (error) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.throw());
+      const err = error instanceof Error ? error : new Error(String(error));
+      app.log.error({ adminId: request.payload?.userId, userId: request.params.id, operation: "administrative password reset", err, stack: err.stack }, "[UserController] Administrative password reset failed");
+      return reply.status(500).send(new AppError("Internal server error", 500).throw());
+    }
+  };
 }

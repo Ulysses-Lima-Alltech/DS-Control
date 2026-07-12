@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./customer.schema";
 import { userTokens } from './user-tokens.schema';
 
@@ -15,6 +15,7 @@ export const users = pgTable('users', {
   customerId: uuid('customer_id').references(() => customers.id),
   updatedAt: timestamp('updated_at', { mode: 'date' }).$onUpdate(() => new Date()),
   deletedAt: timestamp('deleted_at', { mode: 'date' }),
+  mustChangePassword: boolean('must_change_password').notNull().default(false),
 }, (table) => [
   index('user_id_index').on(table.id),
   index('user_email_index').on(table.email)

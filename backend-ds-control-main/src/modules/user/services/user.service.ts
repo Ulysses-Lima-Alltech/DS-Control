@@ -18,6 +18,7 @@ import crypto from "node:crypto";
 import type { ChangePasswordDTO } from "../dto/change-password.dto";
 import type { CreateUserDTO } from "../dto/create-user.dto";
 import type { UpdateUserDTO } from "../dto/update-user.dto";
+import type { ForcePasswordResetDTO } from "../dto/force-password-reset.dto";
 
 export class UserService {
   private readonly userRepository = new UserRepository();
@@ -445,6 +446,7 @@ export class UserService {
   public async changePassword(
     userId: string,
     { oldPassword, newPassword }: ChangePasswordDTO,
+    currentTokenId?: string,
   ): Promise<void> {
     app.log.info("[UserService] - Starting password change for user %s", userId);
 
@@ -469,11 +471,24 @@ export class UserService {
         throw new AppError("Senha antiga inválida", HTTP_STATUS_CODES.UNAUTHORIZED);
       }
 
+      if (await bcrypt.compare(newPassword, user.password)) {
+        throw new AppError("A nova senha deve ser diferente da senha atual", HTTP_STATUS_CODES.BAD_REQUEST);
+      }
+
       // Hash new password
       const hashedNewPassword = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
 
       // Update password
-      await db.update(users).set({ password: hashedNewPassword }).where(eq(users.id, userId));
+      await db.transaction(async (trx) => {
+        await trx.update(users).set({
+          password: hashedNewPassword,
+          mustChangePassword: false,
+        }).where(eq(users.id, userId));
+        await trx.delete(userTokens).where(and(
+          eq(userTokens.userId, userId),
+          currentTokenId ? ne(userTokens.id, currentTokenId) : undefined,
+        ));
+      });
 
       app.log.info("[UserService] - Password changed successfully for user %s", userId);
     } catch (error) {
@@ -494,5 +509,33 @@ export class UserService {
     await this.userRepository.enableUser(userId);
 
     app.log.info("[UserService] - User activated successfully with ID %s", userId);
+  }
+
+  public async forcePasswordReset(
+    adminId: string,
+    userId: string,
+    { temporaryPassword }: ForcePasswordResetDTO,
+  ): Promise<void> {
+    const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user) throw new AppError("Usuário não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+    if (user.deletedAt) throw new AppError("Usuário inativo", HTTP_STATUS_CODES.BAD_REQUEST);
+
+    if (await bcrypt.compare(temporaryPassword, user.password)) {
+      throw new AppError("A senha temporária deve ser diferente da senha atual", HTTP_STATUS_CODES.BAD_REQUEST);
+    }
+
+    const hashedPassword = await bcrypt.hash(temporaryPassword, env.BCRYPT_SALT_ROUNDS);
+    await db.transaction(async (trx) => {
+      await trx.update(users).set({
+        password: hashedPassword,
+        mustChangePassword: true,
+      }).where(eq(users.id, userId));
+      await trx.delete(userTokens).where(eq(userTokens.userId, userId));
+    });
+
+    app.log.info(
+      { adminId, userId, operation: "administrative password reset", occurredAt: new Date().toISOString() },
+      "[UserService] Administrative password reset completed",
+    );
   }
 }

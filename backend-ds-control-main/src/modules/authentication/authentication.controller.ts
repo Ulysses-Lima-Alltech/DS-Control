@@ -24,7 +24,7 @@ export class AuthenticationController {
   public loginWithEmailAndPassword = async (request: FastifyRequest<{ Body: LoginWithEmailAndPasswordDTO }>, reply: FastifyReply) => {
     try {
       app.log.info("[AuthenticationController] - Starting login attempt for email %s", request.body.email);
-      const { accessToken, refreshToken } = await this.service.loginWithEmailAndPassword(request.body);
+      const { accessToken, refreshToken, mustChangePassword } = await this.service.loginWithEmailAndPassword(request.body);
 
       app.log.info("[AuthenticationController] - Login successful for email %s", request.body.email);
       return reply.status(200)
@@ -38,6 +38,7 @@ export class AuthenticationController {
         })
         .send({ 
           accessToken, // Keep for backwards compatibility
+          mustChangePassword,
         });
 
     } catch (error) {

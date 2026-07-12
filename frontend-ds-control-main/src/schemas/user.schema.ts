@@ -79,6 +79,14 @@ export const ChangeCurrentUserPasswordDialogSchema = z
     path: ['confirmNewPassword'],
   });
 
+export const TemporaryPasswordSchema = z
+  .string()
+  .min(8, 'A senha deve ter pelo menos 8 caracteres')
+  .regex(/[A-Z]/, 'Inclua uma letra maiúscula')
+  .regex(/[a-z]/, 'Inclua uma letra minúscula')
+  .regex(/[0-9]/, 'Inclua um número')
+  .regex(/[^A-Za-z0-9]/, 'Inclua um caractere especial');
+
 export const UpdateUserByIdSchema = z.object({
   name: z.string().min(1, 'Nome completo é obrigatório'),
   email: z.string().email('Endereço de e-mail inválido').min(1, 'Endereço de e-mail é obrigatório'),

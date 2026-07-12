@@ -5,6 +5,9 @@ declare module 'fastify' {
     payload?: {
       userId: string;
       email: string;
+      type: 'backoffice' | 'pilot' | 'farmer';
+      mustChangePassword: boolean;
+      tokenId: string;
     }
   }
 }

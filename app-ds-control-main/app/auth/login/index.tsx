@@ -46,7 +46,11 @@ export default function LoginScreen() {
   const emailValue = watch('email');
 
   const { mutate: login, isPending } = useLogin({
-    onSuccess: async () => {
+    onSuccess: async ({ mustChangePassword }) => {
+      if (mustChangePassword) {
+        router.replace('/auth/change-required-password' as any);
+        return;
+      }
       try {
         await refreshUser();
       } catch (error) {

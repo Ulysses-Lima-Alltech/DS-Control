@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import DialogForm from '@/components/DialogForm';
 import FormEditUser from '@/components/Forms/FormEditUser';
+import { ForcePasswordResetDialog } from '@/components/ForcePasswordResetDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -78,6 +79,7 @@ export const TableUsers = ({
   } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [userToEdit, setUserToEdit] = React.useState<User | null>(null);
+  const [forceResetUserId, setForceResetUserId] = React.useState<string | null>(null);
 
   const [orderBy, setOrderBy] = React.useState<UserOrderBy | undefined>(undefined)
   const [orderType, setOrderType] = React.useState<UserOrderType | undefined>(undefined)
@@ -315,6 +317,9 @@ export const TableUsers = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={() => setForceResetUserId(user.id)}>
+              Definir senha temporária
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => requestResetUserPasswordByEmail({ email: user.email })}
               disabled={isRequestingResetPassword}
@@ -487,6 +492,13 @@ export const TableUsers = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {forceResetUserId && (
+        <ForcePasswordResetDialog
+          userId={forceResetUserId}
+          open
+          onOpenChange={(open) => !open && setForceResetUserId(null)}
+        />
+      )}
     </>
   );
 };

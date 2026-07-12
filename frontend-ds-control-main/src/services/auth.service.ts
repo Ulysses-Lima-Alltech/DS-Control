@@ -6,7 +6,7 @@ import { isBrowser } from '@/utils/platform';
 
 export type LoginParams = z.infer<typeof LoginSchema>;
 
-export async function login(data: LoginParams): Promise<void> {
+export async function login(data: LoginParams): Promise<{ mustChangePassword: boolean }> {
   try {
     LoginSchema.parse(data);
 
@@ -32,6 +32,7 @@ export async function login(data: LoginParams): Promise<void> {
     if (isBrowser) {
       window.localStorage.setItem(AUTH_ACCESS_TOKEN_KEY, parsedResponse.accessToken);
     }
+    return { mustChangePassword: parsedResponse.mustChangePassword === true };
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error(`[Auth Service] Erro de validação: ${error.message}`);

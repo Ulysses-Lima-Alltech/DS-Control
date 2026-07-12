@@ -262,6 +262,7 @@ export class UserRepository {
       updatedAt: user.updatedAt,
       deletedAt: user.deletedAt,
       customerId: user.customerId,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

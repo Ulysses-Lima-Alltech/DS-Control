@@ -6,6 +6,7 @@ import type {
 
 import { PaginatedRequestSchema } from "@common/types/paginated-request.types";
 import { AuthenticationJWT } from "@middleware/authentication-jwt-middleware";
+import { BackofficeOnly } from "@middleware/backoffice-only-middleware";
 import { UserViewModelSchema } from "@models/user.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
@@ -17,6 +18,7 @@ import { ResetPasswordSchema } from "./dto/reset-password.dto";
 import { UpdateMeSchema } from "./dto/update-me.dto";
 import { UpdateUserSchema } from "./dto/update-user.dto";
 import { UserController } from "./user.controller";
+import { ForcePasswordResetSchema } from "./dto/force-password-reset.dto";
 
 export function UserV1Routes(
   app: FastifyInstance,
@@ -24,6 +26,20 @@ export function UserV1Routes(
   done: HookHandlerDoneFunction,
 ) {
   const controller = new UserController();
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "POST",
+    url: "/:id/force-password-reset",
+    schema: {
+      description: "Set a temporary password and require its change on next login (Admin only)",
+      summary: "Force password reset",
+      tags: ["users"],
+      params: z.object({ id: z.string().uuid() }),
+      body: ForcePasswordResetSchema,
+    },
+    preHandler: [AuthenticationJWT, BackofficeOnly],
+    handler: controller.forcePasswordReset,
+  });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
     method: "GET",

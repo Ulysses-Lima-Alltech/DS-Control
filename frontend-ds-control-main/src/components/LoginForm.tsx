@@ -44,7 +44,11 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
     onError: (error) => {
       toast(error.message);
     },
-    onSuccess: async () => {
+    onSuccess: async ({ mustChangePassword }) => {
+      if (mustChangePassword) {
+        router.push('/auth/change-required-password');
+        return;
+      }
       const user = await getMe();
       setUser(user);
       if (user.type === UserType.BACKOFFICE.value) {

@@ -29,6 +29,7 @@ export function AuthenticationV1Routes(
       response: {
         200: z.object({
           accessToken: z.string(),
+          mustChangePassword: z.boolean(),
         }),
       },
     },

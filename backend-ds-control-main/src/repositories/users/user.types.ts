@@ -14,6 +14,7 @@ export type User = {
   updatedAt: Date | null;
   deletedAt: Date | null;
   customerId: string | null;
+  mustChangePassword: boolean;
 };
 
 export interface CreateUser {
