@@ -33,6 +33,7 @@ export type DjiApplicationMetadata = {
 
 export type Application = {
   id: string;
+  deletedAt?: Date | string | null;
   serviceOrderId: string;
   farmId: string;
   pilotId: string;

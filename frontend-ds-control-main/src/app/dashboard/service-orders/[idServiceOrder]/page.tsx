@@ -1,13 +1,7 @@
 'use client';
 
 import type { GeoJSON } from 'geojson';
-import {
-  CheckCircle,
-  Eye,
-  FileText,
-  Pencil,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle, Eye, FileText, Pencil, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { use, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -49,10 +43,7 @@ import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import {
-  downloadPDF,
-  generateApplicationsReportPDF,
-} from '@/utils/pdfGenerator';
+import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -72,10 +63,8 @@ export default function ServiceOrderPage({
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const {
-    data: applicationsData,
-    isPending: isApplicationsLoading,
-  } = useGetApplicationsByServiceOrderId(idServiceOrder);
+  const { data: applicationsData, isPending: isApplicationsLoading } =
+    useGetApplicationsByServiceOrderId(idServiceOrder);
 
   const {
     data: serviceOrderData,
@@ -121,6 +110,22 @@ export default function ServiceOrderPage({
     });
   }, [applications, serviceOrderData?.plots]);
 
+  const currentServiceOrderApplications = useMemo(() => {
+    const applicationsById = new Map<string, Application>();
+
+    applicationWithPlotData.forEach((application) => {
+      if (
+        application.id &&
+        application.serviceOrderId === idServiceOrder &&
+        !application.deletedAt
+      ) {
+        applicationsById.set(application.id, application);
+      }
+    });
+
+    return Array.from(applicationsById.values());
+  }, [applicationWithPlotData, idServiceOrder]);
+
   const plotIds = useMemo(
     () => (serviceOrderData?.plots || []).map((plot) => plot.id).filter(Boolean) as string[],
     [serviceOrderData?.plots]
@@ -129,10 +134,10 @@ export default function ServiceOrderPage({
   const validPlotIdsSet = useMemo(() => new Set(plotIds), [plotIds]);
 
   const applicationsWithValidPlotId = useMemo(() => {
-    return applicationWithPlotData.filter((application) => {
+    return currentServiceOrderApplications.filter((application) => {
       return Boolean(application.plotId && validPlotIdsSet.has(application.plotId));
     });
-  }, [applicationWithPlotData, validPlotIdsSet]);
+  }, [currentServiceOrderApplications, validPlotIdsSet]);
 
   const completedPlotIds = useMemo(() => {
     const ids = new Set<string>();
@@ -151,7 +156,9 @@ export default function ServiceOrderPage({
 
   const progressData = useMemo(() => {
     const mapasTotal = Number(serviceOrderData?.totalPlots ?? serviceOrderData?.plots?.length ?? 0);
-    const mapasConcluidos = Number(serviceOrderData?.plotsWithApplications ?? completedPlotIds.length);
+    const mapasConcluidos = Number(
+      serviceOrderData?.plotsWithApplications ?? completedPlotIds.length
+    );
     const areaTotal = Number(serviceOrderData?.plannedHectares || 0);
     const areaConcluida = Number(serviceOrderData?.totalAppliedHectares || 0);
     const percentual = Number(serviceOrderData?.progressPercent || 0);
@@ -221,31 +228,90 @@ export default function ServiceOrderPage({
   }, [completedPlotIds, mapFilter, mapsGeoData, pendingPlotIds]);
 
   const legendData = useMemo(() => {
-    const allowedIds =
-      mapFilter === 'all'
-        ? null
-        : new Set(mapFilter === 'completed' ? completedPlotIds : pendingPlotIds);
+    if (mapFilter === 'completed') {
+      const byFarm = new Map<string, { id: string; name: string; hectares: number }>();
 
-    const byFarm = new Map<string, { name: string; hectares: number }>();
+      currentServiceOrderApplications.forEach((application) => {
+        const farmId = application.farmId || application.farm?.id || 'farm-unknown';
+        const applicationFarm = serviceOrderData?.farms?.find((farm) => farm.id === farmId);
+        const farmName = application.farm?.name || applicationFarm?.name || 'Fazenda sem nome';
+        const current = byFarm.get(farmId) || { id: farmId, name: farmName, hectares: 0 };
+        current.hectares += Number.parseFloat(application.hectares || '0') || 0;
+        byFarm.set(farmId, current);
+      });
+
+      const farms = Array.from(byFarm.values()).sort((a, b) => b.hectares - a.hectares);
+      const total = farms.reduce((sum, item) => sum + item.hectares, 0);
+
+      return { farms, total };
+    }
+
+    const allowedIds = mapFilter === 'all' ? null : new Set(pendingPlotIds);
+
+    const byFarm = new Map<string, { id: string; name: string; hectares: number }>();
 
     (serviceOrderData?.plots || []).forEach((plot) => {
-      if (mapFilter !== 'all' && (!plot.id || !allowedIds?.has(plot.id))) {
+      if (mapFilter === 'pending' && (!plot.id || !allowedIds?.has(plot.id))) {
         return;
       }
 
+      const farmId = plot.farmId || 'farm-unknown';
       const farmName =
-        serviceOrderData?.farms?.find((farm) => farm.id === plot.farmId)?.name || 'Fazenda sem nome';
+        serviceOrderData?.farms?.find((farm) => farm.id === farmId)?.name || 'Fazenda sem nome';
 
-      const current = byFarm.get(farmName) || { name: farmName, hectares: 0 };
+      const current = byFarm.get(farmId) || {
+        id: farmId,
+        name: farmName,
+        hectares: 0,
+      };
       current.hectares += Number.parseFloat(plot.hectare || '0') || 0;
-      byFarm.set(farmName, current);
+      byFarm.set(farmId, current);
     });
 
     const farms = Array.from(byFarm.values()).sort((a, b) => b.hectares - a.hectares);
     const total = farms.reduce((sum, item) => sum + item.hectares, 0);
 
     return { farms, total };
-  }, [completedPlotIds, mapFilter, pendingPlotIds, plotIds, serviceOrderData?.farms, serviceOrderData?.plots]);
+  }, [
+    currentServiceOrderApplications,
+    mapFilter,
+    pendingPlotIds,
+    serviceOrderData?.farms,
+    serviceOrderData?.plots,
+  ]);
+
+  const completedRegisteredArea = useMemo(() => {
+    const completedIds = new Set(completedPlotIds);
+
+    return (serviceOrderData?.plots || []).reduce((total, plot) => {
+      if (!plot.id || !completedIds.has(plot.id)) {
+        return total;
+      }
+
+      return total + (Number.parseFloat(plot.hectare || '0') || 0);
+    }, 0);
+  }, [completedPlotIds, serviceOrderData?.plots]);
+
+  const legendLabels = useMemo(() => {
+    if (mapFilter === 'completed') {
+      return {
+        title: 'Área aplicada por fazenda',
+        total: 'Área aplicada total',
+      };
+    }
+
+    if (mapFilter === 'pending') {
+      return {
+        title: 'Área pendente por fazenda',
+        total: 'Área pendente total',
+      };
+    }
+
+    return {
+      title: 'Área cadastrada por fazenda',
+      total: 'Área cadastrada total',
+    };
+  }, [mapFilter]);
 
   const hasApplicationsWithNullPlot = useMemo(() => {
     return applicationWithPlotData.some((application) => !application.plotId);
@@ -298,16 +364,14 @@ export default function ServiceOrderPage({
 
   const buildApplicationsForReport = (mode: ReportMode): Application[] => {
     if (mode === 'all') {
-      return applicationWithPlotData;
+      return currentServiceOrderApplications;
     }
 
     if (mode === 'completed') {
-      return applicationWithPlotData.filter((application) => {
-        return Boolean(application.plotId && completedPlotIds.includes(application.plotId));
-      });
+      return currentServiceOrderApplications;
     }
 
-    return applicationWithPlotData.filter((application) => {
+    return currentServiceOrderApplications.filter((application) => {
       if (!application.plotId) {
         return true;
       }
@@ -714,34 +778,60 @@ export default function ServiceOrderPage({
             </div>
 
             <div className='space-y-4 overflow-y-auto border-t p-4 lg:border-t-0'>
-              <h3 className='text-sm font-semibold text-foreground'>Legenda de hectares por fazenda</h3>
+              <h3 className='text-sm font-semibold text-foreground'>{legendLabels.title}</h3>
               <div className='space-y-2'>
                 {legendData.farms.length > 0 ? (
                   legendData.farms.map((farm) => (
                     <div
-                      key={farm.name}
+                      key={farm.id}
                       className='flex items-center justify-between rounded-md border px-3 py-2 text-sm'
                     >
                       <span className='truncate pr-2'>{farm.name}</span>
-                      <span className='font-medium'>{farm.hectares.toFixed(2).replace('.', ',')} ha</span>
+                      <span className='font-medium'>
+                        {farm.hectares.toFixed(2).replace('.', ',')} ha
+                      </span>
                     </div>
                   ))
                 ) : (
-                  <p className='text-xs text-muted-foreground'>Sem dados de área para o filtro atual.</p>
+                  <p className='text-xs text-muted-foreground'>
+                    Sem dados de área para o filtro atual.
+                  </p>
                 )}
               </div>
               <div className='rounded-md border border-border bg-muted/20 px-3 py-2'>
                 <div className='flex items-center justify-between text-sm'>
-                  <span className='font-medium'>Total</span>
-                  <span className='font-semibold'>{legendData.total.toFixed(2).replace('.', ',')} ha</span>
+                  <span className='font-medium'>{legendLabels.total}</span>
+                  <span className='font-semibold'>
+                    {legendData.total.toFixed(2).replace('.', ',')} ha
+                  </span>
                 </div>
               </div>
               <div className='rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground'>
                 <p>Mapas totais: {progressData.mapasTotal}</p>
-                <p>Mapas concluídos: {progressData.mapasConcluidos}</p>
-                <p>
-                  Área concluída: {progressData.areaConcluida.toFixed(2).replace('.', ',')} ha
-                </p>
+                {mapFilter === 'completed' ? (
+                  <>
+                    <p>Mapas com aplicação: {completedPlotIds.length}</p>
+                    <p>Aplicações realizadas: {currentServiceOrderApplications.length}</p>
+                    <p className='font-medium text-foreground'>
+                      Área aplicada concluída: {legendData.total.toFixed(2).replace('.', ',')} ha
+                    </p>
+                    <p className='mt-2 text-[11px] text-muted-foreground/80'>
+                      Área cadastrada dos mapas com aplicação:{' '}
+                      {completedRegisteredArea.toFixed(2).replace('.', ',')} ha
+                    </p>
+                  </>
+                ) : mapFilter === 'pending' ? (
+                  <>
+                    <p>Mapas pendentes: {pendingPlotIds.length}</p>
+                    <p>Área pendente: {legendData.total.toFixed(2).replace('.', ',')} ha</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Mapas com aplicação: {completedPlotIds.length}</p>
+                    <p>Aplicações realizadas: {currentServiceOrderApplications.length}</p>
+                    <p>Área cadastrada: {legendData.total.toFixed(2).replace('.', ',')} ha</p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -758,7 +848,9 @@ export default function ServiceOrderPage({
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className='flex flex-col gap-1 rounded-md border border-border/60 p-2.5'>
-      <span className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>{label}</span>
+      <span className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
+        {label}
+      </span>
       <div className='text-sm text-foreground'>{value}</div>
     </div>
   );
