@@ -20,6 +20,24 @@ const formatHectares = (hectares: string) => {
   return `${parseFloat(hectares).toFixed(2)} ha`;
 };
 
+const formatRegisteredAreaCoverage = (
+  applicationHectares: string,
+  plotHectares: string
+): string | null => {
+  const appliedArea = parseFloat(applicationHectares);
+  const registeredPlotArea = parseFloat(plotHectares);
+
+  if (
+    !Number.isFinite(appliedArea) ||
+    !Number.isFinite(registeredPlotArea) ||
+    registeredPlotArea <= 0
+  ) {
+    return null;
+  }
+
+  return `${((appliedArea / registeredPlotArea) * 100).toFixed(2)}%`;
+};
+
 export function ApplicationsReportLayoutMirror({
   serviceOrder,
   applications,
@@ -64,11 +82,13 @@ export function ApplicationsReportLayoutMirror({
       : 0;
   const averageRouteSpacing =
     applications.length > 0
-      ? applications.reduce((sum, app) => sum + parseFloat(app.routeSpacing), 0) / applications.length
+      ? applications.reduce((sum, app) => sum + parseFloat(app.routeSpacing), 0) /
+        applications.length
       : 0;
   const averageDropletSize =
     applications.length > 0
-      ? applications.reduce((sum, app) => sum + parseFloat(app.dropletSize), 0) / applications.length
+      ? applications.reduce((sum, app) => sum + parseFloat(app.dropletSize), 0) /
+        applications.length
       : 0;
 
   return (
@@ -84,15 +104,22 @@ export function ApplicationsReportLayoutMirror({
           className='mb-7 object-contain'
         />
         <h1 className='text-2xl font-bold mb-2.5 text-center'>DS Drones Agrícolas LTDA</h1>
+        <p className='text-base font-medium mb-2 text-center text-[#6B7280]'>
+          Relatório de Aplicações
+        </p>
         <p className='text-xs text-center mb-10 leading-relaxed'>
-          54.134.198/0001-25<br />
-          Imperatriz - MA<br />
+          54.134.198/0001-25
+          <br />
+          Imperatriz - MA
+          <br />
           +55 99 9174-5656
         </p>
 
-        {/* Informações da Ordem de Serviço */}
+        {/* Identificação da Ordem de Serviço */}
         <div className='w-full mt-5 p-5 border border-[#E5E7EB] rounded-lg'>
-          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>Informações da Ordem de Serviço</h2>
+          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>
+            Identificação da Ordem de Serviço
+          </h2>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Número da OS:</span>
             <span className='text-[10px] w-[60%]'>#{serviceOrder.number}</span>
@@ -106,12 +133,18 @@ export function ApplicationsReportLayoutMirror({
             <span className='text-[10px] w-[60%]'>{serviceOrder.contract?.name || 'N/A'}</span>
           </div>
           <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Data Planejada:</span>
-            <span className='text-[10px] w-[60%]'>{formatOperationalDateBR(serviceOrder.plannedDate)}</span>
+            <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>
+              Data Planejada da OS:
+            </span>
+            <span className='text-[10px] w-[60%]'>
+              {formatOperationalDateBR(serviceOrder.plannedDate)}
+            </span>
           </div>
           {serviceOrder.farms?.length ? (
             <div className='flex mb-2'>
-              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Fazendas:</span>
+              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>
+                Fazendas Vinculadas:
+              </span>
               <div className='w-[60%] flex flex-wrap gap-1'>
                 {serviceOrder.farms.map((farm) => (
                   <span
@@ -126,7 +159,9 @@ export function ApplicationsReportLayoutMirror({
           ) : null}
           {serviceOrder.pilots?.length ? (
             <div className='flex mb-2'>
-              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Pilotos:</span>
+              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>
+                Pilotos Vinculados:
+              </span>
               <div className='w-[60%] flex flex-wrap gap-1'>
                 {serviceOrder.pilots.map((p) => (
                   <span
@@ -141,35 +176,53 @@ export function ApplicationsReportLayoutMirror({
           ) : null}
           {serviceOrder.observation ? (
             <div className='flex mb-2'>
-              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>Observação:</span>
+              <span className='text-[10px] font-bold w-[40%] text-[#6B7280]'>
+                Observação da OS:
+              </span>
               <span className='text-[10px] w-[60%]'>{serviceOrder.observation}</span>
             </div>
           ) : null}
         </div>
 
-        {/* Estatísticas das Aplicações */}
+        {/* Resumo das Aplicações */}
         <div className='w-full mt-7 p-5 border border-[#E5E7EB] rounded-lg'>
-          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>Estatísticas das Aplicações</h2>
+          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>Resumo das Aplicações</h2>
+          <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
+            Indicadores calculados a partir das aplicações incluídas neste relatório.
+          </p>
           <div className='bg-[#FFF3CD] p-3 rounded border-2 border-[#EAAE07] mb-3'>
             <div className='flex justify-between items-center'>
-              <span className='text-xs font-bold text-[#6B7280]'>Total de Hectares:</span>
-              <span className='text-base font-bold text-[#EAAE07]'>{totalHectares.toFixed(2)} ha</span>
+              <span className='text-xs font-bold text-[#6B7280]'>Área Total Aplicada:</span>
+              <span className='text-base font-bold text-[#EAAE07]'>
+                {totalHectares.toFixed(2)} ha
+              </span>
             </div>
+            <p className='text-[8px] text-[#6B7280] mt-1.5'>
+              Soma das áreas informadas nas aplicações deste relatório.
+            </p>
           </div>
           <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>Taxa de Fluxo (Vazão) Média:</span>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Taxa de Aplicação Média:
+            </span>
             <span className='text-[10px] w-1/2'>{averageFlowRate.toFixed(2)} L/ha</span>
           </div>
           <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>Altitude Média:</span>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Altitude Média de Voo:
+            </span>
             <span className='text-[10px] w-1/2'>{averageAltitude.toFixed(2)} m</span>
           </div>
           <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>Espaçamento Médio:</span>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Espaçamento Médio entre Rotas:
+            </span>
             <span className='text-[10px] w-1/2'>{averageRouteSpacing.toFixed(2)} m</span>
           </div>
           <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>Tamanho de Gota Médio:</span>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Tamanho Médio de Gota:
+            </span>
             <span className='text-[10px] w-1/2'>{averageDropletSize.toFixed(2)} µm</span>
           </div>
         </div>
@@ -182,10 +235,7 @@ export function ApplicationsReportLayoutMirror({
         if (!plot) return null;
 
         return (
-          <div
-            key={plotId}
-            className='p-8 min-h-[842px] box-border border-t border-[#E5E7EB]'
-          >
+          <div key={plotId} className='p-8 min-h-[842px] box-border border-t border-[#E5E7EB]'>
             {/* Header da página */}
             <div className='flex justify-between items-center mb-5 pb-2.5 border-b-2 border-[#EAAE07]'>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,82 +254,152 @@ export function ApplicationsReportLayoutMirror({
 
             {/* Área do mapa (placeholder no HTML) */}
             <div className='w-full h-[200px] mb-5 border border-[#E5E7EB] bg-[#F3F4F6] flex items-center justify-center rounded'>
-              <span className='text-sm text-[#6B7280] font-medium'>Mapa não disponível (placeholder no espelho HTML)</span>
+              <span className='text-sm text-[#6B7280] font-medium'>
+                Mapa não disponível (placeholder no espelho HTML)
+              </span>
             </div>
 
             {/* Bloco do talhão */}
             <div className='bg-[#F9FAFB] p-4 rounded-lg mb-4 border border-[#E5E7EB]'>
-              <h3 className='text-sm font-bold mb-2.5 text-[#EAAE07]'>{plot.name}</h3>
+              <h3 className='text-sm font-bold mb-2.5 text-[#EAAE07]'>Talhão: {plot.name}</h3>
               <div className='flex mb-1.5'>
-                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Fazenda:</span>
+                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                  Fazenda do Talhão:
+                </span>
                 <span className='text-[9px] w-[60%]'>{farmMap.get(firstApp.plotId!) || 'N/A'}</span>
               </div>
               <div className='flex mb-1.5'>
-                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Área:</span>
-                <span className='text-[9px] w-[60%]'>{formatHectares(plot.hectare)}</span>
+                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                  Área Cadastrada do Talhão:
+                </span>
+                <span className='text-[9px] w-[60%]'>
+                  {formatHectares(plot.hectare)}
+                  <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
+                    Área delimitada no mapa do cadastro.
+                  </small>
+                </span>
               </div>
               <div className='flex mb-1.5'>
-                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Aplicações:</span>
+                <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                  Quantidade de Aplicações:
+                </span>
                 <span className='text-[9px] w-[60%]'>{plotApplications.length}</span>
               </div>
             </div>
 
             {/* Lista de aplicações */}
-            {plotApplications.map((application) => (
-              <div
-                key={application.id}
-                className='bg-white p-3 rounded-lg mb-2.5 border border-[#E5E7EB]'
-              >
-                <div className='flex justify-between mb-2.5 pb-2 border-b border-[#E5E7EB]'>
-                  <span className='text-xs font-bold text-[#EAAE07]'>{application.product?.name || 'N/A'}</span>
-                  <span className='text-[10px] text-[#6B7280]'>{formatApplicationDate(application.date)}</span>
+            {plotApplications.map((application) => {
+              const registeredAreaCoverage = formatRegisteredAreaCoverage(
+                application.hectares,
+                plot.hectare
+              );
+
+              return (
+                <div
+                  key={application.id}
+                  className='bg-white p-3 rounded-lg mb-2.5 border border-[#E5E7EB]'
+                >
+                  <div className='flex justify-between mb-2.5 pb-2 border-b border-[#E5E7EB]'>
+                    <span className='text-xs font-bold text-[#EAAE07]'>
+                      Produto Aplicado: {application.product?.name || 'N/A'}
+                    </span>
+                    <span className='text-[10px] text-[#6B7280]'>
+                      Data da Aplicação: {formatApplicationDate(application.date)}
+                    </span>
+                  </div>
+                  <div className='flex flex-wrap gap-x-4 gap-y-1'>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Piloto Responsável:
+                      </span>
+                      <span className='text-[8px]'>{application.pilot?.name || 'N/A'}</span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Assistente Responsável:
+                      </span>
+                      <span className='text-[8px]'>{application.assistant?.name || 'N/A'}</span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Drone Utilizado:
+                      </span>
+                      <span className='text-[8px]'>
+                        {application.drone?.name || 'N/A'} - {application.drone?.model || 'N/A'}
+                      </span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Cultura:</span>
+                      <span className='text-[8px]'>{application.culture?.name || 'N/A'}</span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Área Aplicada:
+                      </span>
+                      <span className='text-[8px]'>
+                        {formatHectares(application.hectares)}
+                        <small className='block text-[7px] text-[#9CA3AF]'>
+                          Área informada nesta aplicação.
+                        </small>
+                      </span>
+                    </div>
+                    {registeredAreaCoverage ? (
+                      <div className='flex'>
+                        <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                          Cobertura Informada do Talhão:
+                        </span>
+                        <span className='text-[8px] font-bold text-[#EAAE07]'>
+                          {registeredAreaCoverage}
+                          <small className='block text-[7px] font-normal text-[#9CA3AF]'>
+                            Relação entre a área desta aplicação e a área cadastrada.
+                          </small>
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Taxa de Aplicação:
+                      </span>
+                      <span className='text-[8px]'>
+                        {parseFloat(application.flowRate).toFixed(2)} L/ha
+                      </span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Altitude de Voo:
+                      </span>
+                      <span className='text-[8px]'>
+                        {parseFloat(application.altitude).toFixed(2)} m
+                      </span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Espaçamento entre Rotas:
+                      </span>
+                      <span className='text-[8px]'>
+                        {parseFloat(application.routeSpacing).toFixed(2)} m
+                      </span>
+                    </div>
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Tamanho de Gota:
+                      </span>
+                      <span className='text-[8px]'>
+                        {parseFloat(application.dropletSize).toFixed(2)} µm
+                      </span>
+                    </div>
+                  </div>
+                  {application.observations ? (
+                    <div className='mt-1.5 w-full'>
+                      <span className='text-[8px] font-bold text-[#6B7280]'>
+                        Observações da Aplicação:{' '}
+                      </span>
+                      <span className='text-[8px]'>{application.observations}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div className='flex flex-wrap gap-x-4 gap-y-1'>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Piloto:</span>
-                    <span className='text-[8px]'>{application.pilot?.name || 'N/A'}</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Assistente:</span>
-                    <span className='text-[8px]'>{application.assistant?.name || 'N/A'}</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Drone:</span>
-                    <span className='text-[8px]'>{application.drone?.name || 'N/A'} - {application.drone?.model || 'N/A'}</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Cultura:</span>
-                    <span className='text-[8px]'>{application.culture?.name || 'N/A'}</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Hectares:</span>
-                    <span className='text-[8px]'>{formatHectares(application.hectares)}</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Taxa de Fluxo:</span>
-                    <span className='text-[8px]'>{parseFloat(application.flowRate).toFixed(2)} L/ha</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Altitude:</span>
-                    <span className='text-[8px]'>{parseFloat(application.altitude).toFixed(2)} m</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Espaçamento:</span>
-                    <span className='text-[8px]'>{parseFloat(application.routeSpacing).toFixed(2)} m</span>
-                  </div>
-                  <div className='flex'>
-                    <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Tamanho de Gota:</span>
-                    <span className='text-[8px]'>{parseFloat(application.dropletSize).toFixed(2)} µm</span>
-                  </div>
-                </div>
-                {application.observations ? (
-                  <div className='mt-1.5 w-full'>
-                    <span className='text-[8px] font-bold text-[#6B7280]'>Observações: </span>
-                    <span className='text-[8px]'>{application.observations}</span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}

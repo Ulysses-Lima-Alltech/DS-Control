@@ -72,6 +72,24 @@ function formatDjiArea(value: unknown): string | null {
   })} ha`;
 }
 
+function formatRegisteredAreaCoverage(
+  applicationHectares: string,
+  plotHectares: string
+): string | null {
+  const appliedArea = parseFloat(applicationHectares);
+  const registeredPlotArea = parseFloat(plotHectares);
+
+  if (
+    !Number.isFinite(appliedArea) ||
+    !Number.isFinite(registeredPlotArea) ||
+    registeredPlotArea <= 0
+  ) {
+    return null;
+  }
+
+  return `${((appliedArea / registeredPlotArea) * 100).toFixed(2)}%`;
+}
+
 function buildDjiEvidenceCaption(
   application: Application,
   metadata: Application['djiMetadata'] | undefined
@@ -79,10 +97,12 @@ function buildDjiEvidenceCaption(
   const dsArea = formatDjiArea(metadata?.dsAreaHa);
   const djiArea = formatDjiArea(metadata?.djiAreaHa);
   const details = [
-    typeof metadata?.flightCount === 'number' ? `voos DJI: ${metadata.flightCount}` : null,
-    dsArea ? `área DS: ${dsArea}` : null,
-    djiArea ? `área DJI: ${djiArea}` : null,
-    'confiança: Alta',
+    typeof metadata?.flightCount === 'number'
+      ? `Voos registrados na DJI: ${metadata.flightCount}`
+      : null,
+    dsArea ? `Área aplicada registrada no DS: ${dsArea}` : null,
+    djiArea ? `Área aplicada registrada na DJI: ${djiArea}` : null,
+    'Confiança do vínculo: alta',
   ].filter(Boolean);
 
   return [
@@ -204,6 +224,17 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           </Text>
           <Text
             style={{
+              fontSize: 16,
+              fontWeight: 500,
+              marginBottom: 8,
+              color: '#6B7280',
+              textAlign: 'center',
+            }}
+          >
+            Relatório de Aplicações
+          </Text>
+          <Text
+            style={{
               fontSize: 12,
               textAlign: 'center',
               marginBottom: 24,
@@ -232,7 +263,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 color: '#1F2937',
               }}
             >
-              Informações da Ordem de Serviço
+              Identificação da Ordem de Serviço
             </Text>
             <View
               style={{
@@ -326,7 +357,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#6B7280',
                 }}
               >
-                Data Planejada:
+                Data Planejada da OS:
               </Text>
               <Text
                 style={{
@@ -353,7 +384,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Fazendas:
+                  Fazendas Vinculadas:
                 </Text>
                 <View style={{ width: '60%', flexDirection: 'row', flexWrap: 'wrap' }}>
                   {serviceOrder.farms.map((farm) => (
@@ -391,7 +422,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Pilotos:
+                  Pilotos Vinculados:
                 </Text>
                 <View style={{ width: '60%', flexDirection: 'row', flexWrap: 'wrap' }}>
                   {serviceOrder.pilots.map((pilot) => (
@@ -429,7 +460,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Observação:
+                  Observação da OS:
                 </Text>
                 <Text
                   style={{
@@ -461,7 +492,17 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 color: '#1F2937',
               }}
             >
-              Estatísticas das Aplicações
+              Resumo das Aplicações
+            </Text>
+            <Text
+              style={{
+                fontSize: 8,
+                color: '#6B7280',
+                marginTop: -9,
+                marginBottom: 12,
+              }}
+            >
+              Indicadores calculados a partir das aplicações incluídas neste relatório.
             </Text>
 
             <View
@@ -487,7 +528,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Total de Hectares:
+                  Área Total Aplicada:
                 </Text>
                 <Text
                   style={{
@@ -499,6 +540,15 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   {totalHectares.toFixed(2)} ha
                 </Text>
               </View>
+              <Text
+                style={{
+                  fontSize: 8,
+                  color: '#6B7280',
+                  marginTop: 6,
+                }}
+              >
+                Soma das áreas informadas nas aplicações deste relatório.
+              </Text>
             </View>
 
             <View
@@ -515,7 +565,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#6B7280',
                 }}
               >
-                Taxa de Fluxo (Vazão) Média:
+                Taxa de Aplicação Média:
               </Text>
               <Text
                 style={{
@@ -542,7 +592,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#6B7280',
                 }}
               >
-                Altitude Média:
+                Altitude Média de Voo:
               </Text>
               <Text
                 style={{
@@ -569,7 +619,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#6B7280',
                 }}
               >
-                Espaçamento Médio:
+                Espaçamento Médio entre Rotas:
               </Text>
               <Text
                 style={{
@@ -596,7 +646,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#6B7280',
                 }}
               >
-                Tamanho de Gota Médio:
+                Tamanho Médio de Gota:
               </Text>
               <Text
                 style={{
@@ -879,7 +929,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#EAAE07',
                 }}
               >
-                {plot.name}
+                Talhão: {plot.name}
               </Text>
               <View
                 style={{
@@ -895,7 +945,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Fazenda:
+                  Fazenda do Talhão:
                 </Text>
                 <Text
                   style={{
@@ -921,17 +971,16 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Área:
+                  Área Cadastrada do Talhão:
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 9,
-                    width: '60%',
-                    color: '#1F2937',
-                  }}
-                >
-                  {formatHectares(plot.hectare)}
-                </Text>
+                <View style={{ width: '60%' }}>
+                  <Text style={{ fontSize: 9, color: '#1F2937' }}>
+                    {formatHectares(plot.hectare)}
+                  </Text>
+                  <Text style={{ fontSize: 7, marginTop: 2, color: '#9CA3AF' }}>
+                    Área delimitada no mapa do cadastro.
+                  </Text>
+                </View>
               </View>
               <View
                 style={{
@@ -947,7 +996,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Aplicações:
+                  Quantidade de Aplicações:
                 </Text>
                 <Text
                   style={{
@@ -962,6 +1011,11 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             </View>
 
             {plotApplications.map((application) => {
+              const registeredAreaCoverage = formatRegisteredAreaCoverage(
+                application.hectares,
+                plot.hectare
+              );
+
               return (
                 <View
                   key={application.id}
@@ -989,7 +1043,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                         color: '#EAAE07',
                       }}
                     >
-                      {application.product?.name || 'N/A'}
+                      Produto Aplicado: {application.product?.name || 'N/A'}
                     </Text>
                     <Text
                       style={{
@@ -997,7 +1051,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                         color: '#6B7280',
                       }}
                     >
-                      {formatApplicationDate(application.date)}
+                      Data da Aplicação: {formatApplicationDate(application.date)}
                     </Text>
                   </View>
 
@@ -1022,7 +1076,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Piloto:
+                        Piloto Responsável:
                       </Text>
                       <Text
                         style={{
@@ -1048,7 +1102,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Assistente:
+                        Assistente Responsável:
                       </Text>
                       <Text
                         style={{
@@ -1074,7 +1128,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Drone:
+                        Drone Utilizado:
                       </Text>
                       <Text
                         style={{
@@ -1126,17 +1180,45 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Hectares:
+                        Área Aplicada:
                       </Text>
-                      <Text
+                      <View>
+                        <Text style={{ fontSize: 8, color: '#1F2937' }}>
+                          {formatHectares(application.hectares)}
+                        </Text>
+                        <Text style={{ fontSize: 7, color: '#9CA3AF', marginTop: 2 }}>
+                          Área informada nesta aplicação.
+                        </Text>
+                      </View>
+                    </View>
+                    {registeredAreaCoverage && (
+                      <View
                         style={{
-                          fontSize: 8,
-                          color: '#1F2937',
+                          width: '50%',
+                          marginBottom: 4,
+                          flexDirection: 'row',
                         }}
                       >
-                        {formatHectares(application.hectares)}
-                      </Text>
-                    </View>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: '#6B7280',
+                            marginRight: 4,
+                          }}
+                        >
+                          Cobertura Informada do Talhão:
+                        </Text>
+                        <View>
+                          <Text style={{ fontSize: 8, fontWeight: 700, color: '#EAAE07' }}>
+                            {registeredAreaCoverage}
+                          </Text>
+                          <Text style={{ fontSize: 7, color: '#9CA3AF', marginTop: 2 }}>
+                            Relação entre a área desta aplicação e a área cadastrada.
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                     <View
                       style={{
                         width: '50%',
@@ -1152,7 +1234,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Taxa de Fluxo:
+                        Taxa de Aplicação:
                       </Text>
                       <Text
                         style={{
@@ -1178,7 +1260,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Altitude:
+                        Altitude de Voo:
                       </Text>
                       <Text
                         style={{
@@ -1204,7 +1286,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Espaçamento:
+                        Espaçamento entre Rotas:
                       </Text>
                       <Text
                         style={{
@@ -1251,7 +1333,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                             marginRight: 4,
                           }}
                         >
-                          Observações:
+                          Observações da Aplicação:
                         </Text>
                         <Text
                           style={{
