@@ -9,7 +9,7 @@ import {
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
+import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
 
 const DJI_REPORT_IMAGE_HEIGHT = 280;
 
@@ -699,7 +699,8 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
         const mapWidth = 1280;
         const mapHeight = 480;
-        const plotPolygonPathDs = buildPlotPolygonSvgPathDs(plot, mapWidth, mapHeight);
+        const plotPolygonOverlay = buildPlotPolygonSvgOverlay(plot, mapWidth, mapHeight);
+        const plotLabel = buildPlotReportLabel(plot);
         // Temporário: mesmo fallback que MapViewer até NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
         const mapResult = buildReportMapboxStaticUrl({
           plot,
@@ -893,7 +894,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                         objectFit: 'fill',
                       }}
                     />
-                    {!showDjiImage && plotPolygonPathDs?.length ? (
+                    {!showDjiImage && plotPolygonOverlay ? (
                       <Svg
                         style={{
                           position: 'absolute',
@@ -905,7 +906,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                         viewBox={`0 0 ${mapWidth} ${mapHeight}`}
                         preserveAspectRatio='none'
                       >
-                        {plotPolygonPathDs.map((d, i) => (
+                        {plotPolygonOverlay.paths.map((d, i) => (
                           <Path
                             key={`plot-poly-${plotId}-${i}`}
                             d={d}
@@ -916,6 +917,34 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                             strokeWidth={2}
                           />
                         ))}
+                        <Text
+                          x={plotPolygonOverlay.labelPoint.x}
+                          y={plotPolygonOverlay.labelPoint.y - 10}
+                          textAnchor='middle'
+                          dominantBaseline='middle'
+                          fill='#FFFFFF'
+                          stroke='#111827'
+                          strokeOpacity={0.8}
+                          strokeWidth={6}
+                          strokeLinejoin='round'
+                          style={{ fontFamily: 'Roboto', fontSize: 32, fontWeight: 700 }}
+                        >
+                          {plotLabel.title}
+                        </Text>
+                        <Text
+                          x={plotPolygonOverlay.labelPoint.x}
+                          y={plotPolygonOverlay.labelPoint.y + 28}
+                          textAnchor='middle'
+                          dominantBaseline='middle'
+                          fill='#FFFFFF'
+                          stroke='#111827'
+                          strokeOpacity={0.8}
+                          strokeWidth={5}
+                          strokeLinejoin='round'
+                          style={{ fontFamily: 'Roboto', fontSize: 27, fontWeight: 700 }}
+                        >
+                          {plotLabel.area}
+                        </Text>
                       </Svg>
                     ) : null}
                   </>

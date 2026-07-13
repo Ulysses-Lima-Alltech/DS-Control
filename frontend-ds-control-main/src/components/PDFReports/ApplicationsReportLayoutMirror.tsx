@@ -10,6 +10,7 @@ import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { formatOperationalDateBR } from '@/utils/operational-date';
+import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
 
 interface ApplicationsReportLayoutMirrorProps {
   serviceOrder: ServiceOrder;
@@ -262,6 +263,10 @@ export function ApplicationsReportLayoutMirror({
         const firstApp = plotApplications[0];
         const plot = firstApp.plot;
         if (!plot) return null;
+        const mapWidth = 1280;
+        const mapHeight = 480;
+        const plotPolygonOverlay = buildPlotPolygonSvgOverlay(plot, mapWidth, mapHeight);
+        const plotLabel = buildPlotReportLabel(plot);
 
         return (
           <div key={plotId} className='p-8 min-h-[842px] box-border border-t border-[#E5E7EB]'>
@@ -281,13 +286,67 @@ export function ApplicationsReportLayoutMirror({
               </div>
             </div>
 
-            {/* Área do mapa (placeholder no HTML) */}
+            {/* Área do mapa (espelho geométrico do overlay usado no PDF) */}
             <div
-              className={`${plotApplications.length > 1 ? 'h-[120px]' : 'h-[200px]'} w-full mb-5 border border-[#E5E7EB] bg-[#F3F4F6] flex items-center justify-center rounded`}
+              id={`plot-map-${plotId}`}
+              className={`${plotApplications.length > 1 ? 'h-[120px]' : 'h-[200px]'} relative w-full mb-5 overflow-hidden border border-[#E5E7EB] bg-[#F3F4F6] rounded`}
             >
-              <span className='text-sm text-[#6B7280] font-medium'>
-                Mapa não disponível (placeholder no espelho HTML)
-              </span>
+              {plotPolygonOverlay ? (
+                <svg
+                  className='absolute inset-0 h-full w-full'
+                  viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+                  preserveAspectRatio='none'
+                  aria-label={`${plotLabel.title}, ${plotLabel.area}`}
+                >
+                  {plotPolygonOverlay.paths.map((path, index) => (
+                    <path
+                      key={`plot-poly-${plotId}-${index}`}
+                      d={path}
+                      fill='#3388ff'
+                      fillOpacity='0.35'
+                      fillRule='evenodd'
+                      stroke='#1d4ed8'
+                      strokeWidth='2'
+                    />
+                  ))}
+                  <text
+                    x={plotPolygonOverlay.labelPoint.x}
+                    y={plotPolygonOverlay.labelPoint.y - 10}
+                    textAnchor='middle'
+                    dominantBaseline='middle'
+                    fill='#FFFFFF'
+                    stroke='#111827'
+                    strokeOpacity='0.8'
+                    strokeWidth='6'
+                    strokeLinejoin='round'
+                    paintOrder='stroke'
+                    className='font-bold'
+                    fontSize='32'
+                  >
+                    {plotLabel.title}
+                  </text>
+                  <text
+                    x={plotPolygonOverlay.labelPoint.x}
+                    y={plotPolygonOverlay.labelPoint.y + 28}
+                    textAnchor='middle'
+                    dominantBaseline='middle'
+                    fill='#FFFFFF'
+                    stroke='#111827'
+                    strokeOpacity='0.8'
+                    strokeWidth='5'
+                    strokeLinejoin='round'
+                    paintOrder='stroke'
+                    className='font-bold'
+                    fontSize='27'
+                  >
+                    {plotLabel.area}
+                  </text>
+                </svg>
+              ) : (
+                <span className='flex h-full items-center justify-center text-sm font-medium text-[#6B7280]'>
+                  Mapa não disponível (placeholder no espelho HTML)
+                </span>
+              )}
             </div>
 
             {/* Bloco do talhão */}
