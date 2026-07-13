@@ -87,7 +87,10 @@ function formatRegisteredAreaCoverage(
     return null;
   }
 
-  return `${((appliedArea / registeredPlotArea) * 100).toFixed(2)}%`;
+  return `${((appliedArea / registeredPlotArea) * 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
 }
 
 function buildDjiEvidenceCaption(
@@ -155,11 +158,20 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     second: '2-digit',
   });
 
-  const formatHectares = (hectares: string) => {
-    return `${parseFloat(hectares).toFixed(2)} ha`;
+  const formatNumber = (value: number) =>
+    value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const formatHectares = (hectares: string | number) => {
+    const numericValue = typeof hectares === 'number' ? hectares : parseFloat(hectares);
+    return `${formatNumber(numericValue)} ha`;
   };
 
   const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
+  const plannedHectares = Number(serviceOrder.plannedHectares) || 0;
+  const serviceOrderProgress = Number(serviceOrder.progressPercent) || 0;
 
   const averageFlowRate =
     applications.length > 0
@@ -186,6 +198,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   return (
     <Document>
       <Page
+        wrap={false}
         size='A4'
         style={{
           flexDirection: 'column',
@@ -505,50 +518,68 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               Indicadores calculados a partir das aplicações incluídas neste relatório.
             </Text>
 
-            <View
-              style={{
-                backgroundColor: '#FFF3CD',
-                padding: 12,
-                borderRadius: 6,
-                marginBottom: 12,
-                border: '2px solid #EAAE07',
-              }}
-            >
+            <View style={{ flexDirection: 'row', marginBottom: 12 }}>
               <View
                 style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  width: '32%',
+                  padding: 10,
+                  marginRight: '2%',
+                  borderRadius: 6,
+                  border: '1px solid #E5E7EB',
+                  backgroundColor: '#F9FAFB',
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: '#6B7280',
-                  }}
-                >
-                  Área Total Aplicada:
+                <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
+                  Área Total Planejada da OS
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: '#EAAE07',
-                  }}
-                >
-                  {totalHectares.toFixed(2)} ha
+                <Text style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginTop: 5 }}>
+                  {formatHectares(plannedHectares)}
+                </Text>
+                <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
+                  Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
                 </Text>
               </View>
-              <Text
+
+              <View
                 style={{
-                  fontSize: 8,
-                  color: '#6B7280',
-                  marginTop: 6,
+                  width: '32%',
+                  padding: 10,
+                  marginRight: '2%',
+                  borderRadius: 6,
+                  border: '2px solid #EAAE07',
+                  backgroundColor: '#FFF3CD',
                 }}
               >
-                Soma das áreas informadas nas aplicações deste relatório.
-              </Text>
+                <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
+                  Área Total Aplicada
+                </Text>
+                <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
+                  {formatHectares(totalHectares)}
+                </Text>
+                <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
+                  Soma das áreas informadas nas aplicações incluídas neste relatório.
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  width: '32%',
+                  padding: 10,
+                  borderRadius: 6,
+                  border: '1px solid #EAAE07',
+                  backgroundColor: '#FFFBEB',
+                }}
+              >
+                <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
+                  Progresso da OS
+                </Text>
+                <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
+                  {formatNumber(serviceOrderProgress)}%
+                </Text>
+                <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
+                  Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.
+                </Text>
+              </View>
             </View>
 
             <View
@@ -574,7 +605,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#1F2937',
                 }}
               >
-                {averageFlowRate.toFixed(2)} L/ha
+                {formatNumber(averageFlowRate)} L/ha
               </Text>
             </View>
 
@@ -601,7 +632,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#1F2937',
                 }}
               >
-                {averageAltitude.toFixed(2)} m
+                {formatNumber(averageAltitude)} m
               </Text>
             </View>
 
@@ -628,7 +659,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#1F2937',
                 }}
               >
-                {averageRouteSpacing.toFixed(2)} m
+                {formatNumber(averageRouteSpacing)} m
               </Text>
             </View>
 
@@ -655,7 +686,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   color: '#1F2937',
                 }}
               >
-                {averageDropletSize.toFixed(2)} µm
+                {formatNumber(averageDropletSize)} µm
               </Text>
             </View>
           </View>
@@ -698,6 +729,8 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const djiCaption = plotDjiApplication
           ? buildDjiEvidenceCaption(plotDjiApplication, plotDjiImage?.djiMetadata)
           : null;
+        const reportVisualHeight = plotApplications.length > 1 ? 120 : DJI_REPORT_IMAGE_HEIGHT;
+        const reportMapHeight = plotApplications.length > 1 ? 120 : 200;
 
         if (!showMapImage && typeof console !== 'undefined') {
           const key = plotId;
@@ -805,7 +838,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 <View
                   style={{
                     width: '100%',
-                    height: DJI_REPORT_IMAGE_HEIGHT,
+                    height: reportVisualHeight,
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -840,7 +873,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               <View
                 style={{
                   width: '100%',
-                  height: 200,
+                  height: reportMapHeight,
                   position: 'relative',
                   marginBottom: 20,
                   border: '1px solid #E5E7EB',
@@ -1018,6 +1051,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
               return (
                 <View
+                  wrap={false}
                   key={application.id}
                   style={{
                     backgroundColor: '#FFFFFF',
@@ -1195,8 +1229,12 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       <View
                         style={{
                           width: '50%',
-                          marginBottom: 4,
-                          flexDirection: 'row',
+                          marginBottom: 6,
+                          padding: 8,
+                          flexDirection: 'column',
+                          backgroundColor: '#FFFBEB',
+                          border: '1px solid #FDE68A',
+                          borderRadius: 5,
                         }}
                       >
                         <Text
@@ -1204,19 +1242,21 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                             fontSize: 8,
                             fontWeight: 700,
                             color: '#6B7280',
-                            marginRight: 4,
                           }}
                         >
-                          Cobertura Informada do Talhão:
+                          Cobertura desta Aplicação
                         </Text>
-                        <View>
-                          <Text style={{ fontSize: 8, fontWeight: 700, color: '#EAAE07' }}>
-                            {registeredAreaCoverage}
-                          </Text>
-                          <Text style={{ fontSize: 7, color: '#9CA3AF', marginTop: 2 }}>
-                            Relação entre a área desta aplicação e a área cadastrada.
-                          </Text>
-                        </View>
+                        <Text
+                          style={{ fontSize: 11, fontWeight: 700, color: '#EAAE07', marginTop: 4 }}
+                        >
+                          {registeredAreaCoverage}
+                        </Text>
+                        <Text
+                          style={{ fontSize: 7, color: '#6B7280', marginTop: 4, lineHeight: 1.3 }}
+                        >
+                          Relação entre a área aplicada nesta operação e a área cadastrada do
+                          talhão.
+                        </Text>
                       </View>
                     )}
                     <View
@@ -1242,7 +1282,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           color: '#1F2937',
                         }}
                       >
-                        {parseFloat(application.flowRate).toFixed(2)} L/ha
+                        {formatNumber(parseFloat(application.flowRate))} L/ha
                       </Text>
                     </View>
                     <View
@@ -1268,7 +1308,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           color: '#1F2937',
                         }}
                       >
-                        {parseFloat(application.altitude).toFixed(2)} m
+                        {formatNumber(parseFloat(application.altitude))} m
                       </Text>
                     </View>
                     <View
@@ -1294,7 +1334,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           color: '#1F2937',
                         }}
                       >
-                        {parseFloat(application.routeSpacing).toFixed(2)} m
+                        {formatNumber(parseFloat(application.routeSpacing))} m
                       </Text>
                     </View>
                     <View
@@ -1320,7 +1360,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           color: '#1F2937',
                         }}
                       >
-                        {parseFloat(application.dropletSize).toFixed(2)} µm
+                        {formatNumber(parseFloat(application.dropletSize))} µm
                       </Text>
                     </View>
                     {application.observations && (

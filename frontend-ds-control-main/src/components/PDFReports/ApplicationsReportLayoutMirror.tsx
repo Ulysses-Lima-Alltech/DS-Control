@@ -17,8 +17,17 @@ interface ApplicationsReportLayoutMirrorProps {
 }
 
 const formatHectares = (hectares: string) => {
-  return `${parseFloat(hectares).toFixed(2)} ha`;
+  return `${parseFloat(hectares).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
 };
+
+const formatNumber = (value: number) =>
+  value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 const formatRegisteredAreaCoverage = (
   applicationHectares: string,
@@ -35,7 +44,7 @@ const formatRegisteredAreaCoverage = (
     return null;
   }
 
-  return `${((appliedArea / registeredPlotArea) * 100).toFixed(2)}%`;
+  return `${formatNumber((appliedArea / registeredPlotArea) * 100)}%`;
 };
 
 export function ApplicationsReportLayoutMirror({
@@ -72,6 +81,8 @@ export function ApplicationsReportLayoutMirror({
   });
 
   const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
+  const plannedHectares = Number(serviceOrder.plannedHectares) || 0;
+  const serviceOrderProgress = Number(serviceOrder.progressPercent) || 0;
   const averageFlowRate =
     applications.length > 0
       ? applications.reduce((sum, app) => sum + parseFloat(app.flowRate), 0) / applications.length
@@ -190,40 +201,58 @@ export function ApplicationsReportLayoutMirror({
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
             Indicadores calculados a partir das aplicações incluídas neste relatório.
           </p>
-          <div className='bg-[#FFF3CD] p-3 rounded border-2 border-[#EAAE07] mb-3'>
-            <div className='flex justify-between items-center'>
-              <span className='text-xs font-bold text-[#6B7280]'>Área Total Aplicada:</span>
-              <span className='text-base font-bold text-[#EAAE07]'>
-                {totalHectares.toFixed(2)} ha
-              </span>
+          <div className='grid grid-cols-3 gap-2 mb-3'>
+            <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Planejada da OS</p>
+              <p className='text-sm font-bold text-[#1F2937] mt-1'>
+                {formatHectares(String(plannedHectares))}
+              </p>
+              <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
+                Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
+              </p>
             </div>
-            <p className='text-[8px] text-[#6B7280] mt-1.5'>
-              Soma das áreas informadas nas aplicações deste relatório.
-            </p>
+            <div className='bg-[#FFF3CD] p-2.5 rounded border-2 border-[#EAAE07]'>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Aplicada</p>
+              <p className='text-sm font-bold text-[#EAAE07] mt-1'>
+                {formatHectares(String(totalHectares))}
+              </p>
+              <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
+                Soma das áreas informadas nas aplicações incluídas neste relatório.
+              </p>
+            </div>
+            <div className='bg-[#FFFBEB] p-2.5 rounded border border-[#EAAE07]'>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Progresso da OS</p>
+              <p className='text-sm font-bold text-[#EAAE07] mt-1'>
+                {formatNumber(serviceOrderProgress)}%
+              </p>
+              <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
+                Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.
+              </p>
+            </div>
           </div>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
               Taxa de Aplicação Média:
             </span>
-            <span className='text-[10px] w-1/2'>{averageFlowRate.toFixed(2)} L/ha</span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageFlowRate)} L/ha</span>
           </div>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
               Altitude Média de Voo:
             </span>
-            <span className='text-[10px] w-1/2'>{averageAltitude.toFixed(2)} m</span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageAltitude)} m</span>
           </div>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
               Espaçamento Médio entre Rotas:
             </span>
-            <span className='text-[10px] w-1/2'>{averageRouteSpacing.toFixed(2)} m</span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageRouteSpacing)} m</span>
           </div>
           <div className='flex mb-2'>
             <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
               Tamanho Médio de Gota:
             </span>
-            <span className='text-[10px] w-1/2'>{averageDropletSize.toFixed(2)} µm</span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageDropletSize)} µm</span>
           </div>
         </div>
       </div>
@@ -253,7 +282,9 @@ export function ApplicationsReportLayoutMirror({
             </div>
 
             {/* Área do mapa (placeholder no HTML) */}
-            <div className='w-full h-[200px] mb-5 border border-[#E5E7EB] bg-[#F3F4F6] flex items-center justify-center rounded'>
+            <div
+              className={`${plotApplications.length > 1 ? 'h-[120px]' : 'h-[200px]'} w-full mb-5 border border-[#E5E7EB] bg-[#F3F4F6] flex items-center justify-center rounded`}
+            >
               <span className='text-sm text-[#6B7280] font-medium'>
                 Mapa não disponível (placeholder no espelho HTML)
               </span>
@@ -344,16 +375,17 @@ export function ApplicationsReportLayoutMirror({
                       </span>
                     </div>
                     {registeredAreaCoverage ? (
-                      <div className='flex'>
-                        <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
-                          Cobertura Informada do Talhão:
-                        </span>
-                        <span className='text-[8px] font-bold text-[#EAAE07]'>
+                      <div className='w-[calc(50%_-_0.5rem)] min-w-0 rounded border border-[#FDE68A] bg-[#FFFBEB] p-2'>
+                        <p className='text-[8px] font-bold text-[#6B7280]'>
+                          Cobertura desta Aplicação
+                        </p>
+                        <p className='mt-1 text-[11px] font-bold text-[#EAAE07]'>
                           {registeredAreaCoverage}
-                          <small className='block text-[7px] font-normal text-[#9CA3AF]'>
-                            Relação entre a área desta aplicação e a área cadastrada.
-                          </small>
-                        </span>
+                        </p>
+                        <p className='mt-1 text-[7px] leading-snug text-[#6B7280]'>
+                          Relação entre a área aplicada nesta operação e a área cadastrada do
+                          talhão.
+                        </p>
                       </div>
                     ) : null}
                     <div className='flex'>
@@ -361,7 +393,7 @@ export function ApplicationsReportLayoutMirror({
                         Taxa de Aplicação:
                       </span>
                       <span className='text-[8px]'>
-                        {parseFloat(application.flowRate).toFixed(2)} L/ha
+                        {formatNumber(parseFloat(application.flowRate))} L/ha
                       </span>
                     </div>
                     <div className='flex'>
@@ -369,7 +401,7 @@ export function ApplicationsReportLayoutMirror({
                         Altitude de Voo:
                       </span>
                       <span className='text-[8px]'>
-                        {parseFloat(application.altitude).toFixed(2)} m
+                        {formatNumber(parseFloat(application.altitude))} m
                       </span>
                     </div>
                     <div className='flex'>
@@ -377,7 +409,7 @@ export function ApplicationsReportLayoutMirror({
                         Espaçamento entre Rotas:
                       </span>
                       <span className='text-[8px]'>
-                        {parseFloat(application.routeSpacing).toFixed(2)} m
+                        {formatNumber(parseFloat(application.routeSpacing))} m
                       </span>
                     </div>
                     <div className='flex'>
@@ -385,7 +417,7 @@ export function ApplicationsReportLayoutMirror({
                         Tamanho de Gota:
                       </span>
                       <span className='text-[8px]'>
-                        {parseFloat(application.dropletSize).toFixed(2)} µm
+                        {formatNumber(parseFloat(application.dropletSize))} µm
                       </span>
                     </div>
                   </div>
