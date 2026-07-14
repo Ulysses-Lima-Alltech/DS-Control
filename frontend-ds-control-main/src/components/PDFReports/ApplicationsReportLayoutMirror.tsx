@@ -9,24 +9,20 @@
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
-import {
-  APPLICATIONS_REPORT_SCOPES,
-  buildApplicationsReportData,
-  formatReportHectares,
-  parseReportArea,
-  REPORT_AREA_CRITERIA,
-  type ApplicationsReportScope,
-  type ReportAreaCriterion,
-} from '@/utils/applicationsReportArea';
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
 
 interface ApplicationsReportLayoutMirrorProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
-  areaCriterion?: ReportAreaCriterion;
-  scope?: ApplicationsReportScope;
 }
+
+const formatHectares = (hectares: string) => {
+  return `${parseFloat(hectares).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
+};
 
 const formatNumber = (value: number) =>
   value.toLocaleString('pt-BR', {
@@ -55,18 +51,17 @@ const formatRegisteredAreaCoverage = (
 export function ApplicationsReportLayoutMirror({
   serviceOrder,
   applications,
-  areaCriterion = 'applied-registered',
-  scope = 'all',
 }: ApplicationsReportLayoutMirrorProps) {
-  const reportData = buildApplicationsReportData({
-    serviceOrder,
-    applications,
-    areaCriterion,
-    scope,
-  });
-  const reportApplications = reportData.applications;
-  const criterionMetadata = REPORT_AREA_CRITERIA[areaCriterion];
-  const scopeMetadata = APPLICATIONS_REPORT_SCOPES[scope];
+  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
+  const applicationsByPlot = applicationsWithPlot.reduce(
+    (acc, app) => {
+      const plotId = app.plotId!;
+      if (!acc[plotId]) acc[plotId] = [];
+      acc[plotId].push(app);
+      return acc;
+    },
+    {} as Record<string, Application[]>
+  );
 
   const farmMap = new Map<string, string>();
   if (serviceOrder.farms?.length) {
@@ -86,25 +81,26 @@ export function ApplicationsReportLayoutMirror({
     second: '2-digit',
   });
 
+  const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
+  const plannedHectares = Number(serviceOrder.plannedHectares) || 0;
+  const serviceOrderProgress = Number(serviceOrder.progressPercent) || 0;
   const averageFlowRate =
-    reportApplications.length > 0
-      ? reportApplications.reduce((sum, app) => sum + parseReportArea(app.flowRate), 0) /
-        reportApplications.length
+    applications.length > 0
+      ? applications.reduce((sum, app) => sum + parseFloat(app.flowRate), 0) / applications.length
       : 0;
   const averageAltitude =
-    reportApplications.length > 0
-      ? reportApplications.reduce((sum, app) => sum + parseReportArea(app.altitude), 0) /
-        reportApplications.length
+    applications.length > 0
+      ? applications.reduce((sum, app) => sum + parseFloat(app.altitude), 0) / applications.length
       : 0;
   const averageRouteSpacing =
-    reportApplications.length > 0
-      ? reportApplications.reduce((sum, app) => sum + parseReportArea(app.routeSpacing), 0) /
-        reportApplications.length
+    applications.length > 0
+      ? applications.reduce((sum, app) => sum + parseFloat(app.routeSpacing), 0) /
+        applications.length
       : 0;
   const averageDropletSize =
-    reportApplications.length > 0
-      ? reportApplications.reduce((sum, app) => sum + parseReportArea(app.dropletSize), 0) /
-        reportApplications.length
+    applications.length > 0
+      ? applications.reduce((sum, app) => sum + parseFloat(app.dropletSize), 0) /
+        applications.length
       : 0;
 
   return (
@@ -121,9 +117,8 @@ export function ApplicationsReportLayoutMirror({
         />
         <h1 className='text-2xl font-bold mb-2.5 text-center'>DS Drones Agrícolas LTDA</h1>
         <p className='text-base font-medium mb-2 text-center text-[#6B7280]'>
-          Relatório de Aplicações — {criterionMetadata.label}
+          Relatório de Aplicações
         </p>
-        <p className='mb-2 text-[10px] text-[#6B7280]'>Escopo: {scopeMetadata.label}</p>
         <p className='text-xs text-center mb-10 leading-relaxed'>
           54.134.198/0001-25
           <br />
@@ -201,90 +196,73 @@ export function ApplicationsReportLayoutMirror({
           ) : null}
         </div>
 
-        {/* Resumo do relatório */}
+        {/* Resumo das Aplicações */}
         <div className='w-full mt-7 p-5 border border-[#E5E7EB] rounded-lg'>
-          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>Resumo do Relatório</h2>
+          <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>Resumo das Aplicações</h2>
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
-            Critério selecionado: {criterionMetadata.label}. Escopo: {scopeMetadata.label}.
+            Indicadores calculados a partir das aplicações incluídas neste relatório.
           </p>
           <div className='grid grid-cols-3 gap-2 mb-3'>
             <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
-              <p className='text-[9px] font-bold text-[#6B7280]'>
-                {criterionMetadata.summaryLabel}
-              </p>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Planejada da OS</p>
               <p className='text-sm font-bold text-[#1F2937] mt-1'>
-                {formatReportHectares(reportData.totalArea)}
+                {formatHectares(String(plannedHectares))}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
-                Valor principal calculado para o critério e o escopo selecionados.
+                Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
               </p>
             </div>
             <div className='bg-[#FFF3CD] p-2.5 rounded border-2 border-[#EAAE07]'>
-              <p className='text-[9px] font-bold text-[#6B7280]'>Critério</p>
-              <p className='text-[10px] leading-tight font-bold text-[#EAAE07] mt-1'>
-                {criterionMetadata.summaryCriterion}
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Aplicada</p>
+              <p className='text-sm font-bold text-[#EAAE07] mt-1'>
+                {formatHectares(String(totalHectares))}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
-                {criterionMetadata.shortDescription}
+                Soma das áreas informadas nas aplicações incluídas neste relatório.
               </p>
             </div>
             <div className='bg-[#FFFBEB] p-2.5 rounded border border-[#EAAE07]'>
-              <p className='text-[9px] font-bold text-[#6B7280]'>{criterionMetadata.countLabel}</p>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Progresso da OS</p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
-                {areaCriterion === 'plot-total'
-                  ? reportData.distinctPlotCount
-                  : reportData.distinctApplicationCount}
+                {formatNumber(serviceOrderProgress)}%
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
-                Contagem distinta no recorte selecionado.
+                Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.
               </p>
             </div>
           </div>
-          <div className='mb-2.5 rounded bg-[#F9FAFB] p-2 text-[8px] leading-snug text-[#6B7280]'>
-            {criterionMetadata.operationalNote}
+          <div className='flex mb-2'>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Taxa de Aplicação Média:
+            </span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageFlowRate)} L/ha</span>
           </div>
-          {areaCriterion === 'applied-registered' &&
-          scope === 'pending' &&
-          !reportData.hasAppliedArea ? (
-            <div className='mb-2.5 rounded border border-[#FDE68A] bg-[#FFFBEB] p-2 text-[9px] font-bold text-[#92400E]'>
-              Não há área aplicada registrada para os talhões pendentes.
-            </div>
-          ) : null}
-          {reportApplications.length > 0 ? (
-            <>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Taxa de Aplicação Média:
-                </span>
-                <span className='text-[10px] w-1/2'>{formatNumber(averageFlowRate)} L/ha</span>
-              </div>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Altitude Média de Voo:
-                </span>
-                <span className='text-[10px] w-1/2'>{formatNumber(averageAltitude)} m</span>
-              </div>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Espaçamento Médio entre Rotas:
-                </span>
-                <span className='text-[10px] w-1/2'>{formatNumber(averageRouteSpacing)} m</span>
-              </div>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Tamanho Médio de Gota:
-                </span>
-                <span className='text-[10px] w-1/2'>{formatNumber(averageDropletSize)} µm</span>
-              </div>
-            </>
-          ) : null}
+          <div className='flex mb-2'>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Altitude Média de Voo:
+            </span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageAltitude)} m</span>
+          </div>
+          <div className='flex mb-2'>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Espaçamento Médio entre Rotas:
+            </span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageRouteSpacing)} m</span>
+          </div>
+          <div className='flex mb-2'>
+            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+              Tamanho Médio de Gota:
+            </span>
+            <span className='text-[10px] w-1/2'>{formatNumber(averageDropletSize)} µm</span>
+          </div>
         </div>
       </div>
 
       {/* ========== PÁGINAS POR TALHÃO ========== */}
-      {reportData.plotEntries.map((plotEntry, plotIndex) => {
-        const { plot, applications: plotApplications, consideredArea } = plotEntry;
-        const plotId = plot.id!;
+      {Object.entries(applicationsByPlot).map(([plotId, plotApplications], plotIndex) => {
+        const firstApp = plotApplications[0];
+        const plot = firstApp.plot;
+        if (!plot) return null;
         const mapWidth = 1280;
         const mapHeight = 480;
         const plotPolygonOverlay = buildPlotPolygonSvgOverlay(plot, mapWidth, mapHeight);
@@ -378,16 +356,16 @@ export function ApplicationsReportLayoutMirror({
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
                   Fazenda do Talhão:
                 </span>
-                <span className='text-[9px] w-[60%]'>{farmMap.get(plotId) || 'N/A'}</span>
+                <span className='text-[9px] w-[60%]'>{farmMap.get(firstApp.plotId!) || 'N/A'}</span>
               </div>
               <div className='flex mb-1.5'>
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                  Área considerada no relatório:
+                  Área Cadastrada do Talhão:
                 </span>
                 <span className='text-[9px] w-[60%]'>
-                  {formatReportHectares(consideredArea)}
+                  {formatHectares(plot.hectare)}
                   <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
-                    {criterionMetadata.shortDescription}
+                    Área delimitada no mapa do cadastro.
                   </small>
                 </span>
               </div>
@@ -400,11 +378,6 @@ export function ApplicationsReportLayoutMirror({
             </div>
 
             {/* Lista de aplicações */}
-            {plotApplications.length === 0 ? (
-              <div className='rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-3 text-[9px] font-bold text-[#92400E]'>
-                Não há área aplicada registrada para este talhão pendente.
-              </div>
-            ) : null}
             {plotApplications.map((application) => {
               const registeredAreaCoverage = formatRegisteredAreaCoverage(
                 application.hectares,
@@ -454,7 +427,7 @@ export function ApplicationsReportLayoutMirror({
                         Área Aplicada:
                       </span>
                       <span className='text-[8px]'>
-                        {formatReportHectares(application.hectares)}
+                        {formatHectares(application.hectares)}
                         <small className='block text-[7px] text-[#9CA3AF]'>
                           Área informada nesta aplicação.
                         </small>

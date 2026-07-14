@@ -14,18 +14,9 @@ import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrder
 import ServiceOrdersDetailedReportPDF, {
   type ServiceOrderDetailedSection,
 } from '@/components/PDFReports/ServiceOrdersDetailedReportPDF';
-import {
-  getApplicationDjiFlights,
-  type ApplicationDjiFlight,
-} from '@/services/application.service';
+import { getApplicationDjiFlights, type ApplicationDjiFlight } from '@/services/application.service';
 import { Application } from '@/types/applications.type';
-import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
-import {
-  buildApplicationsReportData,
-  type ApplicationsReportScope,
-  type ReportAreaCriterion,
-} from '@/utils/applicationsReportArea';
 import {
   enrichApplicationsWithDjiImageUrl,
   prefetchDjiReportImagesByApplicationId,
@@ -46,19 +37,11 @@ import {
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
-import {
-  buildStrategicFarmColorMap,
-  type StrategicFarmColor,
-} from '@/utils/strategicReportPalette';
+import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
 
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
   applications: Application[];
-}
-
-interface GenerateApplicationsPDFParams extends GeneratePDFParams {
-  areaCriterion?: ReportAreaCriterion;
-  scope?: ApplicationsReportScope;
 }
 
 export interface GenerateFarmsReportPDFParams {
@@ -126,20 +109,34 @@ function getReportMapboxAccessToken(): string {
 }
 
 /**
- * Pré-busca o mapa de cada talhão incluído no relatório antes do pdf().
+ * Mesma regra de páginas por talhão que ApplicationsReportPDF; pré-busca cada mapUrl Mapbox para data URL antes do pdf().
  */
 async function prefetchReportMapImagesByPlotId(
-  plots: Plot[]
+  applications: Application[]
 ): Promise<Record<string, string | null>> {
+  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
+  const applicationsByPlot = applicationsWithPlot.reduce(
+    (acc, app) => {
+      const plotId = app.plotId!;
+      if (!acc[plotId]) {
+        acc[plotId] = [];
+      }
+      acc[plotId].push(app);
+      return acc;
+    },
+    {} as Record<string, Application[]>
+  );
+
   const accessToken = getReportMapboxAccessToken();
   const out: Record<string, string | null> = {};
 
-  for (const plot of plots) {
-    if (!plot.id || Object.prototype.hasOwnProperty.call(out, plot.id)) {
+  for (const plotId of Object.keys(applicationsByPlot)) {
+    const plotApplications = applicationsByPlot[plotId];
+    const plot = plotApplications[0]?.plot;
+    if (!plot) {
+      out[plotId] = null;
       continue;
     }
-
-    const plotId = plot.id;
 
     const mapResult = buildReportMapboxStaticUrl({
       plot,
@@ -194,7 +191,9 @@ function buildStrategicFarmColorMapFromServiceOrder(
   return buildStrategicFarmColorMap(orderedFarmIds);
 }
 
-async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promise<{
+async function prefetchStrategicReportMapBase(
+  serviceOrder: ServiceOrder
+): Promise<{
   mapViewport: StrategicMapViewport | null;
   mapBaseDataUrl: string | null;
   mapImageDataUrl: string | null;
@@ -425,9 +424,7 @@ function buildApplicationWithLinkedDjiFlights(
     djiDate: firstMappedFlight?.flightDate || application.djiDate,
     djiImageScope: maps.length ? 'application' : application.djiImageScope,
     djiMatchType: maps.length ? 'manual' : application.djiMatchType,
-    djiMatchConfidence: maps.length
-      ? (application.djiMatchConfidence ?? 1)
-      : application.djiMatchConfidence,
+    djiMatchConfidence: maps.length ? application.djiMatchConfidence ?? 1 : application.djiMatchConfidence,
     djiFlightRecordNumber: firstMappedFlight?.recordNumber || application.djiFlightRecordNumber,
     djiMetadata: {
       ...(application.djiMetadata || {}),
@@ -459,30 +456,17 @@ function parseReportNumber(value: unknown): number {
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
-  areaCriterion = 'applied-registered',
-  scope = 'all',
-}: GenerateApplicationsPDFParams): Promise<Blob> {
+}: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  const reportData = buildApplicationsReportData({
-    serviceOrder,
-    applications,
-    areaCriterion,
-    scope,
-  });
-  const enrichedApplications = await enrichApplicationsWithDjiImageUrl(
-    serviceOrder,
-    reportData.applications
-  );
+  const enrichedApplications = await enrichApplicationsWithDjiImageUrl(serviceOrder, applications);
   const [prefetchedMapImageDataUrls, djiImagesByApplicationId] = await Promise.all([
-    prefetchReportMapImagesByPlotId(reportData.plotEntries.map(({ plot }) => plot)),
+    prefetchReportMapImagesByPlotId(enrichedApplications),
     prefetchDjiReportImagesByApplicationId(enrichedApplications).catch(() => ({})),
   ]);
 
   const element = ApplicationsReportPDF({
     serviceOrder,
     applications: enrichedApplications,
-    areaCriterion,
-    scope,
     prefetchedMapImageDataUrls,
     djiImagesByApplicationId,
   });
@@ -516,7 +500,6 @@ export async function generateServiceOrderStrategicReportPDF({
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const diagnostics = buildStrategicPlotDiagnostics(serviceOrder);
-  // eslint-disable-next-line no-console
   console.info('[StrategicPDF] Diagnostics', {
     serviceOrderId: serviceOrder.id,
     serviceOrderNumber: serviceOrder.number,
@@ -632,11 +615,12 @@ export async function generateApplicationIndividualReportPDF({
       )
     : enrichedApplication;
 
-  const djiImagesByApplicationId = linkedDjiFlights.maps.length
-    ? ({} as DjiReportImageByApplicationId)
-    : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
-        () => ({}) as DjiReportImageByApplicationId
-      );
+  const djiImagesByApplicationId =
+    linkedDjiFlights.maps.length
+      ? ({} as DjiReportImageByApplicationId)
+      : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
+          () => ({} as DjiReportImageByApplicationId)
+        );
   const djiImage = linkedDjiFlights.maps[0]
     ? {
         imageSrc: linkedDjiFlights.maps[0].imageSrc,
