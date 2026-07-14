@@ -1,12 +1,12 @@
 import React from 'react';
 
-import PlannedAreaReportPDF, {
-  type PlannedAreaReportPDFProps,
-} from '@/components/PDFReports/PlannedAreaReportPDF';
+import ApplicationsReportPDF, {
+  type ApplicationsReportPDFProps,
+} from '@/components/PDFReports/ApplicationsReportPDF';
 
 type CompletedPlotsPlannedAreaReportPDFProps = Omit<
-  PlannedAreaReportPDFProps,
-  'variant' | 'completedPlotIds'
+  ApplicationsReportPDFProps,
+  'mode' | 'completedPlotIds'
 > & {
   completedPlotIds: string[];
 };
@@ -14,7 +14,7 @@ type CompletedPlotsPlannedAreaReportPDFProps = Omit<
 const CompletedPlotsPlannedAreaReportPDF: React.FC<CompletedPlotsPlannedAreaReportPDFProps> = (
   props
 ) => {
-  return <PlannedAreaReportPDF {...props} variant='completed' />;
+  return <ApplicationsReportPDF {...props} mode='completedPlannedArea' />;
 };
 
 export default CompletedPlotsPlannedAreaReportPDF;

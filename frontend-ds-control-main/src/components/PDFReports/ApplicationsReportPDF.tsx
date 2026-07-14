@@ -35,9 +35,13 @@ Font.register({
   ],
 });
 
-interface ApplicationsReportPDFProps {
+export type ApplicationsReportMode = 'operational' | 'completedPlannedArea';
+
+export interface ApplicationsReportPDFProps {
   serviceOrder: ServiceOrder;
   applications: Application[];
+  mode?: ApplicationsReportMode;
+  completedPlotIds?: string[];
   /** Data URLs pré-carregadas por plotId (evita <Image> com URL remota no react-pdf). */
   prefetchedMapImageDataUrls?: Record<string, string | null>;
   djiImagesByApplicationId?: Record<
@@ -121,7 +125,10 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   applications,
   prefetchedMapImageDataUrls,
   djiImagesByApplicationId,
+  mode = 'operational',
+  completedPlotIds = [],
 }) => {
+  const isCompletedPlannedArea = mode === 'completedPlannedArea';
   const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
 
   const applicationsByPlot = applicationsWithPlot.reduce(
@@ -172,6 +179,26 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
   const plannedHectares = Number(serviceOrder.plannedHectares) || 0;
   const serviceOrderProgress = Number(serviceOrder.progressPercent) || 0;
+  const completedIds = new Set(completedPlotIds);
+  const completedPlotsById = new Map(
+    (serviceOrder.plots || [])
+      .filter((plot) => Boolean(plot.id && completedIds.has(plot.id)))
+      .map((plot) => [plot.id!, plot])
+  );
+
+  Object.values(applicationsByPlot).forEach((plotApplications) => {
+    const plot = plotApplications[0]?.plot;
+    if (plot?.id && completedIds.has(plot.id)) {
+      completedPlotsById.set(plot.id, plot);
+    }
+  });
+
+  const completedPlannedHectares = Array.from(completedPlotsById.values()).reduce(
+    (total, plot) => total + (Number.parseFloat(plot.hectare) || 0),
+    0
+  );
+  const reportPlannedHectares = isCompletedPlannedArea ? completedPlannedHectares : plannedHectares;
+  const reportProgress = isCompletedPlannedArea ? 100 : serviceOrderProgress;
 
   const averageFlowRate =
     applications.length > 0
@@ -196,7 +223,13 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
       : 0;
 
   return (
-    <Document>
+    <Document
+      title={
+        isCompletedPlannedArea
+          ? `Relatório de Aplicações — Concluídos por Área Planejada - OS ${serviceOrder.number}`
+          : `Relatório de Aplicações - OS ${serviceOrder.number}`
+      }
+    >
       <Page
         wrap={false}
         size='A4'
@@ -244,7 +277,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               textAlign: 'center',
             }}
           >
-            Relatório de Aplicações
+            {isCompletedPlannedArea
+              ? 'Relatório de Aplicações — Concluídos por Área Planejada'
+              : 'Relatório de Aplicações'}
           </Text>
           <Text
             style={{
@@ -505,7 +540,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 color: '#1F2937',
               }}
             >
-              Resumo das Aplicações
+              {isCompletedPlannedArea
+                ? 'Resumo dos Concluídos — Área Planejada'
+                : 'Resumo das Aplicações'}
             </Text>
             <Text
               style={{
@@ -515,7 +552,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 marginBottom: 12,
               }}
             >
-              Indicadores calculados a partir das aplicações incluídas neste relatório.
+              {isCompletedPlannedArea
+                ? 'Indicadores dos talhões classificados como concluídos e das aplicações registradas neles.'
+                : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
             </Text>
 
             <View style={{ flexDirection: 'row', marginBottom: 12 }}>
@@ -530,13 +569,17 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  Área Total Planejada da OS
+                  {isCompletedPlannedArea
+                    ? 'Área Total dos Talhões Concluídos'
+                    : 'Área Total Planejada da OS'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginTop: 5 }}>
-                  {formatHectares(plannedHectares)}
+                  {formatHectares(reportPlannedHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
-                  Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
+                  {isCompletedPlannedArea
+                    ? 'Soma das áreas cadastradas dos talhões concluídos, sem duplicação por aplicação.'
+                    : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
                 </Text>
               </View>
 
@@ -551,13 +594,17 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  Área Total Aplicada
+                  {isCompletedPlannedArea
+                    ? 'Área Registrada nas Aplicações'
+                    : 'Área Total Aplicada'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
                   {formatHectares(totalHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
-                  Soma das áreas informadas nas aplicações incluídas neste relatório.
+                  {isCompletedPlannedArea
+                    ? 'Soma dos valores operacionais efetivamente registrados nas aplicações.'
+                    : 'Soma das áreas informadas nas aplicações incluídas neste relatório.'}
                 </Text>
               </View>
 
@@ -571,16 +618,44 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  Progresso da OS
+                  {isCompletedPlannedArea ? 'Progresso dos Talhões Incluídos' : 'Progresso da OS'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
-                  {formatNumber(serviceOrderProgress)}%
+                  {formatNumber(reportProgress)}%
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
-                  Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.
+                  {isCompletedPlannedArea
+                    ? 'Os talhões deste relatório estão classificados como integralmente concluídos.'
+                    : 'Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.'}
                 </Text>
               </View>
             </View>
+
+            {isCompletedPlannedArea && (
+              <>
+                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 10, fontWeight: 700, width: '50%', color: '#6B7280' }}>
+                    Talhões Concluídos:
+                  </Text>
+                  <Text style={{ fontSize: 10, width: '50%', color: '#1F2937' }}>
+                    {completedPlotsById.size}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 10, fontWeight: 700, width: '50%', color: '#6B7280' }}>
+                    Aplicações Registradas:
+                  </Text>
+                  <Text style={{ fontSize: 10, width: '50%', color: '#1F2937' }}>
+                    {applications.length}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 8, color: '#6B7280', marginBottom: 10, lineHeight: 1.35 }}>
+                  O total concluído considera integralmente a área cadastrada dos talhões
+                  classificados como concluídos. Os valores individuais registrados pelas aplicações
+                  permanecem disponíveis para consulta operacional.
+                </Text>
+              </>
+            )}
 
             <View
               style={{
@@ -738,6 +813,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           const hasPrefetchKey =
             prefetchedMapImageDataUrls !== undefined &&
             Object.prototype.hasOwnProperty.call(prefetchedMapImageDataUrls, key);
+          // eslint-disable-next-line no-console
           console.log('[REPORT_PREFETCH_DEBUG]', {
             phase: 'ApplicationsReportPDF:placeholder',
             plotId: plot.id,
@@ -758,6 +834,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         }
 
         if (typeof console !== 'undefined') {
+          // eslint-disable-next-line no-console
           console.log('[REPORT_MAP_DEBUG]', {
             phase: 'ApplicationsReportPDF',
             plotId: plot.id,
@@ -1033,7 +1110,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  Área Cadastrada do Talhão:
+                  {isCompletedPlannedArea ? 'Área Total do Talhão:' : 'Área Cadastrada do Talhão:'}
                 </Text>
                 <View style={{ width: '60%' }}>
                   <Text style={{ fontSize: 9, color: '#1F2937' }}>
@@ -1044,6 +1121,26 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                   </Text>
                 </View>
               </View>
+              {isCompletedPlannedArea && (
+                <>
+                  <View style={{ flexDirection: 'row', marginBottom: 5 }}>
+                    <Text style={{ fontSize: 9, fontWeight: 700, width: '40%', color: '#6B7280' }}>
+                      Área Concluída Considerada:
+                    </Text>
+                    <Text style={{ fontSize: 9, width: '60%', color: '#1F2937' }}>
+                      {formatHectares(plot.hectare)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', marginBottom: 5 }}>
+                    <Text style={{ fontSize: 9, fontWeight: 700, width: '40%', color: '#6B7280' }}>
+                      Cobertura do Talhão:
+                    </Text>
+                    <Text style={{ fontSize: 9, width: '60%', color: '#166534', fontWeight: 700 }}>
+                      100,00%
+                    </Text>
+                  </View>
+                </>
+              )}
               <View
                 style={{
                   flexDirection: 'row',
@@ -1243,7 +1340,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           marginRight: 4,
                         }}
                       >
-                        Área Aplicada:
+                        {isCompletedPlannedArea
+                          ? 'Área Registrada na Aplicação:'
+                          : 'Área Aplicada:'}
                       </Text>
                       <View>
                         <Text style={{ fontSize: 8, color: '#1F2937' }}>
@@ -1273,7 +1372,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                             color: '#6B7280',
                           }}
                         >
-                          Cobertura desta Aplicação
+                          {isCompletedPlannedArea
+                            ? 'Cobertura Registrada da Aplicação'
+                            : 'Cobertura desta Aplicação'}
                         </Text>
                         <Text
                           style={{ fontSize: 11, fontWeight: 700, color: '#EAAE07', marginTop: 4 }}

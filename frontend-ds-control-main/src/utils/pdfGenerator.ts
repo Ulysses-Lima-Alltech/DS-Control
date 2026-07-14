@@ -20,7 +20,6 @@ import {
   type ApplicationDjiFlight,
 } from '@/services/application.service';
 import { Application } from '@/types/applications.type';
-import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import {
   enrichApplicationsWithDjiImageUrl,
@@ -163,33 +162,6 @@ async function prefetchReportMapImagesByPlotId(
     }
 
     out[plotId] = await fetchRemoteImageAsDataUrl(mapResult.url);
-  }
-
-  return out;
-}
-
-async function prefetchReportMapImagesForPlots(
-  plots: Plot[]
-): Promise<Record<string, string | null>> {
-  const plotsById = new Map<string, Plot>();
-  plots.forEach((plot) => {
-    if (plot.id) {
-      plotsById.set(plot.id, plot);
-    }
-  });
-
-  const accessToken = getReportMapboxAccessToken();
-  const out: Record<string, string | null> = {};
-
-  for (const [plotId, plot] of plotsById) {
-    const mapResult = buildReportMapboxStaticUrl({
-      plot,
-      mapWidth: REPORT_MAP_WIDTH,
-      mapHeight: REPORT_MAP_HEIGHT,
-      accessToken,
-    });
-
-    out[plotId] = mapResult.url ? await fetchRemoteImageAsDataUrl(mapResult.url) : null;
   }
 
   return out;
@@ -522,15 +494,23 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
 }: GenerateCompletedPlotsPlannedAreaPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const completedIds = new Set(completedPlotIds);
-  const completedPlots = (serviceOrder.plots || []).filter((plot) =>
-    Boolean(plot.id && completedIds.has(plot.id))
+  const completedApplications = applications.filter((application) =>
+    Boolean(application.plotId && completedIds.has(application.plotId))
   );
-  const prefetchedMapImageDataUrls = await prefetchReportMapImagesForPlots(completedPlots);
+  const enrichedApplications = await enrichApplicationsWithDjiImageUrl(
+    serviceOrder,
+    completedApplications
+  );
+  const [prefetchedMapImageDataUrls, djiImagesByApplicationId] = await Promise.all([
+    prefetchReportMapImagesByPlotId(enrichedApplications),
+    prefetchDjiReportImagesByApplicationId(enrichedApplications).catch(() => ({})),
+  ]);
   const element = CompletedPlotsPlannedAreaReportPDF({
     serviceOrder,
-    applications,
+    applications: enrichedApplications,
     completedPlotIds,
     prefetchedMapImageDataUrls,
+    djiImagesByApplicationId,
   });
 
   // @ts-expect-error - toBlob is not typed

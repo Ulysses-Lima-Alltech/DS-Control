@@ -194,16 +194,18 @@ export default function PreviewReportHtmlPage() {
     <div className='min-h-screen w-full bg-muted p-6'>
       <div className='mb-6'>
         <h1 className='text-xl font-semibold text-foreground'>
-          Espelho HTML do Relatório PDF
+          Espelho HTML — Concluídos por Área Planejada
         </h1>
         <p className='text-sm text-muted-foreground mt-1'>
-          Layout equivalente ao ApplicationsReportPDF.tsx em HTML/React para análise e aprovação visual
+          Modo detalhado equivalente ao novo PDF, preservando as informações operacionais.
         </p>
       </div>
       <div className='bg-white rounded-lg border border-border shadow-sm overflow-hidden'>
         <ApplicationsReportLayoutMirror
           serviceOrder={MOCK_SERVICE_ORDER}
           applications={MOCK_APPLICATIONS}
+          mode='completedPlannedArea'
+          completedPlotIds={['mock-plot-id']}
         />
       </div>
     </div>
