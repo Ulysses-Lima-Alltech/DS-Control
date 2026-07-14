@@ -238,6 +238,7 @@ export class AuthenticationService {
     const hashedToken = await bcrypt.hash(jwt, env.BCRYPT_SALT_ROUNDS);
 
     await db.insert(userTokens).values({
+      id: tokenId,
       userId,
       context,
       token: hashedToken,
