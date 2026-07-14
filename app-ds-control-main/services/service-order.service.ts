@@ -6,10 +6,7 @@ import {
 } from '@/types/service-order.type';
 import { toOperationalDateYMD } from '@/utils/operational-date';
 import NetInfo from '@react-native-community/netinfo';
-import {
-  getOfflineServiceOrderById,
-  getOfflineServiceOrders,
-} from '@/offline/offlineStorage';
+import { getOfflineServiceOrderById, getOfflineServiceOrders } from '@/offline/offlineStorage';
 
 import { api } from './api.service';
 
@@ -28,7 +25,13 @@ const shouldUseOfflineData = async () => {
 
 const paginateOfflineServiceOrders = (
   serviceOrders: ServiceOrder[],
-  params?: { page?: string; limit?: string; search?: string; status?: ServiceOrderStatus; farmId?: string }
+  params?: {
+    page?: string;
+    limit?: string;
+    search?: string;
+    status?: ServiceOrderStatus;
+    farmId?: string;
+  }
 ) => {
   const normalizedSearch = params?.search?.trim().toLowerCase();
   const page = Number(params?.page ?? '1') || 1;
@@ -89,7 +92,10 @@ export async function getAllMyOpenServiceOrders(
 ): Promise<GetAllMyOpenServiceOrdersResponse> {
   if (await shouldUseOfflineData()) {
     const serviceOrders = await getOfflineServiceOrders();
-    return paginateOfflineServiceOrders(serviceOrders, { ...params, status: params?.status ?? 'open' });
+    return paginateOfflineServiceOrders(serviceOrders, {
+      ...params,
+      status: params?.status ?? 'open',
+    });
   }
 
   const searchParams = new URLSearchParams();
@@ -253,4 +259,26 @@ export async function getAllServiceOrders(
   }
 
   return await response.json();
+}
+
+export type UpdateServiceOrderPlotStatusParams = {
+  serviceOrderId: string;
+  plotId: string;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+};
+
+export async function updateServiceOrderPlotStatus({
+  serviceOrderId,
+  plotId,
+  status,
+}: UpdateServiceOrderPlotStatusParams): Promise<void> {
+  const response = await api(`/service-orders/${serviceOrderId}/plots/${plotId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Não foi possível atualizar o status do talhão.');
+  }
 }

@@ -8,13 +8,17 @@ import {
   saveOfflineDataCache,
   getOfflineDataCache,
 } from '@/utils/offline-storage';
-import { OfflineApplication, OfflineDataCache } from '@/types/offline-application.type';
+import { OfflineDataCache } from '@/types/offline-application.type';
 import { useRegisterNewApplicationWithoutPlot } from '@/mutations/application.mutation';
 import { useAuth } from '@/providers/auth.provider';
 import { getAllAssistants } from '@/services/assistant.service';
 import { getAllDrones } from '@/services/drone.service';
 import { getAllCultureTypes } from '@/services/culture-type.service';
 import { getAllProducts } from '@/services/product.service';
+import {
+  getAllMyOpenServiceOrders,
+  updateServiceOrderPlotStatus,
+} from '@/services/service-order.service';
 
 export const useOfflineSync = () => {
   const { isConnected } = useNetworkConnectivity();
@@ -64,23 +68,44 @@ export const useOfflineSync = () => {
         try {
           await updateOfflineApplication(app.localId, { syncStatus: 'syncing' });
 
-          await registerLooseApplication({
-            pilotId: app.pilotId,
-            date: app.date,
-            assistantId: app.assistantId,
-            droneId: app.droneId,
-            cultureId: app.cultureId,
-            productId: app.productId,
-            hectares: app.hectares,
-            flowRate: app.flowRate,
-            altitude: app.altitude,
-            routeSpacing: app.routeSpacing,
-            dropletSize: app.dropletSize,
-            observations: app.observations,
-            serviceOrderId: null,
-            farmId: null,
-            plotId: null,
-          });
+          if (!app.applicationSynced) {
+            await registerLooseApplication({
+              pilotId: app.pilotId,
+              date: app.date,
+              assistantId: app.assistantId,
+              droneId: app.droneId,
+              cultureId: app.cultureId,
+              productId: app.productId,
+              hectares: app.hectares,
+              flowRate: app.flowRate,
+              altitude: app.altitude,
+              routeSpacing: app.routeSpacing,
+              dropletSize: app.dropletSize,
+              observations: app.observations,
+              serviceOrderId: app.serviceOrderId || null,
+              farmId: app.farmId || null,
+              plotId: app.plotId || null,
+            });
+            await updateOfflineApplication(app.localId, { applicationSynced: true });
+          }
+
+          if (app.plotCompleted && app.serviceOrderId && app.plotId) {
+            try {
+              await updateServiceOrderPlotStatus({
+                serviceOrderId: app.serviceOrderId,
+                plotId: app.plotId,
+                status: 'COMPLETED',
+              });
+            } catch (error) {
+              console.error(
+                `[OfflineSync] Aplicação ${app.localId} salva, mas o status do talhão falhou:`,
+                error
+              );
+              throw new Error(
+                'A aplicação foi salva, mas não foi possível marcar o talhão como concluído.'
+              );
+            }
+          }
 
           await deleteOfflineApplication(app.localId);
           console.log(`Successfully synced application: ${app.localId}`);
@@ -112,12 +137,18 @@ export const useOfflineSync = () => {
     try {
       console.log('Starting offline data download...');
 
-      const [assistantsData, dronesData, cultureTypesData, productsData] = await Promise.all([
-        getAllAssistants({ limit: '100' }),
-        getAllDrones({ limit: '100' }),
-        getAllCultureTypes({ limit: '100' }),
-        getAllProducts({ limit: '100' }),
-      ]);
+      const [assistantsData, dronesData, cultureTypesData, productsData, serviceOrdersData] =
+        await Promise.all([
+          getAllAssistants({ limit: '100' }),
+          getAllDrones({ limit: '100' }),
+          getAllCultureTypes({ limit: '100' }),
+          getAllProducts({ limit: '100' }),
+          getAllMyOpenServiceOrders({
+            limit: '100',
+            includePlots: 'true',
+            includeFarms: 'true',
+          }),
+        ]);
 
       console.log('Data fetched successfully:', {
         assistants: assistantsData.data?.length,
@@ -135,6 +166,7 @@ export const useOfflineSync = () => {
         drones: dronesData.data?.map((d: any) => ({ id: d.id, name: d.name })) || [],
         cultureTypes: cultureTypesData.data?.map((c: any) => ({ id: c.id, name: c.name })) || [],
         products: productsData.data?.map((p: any) => ({ id: p.id, name: p.name })) || [],
+        serviceOrders: serviceOrdersData.data || [],
         lastUpdated: new Date().toISOString(),
       };
 

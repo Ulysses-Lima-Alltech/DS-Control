@@ -18,6 +18,10 @@ export const OfflineApplicationSchema = z.object({
   routeSpacing: z.string().min(1, 'Espaçamento de rota é obrigatório'),
   dropletSize: z.string().min(1, 'Tamanho de gota é obrigatório'),
   observations: z.string().optional(),
+  serviceOrderId: z.string().nullish(),
+  farmId: z.string().nullish(),
+  plotId: z.string().nullish(),
+  plotCompleted: z.boolean().optional(),
 });
 
 export type OfflineApplicationFormData = z.infer<typeof OfflineApplicationSchema>;

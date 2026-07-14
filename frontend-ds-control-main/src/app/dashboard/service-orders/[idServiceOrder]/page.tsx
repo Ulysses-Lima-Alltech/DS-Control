@@ -30,19 +30,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   useCancelServiceOrderById,
   useCompleteServiceOrderById,
-  useUpdateServiceOrderPlotStatus,
 } from '@/mutations/service-order.mutation';
 import { useGetApplicationsByServiceOrderId } from '@/queries/application.query';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
@@ -75,7 +67,6 @@ export default function ServiceOrderPage({
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [selectedPlotId, setSelectedPlotId] = useState('');
 
   const { data: applicationsData, isPending: isApplicationsLoading } =
     useGetApplicationsByServiceOrderId(idServiceOrder);
@@ -84,7 +75,6 @@ export default function ServiceOrderPage({
     data: serviceOrderData,
     isPending: isServiceOrderLoading,
     isError: isServiceOrderError,
-    refetch: refetchServiceOrder,
   } = useGetServiceOrderById(idServiceOrder, {
     includePlots: 'true',
     includeGeoJson: 'true',
@@ -338,26 +328,6 @@ export default function ServiceOrderPage({
       toast.error(error.message || 'Erro ao cancelar a ordem de serviço');
     },
   });
-
-  const updatePlotStatusMutation = useUpdateServiceOrderPlotStatus({
-    onSuccess: async () => {
-      await refetchServiceOrder();
-      toast.success('Status do talhão atualizado com sucesso');
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const handlePlotStatusChange = (status: 'PENDING' | 'COMPLETED' | 'CANCELLED') => {
-    if (!selectedPlotId) {
-      toast.info('Selecione um talhão');
-      return;
-    }
-    updatePlotStatusMutation.mutate({
-      serviceOrderId: idServiceOrder,
-      plotId: selectedPlotId,
-      status,
-    });
-  };
 
   const statusMap: Record<
     ServiceOrder['status'],
@@ -853,52 +823,6 @@ export default function ServiceOrderPage({
 
             <div className='space-y-4 overflow-y-auto border-t p-4 lg:border-t-0'>
               <h3 className='text-sm font-semibold text-foreground'>{legendLabels.title}</h3>
-              <div className='space-y-2 rounded-md border p-3'>
-                <p className='text-sm font-medium'>Atualizar status oficial</p>
-                <Select value={selectedPlotId} onValueChange={setSelectedPlotId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder='Selecione um talhão' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(serviceOrderData.plots || []).map((plot) => (
-                      <SelectItem key={plot.id} value={plot.id!}>
-                        {plot.name} — {plot.status || 'PENDING'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className='grid grid-cols-1 gap-2'>
-                  <Button
-                    size='sm'
-                    onClick={() => handlePlotStatusChange('COMPLETED')}
-                    disabled={
-                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
-                    }
-                  >
-                    Marcar como concluído
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    onClick={() => handlePlotStatusChange('PENDING')}
-                    disabled={
-                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
-                    }
-                  >
-                    Marcar como pendente
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='destructive'
-                    onClick={() => handlePlotStatusChange('CANCELLED')}
-                    disabled={
-                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
-                    }
-                  >
-                    Cancelar talhão
-                  </Button>
-                </div>
-              </div>
               <div className='space-y-2'>
                 {legendData.farms.length > 0 ? (
                   legendData.farms.map((farm) => (

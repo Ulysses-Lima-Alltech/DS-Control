@@ -1,11 +1,12 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import {
   useRegisterNewApplication,
   useUpdateApplicationById,
 } from '@/mutations/application.mutation';
+import { useUpdateServiceOrderPlotStatus } from '@/mutations/service-order.mutation';
 import { useGetAllAssistantsInfinite, useGetAssistantById } from '@/queries/assistant.query';
 import { useGetAllCultureTypesInfinite, useGetCultureTypeById } from '@/queries/culture-type.query';
 import { useGetAllDronesInfinite, useGetDroneById } from '@/queries/drone.query';
@@ -66,6 +68,10 @@ export default function FormApplication({
   const [droneSearch, setDroneSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [cultureTypeSearch, setCultureTypeSearch] = useState('');
+  const [plotCompleted, setPlotCompleted] = useState(false);
+  const [statusRetry, setStatusRetry] = useState<{ serviceOrderId: string; plotId: string } | null>(
+    null
+  );
 
   const {
     register,
@@ -95,10 +101,12 @@ export default function FormApplication({
     },
   });
 
-  const { mutate: registerNewApplication, isPending: isCreatingApplication } =
+  const { mutateAsync: registerNewApplication, isPending: isCreatingApplication } =
     useRegisterNewApplication();
-  const { mutate: updateApplicationById, isPending: isUpdatingApplication } =
+  const { mutateAsync: updateApplicationById, isPending: isUpdatingApplication } =
     useUpdateApplicationById();
+  const { mutateAsync: updatePlotStatus, isPending: isUpdatingPlotStatus } =
+    useUpdateServiceOrderPlotStatus();
 
   const invalidateApplicationCaches = (targetServiceOrderId?: string | null) => {
     const effectiveServiceOrderId = targetServiceOrderId || watch('serviceOrderId');
@@ -166,6 +174,17 @@ export default function FormApplication({
     (serviceOrder) => serviceOrder?.id === watch('serviceOrderId')
   );
 
+  const selectedServiceOrderPlot = useMemo(() => {
+    const plots = initialServiceOrder?.plots || selectedServideOrder?.plots || [];
+    return plots.find((plot) => plot.id === watch('plotId'));
+  }, [initialServiceOrder?.plots, selectedServideOrder?.plots, watch('plotId')]);
+
+  useEffect(() => {
+    if (isEditMode && selectedServiceOrderPlot) {
+      setPlotCompleted(selectedServiceOrderPlot.status === 'COMPLETED');
+    }
+  }, [isEditMode, selectedServiceOrderPlot]);
+
   // FARMS
   const {
     data: farmsData,
@@ -204,7 +223,15 @@ export default function FormApplication({
       search: pilotSearch || undefined,
     },
     {
-      queryKey: ['users', 'FormApplication', 'infinite', 'pilot', 'active', '10', pilotSearch || ''],
+      queryKey: [
+        'users',
+        'FormApplication',
+        'infinite',
+        'pilot',
+        'active',
+        '10',
+        pilotSearch || '',
+      ],
     }
   );
 
@@ -368,60 +395,69 @@ export default function FormApplication({
   const selectedFarmId = watch('farmId');
   const availablePlots = farmData?.farm.plots || [];
 
-  const onSubmit = (data: RegisterNewApplicationParams) => {
-    if (isEditMode && initialValues?.id) {
-      updateApplicationById(
-        { ...data, id: initialValues.id },
-        {
-          onSuccess: () => {
-            toast('Aplicação atualizada com sucesso');
-            invalidateApplicationCaches(data.serviceOrderId);
-            onSuccess?.();
-          },
-          onError: (error) => {
-            toast(error.message);
-          },
-        }
-      );
-    } else {
-      registerNewApplication(data, {
-        onSuccess: () => {
-          toast('Aplicação criada com sucesso');
-          invalidateApplicationCaches(data.serviceOrderId);
-          reset({
-            serviceOrderId: '',
-            farmId: '',
-            pilotId: '',
-            assistantId: '',
-            droneId: '',
-            cultureId: '',
-            hectares: '',
-            flowRate: '',
-            altitude: '',
-            routeSpacing: '',
-            dropletSize: '',
-            date: toOperationalDateYMDOrToday(),
-            productId: '',
-            plotId: undefined,
-            observations: '',
-          });
-          setServiceOrderSearch('');
-          setFarmSearch('');
-          setPilotSearch('');
-          setAssistantSearch('');
-          setDroneSearch('');
-          setProductSearch('');
-          setCultureTypeSearch('');
-          onSuccess?.();
-        },
-        onError: (error) => {
-          toast(error.message);
-        },
-      });
+  const markPlotAsCompleted = async (serviceOrderId: string, plotId: string) => {
+    await updatePlotStatus({ serviceOrderId, plotId, status: 'COMPLETED' });
+    setStatusRetry(null);
+    invalidateApplicationCaches(serviceOrderId);
+  };
+
+  const handleReopenPlot = async () => {
+    const serviceOrderId = watch('serviceOrderId');
+    const plotId = watch('plotId');
+    if (!serviceOrderId || !plotId) return;
+    if (!window.confirm('Deseja realmente marcar este talhão como pendente?')) return;
+
+    try {
+      await updatePlotStatus({ serviceOrderId, plotId, status: 'PENDING' });
+      setPlotCompleted(false);
+      setStatusRetry(null);
+      invalidateApplicationCaches(serviceOrderId);
+      toast.success('Talhão reaberto com sucesso');
+    } catch (error) {
+      console.error('[FormApplication] Falha ao reabrir talhão', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível reabrir o talhão');
     }
   };
 
-  const isApplyingChanges = isCreatingApplication || isUpdatingApplication;
+  const onSubmit = async (data: RegisterNewApplicationParams) => {
+    let applicationSaved = false;
+
+    try {
+      if (isEditMode && initialValues?.id) {
+        await updateApplicationById({ ...data, id: initialValues.id });
+      } else {
+        await registerNewApplication(data);
+      }
+      applicationSaved = true;
+      invalidateApplicationCaches(data.serviceOrderId);
+
+      if (plotCompleted && data.serviceOrderId && data.plotId) {
+        try {
+          await markPlotAsCompleted(data.serviceOrderId, data.plotId);
+        } catch (error) {
+          console.error('[FormApplication] Falha ao concluir talhão após salvar aplicação', error);
+          setStatusRetry({ serviceOrderId: data.serviceOrderId, plotId: data.plotId });
+          toast.error(
+            'A aplicação foi salva, mas não foi possível marcar o talhão como concluído.'
+          );
+          return;
+        }
+      }
+
+      toast(isEditMode ? 'Aplicação atualizada com sucesso' : 'Aplicação criada com sucesso');
+      if (!isEditMode) {
+        reset();
+        setPlotCompleted(false);
+      }
+      onSuccess?.();
+    } catch (error) {
+      if (!applicationSaved) {
+        toast(error instanceof Error ? error.message : 'Não foi possível salvar a aplicação');
+      }
+    }
+  };
+
+  const isApplyingChanges = isCreatingApplication || isUpdatingApplication || isUpdatingPlotStatus;
 
   if (
     isFetchingInitialServiceOrder ||
@@ -603,6 +639,61 @@ export default function FormApplication({
         />
         {errors.plotId && <p className='text-red-500 text-sm'>{errors.plotId.message}</p>}
 
+        <div className='rounded-md border p-3'>
+          <label className='flex cursor-pointer items-start gap-3'>
+            <Checkbox
+              checked={plotCompleted}
+              onCheckedChange={(checked) => setPlotCompleted(checked === true)}
+              disabled={!watch('serviceOrderId') || !watch('plotId') || isApplyingChanges}
+              className='mt-0.5'
+            />
+            <span>
+              <span className='block text-sm font-medium'>Talhão concluído</span>
+              <span className='block text-xs text-muted-foreground'>
+                Marque esta opção quando a aplicação deste talhão estiver integralmente concluída.
+              </span>
+            </span>
+          </label>
+
+          {statusRetry && (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='mt-3'
+              disabled={isUpdatingPlotStatus}
+              onClick={() =>
+                markPlotAsCompleted(statusRetry.serviceOrderId, statusRetry.plotId)
+                  .then(() => {
+                    toast.success('Talhão marcado como concluído');
+                    onSuccess?.();
+                  })
+                  .catch((error) => {
+                    console.error('[FormApplication] Nova falha ao concluir talhão', error);
+                    toast.error(
+                      'Não foi possível marcar o talhão como concluído. Tente novamente.'
+                    );
+                  })
+              }
+            >
+              Tentar marcar como concluído novamente
+            </Button>
+          )}
+
+          {isEditMode && selectedServiceOrderPlot?.status === 'COMPLETED' && (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='mt-3'
+              disabled={isUpdatingPlotStatus}
+              onClick={handleReopenPlot}
+            >
+              Reabrir talhão
+            </Button>
+          )}
+        </div>
+
         <Input
           type='number'
           step='0.01'
@@ -687,7 +778,7 @@ export default function FormApplication({
           <p className='text-red-500 text-sm'>{errors.observations.message}</p>
         )}
 
-        <Button type='submit' disabled={isApplyingChanges}>
+        <Button type='submit' disabled={isApplyingChanges || !!statusRetry}>
           {isApplyingChanges
             ? isEditMode
               ? 'Atualizando aplicação...'

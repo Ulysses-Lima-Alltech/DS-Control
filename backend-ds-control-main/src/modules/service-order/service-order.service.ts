@@ -294,6 +294,20 @@ export class ServiceOrderService {
     dto: UpdateServiceOrderPlotStatusDTO,
     currentUserId: string,
   ) {
+    const authenticatedUser = await this.userRepository.getUserById(currentUserId);
+    if (!authenticatedUser) {
+      throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
+    }
+
+    if (authenticatedUser.type === UserType.PILOT) {
+      await this.getAuthorizedPilotIdForServiceOrder(serviceOrderId, currentUserId);
+    } else if (authenticatedUser.type !== UserType.BACKOFFICE) {
+      throw new AppError(
+        'Voce nao tem permissao para atualizar o status deste talhao',
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+
     const serviceOrder = await this.serviceOrderRepository.getServiceOrderById(
       serviceOrderId,
       false,

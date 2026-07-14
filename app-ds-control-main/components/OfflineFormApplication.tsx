@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { Controller, useForm } from 'react-hook-form';
@@ -50,6 +51,7 @@ export default function OfflineFormApplication() {
     handleSubmit,
     formState: { errors: errorsForm },
     reset,
+    watch,
   } = useForm<OfflineApplicationFormData>({
     resolver: zodResolver(OfflineApplicationSchema),
     mode: 'onChange',
@@ -71,6 +73,10 @@ export default function OfflineFormApplication() {
       routeSpacing: '',
       dropletSize: '',
       observations: '',
+      serviceOrderId: null,
+      farmId: null,
+      plotId: null,
+      plotCompleted: false,
     },
   });
 
@@ -80,6 +86,19 @@ export default function OfflineFormApplication() {
       setValue('pilotName', offlineData.pilot.name);
     }
   }, [offlineData, setValue]);
+
+  const offlineServiceOrders = offlineData?.serviceOrders || [];
+  const serviceOrderOptions = offlineServiceOrders.map((serviceOrder) => ({
+    ...serviceOrder,
+    displayName: `OS #${serviceOrder.number}`,
+  }));
+  const selectedServiceOrder = offlineServiceOrders.find(
+    (serviceOrder) => serviceOrder.id === watch('serviceOrderId')
+  );
+  const availableFarms = selectedServiceOrder?.farms || [];
+  const availablePlots = (selectedServiceOrder?.plots || []).filter(
+    (plot) => !watch('farmId') || plot.farmId === watch('farmId')
+  );
 
   const handleSubmitForm = handleSubmit(
     async (data) => {
@@ -104,6 +123,10 @@ export default function OfflineFormApplication() {
           routeSpacing: data.routeSpacing,
           dropletSize: data.dropletSize,
           observations: data.observations || '',
+          serviceOrderId: data.serviceOrderId || null,
+          farmId: data.farmId || null,
+          plotId: data.plotId || null,
+          plotCompleted: Boolean(data.plotCompleted && data.serviceOrderId && data.plotId),
           createdAt: new Date().toISOString(),
           syncStatus: 'pending',
         };
@@ -116,7 +139,7 @@ export default function OfflineFormApplication() {
         );
         reset();
         router.back();
-      } catch (error) {
+      } catch {
         Alert.alert('Erro', 'Não foi possível salvar a aplicação offline.');
       } finally {
         setIsSubmitting(false);
@@ -335,6 +358,114 @@ export default function OfflineFormApplication() {
               );
             }}
           />
+
+          {serviceOrderOptions.length > 0 && (
+            <>
+              <Controller
+                control={control}
+                name='serviceOrderId'
+                render={({ field }) => (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={{ marginBottom: 8, fontSize: 14, color: COLORS.black }}>
+                      Ordem de serviço
+                    </Text>
+                    <SearchableSelect
+                      value={field.value || ''}
+                      listedData={serviceOrderOptions}
+                      onItemSelect={(id) => {
+                        field.onChange(id);
+                        setValue('farmId', null);
+                        setValue('plotId', null);
+                        setValue('plotCompleted', false);
+                      }}
+                      itemKey='displayName'
+                      disabled={isSubmitting}
+                    />
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name='farmId'
+                render={({ field }) => (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={{ marginBottom: 8, fontSize: 14, color: COLORS.black }}>
+                      Fazenda
+                    </Text>
+                    <SearchableSelect
+                      value={field.value || ''}
+                      listedData={availableFarms}
+                      onItemSelect={(id) => {
+                        field.onChange(id);
+                        setValue('plotId', null);
+                        setValue('plotCompleted', false);
+                      }}
+                      itemKey='name'
+                      disabled={!watch('serviceOrderId') || isSubmitting}
+                    />
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name='plotId'
+                render={({ field }) => (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={{ marginBottom: 8, fontSize: 14, color: COLORS.black }}>
+                      Talhão
+                    </Text>
+                    <SearchableSelect
+                      value={field.value || ''}
+                      listedData={availablePlots}
+                      onItemSelect={(id) => {
+                        field.onChange(id);
+                        setValue('plotCompleted', false);
+                      }}
+                      itemKey='name'
+                      disabled={!watch('farmId') || isSubmitting}
+                    />
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name='plotCompleted'
+                render={({ field }) => (
+                  <View
+                    style={{
+                      marginTop: 16,
+                      padding: 14,
+                      borderWidth: 1,
+                      borderColor: COLORS.lightgray,
+                      borderRadius: 8,
+                      flexDirection: 'row',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                    }}
+                  >
+                    <Switch
+                      value={Boolean(field.value)}
+                      onValueChange={field.onChange}
+                      disabled={!watch('plotId') || isSubmitting}
+                      trackColor={{ false: COLORS.lightgray, true: COLORS.orange }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: '600' }}>
+                        Talhão concluído
+                      </Text>
+                      <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.gray }}>
+                        Marque esta opção quando a aplicação deste talhão estiver integralmente
+                        concluída.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            </>
+          )}
 
           {/* Assistant */}
           <Controller

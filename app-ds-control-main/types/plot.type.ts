@@ -11,4 +11,7 @@ export type Plot = {
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  completedAt?: string | null;
+  completedBy?: string | null;
 };

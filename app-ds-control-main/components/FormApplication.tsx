@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
@@ -49,6 +50,7 @@ import { useAuth } from '@/providers/auth.provider';
 import { useGetApplicationById } from '@/queries/application.query';
 import { useGetAllFarmsInfinite } from '../queries/farm.query';
 import { Farm } from '../types/farm.type';
+import { updateServiceOrderPlotStatus } from '@/services/service-order.service';
 
 interface FormApplicationProps {
   serviceOrderId: string | undefined;
@@ -88,6 +90,11 @@ export default function FormApplication({
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [serviceOrderIdToFetch, setServiceOrderIdToFetch] = useState(serviceOrderId ?? '');
+  const [plotCompleted, setPlotCompleted] = useState(false);
+  const [statusRetry, setStatusRetry] = useState<{ serviceOrderId: string; plotId: string } | null>(
+    null
+  );
+  const [isUpdatingPlotStatus, setIsUpdatingPlotStatus] = useState(false);
 
   const currentSchema = getSchemaByFormMode(formMode);
 
@@ -209,6 +216,17 @@ export default function FormApplication({
     );
   }, [listedFarms, watch('farmId'), serviceOrder]);
 
+  const selectedServiceOrderPlot = useMemo(
+    () => serviceOrder?.plots?.find((plot) => plot.id === watch('plotId')),
+    [serviceOrder?.plots, watch('plotId')]
+  );
+
+  useEffect(() => {
+    if ((formMode === 'edit' || formMode === 'edit-loose') && selectedServiceOrderPlot) {
+      setPlotCompleted(selectedServiceOrderPlot.status === 'COMPLETED');
+    }
+  }, [formMode, selectedServiceOrderPlot]);
+
   // ASSISTANT
   const [assistantSearchTerm, setAssistantSearchTerm] = useState('');
 
@@ -311,94 +329,108 @@ export default function FormApplication({
     }
   };
 
-  const { mutate: registerNewApplication, isPending: isPendingRegisterNewApplication } =
-    useRegisterNewApplication({
-      onSuccess: () => {
-        Alert.alert('Aplicação criada com sucesso');
-        reset();
-        invalidateApplicationCaches();
-        router.back();
-      },
-      onError: (error) => {
-        Alert.alert('Erro ao criar aplicação', error.message);
-      },
-    });
+  const { mutateAsync: registerNewApplication, isPending: isPendingRegisterNewApplication } =
+    useRegisterNewApplication();
 
-  const { mutate: registerNewLooseApplication, isPending: isPendingRegisterNewLooseApplication } =
-    useRegisterNewApplicationWithoutPlot({
-      onSuccess: () => {
-        Alert.alert('Aplicação criada com sucesso');
-        reset();
-        invalidateApplicationCaches();
-        router.back();
-      },
-      onError: (error) => {
-        Alert.alert('Erro ao criar aplicação', error.message);
-      },
-    });
+  const {
+    mutateAsync: registerNewLooseApplication,
+    isPending: isPendingRegisterNewLooseApplication,
+  } = useRegisterNewApplicationWithoutPlot();
 
-  const { mutate: updateApplication, isPending: isPendingUpdateApplication } =
-    useUpdateApplicationById({
-      onSuccess: () => {
-        Alert.alert('Aplicação atualizada com sucesso');
-        reset();
-        invalidateApplicationCaches();
-        router.back();
-      },
-      onError: (error) => {
-        Alert.alert('Erro ao atualizar aplicação', error.message);
-      },
-    });
+  const { mutateAsync: updateApplication, isPending: isPendingUpdateApplication } =
+    useUpdateApplicationById();
 
-  const { mutate: updateLooseApplication, isPending: isPendingUpdateLooseApplication } =
-    useUpdateLooseApplicationById({
-      onSuccess: () => {
-        Alert.alert('Aplicação atualizada com sucesso');
-        reset();
-        invalidateApplicationCaches();
-        router.back();
-      },
-      onError: (error) => {
-        Alert.alert('Erro ao atualizar aplicação', error.message);
-      },
-    });
+  const { mutateAsync: updateLooseApplication, isPending: isPendingUpdateLooseApplication } =
+    useUpdateLooseApplicationById();
 
   // HANDLE SUBMIT FORM
+  const markPlotAsCompleted = async (targetServiceOrderId: string, plotId: string) => {
+    setIsUpdatingPlotStatus(true);
+    try {
+      await updateServiceOrderPlotStatus({
+        serviceOrderId: targetServiceOrderId,
+        plotId,
+        status: 'COMPLETED',
+      });
+      setStatusRetry(null);
+      invalidateApplicationCaches(targetServiceOrderId);
+    } finally {
+      setIsUpdatingPlotStatus(false);
+    }
+  };
+
+  const finishSuccessfulSave = (message: string) => {
+    Alert.alert(message);
+    reset();
+    setPlotCompleted(false);
+    invalidateApplicationCaches();
+    router.back();
+  };
+
   const handleSubmitForm = handleSubmit(
     async (data) => {
-      // Edit Application Mode
-      if (formMode === 'edit' && applicationId) {
-        updateApplication({
-          ...(data as z.infer<typeof UpdateApplicationByIdSchema>),
-          id: dataApplicationBeingEdited?.application?.id ?? '',
-        });
-        return;
-      }
+      let applicationSaved = false;
+      const targetServiceOrderId = watch('serviceOrderId') || null;
+      const targetPlotId = watch('plotId') || null;
 
-      // Edit Loose Application Mode
-      if (formMode === 'edit-loose' && applicationId) {
-        updateLooseApplication({
-          ...(data as z.infer<typeof UpdateLooseApplicationSchema>),
-          id: dataApplicationBeingEdited?.application?.id ?? '',
-          serviceOrderId: watch('serviceOrderId') ? watch('serviceOrderId') : null,
-          farmId: watch('farmId') ? watch('farmId') : null,
-          plotId: watch('plotId') ? watch('plotId') : null,
-        });
-        return;
-      }
+      try {
+        if (formMode === 'edit' && applicationId) {
+          await updateApplication({
+            ...(data as z.infer<typeof UpdateApplicationByIdSchema>),
+            id: dataApplicationBeingEdited?.application?.id ?? '',
+          });
+        } else if (formMode === 'edit-loose' && applicationId) {
+          await updateLooseApplication({
+            ...(data as z.infer<typeof UpdateLooseApplicationSchema>),
+            id: dataApplicationBeingEdited?.application?.id ?? '',
+            serviceOrderId: targetServiceOrderId,
+            farmId: watch('farmId') || null,
+            plotId: targetPlotId,
+          });
+        } else if (formMode === 'new-loose') {
+          const looseData = data as z.infer<typeof RegisterNewLooseApplicationSchema>;
+          await registerNewLooseApplication({
+            ...looseData,
+            farmId: watch('farmId') || null,
+            plotId: targetPlotId,
+            serviceOrderId: targetServiceOrderId,
+          });
+        } else {
+          await registerNewApplication(data as z.infer<typeof RegisterNewApplicationSchema>);
+        }
 
-      // New Application Mode
-      if (formMode === 'new-loose') {
-        const looseData = data as z.infer<typeof RegisterNewLooseApplicationSchema>;
-        registerNewLooseApplication({
-          ...looseData,
-          farmId: watch('farmId') ? watch('farmId') : null,
-          plotId: watch('plotId') ? watch('plotId') : null,
-          serviceOrderId: watch('serviceOrderId') ? watch('serviceOrderId') : null,
-        });
-      } else {
-        const newData = data as z.infer<typeof RegisterNewApplicationSchema>;
-        registerNewApplication(newData);
+        applicationSaved = true;
+        invalidateApplicationCaches(targetServiceOrderId);
+
+        if (plotCompleted && targetServiceOrderId && targetPlotId) {
+          try {
+            await markPlotAsCompleted(targetServiceOrderId, targetPlotId);
+          } catch (error) {
+            console.error(
+              '[FormApplication] Falha ao concluir talhão após salvar aplicação',
+              error
+            );
+            setStatusRetry({ serviceOrderId: targetServiceOrderId, plotId: targetPlotId });
+            Alert.alert(
+              'Aplicação salva',
+              'A aplicação foi salva, mas não foi possível marcar o talhão como concluído.'
+            );
+            return;
+          }
+        }
+
+        finishSuccessfulSave(
+          formMode === 'edit' || formMode === 'edit-loose'
+            ? 'Aplicação atualizada com sucesso'
+            : 'Aplicação criada com sucesso'
+        );
+      } catch (error) {
+        if (!applicationSaved) {
+          Alert.alert(
+            'Erro ao salvar aplicação',
+            error instanceof Error ? error.message : 'Não foi possível salvar a aplicação.'
+          );
+        }
       }
     },
     (errors) => {
@@ -427,6 +459,41 @@ export default function FormApplication({
     );
   };
 
+  const handleReopenPlot = () => {
+    const targetServiceOrderId = watch('serviceOrderId');
+    const targetPlotId = watch('plotId');
+    if (!targetServiceOrderId || !targetPlotId) return;
+
+    Alert.alert('Reabrir talhão', 'Deseja realmente marcar este talhão como pendente?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Reabrir talhão',
+        style: 'destructive',
+        onPress: async () => {
+          setIsUpdatingPlotStatus(true);
+          try {
+            await updateServiceOrderPlotStatus({
+              serviceOrderId: targetServiceOrderId,
+              plotId: targetPlotId,
+              status: 'PENDING',
+            });
+            setPlotCompleted(false);
+            invalidateApplicationCaches(targetServiceOrderId);
+            Alert.alert('Talhão reaberto com sucesso');
+          } catch (error) {
+            console.error('[FormApplication] Falha ao reabrir talhão', error);
+            Alert.alert(
+              'Erro ao reabrir talhão',
+              error instanceof Error ? error.message : 'Não foi possível reabrir o talhão.'
+            );
+          } finally {
+            setIsUpdatingPlotStatus(false);
+          }
+        },
+      },
+    ]);
+  };
+
   const handleSaveButtonClick = () => {
     Alert.alert('Salvar Aplicação', 'Confirmar o salvamento da aplicação?', [
       {
@@ -446,7 +513,7 @@ export default function FormApplication({
     isErrorServiceOrder ||
     ((formMode === 'edit' || formMode === 'edit-loose') && isErrorApplicationBeingEdited);
   const errors = () => {
-    let errorList = [];
+    const errorList = [];
 
     if (errorServiceOrder) {
       errorList.push(errorServiceOrder);
@@ -463,7 +530,8 @@ export default function FormApplication({
     isPendingRegisterNewApplication ||
     isPendingRegisterNewLooseApplication ||
     isPendingUpdateApplication ||
-    isPendingUpdateLooseApplication;
+    isPendingUpdateLooseApplication ||
+    isUpdatingPlotStatus;
   const isLoading =
     isFetchingServiceOrder ||
     ((formMode === 'edit' || formMode === 'edit-loose') && isFetchingApplicationBeingEdited);
@@ -687,6 +755,67 @@ export default function FormApplication({
               );
             }}
           />
+
+          <View
+            style={{
+              marginTop: 16,
+              padding: 14,
+              borderWidth: 1,
+              borderColor: COLORS.lightgray,
+              borderRadius: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+              <Switch
+                value={plotCompleted}
+                onValueChange={setPlotCompleted}
+                disabled={!watch('serviceOrderId') || !watch('plotId') || isSubmitting}
+                trackColor={{ false: COLORS.lightgray, true: COLORS.orange }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: COLORS.black, fontWeight: '600' }}>
+                  Talhão concluído
+                </Text>
+                <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.gray }}>
+                  Marque esta opção quando a aplicação deste talhão estiver integralmente concluída.
+                </Text>
+              </View>
+            </View>
+
+            {statusRetry && (
+              <TouchableOpacity
+                disabled={isUpdatingPlotStatus}
+                onPress={async () => {
+                  try {
+                    await markPlotAsCompleted(statusRetry.serviceOrderId, statusRetry.plotId);
+                    finishSuccessfulSave('Talhão marcado como concluído');
+                  } catch (error) {
+                    console.error('[FormApplication] Nova falha ao concluir talhão', error);
+                    Alert.alert(
+                      'Erro',
+                      'Não foi possível marcar o talhão como concluído. Tente novamente.'
+                    );
+                  }
+                }}
+                style={{ marginTop: 12 }}
+              >
+                <Text style={{ color: COLORS.orange, fontWeight: '600' }}>
+                  Tentar marcar como concluído novamente
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {(formMode === 'edit' || formMode === 'edit-loose') &&
+              selectedServiceOrderPlot?.status === 'COMPLETED' && (
+                <TouchableOpacity
+                  disabled={isUpdatingPlotStatus}
+                  onPress={handleReopenPlot}
+                  style={{ marginTop: 12 }}
+                >
+                  <Text style={{ color: COLORS.red, fontWeight: '600' }}>Reabrir talhão</Text>
+                </TouchableOpacity>
+              )}
+          </View>
 
           {/* Assistant */}
           <Controller
@@ -1238,7 +1367,6 @@ export default function FormApplication({
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              disabled={isSubmitting}
               style={{
                 flex: 1,
                 flexDirection: 'row',
@@ -1248,8 +1376,9 @@ export default function FormApplication({
                 backgroundColor: COLORS.primary,
                 padding: 12,
                 borderRadius: 16,
-                opacity: isSubmitting ? 0.7 : 1,
+                opacity: isSubmitting || statusRetry ? 0.7 : 1,
               }}
+              disabled={isSubmitting || !!statusRetry}
               onPress={handleSaveButtonClick}
             >
               <Ionicons name='save-outline' size={14} color={COLORS.white} />

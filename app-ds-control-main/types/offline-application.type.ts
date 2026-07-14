@@ -1,3 +1,5 @@
+import type { ServiceOrder } from '@/types/service-order.type';
+
 export interface OfflineApplication {
   localId: string;
   pilotId: string;
@@ -17,6 +19,11 @@ export interface OfflineApplication {
   routeSpacing: string;
   dropletSize: string;
   observations: string;
+  serviceOrderId?: string | null;
+  farmId?: string | null;
+  plotId?: string | null;
+  plotCompleted?: boolean;
+  applicationSynced?: boolean;
   createdAt: string;
   syncStatus: 'pending' | 'syncing' | 'synced' | 'error';
   syncError?: string;
@@ -27,9 +34,10 @@ export interface OfflineDataCache {
     id: string;
     name: string;
   } | null;
-  assistants: Array<{ id: string; name: string }>;
-  drones: Array<{ id: string; name: string }>;
-  cultureTypes: Array<{ id: string; name: string }>;
-  products: Array<{ id: string; name: string }>;
+  assistants: { id: string; name: string }[];
+  drones: { id: string; name: string }[];
+  cultureTypes: { id: string; name: string }[];
+  products: { id: string; name: string }[];
+  serviceOrders?: ServiceOrder[];
   lastUpdated: string;
 }
