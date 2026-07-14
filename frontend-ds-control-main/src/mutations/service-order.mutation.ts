@@ -60,3 +60,16 @@ export const useCompleteServiceOrderById = (
     ...options,
   });
 };
+
+export const useUpdateServiceOrderPlotStatus = (
+  options?: UseMutationOptions<
+    ServiceOrderService.ServiceOrderPlotStatusResponse,
+    Error,
+    ServiceOrderService.UpdateServiceOrderPlotStatusParams
+  >
+) => {
+  return useMutation({
+    mutationFn: ServiceOrderService.updateServiceOrderPlotStatus,
+    ...options,
+  });
+};

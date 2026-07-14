@@ -9,4 +9,7 @@ export type Plot = {
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string | null;
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  completedAt?: string | null;
+  completedBy?: string | null;
 };

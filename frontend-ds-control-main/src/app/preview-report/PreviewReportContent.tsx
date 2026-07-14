@@ -100,6 +100,10 @@ const MOCK_SERVICE_ORDER: ServiceOrder = {
   plannedHectares: 25.5,
   totalAppliedHectares: 12.75,
   progressPercent: 50,
+  completedHectares: 50,
+  pendingHectares: 50,
+  completedPlots: 1,
+  pendingPlots: 1,
   applicationsCount: 1,
   plotsWithApplications: 1,
   totalPlots: 1,
@@ -187,10 +191,7 @@ const MOCK_APPLICATIONS: Application[] = [
 export default function PreviewReportContent() {
   return (
     <PDFViewer width='100%' height='100%' showToolbar style={{ border: 'none' }}>
-      <ApplicationsReportPDF
-        serviceOrder={MOCK_SERVICE_ORDER}
-        applications={MOCK_APPLICATIONS}
-      />
+      <ApplicationsReportPDF serviceOrder={MOCK_SERVICE_ORDER} applications={MOCK_APPLICATIONS} />
     </PDFViewer>
   );
 }

@@ -146,16 +146,12 @@ const getCivilDateRangeDays = (range?: DashboardDateRange) => {
   return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
 };
 
-const getIntersectingCropSeasonIds = (
-  cropSeasons: CropSeason[],
-  range?: DashboardDateRange
-) => {
+const getIntersectingCropSeasonIds = (cropSeasons: CropSeason[], range?: DashboardDateRange) => {
   if (!range) return [];
 
   return cropSeasons
     .filter(
-      (cropSeason) =>
-        cropSeason.startDate <= range.endDate && cropSeason.endDate >= range.startDate
+      (cropSeason) => cropSeason.startDate <= range.endDate && cropSeason.endDate >= range.startDate
     )
     .map((cropSeason) => cropSeason.id);
 };
@@ -656,8 +652,10 @@ export default function BackofficeDashboard() {
     currentSeason: effectiveCropSeasonIds.length === 0 && !manualDateRange ? true : undefined,
   };
 
-  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } =
-    useGetStatsApplications(totalStatsParams, { enabled: canLoadDashboardCards });
+  const { data: totalSeasonStats, isPending: isLoadingTotalSeasonStats } = useGetStatsApplications(
+    totalStatsParams,
+    { enabled: canLoadDashboardCards }
+  );
   const { data: currentMonthStats, isPending: isLoadingCurrentMonthStats } =
     useGetStatsApplications(currentMonthStatsParams, { enabled: canLoadDashboardCards });
   const { data: yesterdayAreaStats, isPending: isLoadingYesterdayAreaStats } =
@@ -1173,10 +1171,9 @@ export default function BackofficeDashboard() {
       ),
       icon: 'bar-chart-outline' as const,
       accentColor: CHART_COLORS[5],
-      isLoading:
-        shouldWaitForCropSeason
-          ? true
-          : manualDateRange || effectiveCropSeasonIds.length > 0
+      isLoading: shouldWaitForCropSeason
+        ? true
+        : manualDateRange || effectiveCropSeasonIds.length > 0
           ? isLoadingTotalSeasonStats
           : isLoadingDashboardMetrics,
     },
@@ -1189,10 +1186,9 @@ export default function BackofficeDashboard() {
       ),
       icon: 'trending-up-outline' as const,
       accentColor: CHART_COLORS[3],
-      isLoading:
-        shouldWaitForCropSeason
-          ? true
-          : manualDateRange || effectiveCropSeasonIds.length > 0
+      isLoading: shouldWaitForCropSeason
+        ? true
+        : manualDateRange || effectiveCropSeasonIds.length > 0
           ? isFetchingCropSeasons
           : isLoadingDashboardMetrics,
     },
@@ -1717,28 +1713,11 @@ export default function BackofficeDashboard() {
           <View style={styles.serviceOrderGrid}>
             {visibleOpenServiceOrders.map(({ serviceOrder, queryIndex }) => {
               const yesterdayStats = orderYesterdayStatsQueries[queryIndex]?.data?.stats;
-              const serviceOrderApplications =
-                orderApplicationsQueries[queryIndex]?.data?.data || [];
-
-              const totalPlots = serviceOrder.plots?.length || 0;
-              const totalHectaresAllPlots = (serviceOrder.plots || []).reduce(
-                (sum, plot) => sum + parseNumeric(plot.hectare),
-                0
-              );
-              const totalHectaresApplied = serviceOrderApplications.reduce(
-                (sum, application) => sum + parseNumeric(application.hectares),
-                0
-              );
-              const uniquePlotIdsWithApplications = new Set(
-                serviceOrderApplications
-                  .map((application) => application.plotId)
-                  .filter((plotId): plotId is string => Boolean(plotId))
-              );
-              const plotsWithApplications = uniquePlotIdsWithApplications.size;
-              const rawProgress =
-                totalHectaresAllPlots > 0
-                  ? (totalHectaresApplied / totalHectaresAllPlots) * 100
-                  : 0;
+              const totalPlots = Number(serviceOrder.totalPlots || serviceOrder.plots?.length || 0);
+              const totalHectaresAllPlots = Number(serviceOrder.plannedHectares || 0);
+              const totalHectaresCompleted = Number(serviceOrder.completedHectares || 0);
+              const completedPlots = Number(serviceOrder.completedPlots || 0);
+              const rawProgress = Number(serviceOrder.progressPercent || 0);
               const progressValue = Math.min(rawProgress, 100);
               const customerName = serviceOrder.customer?.name || 'Cliente nao informado';
               const farmDetails = (serviceOrder.farms || [])
@@ -1781,7 +1760,7 @@ export default function BackofficeDashboard() {
                     <View style={styles.progressLabels}>
                       <Text style={styles.progressTitle}>Progresso da OS</Text>
                       <Text style={styles.progressValue}>
-                        {formatHectares(totalHectaresApplied)} /{' '}
+                        {formatHectares(totalHectaresCompleted)} /{' '}
                         {formatHectares(totalHectaresAllPlots)}
                       </Text>
                     </View>
@@ -1801,8 +1780,8 @@ export default function BackofficeDashboard() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.footerStatLabel}>Mapas/talhoes</Text>
                       <Text style={styles.footerStatValueBlue}>
-                        {formatInteger(plotsWithApplications)} concluidos /{' '}
-                        {formatInteger(totalPlots)} total
+                        {formatInteger(completedPlots)} concluidos / {formatInteger(totalPlots)}{' '}
+                        total
                       </Text>
                     </View>
                   </View>

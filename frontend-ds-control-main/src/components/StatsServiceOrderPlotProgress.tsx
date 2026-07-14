@@ -1,15 +1,10 @@
-import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 
 interface StatsServiceOrderPlotProgressProps {
   plots: Plot[];
-  applications: Application[];
 }
 
-export function StatsServiceOrderPlotProgress({
-  plots,
-  applications,
-}: StatsServiceOrderPlotProgressProps) {
+export function StatsServiceOrderPlotProgress({ plots }: StatsServiceOrderPlotProgressProps) {
   const totalPlots = plots?.length || 0;
 
   const totalHectaresAllPlots = plots.reduce(
@@ -17,20 +12,15 @@ export function StatsServiceOrderPlotProgress({
     0
   );
 
-  const totalHectaresApplied = applications.reduce(
-    (sum, app) => sum + parseFloat(app.hectares || '0'),
+  const completedPlots = plots.filter((plot) => plot.status === 'COMPLETED');
+  const totalHectaresCompleted = completedPlots.reduce(
+    (sum, plot) => sum + parseFloat(plot.hectare || '0'),
     0
   );
 
-  const uniquePlotIdsWithApplications = new Set(
-    applications.filter((app) => app.plotId !== null).map((app) => app.plotId)
-  );
-
-  const plotsWithApplications = uniquePlotIdsWithApplications.size;
-
   const progressPercentage =
     totalHectaresAllPlots > 0
-      ? ((totalHectaresApplied / totalHectaresAllPlots) * 100).toFixed(1)
+      ? ((totalHectaresCompleted / totalHectaresAllPlots) * 100).toFixed(1)
       : '0';
 
   return (
@@ -53,12 +43,12 @@ export function StatsServiceOrderPlotProgress({
 
         <div className='border-b border-border pb-4'>
           <span className='text-sm text-muted-foreground'>Concluído</span>
-          <p className='text-2xl font-bold text-card-foreground'>{plotsWithApplications}</p>
+          <p className='text-2xl font-bold text-card-foreground'>{completedPlots.length}</p>
         </div>
         <div className='border-b border-border pb-4'>
           <span className='text-sm text-muted-foreground'>Total concluído</span>
           <p className='text-2xl font-bold text-card-foreground'>
-            {totalHectaresApplied.toFixed(1)} ha
+            {totalHectaresCompleted.toFixed(1)} ha
           </p>
         </div>
       </div>

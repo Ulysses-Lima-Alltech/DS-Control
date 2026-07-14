@@ -1,10 +1,17 @@
 import { z } from 'zod';
 
 import {
-    RegisterNewServiceOrderSchema,
-    UpdateServiceOrderByIdSchema,
+  RegisterNewServiceOrderSchema,
+  UpdateServiceOrderByIdSchema,
 } from '@/schemas/service-order.schema';
-import { ServiceOrder, ServiceOrderBy, ServiceOrderStatus, ServiceOrderType, StatsServiceOrders } from '@/types/service-order.type';
+import {
+  ServiceOrder,
+  ServiceOrderBy,
+  ServiceOrderPlotStatus,
+  ServiceOrderStatus,
+  ServiceOrderType,
+  StatsServiceOrders,
+} from '@/types/service-order.type';
 
 import { api } from './api.service';
 
@@ -33,7 +40,7 @@ export type GetAllServiceOrdersParams = {
   includeFarms?: string;
   includeContracts?: string;
   orderBy?: ServiceOrderBy;
-  orderType?: ServiceOrderType
+  orderType?: ServiceOrderType;
 };
 
 export async function getAllServiceOrders(
@@ -56,7 +63,8 @@ export async function getAllServiceOrders(
     searchParams.append('includeCustomers', params.includeCustomers.toString());
   if (params?.includePilots) searchParams.append('includePilots', params.includePilots.toString());
   if (params?.includeFarms) searchParams.append('includeFarms', params.includeFarms.toString());
-  if (params?.includeContracts) searchParams.append('includeContracts', params.includeContracts.toString());
+  if (params?.includeContracts)
+    searchParams.append('includeContracts', params.includeContracts.toString());
   if (params?.orderBy) searchParams.append('orderBy', params.orderBy.toString());
   if (params?.orderType) searchParams.append('orderType', params.orderType.toString());
 
@@ -251,6 +259,37 @@ export async function completeServiceOrderById(serviceOrderId: string): Promise<
   return await response.json();
 }
 
+export type UpdateServiceOrderPlotStatusParams = {
+  serviceOrderId: string;
+  plotId: string;
+  status: ServiceOrderPlotStatus;
+};
+
+export type ServiceOrderPlotStatusResponse = UpdateServiceOrderPlotStatusParams & {
+  id: string;
+  completedAt: string | null;
+  completedBy: string | null;
+  updatedAt: string;
+};
+
+export async function updateServiceOrderPlotStatus({
+  serviceOrderId,
+  plotId,
+  status,
+}: UpdateServiceOrderPlotStatusParams): Promise<ServiceOrderPlotStatusResponse> {
+  const response = await api(`/service-orders/${serviceOrderId}/plots/${plotId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Erro ao atualizar o status do talhÃ£o');
+  }
+
+  return response.json();
+}
+
 export type GetStatsServiceordersParams = {
   status?: ServiceOrderStatus;
   farmId?: string;
@@ -265,7 +304,9 @@ export type GetStatsServiceordersResponse = {
   stats: StatsServiceOrders;
 };
 
-export async function getStatsServiceorders(params?: GetStatsServiceordersParams): Promise<GetStatsServiceordersResponse> {
+export async function getStatsServiceorders(
+  params?: GetStatsServiceordersParams
+): Promise<GetStatsServiceordersResponse> {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.append('status', params.status);
   if (params?.farmId) searchParams.append('farmId', params.farmId);

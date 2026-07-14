@@ -5,6 +5,7 @@ import { Plot } from '@/types/plot.type';
 import { User } from '@/types/user.type';
 
 export type ServiceOrderStatus = 'open' | 'completed' | 'cancelled';
+export type ServiceOrderPlotStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 
 export type ServiceOrder = {
   id: string;
@@ -28,6 +29,10 @@ export type ServiceOrder = {
   plannedHectares: number;
   totalAppliedHectares: number;
   progressPercent: number;
+  completedHectares: number;
+  pendingHectares: number;
+  completedPlots: number;
+  pendingPlots: number;
   applicationsCount: number;
   plotsWithApplications: number;
   totalPlots: number;
@@ -60,5 +65,5 @@ export enum ServiceOrderBy {
 
 export enum ServiceOrderType {
   ASC = 'asc',
-  DESC = 'desc'
+  DESC = 'desc',
 }

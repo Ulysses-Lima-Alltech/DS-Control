@@ -10,6 +10,7 @@ import GeneralReportPDF, {
   type GeneralReportStatusSummary,
   type GeneralReportTotals,
 } from '@/components/PDFReports/GeneralReportPDF';
+import { PendingPlotsReportPDF } from '@/components/PDFReports/PendingPlotsReportPDF';
 import PilotApplicationsReportPDF from '@/components/PDFReports/PilotApplicationsReportPDF';
 import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
 import ServiceOrdersDetailedReportPDF, {
@@ -515,6 +516,17 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
 
   // @ts-expect-error - toBlob is not typed
   return pdf(element).toBlob();
+}
+
+export async function generatePendingPlotsReportPDF({
+  serviceOrder,
+  pendingPlotIds,
+}: {
+  serviceOrder: ServiceOrder;
+  pendingPlotIds: string[];
+}): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+  return pdf(PendingPlotsReportPDF({ serviceOrder, pendingPlotIds })).toBlob();
 }
 
 export async function generateServiceOrdersDetailedConsolidatedPDF({

@@ -25,6 +25,10 @@ export type ServiceOrder = {
   plannedHectares: number;
   totalAppliedHectares: number;
   progressPercent: number;
+  completedHectares: number;
+  pendingHectares: number;
+  completedPlots: number;
+  pendingPlots: number;
   applicationsCount: number;
   plotsWithApplications: number;
   totalPlots: number;

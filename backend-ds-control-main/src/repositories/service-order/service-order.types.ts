@@ -1,4 +1,4 @@
-import type { serviceOrders } from "@infra/database/schema";
+import type { serviceOrders } from '@infra/database/schema';
 
 export type ServiceOrder = typeof serviceOrders.$inferSelect;
 
@@ -8,6 +8,10 @@ export type ServiceOrderWithDetails = ServiceOrder & {
   plannedHectares: number;
   totalAppliedHectares: number;
   progressPercent: number;
+  completedHectares: number;
+  pendingHectares: number;
+  completedPlots: number;
+  pendingPlots: number;
   applicationsCount: number;
   plotsWithApplications: number;
   totalPlots: number;
@@ -34,7 +38,7 @@ export type ServiceOrderWithDetails = ServiceOrder & {
   customer: {
     id: string;
     document_number: string;
-    entity_type: "PF" | "PJ"; 
+    entity_type: 'PF' | 'PJ';
     phone: string;
     name: string;
     razaoSocial: string | null;
@@ -56,7 +60,7 @@ export type ServiceOrderWithDetails = ServiceOrder & {
     name: string;
     email: string;
     password: string;
-    type: "backoffice" | "pilot" | "farmer";
+    type: 'backoffice' | 'pilot' | 'farmer';
     createdAt: Date;
     customerId: string | null;
     updatedAt: Date | null;
@@ -72,8 +76,11 @@ export type ServiceOrderWithDetails = ServiceOrder & {
     externalId: string;
     createdAt: Date;
     updatedAt: Date;
+    status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+    completedAt: Date | null;
+    completedBy: string | null;
   }>;
-}; 
+};
 
 export enum ServiceOrderBy {
   NUMBER = 'number',
@@ -83,5 +90,5 @@ export enum ServiceOrderBy {
 
 export enum ServiceOrderType {
   ASC = 'asc',
-  DESC = 'desc'
+  DESC = 'desc',
 }

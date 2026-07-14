@@ -2,12 +2,13 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateServiceOrderDTO } from './dto/create-service-order';
 import type { UpdateServiceOrderStatusDTO } from './dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
+import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order-plot-status.dto';
 
 import AppError from '@common/handlers/app-error';
 import { app } from '@modules/app/app.module';
 import type { GetServiceOrderQueryString } from './dto/get-all-service-order.dto';
 import type { ServiceOrderSearchQueryStringByPilot } from './dto/get-all-service-orders-by-pilot-dto';
-import { ServiceOrderDetailsQueryString } from './dto/get-service-order-details.dto';
+import type { ServiceOrderDetailsQueryString } from './dto/get-service-order-details.dto';
 import type { ServiceOrderStatsQueryString } from './dto/stats.dto';
 import { ServiceOrderService } from './service-order.service';
 
@@ -50,7 +51,10 @@ export class ServiceOrderController {
   };
 
   public getServiceOrderById = async (
-    request: FastifyRequest<{ Params: { id: string }, Querystring: ServiceOrderDetailsQueryString }>,
+    request: FastifyRequest<{
+      Params: { id: string };
+      Querystring: ServiceOrderDetailsQueryString;
+    }>,
     reply: FastifyReply,
   ) => {
     try {
@@ -60,7 +64,7 @@ export class ServiceOrderController {
       );
 
       const serviceOrder = await this.service.getServiceOrderById(
-        request.params.id, 
+        request.params.id,
         request.query,
         request.payload?.userId,
       );
@@ -180,6 +184,32 @@ export class ServiceOrderController {
         { error },
       );
       reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  };
+
+  public updateServiceOrderPlotStatus = async (
+    request: FastifyRequest<{
+      Params: { serviceOrderId: string; plotId: string };
+      Body: UpdateServiceOrderPlotStatusDTO;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const updatedLink = await this.service.updateServiceOrderPlotStatus(
+        request.params.serviceOrderId,
+        request.params.plotId,
+        request.body,
+        request.payload!.userId,
+      );
+      return reply.status(200).send(updatedLink);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.throw());
+      }
+      app.log.error('[ServiceOrderController] - Unexpected plot status update error: %o', {
+        error,
+      });
+      return reply.status(500).send(new AppError('Internal server error', 500, error).throw());
     }
   };
 

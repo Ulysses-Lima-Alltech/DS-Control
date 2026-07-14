@@ -30,11 +30,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   useCancelServiceOrderById,
   useCompleteServiceOrderById,
+  useUpdateServiceOrderPlotStatus,
 } from '@/mutations/service-order.mutation';
 import { useGetApplicationsByServiceOrderId } from '@/queries/application.query';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
@@ -47,11 +55,12 @@ import {
   downloadPDF,
   generateApplicationsReportPDF,
   generateCompletedPlotsPlannedAreaReportPDF,
+  generatePendingPlotsReportPDF,
 } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
-type ReportMode = 'all' | 'completed' | 'pending';
+type ReportMode = 'all' | 'completed';
 
 export default function ServiceOrderPage({
   params,
@@ -66,6 +75,7 @@ export default function ServiceOrderPage({
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [selectedPlotId, setSelectedPlotId] = useState('');
 
   const { data: applicationsData, isPending: isApplicationsLoading } =
     useGetApplicationsByServiceOrderId(idServiceOrder);
@@ -74,6 +84,7 @@ export default function ServiceOrderPage({
     data: serviceOrderData,
     isPending: isServiceOrderLoading,
     isError: isServiceOrderError,
+    refetch: refetchServiceOrder,
   } = useGetServiceOrderById(idServiceOrder, {
     includePlots: 'true',
     includeGeoJson: 'true',
@@ -130,41 +141,27 @@ export default function ServiceOrderPage({
     return Array.from(applicationsById.values());
   }, [applicationWithPlotData, idServiceOrder]);
 
-  const plotIds = useMemo(
-    () => (serviceOrderData?.plots || []).map((plot) => plot.id).filter(Boolean) as string[],
-    [serviceOrderData?.plots]
-  );
-
-  const validPlotIdsSet = useMemo(() => new Set(plotIds), [plotIds]);
-
-  const applicationsWithValidPlotId = useMemo(() => {
-    return currentServiceOrderApplications.filter((application) => {
-      return Boolean(application.plotId && validPlotIdsSet.has(application.plotId));
-    });
-  }, [currentServiceOrderApplications, validPlotIdsSet]);
-
   const completedPlotIds = useMemo(() => {
-    const ids = new Set<string>();
-    applicationsWithValidPlotId.forEach((application) => {
-      if (application.plotId) {
-        ids.add(application.plotId);
-      }
-    });
-    return Array.from(ids);
-  }, [applicationsWithValidPlotId]);
+    return (serviceOrderData?.plots || [])
+      .filter((plot) => plot.status === 'COMPLETED')
+      .map((plot) => plot.id)
+      .filter(Boolean) as string[];
+  }, [serviceOrderData?.plots]);
 
   const pendingPlotIds = useMemo(
-    () => plotIds.filter((plotId) => !completedPlotIds.includes(plotId)),
-    [completedPlotIds, plotIds]
+    () =>
+      (serviceOrderData?.plots || [])
+        .filter((plot) => plot.status === 'PENDING')
+        .map((plot) => plot.id)
+        .filter(Boolean) as string[],
+    [serviceOrderData?.plots]
   );
 
   const progressData = useMemo(() => {
     const mapasTotal = Number(serviceOrderData?.totalPlots ?? serviceOrderData?.plots?.length ?? 0);
-    const mapasConcluidos = Number(
-      serviceOrderData?.plotsWithApplications ?? completedPlotIds.length
-    );
+    const mapasConcluidos = Number(serviceOrderData?.completedPlots ?? completedPlotIds.length);
     const areaTotal = Number(serviceOrderData?.plannedHectares || 0);
-    const areaConcluida = Number(serviceOrderData?.totalAppliedHectares || 0);
+    const areaConcluida = Number(serviceOrderData?.completedHectares || 0);
     const percentual = Number(serviceOrderData?.progressPercent || 0);
 
     return {
@@ -176,11 +173,11 @@ export default function ServiceOrderPage({
     };
   }, [
     completedPlotIds.length,
+    serviceOrderData?.completedHectares,
+    serviceOrderData?.completedPlots,
     serviceOrderData?.plannedHectares,
     serviceOrderData?.plots,
-    serviceOrderData?.plotsWithApplications,
     serviceOrderData?.progressPercent,
-    serviceOrderData?.totalAppliedHectares,
     serviceOrderData?.totalPlots,
   ]);
 
@@ -235,12 +232,13 @@ export default function ServiceOrderPage({
     if (mapFilter === 'completed') {
       const byFarm = new Map<string, { id: string; name: string; hectares: number }>();
 
-      currentServiceOrderApplications.forEach((application) => {
-        const farmId = application.farmId || application.farm?.id || 'farm-unknown';
+      (serviceOrderData?.plots || []).forEach((plot) => {
+        if (!plot.id || !completedPlotIds.includes(plot.id)) return;
+        const farmId = plot.farmId || 'farm-unknown';
         const applicationFarm = serviceOrderData?.farms?.find((farm) => farm.id === farmId);
-        const farmName = application.farm?.name || applicationFarm?.name || 'Fazenda sem nome';
+        const farmName = applicationFarm?.name || 'Fazenda sem nome';
         const current = byFarm.get(farmId) || { id: farmId, name: farmName, hectares: 0 };
-        current.hectares += Number.parseFloat(application.hectares || '0') || 0;
+        current.hectares += Number.parseFloat(plot.hectare || '0') || 0;
         byFarm.set(farmId, current);
       });
 
@@ -277,7 +275,7 @@ export default function ServiceOrderPage({
 
     return { farms, total };
   }, [
-    currentServiceOrderApplications,
+    completedPlotIds,
     mapFilter,
     pendingPlotIds,
     serviceOrderData?.farms,
@@ -299,8 +297,8 @@ export default function ServiceOrderPage({
   const legendLabels = useMemo(() => {
     if (mapFilter === 'completed') {
       return {
-        title: 'Área aplicada por fazenda',
-        total: 'Área aplicada total',
+        title: 'Área concluída por fazenda',
+        total: 'Área total concluída',
       };
     }
 
@@ -341,6 +339,26 @@ export default function ServiceOrderPage({
     },
   });
 
+  const updatePlotStatusMutation = useUpdateServiceOrderPlotStatus({
+    onSuccess: async () => {
+      await refetchServiceOrder();
+      toast.success('Status do talhão atualizado com sucesso');
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const handlePlotStatusChange = (status: 'PENDING' | 'COMPLETED' | 'CANCELLED') => {
+    if (!selectedPlotId) {
+      toast.info('Selecione um talhão');
+      return;
+    }
+    updatePlotStatusMutation.mutate({
+      serviceOrderId: idServiceOrder,
+      plotId: selectedPlotId,
+      status,
+    });
+  };
+
   const statusMap: Record<
     ServiceOrder['status'],
     { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
@@ -372,15 +390,12 @@ export default function ServiceOrderPage({
     }
 
     if (mode === 'completed') {
-      return currentServiceOrderApplications;
+      return currentServiceOrderApplications.filter((application) =>
+        Boolean(application.plotId && completedPlotIds.includes(application.plotId))
+      );
     }
 
-    return currentServiceOrderApplications.filter((application) => {
-      if (!application.plotId) {
-        return true;
-      }
-      return pendingPlotIds.includes(application.plotId);
-    });
+    return currentServiceOrderApplications;
   };
 
   const handleGenerateApplicationsReport = async (mode: ReportMode = 'all') => {
@@ -402,7 +417,7 @@ export default function ServiceOrderPage({
         applications: reportApplications,
       });
 
-      const suffix = mode === 'all' ? 'geral' : mode === 'completed' ? 'concluidos' : 'pendentes';
+      const suffix = mode === 'all' ? 'geral' : 'concluidos';
       downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-${suffix}.pdf`);
       toast.success('Relatorio de aplicacao gerado com sucesso');
     } catch (error) {
@@ -436,6 +451,26 @@ export default function ServiceOrderPage({
 
       downloadPDF(blob, `relatorio-area-total-concluida-os-${serviceOrderData.number}.pdf`);
       toast.success('Relatório de Área Total Concluída gerado com sucesso');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const handleGeneratePendingPlotsReport = async () => {
+    if (!serviceOrderData || pendingPlotIds.length === 0) {
+      toast.info('Não há talhões pendentes para gerar o relatório');
+      return;
+    }
+    try {
+      setIsGeneratingReport(true);
+      const blob = await generatePendingPlotsReportPDF({
+        serviceOrder: serviceOrderData,
+        pendingPlotIds,
+      });
+      downloadPDF(blob, `relatorio-talhoes-pendentes-os-${serviceOrderData.number}.pdf`);
+      toast.success('Relatório de talhões pendentes gerado com sucesso');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
     } finally {
@@ -791,7 +826,7 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('pending')}
+                onClick={handleGeneratePendingPlotsReport}
               >
                 PDF Pendentes
               </Button>
@@ -818,6 +853,52 @@ export default function ServiceOrderPage({
 
             <div className='space-y-4 overflow-y-auto border-t p-4 lg:border-t-0'>
               <h3 className='text-sm font-semibold text-foreground'>{legendLabels.title}</h3>
+              <div className='space-y-2 rounded-md border p-3'>
+                <p className='text-sm font-medium'>Atualizar status oficial</p>
+                <Select value={selectedPlotId} onValueChange={setSelectedPlotId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder='Selecione um talhão' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(serviceOrderData.plots || []).map((plot) => (
+                      <SelectItem key={plot.id} value={plot.id!}>
+                        {plot.name} — {plot.status || 'PENDING'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className='grid grid-cols-1 gap-2'>
+                  <Button
+                    size='sm'
+                    onClick={() => handlePlotStatusChange('COMPLETED')}
+                    disabled={
+                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
+                    }
+                  >
+                    Marcar como concluído
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => handlePlotStatusChange('PENDING')}
+                    disabled={
+                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
+                    }
+                  >
+                    Marcar como pendente
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='destructive'
+                    onClick={() => handlePlotStatusChange('CANCELLED')}
+                    disabled={
+                      !selectedPlotId || updatePlotStatusMutation.isPending || isActionDisabled
+                    }
+                  >
+                    Cancelar talhão
+                  </Button>
+                </div>
+              </div>
               <div className='space-y-2'>
                 {legendData.farms.length > 0 ? (
                   legendData.farms.map((farm) => (
@@ -849,13 +930,13 @@ export default function ServiceOrderPage({
                 <p>Mapas totais: {progressData.mapasTotal}</p>
                 {mapFilter === 'completed' ? (
                   <>
-                    <p>Mapas com aplicação: {completedPlotIds.length}</p>
+                    <p>Mapas concluídos: {completedPlotIds.length}</p>
                     <p>Aplicações realizadas: {currentServiceOrderApplications.length}</p>
                     <p className='font-medium text-foreground'>
-                      Área aplicada concluída: {legendData.total.toFixed(2).replace('.', ',')} ha
+                      Área total concluída: {legendData.total.toFixed(2).replace('.', ',')} ha
                     </p>
                     <p className='mt-2 text-[11px] text-muted-foreground/80'>
-                      Área cadastrada dos mapas com aplicação:{' '}
+                      Área cadastrada dos mapas concluídos:{' '}
                       {completedRegisteredArea.toFixed(2).replace('.', ',')} ha
                     </p>
                   </>
@@ -866,7 +947,7 @@ export default function ServiceOrderPage({
                   </>
                 ) : (
                   <>
-                    <p>Mapas com aplicação: {completedPlotIds.length}</p>
+                    <p>Mapas concluídos: {completedPlotIds.length}</p>
                     <p>Aplicações realizadas: {currentServiceOrderApplications.length}</p>
                     <p>Área cadastrada: {legendData.total.toFixed(2).replace('.', ',')} ha</p>
                   </>

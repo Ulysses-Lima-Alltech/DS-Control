@@ -281,6 +281,20 @@
       "when": 1783000000000,
       "tag": "0039_add_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784054095764,
+      "tag": "0040_completed_plot_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784054805797,
+      "tag": "0041_unique_service_order_plot",
+      "breakpoints": true
     }
   ]
 }

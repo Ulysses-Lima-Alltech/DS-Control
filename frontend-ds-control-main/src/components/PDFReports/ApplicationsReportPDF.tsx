@@ -12,6 +12,7 @@ import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
 
 const DJI_REPORT_IMAGE_HEIGHT = 280;
+const PDF_ASSET_BASE_PATH = process.env.NEXT_PUBLIC_PDF_ASSET_BASE_PATH || '';
 
 Font.register({
   family: 'Roboto',
@@ -193,6 +194,11 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
       completedPlotsById.set(plot.id, plot);
     }
   });
+  if (isCompletedPlannedArea) {
+    completedPlotsById.forEach((_, plotId) => {
+      applicationsByPlot[plotId] ??= [];
+    });
+  }
 
   const completedPlannedHectares = Array.from(completedPlotsById.values()).reduce(
     (total, plot) => total + (Number.parseFloat(plot.hectare) || 0),
@@ -251,7 +257,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image
-            src={`/images/pdf-logo-complete.png`}
+            src={`${PDF_ASSET_BASE_PATH}/images/pdf-logo-complete.png`}
             style={{
               width: 300,
               height: 100,
@@ -756,7 +762,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
       {Object.entries(applicationsByPlot).map(([plotId, plotApplications], plotIndex) => {
         const firstApp = plotApplications[0];
-        const plot = firstApp.plot;
+        const plot = firstApp?.plot ?? completedPlotsById.get(plotId)!;
 
         const mapWidth = 1280;
         const mapHeight = 480;
@@ -862,7 +868,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             >
               {/* eslint-disable-next-line jsx-a11y/alt-text */}
               <Image
-                src={`/images/pdf-logo-only.png`}
+                src={`${PDF_ASSET_BASE_PATH}/images/pdf-logo-only.png`}
                 style={{
                   width: 120,
                   height: 30,
@@ -1083,7 +1089,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#1F2937',
                   }}
                 >
-                  {farmMap.get(firstApp.plotId!) || 'N/A'}
+                  {farmMap.get(plot.id!) || 'N/A'}
                 </Text>
               </View>
               <View

@@ -6,13 +6,34 @@ import {
   serviceOrderFarms,
   serviceOrderPilots,
   serviceOrderPlots,
-  serviceOrders
+  serviceOrders,
 } from '@infra/database/schema';
 import type { CreateServiceOrderDTO } from '@modules/service-order/dto/create-service-order';
 import type { UpdateServiceOrderStatusDTO } from '@modules/service-order/dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from '@modules/service-order/dto/update-service-order.dto';
-import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql } from 'drizzle-orm';
-import { ServiceOrder, ServiceOrderBy, ServiceOrderType, ServiceOrderWithDetails } from './service-order.types';
+import { buildServiceOrderPlotStatusUpdate } from '@modules/service-order/service-order-plot-status';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  not,
+  or,
+  sql,
+} from 'drizzle-orm';
+import {
+  type ServiceOrder,
+  ServiceOrderBy,
+  ServiceOrderType,
+  type ServiceOrderWithDetails,
+} from './service-order.types';
 
 // Service orders to exclude from "aplicações avulsas" and invalid applications metrics
 // These are special service orders used to organize loose/invalid applications in the system
@@ -30,6 +51,10 @@ type ServiceOrderProgressMetrics = Pick<
   | 'plannedHectares'
   | 'totalAppliedHectares'
   | 'progressPercent'
+  | 'completedHectares'
+  | 'pendingHectares'
+  | 'completedPlots'
+  | 'pendingPlots'
   | 'applicationsCount'
   | 'plotsWithApplications'
   | 'totalPlots'
@@ -43,6 +68,10 @@ export class ServiceOrderRepository {
       plannedHectares: 0,
       totalAppliedHectares: 0,
       progressPercent: 0,
+      completedHectares: 0,
+      pendingHectares: 0,
+      completedPlots: 0,
+      pendingPlots: 0,
       applicationsCount: 0,
       plotsWithApplications: 0,
       totalPlots: 0,
@@ -51,9 +80,9 @@ export class ServiceOrderRepository {
     };
   }
 
-  private calculateProgressPercent(totalAppliedHectares: number, plannedHectares: number): number {
+  private calculateProgressPercent(completedHectares: number, plannedHectares: number): number {
     if (plannedHectares <= 0) return 0;
-    return Number(((totalAppliedHectares / plannedHectares) * 100).toFixed(2));
+    return Number(((completedHectares / plannedHectares) * 100).toFixed(2));
   }
 
   private async getProgressMetricsByServiceOrderIds(
@@ -77,6 +106,10 @@ export class ServiceOrderRepository {
           serviceOrderId: serviceOrderPlots.serviceOrderId,
           plannedHectares: sql<string>`COALESCE(SUM(${plots.hectare}), 0)`,
           totalPlots: sql<number>`COUNT(DISTINCT ${plots.id})`,
+          completedHectares: sql<string>`COALESCE(SUM(CASE WHEN ${serviceOrderPlots.status} = 'COMPLETED' THEN ${plots.hectare} ELSE 0 END), 0)`,
+          pendingHectares: sql<string>`COALESCE(SUM(CASE WHEN ${serviceOrderPlots.status} = 'PENDING' THEN ${plots.hectare} ELSE 0 END), 0)`,
+          completedPlots: sql<number>`COUNT(DISTINCT CASE WHEN ${serviceOrderPlots.status} = 'COMPLETED' THEN ${plots.id} END)`,
+          pendingPlots: sql<number>`COUNT(DISTINCT CASE WHEN ${serviceOrderPlots.status} = 'PENDING' THEN ${plots.id} END)`,
         })
         .from(serviceOrderPlots)
         .innerJoin(plots, eq(serviceOrderPlots.plotId, plots.id))
@@ -122,15 +155,21 @@ export class ServiceOrderRepository {
     ]);
 
     plannedRows.forEach((row) => {
-      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      const current =
+        metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
       current.plannedHectares = Number(row.plannedHectares || 0);
       current.totalPlots = Number(row.totalPlots || 0);
+      current.completedHectares = Number(row.completedHectares || 0);
+      current.pendingHectares = Number(row.pendingHectares || 0);
+      current.completedPlots = Number(row.completedPlots || 0);
+      current.pendingPlots = Number(row.pendingPlots || 0);
       metricsByServiceOrderId.set(row.serviceOrderId, current);
     });
 
     appliedRows.forEach((row) => {
       if (!row.serviceOrderId) return;
-      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      const current =
+        metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
       current.totalAppliedHectares = Number(row.totalAppliedHectares || 0);
       current.applicationsCount = Number(row.applicationsCount || 0);
       current.plotsWithApplications = Number(row.plotsWithApplications || 0);
@@ -139,7 +178,8 @@ export class ServiceOrderRepository {
 
     myAppliedRows.forEach((row) => {
       if (!row.serviceOrderId) return;
-      const current = metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      const current =
+        metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
       current.myAppliedHectares = Number(row.myAppliedHectares || 0);
       current.myApplicationsCount = Number(row.myApplicationsCount || 0);
       metricsByServiceOrderId.set(row.serviceOrderId, current);
@@ -147,7 +187,7 @@ export class ServiceOrderRepository {
 
     metricsByServiceOrderId.forEach((metrics) => {
       metrics.progressPercent = this.calculateProgressPercent(
-        metrics.totalAppliedHectares,
+        metrics.completedHectares,
         metrics.plannedHectares,
       );
     });
@@ -202,7 +242,19 @@ export class ServiceOrderRepository {
     return serviceOrderPlots
       .map((sop) => {
         if (!('plot' in sop)) return null;
-        return (sop as { plot?: { deletedAt?: Date | null } | null }).plot ?? null;
+        const association = sop as {
+          plot?: { deletedAt?: Date | null } | null;
+          status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+          completedAt?: Date | null;
+          completedBy?: string | null;
+        };
+        if (!association.plot) return null;
+        return {
+          ...association.plot,
+          status: association.status ?? 'PENDING',
+          completedAt: association.completedAt ?? null,
+          completedBy: association.completedBy ?? null,
+        };
       })
       .filter(Boolean)
       .filter((plot) => !(plot as { deletedAt?: Date | null }).deletedAt);
@@ -249,6 +301,7 @@ export class ServiceOrderRepository {
         dto.plotsIds.map((plotId) => ({
           serviceOrderId: serviceOrder.id,
           plotId,
+          status: 'PENDING' as const,
         })),
       );
     });
@@ -278,54 +331,62 @@ export class ServiceOrderRepository {
     const serviceOrder = await db.query.serviceOrders.findFirst({
       where: eq(serviceOrders.id, serviceOrderId),
       with: {
-        contract: includeContracts ? true : undefined, 
+        contract: includeContracts ? true : undefined,
         customer: includeCustomers ? true : undefined,
-        serviceOrderFarms: includeFarms ? {
-          with: {
-            farm: includeFarms ? {
+        serviceOrderFarms: includeFarms
+          ? {
               with: {
-                plots: {
-                  columns: {
-                  id: true,
-                  name: true,
-                  hectare: true,
-                  geoJson: includeGeoJson ? true : undefined,
-                  farmId: true,
-                  externalId: true,
-                  createdAt: true,
-                  updatedAt: true,
-                  deletedAt: true,
-                  customerId: true,
-                  }
-                }
-              } 
-            } : undefined,
-          }
-        } : undefined,
-        serviceOrderPilots: includePilots ? {
-          with: {
-            pilot: true,
-          }
-        } : undefined,
-        serviceOrderPlots: includePlots ? {
-          with: {
-            plot: {
-              columns: {
-                id: true,
-                name: true,
-                hectare: true,
-                geoJson: includeGeoJson ? true : undefined,
-                farmId: true,
-                externalId: true,
-                createdAt: true,
-                updatedAt: true,
-                deletedAt: true,
-                customerId: true,
+                farm: includeFarms
+                  ? {
+                      with: {
+                        plots: {
+                          columns: {
+                            id: true,
+                            name: true,
+                            hectare: true,
+                            geoJson: includeGeoJson ? true : undefined,
+                            farmId: true,
+                            externalId: true,
+                            createdAt: true,
+                            updatedAt: true,
+                            deletedAt: true,
+                            customerId: true,
+                          },
+                        },
+                      },
+                    }
+                  : undefined,
               },
-            },
-          },
-        } : undefined,
-      }
+            }
+          : undefined,
+        serviceOrderPilots: includePilots
+          ? {
+              with: {
+                pilot: true,
+              },
+            }
+          : undefined,
+        serviceOrderPlots: includePlots
+          ? {
+              with: {
+                plot: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    hectare: true,
+                    geoJson: includeGeoJson ? true : undefined,
+                    farmId: true,
+                    externalId: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                    customerId: true,
+                  },
+                },
+              },
+            }
+          : undefined,
+      },
     });
 
     if (!serviceOrder) {
@@ -337,7 +398,10 @@ export class ServiceOrderRepository {
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
       farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
-      pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
+      pilots:
+        serviceOrder.serviceOrderPilots
+          ?.map((sop) => ('pilot' in sop ? sop.pilot : null))
+          .filter(Boolean) || [],
       plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
     };
 
@@ -441,66 +505,79 @@ export class ServiceOrderRepository {
       );
     }
 
-    if(filters?.invalidApplication) {
+    if (filters?.invalidApplication) {
       whereConditions.push(
         inArray(
           serviceOrders.id,
           db
-            .select({ serviceOrderId: applications.serviceOrderId})
+            .select({ serviceOrderId: applications.serviceOrderId })
             .from(applications)
             .where(
               and(
                 isNull(applications.plotId),
                 // Exclude applications from special "avulso" service orders
-                not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS))
-              )
-            )
+                not(inArray(applications.serviceOrderId, EXCLUDED_SERVICE_ORDER_IDS)),
+              ),
+            ),
         ),
       );
       // Also exclude the special service orders from results
       whereConditions.push(not(inArray(serviceOrders.id, EXCLUDED_SERVICE_ORDER_IDS)));
     }
 
-    if(filters?.startDate && filters?.endDate) {
+    if (filters?.startDate && filters?.endDate) {
       const adjustEndDate = new Date(filters.endDate);
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
 
-      whereConditions.push(and(
-        gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
-      ));
+      whereConditions.push(
+        and(
+          gte(serviceOrders.plannedDate, filters.startDate),
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        ),
+      );
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
     // Determine order by expression
-    let orderByExpression;
+    let orderByExpression = desc(serviceOrders.plannedDate);
     let needsCustomerJoinForOrder = false;
 
     switch (orderBy) {
       case ServiceOrderBy.NUMBER:
-        orderByExpression = orderType === ServiceOrderType.ASC ? asc(serviceOrders.number) : desc(serviceOrders.number);
+        orderByExpression =
+          orderType === ServiceOrderType.ASC
+            ? asc(serviceOrders.number)
+            : desc(serviceOrders.number);
         break;
       case ServiceOrderBy.CUSTOMER:
-        if(includeCustomers) {
-          orderByExpression = orderType === ServiceOrderType.ASC ? asc(customers.name) : desc(customers.name);
+        if (includeCustomers) {
+          orderByExpression =
+            orderType === ServiceOrderType.ASC ? asc(customers.name) : desc(customers.name);
           needsCustomerJoinForOrder = true;
-          break;
+        } else {
+          orderByExpression =
+            orderType === ServiceOrderType.ASC
+              ? asc(serviceOrders.plannedDate)
+              : desc(serviceOrders.plannedDate);
         }
-        // Fall through to default if customers not included
+        break;
       case ServiceOrderBy.PLANNED_DATE:
-        orderByExpression = orderType === ServiceOrderType.ASC ? asc(serviceOrders.plannedDate) : desc(serviceOrders.plannedDate);
+        orderByExpression =
+          orderType === ServiceOrderType.ASC
+            ? asc(serviceOrders.plannedDate)
+            : desc(serviceOrders.plannedDate);
         break;
       default:
-        orderByExpression = desc(serviceOrders.plannedDate); 
+        orderByExpression = desc(serviceOrders.plannedDate);
     }
 
     // Step 1: Get filtered and paginated service order IDs
     // This is much faster than the previous approach with complex JSON aggregation
     let idsQuery = db
-      .select({ 
+      .select({
         id: serviceOrders.id,
-        ...(needsCustomerJoinForOrder ? { customerName: customers.name } : {})
+        ...(needsCustomerJoinForOrder ? { customerName: customers.name } : {}),
       })
       .from(serviceOrders);
 
@@ -526,46 +603,50 @@ export class ServiceOrderRepository {
     const serviceOrdersList = await db.query.serviceOrders.findMany({
       where: inArray(
         serviceOrders.id,
-        serviceOrderIds.map(so => so.id),
+        serviceOrderIds.map((so) => so.id),
       ),
       with: {
         contract: includeContracts ? true : undefined,
         customer: includeCustomers ? true : undefined,
-        serviceOrderFarms: includeFarms ? {
-          with: {
-            farm: true,
-          }
-        } : undefined,
-        serviceOrderPilots: includePilots ? {
-          with: {
-            pilot: true,
-          }
-        } : undefined,
-        serviceOrderPlots: includePlots ? {
-          with: {
-            plot: {
-              columns: {
-                id: true,
-                name: true,
-                hectare: true,
-                geoJson: includeGeoJson ? true : undefined,
-                farmId: true,
-                externalId: true,
-                createdAt: true,
-                updatedAt: true,
-                deletedAt: true,
-                customerId: true,
+        serviceOrderFarms: includeFarms
+          ? {
+              with: {
+                farm: true,
               },
-            },
-          },
-        } : undefined,
-      }
+            }
+          : undefined,
+        serviceOrderPilots: includePilots
+          ? {
+              with: {
+                pilot: true,
+              },
+            }
+          : undefined,
+        serviceOrderPlots: includePlots
+          ? {
+              with: {
+                plot: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    hectare: true,
+                    geoJson: includeGeoJson ? true : undefined,
+                    farmId: true,
+                    externalId: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                    customerId: true,
+                  },
+                },
+              },
+            }
+          : undefined,
+      },
     });
 
     // Create a map for quick lookup and preserve the original order
-    const serviceOrderMap = new Map(
-      serviceOrdersList.map(so => [so.id, so])
-    );
+    const serviceOrderMap = new Map(serviceOrdersList.map((so) => [so.id, so]));
 
     // Return in the same order as the IDs query (respecting pagination and sorting)
     const mappedServiceOrders = serviceOrderIds.map(({ id }) => {
@@ -579,15 +660,18 @@ export class ServiceOrderRepository {
         contract: serviceOrder.contract ?? null,
         customer: serviceOrder.customer ?? null,
         farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
-        pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
+        pilots:
+          serviceOrder.serviceOrderPilots
+            ?.map((sop) => ('pilot' in sop ? sop.pilot : null))
+            .filter(Boolean) || [],
         plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
       };
     });
 
-    return await this.attachProgressMetrics(
+    return (await this.attachProgressMetrics(
       mappedServiceOrders,
       currentPilotId,
-    ) as unknown as ServiceOrderWithDetails[];
+    )) as unknown as ServiceOrderWithDetails[];
   }
 
   /**
@@ -656,17 +740,34 @@ export class ServiceOrderRepository {
 
       // Update plots if provided
       if (dto.plotsIds) {
-        // Delete existing plots
-        await tx
-          .delete(serviceOrderPlots)
+        const existingLinks = await tx
+          .select({ plotId: serviceOrderPlots.plotId })
+          .from(serviceOrderPlots)
           .where(eq(serviceOrderPlots.serviceOrderId, serviceOrderId));
+        const existingPlotIds = new Set(existingLinks.map((link) => link.plotId));
+        const requestedPlotIds = new Set(dto.plotsIds);
+        const removedPlotIds = existingLinks
+          .map((link) => link.plotId)
+          .filter((plotId) => !requestedPlotIds.has(plotId));
+        const addedPlotIds = dto.plotsIds.filter((plotId) => !existingPlotIds.has(plotId));
 
-        // Insert new plots
-        if (dto.plotsIds.length > 0) {
+        if (removedPlotIds.length > 0) {
+          await tx
+            .delete(serviceOrderPlots)
+            .where(
+              and(
+                eq(serviceOrderPlots.serviceOrderId, serviceOrderId),
+                inArray(serviceOrderPlots.plotId, removedPlotIds),
+              ),
+            );
+        }
+
+        if (addedPlotIds.length > 0) {
           await tx.insert(serviceOrderPlots).values(
-            dto.plotsIds.map((plotId) => ({
+            addedPlotIds.map((plotId) => ({
               serviceOrderId,
               plotId,
+              status: 'PENDING' as const,
             })),
           );
         }
@@ -781,10 +882,12 @@ export class ServiceOrderRepository {
       const adjustEndDate = new Date(filters.endDate);
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
 
-      whereConditions.push(and(
-        gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
-      ))
+      whereConditions.push(
+        and(
+          gte(serviceOrders.plannedDate, filters.startDate),
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        ),
+      );
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
@@ -797,7 +900,6 @@ export class ServiceOrderRepository {
 
     return result.count;
   }
-
 
   /**
    * Retrieves all open service orders for a specific pilot.
@@ -843,56 +945,96 @@ export class ServiceOrderRepository {
         serviceOrderIds.map((so: { serviceOrderId: string }) => so.serviceOrderId),
       ),
       with: {
-        contract: includeContracts ? {
-          with: {
-            customer: true,
-          },
-        } : undefined, 
-        customer: includeCustomers ? true : undefined,
-        serviceOrderFarms: includeFarms ? {
-          with: {
-            farm: true,
-          }
-        } : undefined,
-        serviceOrderPilots: includePilots ? {
-          with: {
-            pilot: true,
-          }
-        } : undefined,
-        serviceOrderPlots: includePlots ? {
-          with: {
-            plot: {
-              columns: {
-                id: true,
-                name: true,
-                hectare: true,
-                geoJson: includeGeoJson ? true : undefined,
-                farmId: true,
-                externalId: true,
-                createdAt: true,
-                updatedAt: true,
-                deletedAt: true,
-                customerId: true,
+        contract: includeContracts
+          ? {
+              with: {
+                customer: true,
               },
-            },
-          },
-        } : undefined,
-      }
+            }
+          : undefined,
+        customer: includeCustomers ? true : undefined,
+        serviceOrderFarms: includeFarms
+          ? {
+              with: {
+                farm: true,
+              },
+            }
+          : undefined,
+        serviceOrderPilots: includePilots
+          ? {
+              with: {
+                pilot: true,
+              },
+            }
+          : undefined,
+        serviceOrderPlots: includePlots
+          ? {
+              with: {
+                plot: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    hectare: true,
+                    geoJson: includeGeoJson ? true : undefined,
+                    farmId: true,
+                    externalId: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                    customerId: true,
+                  },
+                },
+              },
+            }
+          : undefined,
+      },
     });
 
-    const mappedServiceOrders = serviceOrdersList.map(serviceOrder => ({
+    const mappedServiceOrders = serviceOrdersList.map((serviceOrder) => ({
       ...serviceOrder,
       contract: serviceOrder.contract ?? null,
       customer: serviceOrder.customer ?? null,
       farms: this.mapFarmsWithActivePlots(serviceOrder.serviceOrderFarms),
-      pilots: serviceOrder.serviceOrderPilots?.map(sop => 'pilot' in sop ? sop.pilot : null).filter(Boolean) || [],
+      pilots:
+        serviceOrder.serviceOrderPilots
+          ?.map((sop) => ('pilot' in sop ? sop.pilot : null))
+          .filter(Boolean) || [],
       plots: this.mapActiveServiceOrderPlots(serviceOrder.serviceOrderPlots),
     }));
 
-    return await this.attachProgressMetrics(
+    return (await this.attachProgressMetrics(
       mappedServiceOrders,
       pilotId,
-    ) as unknown as ServiceOrderWithDetails[];
+    )) as unknown as ServiceOrderWithDetails[];
+  }
+
+  public async findServiceOrderPlot(serviceOrderId: string, plotId: string) {
+    return db.query.serviceOrderPlots.findFirst({
+      where: and(
+        eq(serviceOrderPlots.serviceOrderId, serviceOrderId),
+        eq(serviceOrderPlots.plotId, plotId),
+      ),
+    });
+  }
+
+  public async updateServiceOrderPlotStatus(
+    serviceOrderId: string,
+    plotId: string,
+    status: 'PENDING' | 'COMPLETED' | 'CANCELLED',
+    completedBy: string,
+  ) {
+    const [updatedLink] = await db
+      .update(serviceOrderPlots)
+      .set(buildServiceOrderPlotStatusUpdate(status, completedBy))
+      .where(
+        and(
+          eq(serviceOrderPlots.serviceOrderId, serviceOrderId),
+          eq(serviceOrderPlots.plotId, plotId),
+        ),
+      )
+      .returning();
+
+    return updatedLink;
   }
 
   /**

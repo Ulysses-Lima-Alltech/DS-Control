@@ -31,6 +31,7 @@ import type { ServiceOrderDetailsQueryString } from './dto/get-service-order-det
 import type { ServiceOrderStatsDTO, ServiceOrderStatsQueryString } from './dto/stats.dto';
 import type { UpdateServiceOrderStatusDTO } from './dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
+import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order-plot-status.dto';
 
 export class ServiceOrderService {
   private readonly serviceOrderRepository: ServiceOrderRepository;
@@ -116,9 +117,7 @@ export class ServiceOrderService {
     includeGeoJson,
     orderBy,
     orderType,
-  }: GetServiceOrderQueryString): Promise<
-    PaginatedRequest<typeof ServiceOrderWithDetailsSchema>
-  > {
+  }: GetServiceOrderQueryString): Promise<PaginatedRequest<typeof ServiceOrderWithDetailsSchema>> {
     const parsedStartDate = startDate ? new Date(startDate) : undefined;
     const parsedEndDate = endDate ? new Date(endDate) : undefined;
 
@@ -132,7 +131,7 @@ export class ServiceOrderService {
       endDate: parsedEndDate,
     };
 
-    const serviceOrders = await this.serviceOrderRepository.getAllServiceOrders(
+    const serviceOrders = (await this.serviceOrderRepository.getAllServiceOrders(
       page,
       limit,
       search,
@@ -145,12 +144,12 @@ export class ServiceOrderService {
       includeGeoJson,
       orderBy,
       orderType,
-    ) as ServiceOrderWithDetails[];
+    )) as ServiceOrderWithDetails[];
 
     const totalCount = await this.serviceOrderRepository.countServiceOrders(search, filters);
 
     return {
-      data: serviceOrders.map((serviceOrder: ServiceOrderWithDetails) => 
+      data: serviceOrders.map((serviceOrder: ServiceOrderWithDetails) =>
         ServiceOrderVM.toViewModelWithDetails(serviceOrder),
       ),
       page,
@@ -287,6 +286,40 @@ export class ServiceOrderService {
         HTTP_STATUS_CODES.BAD_REQUEST,
       );
     }
+  }
+
+  public async updateServiceOrderPlotStatus(
+    serviceOrderId: string,
+    plotId: string,
+    dto: UpdateServiceOrderPlotStatusDTO,
+    currentUserId: string,
+  ) {
+    const serviceOrder = await this.serviceOrderRepository.getServiceOrderById(
+      serviceOrderId,
+      false,
+      false,
+      false,
+      false,
+      false,
+    );
+    if (!serviceOrder) {
+      throw new AppError('Ordem de serviÃ§o nÃ£o encontrada', HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    const link = await this.serviceOrderRepository.findServiceOrderPlot(serviceOrderId, plotId);
+    if (!link) {
+      throw new AppError(
+        'TalhÃ£o nÃ£o estÃ¡ vinculado a esta Ordem de ServiÃ§o',
+        HTTP_STATUS_CODES.NOT_FOUND,
+      );
+    }
+
+    return this.serviceOrderRepository.updateServiceOrderPlotStatus(
+      serviceOrderId,
+      plotId,
+      dto.status,
+      currentUserId,
+    );
   }
 
   private async getAuthorizedPilotIdForServiceOrder(
@@ -455,7 +488,9 @@ export class ServiceOrderService {
    * @param {ServiceOrderStatsQueryString} filters - Optional filters to apply to statistics.
    * @returns {Promise<ServiceOrderStatsDTO>} General statistics.
    */
-  public async getGeneralStats(filters?: ServiceOrderStatsQueryString): Promise<ServiceOrderStatsDTO> {
+  public async getGeneralStats(
+    filters?: ServiceOrderStatsQueryString,
+  ): Promise<ServiceOrderStatsDTO> {
     const parsedStartDate = filters?.startDate ? new Date(filters.startDate) : undefined;
     const parsedEndDate = filters?.endDate ? new Date(filters.endDate) : undefined;
 
@@ -533,7 +568,7 @@ export class ServiceOrderService {
       customerId?: string;
       startDate?: Date;
       endDate?: Date;
-    }
+    },
   ): Promise<number> {
     const conditions = [eq(serviceOrders.status, status)];
 
@@ -547,7 +582,7 @@ export class ServiceOrderService {
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
+        lt(serviceOrders.plannedDate, adjustEndDate),
       );
     }
 
@@ -606,7 +641,14 @@ export class ServiceOrderService {
     startDate?: Date;
     endDate?: Date;
   }): Promise<number> {
-    if (!filters || (!filters.customerId && !filters.farmId && !filters.pilotId && !filters.startDate && !filters.endDate)) {
+    if (
+      !filters ||
+      (!filters.customerId &&
+        !filters.farmId &&
+        !filters.pilotId &&
+        !filters.startDate &&
+        !filters.endDate)
+    ) {
       // No filters applied, return total count
       const result = await db.select({ count: count() }).from(farms);
       return result[0]?.count || 0;
@@ -646,10 +688,12 @@ export class ServiceOrderService {
     if (filters.startDate && filters.endDate) {
       const adjustEndDate = new Date(filters.endDate);
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-      serviceOrderConditions.push(and(
-        gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
-      ));
+      serviceOrderConditions.push(
+        and(
+          gte(serviceOrders.plannedDate, filters.startDate),
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        ),
+      );
     }
 
     // Add service order exists condition if any service order filters are present
@@ -660,12 +704,7 @@ export class ServiceOrderService {
             .select()
             .from(serviceOrderFarms)
             .innerJoin(serviceOrders, eq(serviceOrderFarms.serviceOrderId, serviceOrders.id))
-            .where(
-              and(
-                eq(serviceOrderFarms.farmId, farms.id),
-                ...serviceOrderConditions
-              ),
-            ),
+            .where(and(eq(serviceOrderFarms.farmId, farms.id), ...serviceOrderConditions)),
         ),
       );
     }
@@ -691,7 +730,14 @@ export class ServiceOrderService {
     startDate?: Date;
     endDate?: Date;
   }): Promise<number> {
-    if (!filters || (!filters.customerId && !filters.farmId && !filters.pilotId && !filters.startDate && !filters.endDate)) {
+    if (
+      !filters ||
+      (!filters.customerId &&
+        !filters.farmId &&
+        !filters.pilotId &&
+        !filters.startDate &&
+        !filters.endDate)
+    ) {
       // No filters applied, return total count
       const result = await db.select({ count: count() }).from(plots);
       return result[0]?.count || 0;
@@ -731,10 +777,12 @@ export class ServiceOrderService {
     if (filters.startDate && filters.endDate) {
       const adjustEndDate = new Date(filters.endDate);
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-      serviceOrderConditions.push(and(
-        gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
-      ));
+      serviceOrderConditions.push(
+        and(
+          gte(serviceOrders.plannedDate, filters.startDate),
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        ),
+      );
     }
 
     // Add service order exists condition if any service order filters are present
@@ -745,12 +793,7 @@ export class ServiceOrderService {
             .select()
             .from(serviceOrderPlots)
             .innerJoin(serviceOrders, eq(serviceOrderPlots.serviceOrderId, serviceOrders.id))
-            .where(
-              and(
-                eq(serviceOrderPlots.plotId, plots.id),
-                ...serviceOrderConditions
-              ),
-            ),
+            .where(and(eq(serviceOrderPlots.plotId, plots.id), ...serviceOrderConditions)),
         ),
       );
     }
@@ -776,7 +819,14 @@ export class ServiceOrderService {
     startDate?: Date;
     endDate?: Date;
   }): Promise<number> {
-    if (!filters || (!filters.customerId && !filters.farmId && !filters.pilotId && !filters.startDate && !filters.endDate)) {
+    if (
+      !filters ||
+      (!filters.customerId &&
+        !filters.farmId &&
+        !filters.pilotId &&
+        !filters.startDate &&
+        !filters.endDate)
+    ) {
       // No filters applied, return total area
       const result = await db.select({ totalArea: sum(plots.hectare) }).from(plots);
       return Number(result[0]?.totalArea || 0);
@@ -816,10 +866,12 @@ export class ServiceOrderService {
     if (filters.startDate && filters.endDate) {
       const adjustEndDate = new Date(filters.endDate);
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
-      serviceOrderConditions.push(and(
-        gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
-      ));
+      serviceOrderConditions.push(
+        and(
+          gte(serviceOrders.plannedDate, filters.startDate),
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        ),
+      );
     }
 
     // Add service order exists condition if any service order filters are present
@@ -830,12 +882,7 @@ export class ServiceOrderService {
             .select()
             .from(serviceOrderPlots)
             .innerJoin(serviceOrders, eq(serviceOrderPlots.serviceOrderId, serviceOrders.id))
-            .where(
-              and(
-                eq(serviceOrderPlots.plotId, plots.id),
-                ...serviceOrderConditions
-              ),
-            ),
+            .where(and(eq(serviceOrderPlots.plotId, plots.id), ...serviceOrderConditions)),
         ),
       );
     }
@@ -863,7 +910,7 @@ export class ServiceOrderService {
       customerId?: string;
       startDate?: Date;
       endDate?: Date;
-    }
+    },
   ): Promise<number> {
     // Build where conditions
     const whereConditions = [eq(serviceOrders.status, status)];
@@ -896,8 +943,8 @@ export class ServiceOrderService {
       whereConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
-          lt(serviceOrders.plannedDate, adjustEndDate)
-        )!
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        )!,
       );
     }
 
@@ -932,13 +979,10 @@ export class ServiceOrderService {
       customerId?: string;
       startDate?: Date;
       endDate?: Date;
-    }
+    },
   ): Promise<number> {
     // Build where conditions
-    const whereConditions = [
-      eq(serviceOrders.status, status),
-      isNull(applications.deletedAt),
-    ];
+    const whereConditions = [eq(serviceOrders.status, status), isNull(applications.deletedAt)];
 
     // Filter by customer through the farm's customer (same as application stats)
     if (filters?.customerId) {
@@ -968,8 +1012,8 @@ export class ServiceOrderService {
       whereConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
-          lt(serviceOrders.plannedDate, adjustEndDate)
-        )!
+          lt(serviceOrders.plannedDate, adjustEndDate),
+        )!,
       );
     }
 
@@ -1020,7 +1064,7 @@ export class ServiceOrderService {
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
+        lt(serviceOrders.plannedDate, adjustEndDate),
       );
     }
 
@@ -1067,10 +1111,10 @@ export class ServiceOrderService {
       inArray(
         serviceOrders.id,
         db
-        .select({serviceOrdersId: applications.serviceOrderId})
-        .from(applications)
-        .where(and(isNull(applications.plotId), isNull(applications.deletedAt)))
-      )
+          .select({ serviceOrdersId: applications.serviceOrderId })
+          .from(applications)
+          .where(and(isNull(applications.plotId), isNull(applications.deletedAt))),
+      ),
     ];
 
     if (filters?.customerId) {
@@ -1083,7 +1127,7 @@ export class ServiceOrderService {
       adjustEndDate.setDate(adjustEndDate.getDate() + 1);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
-        lt(serviceOrders.plannedDate, adjustEndDate)
+        lt(serviceOrders.plannedDate, adjustEndDate),
       );
     }
 
@@ -1122,7 +1166,7 @@ export class ServiceOrderService {
     }
 
     const [result] = await db
-      .select({ count: countDistinct(serviceOrders.id)} )
+      .select({ count: countDistinct(serviceOrders.id) })
       .from(serviceOrders)
       .where(and(...conditions));
 

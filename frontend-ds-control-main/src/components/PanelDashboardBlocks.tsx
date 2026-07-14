@@ -2103,12 +2103,12 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                   serviceOrder.totalPlots ?? serviceOrder.plots?.length ?? 0
                 );
                 const totalHectaresAllPlots = Number(serviceOrder.plannedHectares || 0);
-                const totalHectaresApplied = Number(serviceOrder.totalAppliedHectares || 0);
+                const totalHectaresCompleted = Number(serviceOrder.completedHectares || 0);
                 const filteredHectaresApplied = serviceOrderApplications.reduce(
                   (sum, application) => sum + Number.parseFloat(application.hectares || '0'),
                   0
                 );
-                const plotsWithApplications = Number(serviceOrder.plotsWithApplications || 0);
+                const completedPlots = Number(serviceOrder.completedPlots || 0);
                 const rawProgress = Number(serviceOrder.progressPercent || 0);
                 const progressValue = Math.min(rawProgress, 100);
                 const customerName = serviceOrder.customer?.name || 'Cliente não informado';
@@ -2153,7 +2153,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                         <div className='flex items-center justify-between text-sm'>
                           <span>Progresso real da OS</span>
                           <span className='font-medium text-foreground'>
-                            {formatHectares(totalHectaresApplied)} /{' '}
+                            {formatHectares(totalHectaresCompleted)} /{' '}
                             {formatHectares(totalHectaresAllPlots)}
                           </span>
                         </div>
@@ -2181,7 +2181,7 @@ export function PanelDashboardBlocks({ startDate, endDate, yesterday }: PanelDas
                           <p className='text-muted-foreground'>Mapas</p>
                           <p className='font-semibold flex items-center gap-1 text-primary'>
                             <MapIcon className='h-4 w-4 text-primary' />
-                            {`${formatInteger(plotsWithApplications)} concluidos / ${formatInteger(totalPlots)} total`}
+                            {`${formatInteger(completedPlots)} concluidos / ${formatInteger(totalPlots)} total`}
                           </p>
                         </div>
                       </div>

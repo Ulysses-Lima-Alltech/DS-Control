@@ -99,6 +99,11 @@ export function ApplicationsReportLayoutMirror({
     const plot = plotApplications[0]?.plot;
     if (plot?.id && completedIds.has(plot.id)) completedPlotsById.set(plot.id, plot);
   });
+  if (isCompletedPlannedArea) {
+    completedPlotsById.forEach((_, plotId) => {
+      applicationsByPlot[plotId] ??= [];
+    });
+  }
   const completedPlannedHectares = Array.from(completedPlotsById.values()).reduce(
     (total, plot) => total + (Number.parseFloat(plot.hectare) || 0),
     0
@@ -314,7 +319,7 @@ export function ApplicationsReportLayoutMirror({
       {/* ========== PÁGINAS POR TALHÃO ========== */}
       {Object.entries(applicationsByPlot).map(([plotId, plotApplications], plotIndex) => {
         const firstApp = plotApplications[0];
-        const plot = firstApp.plot;
+        const plot = firstApp?.plot ?? completedPlotsById.get(plotId)!;
         if (!plot) return null;
         const mapWidth = 1280;
         const mapHeight = 480;
@@ -409,7 +414,7 @@ export function ApplicationsReportLayoutMirror({
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
                   Fazenda do Talhão:
                 </span>
-                <span className='text-[9px] w-[60%]'>{farmMap.get(firstApp.plotId!) || 'N/A'}</span>
+                <span className='text-[9px] w-[60%]'>{farmMap.get(plot.id!) || 'N/A'}</span>
               </div>
               <div className='flex mb-1.5'>
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>

@@ -167,13 +167,19 @@ function resolveServiceOrderMetrics(
       .map((application) => application.plotId)
       .filter((plotId): plotId is string => Boolean(plotId))
   );
-
   const plannedHectares =
     parseOptionalNumber(serviceOrder.plannedHectares) ?? fallbackPlannedHectares;
   const totalAppliedHectares =
     parseOptionalNumber(serviceOrder.totalAppliedHectares) ?? fallbackAppliedHectares;
+  const completedPlots = (serviceOrder.plots || []).filter((plot) => plot.status === 'COMPLETED');
+  const fallbackCompletedHectares = completedPlots.reduce(
+    (sum, plot) => sum + parseNumber(plot.hectare),
+    0
+  );
+  const completedHectares =
+    parseOptionalNumber(serviceOrder.completedHectares) ?? fallbackCompletedHectares;
   const fallbackProgressPercent =
-    plannedHectares > 0 ? (totalAppliedHectares / plannedHectares) * 100 : 0;
+    plannedHectares > 0 ? (completedHectares / plannedHectares) * 100 : 0;
   const progressPercent =
     parseOptionalNumber(serviceOrder.progressPercent) ?? fallbackProgressPercent;
 
