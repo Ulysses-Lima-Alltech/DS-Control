@@ -43,7 +43,11 @@ import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
-import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
+import {
+  downloadPDF,
+  generateApplicationsReportPDF,
+  generateCompletedPlotsPlannedAreaReportPDF,
+} from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -412,6 +416,33 @@ export default function ServiceOrderPage({
     }
   };
 
+  const handleGenerateCompletedPlotsPlannedAreaReport = async () => {
+    if (!serviceOrderData) {
+      return;
+    }
+
+    if (completedPlotIds.length === 0) {
+      toast.info('Não há talhões concluídos para gerar o relatório');
+      return;
+    }
+
+    try {
+      setIsGeneratingReport(true);
+      const blob = await generateCompletedPlotsPlannedAreaReportPDF({
+        serviceOrder: serviceOrderData,
+        applications: currentServiceOrderApplications,
+        completedPlotIds,
+      });
+
+      downloadPDF(blob, `relatorio-area-planejada-concluidos-os-${serviceOrderData.number}.pdf`);
+      toast.success('Relatório de área planejada dos concluídos gerado com sucesso');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   if (isServiceOrderLoading) {
     return <ServiceOrderDetailsSkeleton />;
   }
@@ -747,6 +778,14 @@ export default function ServiceOrderPage({
                 onClick={() => handleGenerateApplicationsReport('completed')}
               >
                 PDF Concluídos
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                disabled={isGeneratingReport}
+                onClick={handleGenerateCompletedPlotsPlannedAreaReport}
+              >
+                PDF Concluídos — Área Planejada
               </Button>
               <Button
                 variant='outline'

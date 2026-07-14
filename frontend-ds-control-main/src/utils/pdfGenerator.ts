@@ -3,6 +3,7 @@ import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
+import CompletedPlotsPlannedAreaReportPDF from '@/components/PDFReports/CompletedPlotsPlannedAreaReportPDF';
 import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
 import GeneralReportPDF, {
   type GeneralNamedValue,
@@ -14,8 +15,12 @@ import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrder
 import ServiceOrdersDetailedReportPDF, {
   type ServiceOrderDetailedSection,
 } from '@/components/PDFReports/ServiceOrdersDetailedReportPDF';
-import { getApplicationDjiFlights, type ApplicationDjiFlight } from '@/services/application.service';
+import {
+  getApplicationDjiFlights,
+  type ApplicationDjiFlight,
+} from '@/services/application.service';
 import { Application } from '@/types/applications.type';
+import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import {
   enrichApplicationsWithDjiImageUrl,
@@ -37,11 +42,18 @@ import {
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
-import { buildStrategicFarmColorMap, type StrategicFarmColor } from '@/utils/strategicReportPalette';
+import {
+  buildStrategicFarmColorMap,
+  type StrategicFarmColor,
+} from '@/utils/strategicReportPalette';
 
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
   applications: Application[];
+}
+
+interface GenerateCompletedPlotsPlannedAreaPDFParams extends GeneratePDFParams {
+  completedPlotIds: string[];
 }
 
 export interface GenerateFarmsReportPDFParams {
@@ -156,6 +168,33 @@ async function prefetchReportMapImagesByPlotId(
   return out;
 }
 
+async function prefetchReportMapImagesForPlots(
+  plots: Plot[]
+): Promise<Record<string, string | null>> {
+  const plotsById = new Map<string, Plot>();
+  plots.forEach((plot) => {
+    if (plot.id) {
+      plotsById.set(plot.id, plot);
+    }
+  });
+
+  const accessToken = getReportMapboxAccessToken();
+  const out: Record<string, string | null> = {};
+
+  for (const [plotId, plot] of plotsById) {
+    const mapResult = buildReportMapboxStaticUrl({
+      plot,
+      mapWidth: REPORT_MAP_WIDTH,
+      mapHeight: REPORT_MAP_HEIGHT,
+      accessToken,
+    });
+
+    out[plotId] = mapResult.url ? await fetchRemoteImageAsDataUrl(mapResult.url) : null;
+  }
+
+  return out;
+}
+
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
   return (serviceOrder.plots || [])
     .map((plot) => {
@@ -191,9 +230,7 @@ function buildStrategicFarmColorMapFromServiceOrder(
   return buildStrategicFarmColorMap(orderedFarmIds);
 }
 
-async function prefetchStrategicReportMapBase(
-  serviceOrder: ServiceOrder
-): Promise<{
+async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promise<{
   mapViewport: StrategicMapViewport | null;
   mapBaseDataUrl: string | null;
   mapImageDataUrl: string | null;
@@ -424,7 +461,9 @@ function buildApplicationWithLinkedDjiFlights(
     djiDate: firstMappedFlight?.flightDate || application.djiDate,
     djiImageScope: maps.length ? 'application' : application.djiImageScope,
     djiMatchType: maps.length ? 'manual' : application.djiMatchType,
-    djiMatchConfidence: maps.length ? application.djiMatchConfidence ?? 1 : application.djiMatchConfidence,
+    djiMatchConfidence: maps.length
+      ? (application.djiMatchConfidence ?? 1)
+      : application.djiMatchConfidence,
     djiFlightRecordNumber: firstMappedFlight?.recordNumber || application.djiFlightRecordNumber,
     djiMetadata: {
       ...(application.djiMetadata || {}),
@@ -476,6 +515,28 @@ export async function generateApplicationsReportPDF({
   return blob;
 }
 
+export async function generateCompletedPlotsPlannedAreaReportPDF({
+  serviceOrder,
+  applications,
+  completedPlotIds,
+}: GenerateCompletedPlotsPlannedAreaPDFParams): Promise<Blob> {
+  const { pdf } = await import('@react-pdf/renderer');
+  const completedIds = new Set(completedPlotIds);
+  const completedPlots = (serviceOrder.plots || []).filter((plot) =>
+    Boolean(plot.id && completedIds.has(plot.id))
+  );
+  const prefetchedMapImageDataUrls = await prefetchReportMapImagesForPlots(completedPlots);
+  const element = CompletedPlotsPlannedAreaReportPDF({
+    serviceOrder,
+    applications,
+    completedPlotIds,
+    prefetchedMapImageDataUrls,
+  });
+
+  // @ts-expect-error - toBlob is not typed
+  return pdf(element).toBlob();
+}
+
 export async function generateServiceOrdersDetailedConsolidatedPDF({
   generatedAt,
   filtersSummary,
@@ -500,6 +561,7 @@ export async function generateServiceOrderStrategicReportPDF({
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const diagnostics = buildStrategicPlotDiagnostics(serviceOrder);
+  // eslint-disable-next-line no-console
   console.info('[StrategicPDF] Diagnostics', {
     serviceOrderId: serviceOrder.id,
     serviceOrderNumber: serviceOrder.number,
@@ -615,12 +677,11 @@ export async function generateApplicationIndividualReportPDF({
       )
     : enrichedApplication;
 
-  const djiImagesByApplicationId =
-    linkedDjiFlights.maps.length
-      ? ({} as DjiReportImageByApplicationId)
-      : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
-          () => ({} as DjiReportImageByApplicationId)
-        );
+  const djiImagesByApplicationId = linkedDjiFlights.maps.length
+    ? ({} as DjiReportImageByApplicationId)
+    : await prefetchDjiReportImagesByApplicationId([applicationForPdf]).catch(
+        () => ({}) as DjiReportImageByApplicationId
+      );
   const djiImage = linkedDjiFlights.maps[0]
     ? {
         imageSrc: linkedDjiFlights.maps[0].imageSrc,
