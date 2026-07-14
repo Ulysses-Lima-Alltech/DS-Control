@@ -434,8 +434,8 @@ export default function ServiceOrderPage({
         completedPlotIds,
       });
 
-      downloadPDF(blob, `relatorio-area-planejada-concluidos-os-${serviceOrderData.number}.pdf`);
-      toast.success('Relatório de área planejada dos concluídos gerado com sucesso');
+      downloadPDF(blob, `relatorio-area-total-concluida-os-${serviceOrderData.number}.pdf`);
+      toast.success('Relatório de Área Total Concluída gerado com sucesso');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
     } finally {
@@ -785,7 +785,7 @@ export default function ServiceOrderPage({
                 disabled={isGeneratingReport}
                 onClick={handleGenerateCompletedPlotsPlannedAreaReport}
               >
-                PDF Concluídos — Área Planejada
+                PDF Área Total Concluída
               </Button>
               <Button
                 variant='outline'

@@ -194,7 +194,7 @@ export default function PreviewReportHtmlPage() {
     <div className='min-h-screen w-full bg-muted p-6'>
       <div className='mb-6'>
         <h1 className='text-xl font-semibold text-foreground'>
-          Espelho HTML — Concluídos por Área Planejada
+          Espelho HTML — Área Total Concluída
         </h1>
         <p className='text-sm text-muted-foreground mt-1'>
           Modo detalhado equivalente ao novo PDF, preservando as informações operacionais.

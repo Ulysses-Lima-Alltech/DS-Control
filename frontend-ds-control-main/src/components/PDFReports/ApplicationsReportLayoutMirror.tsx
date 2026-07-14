@@ -138,9 +138,7 @@ export function ApplicationsReportLayoutMirror({
         />
         <h1 className='text-2xl font-bold mb-2.5 text-center'>DS Drones Agrícolas LTDA</h1>
         <p className='text-base font-medium mb-2 text-center text-[#6B7280]'>
-          {isCompletedPlannedArea
-            ? 'Relatório de Aplicações — Concluídos por Área Planejada'
-            : 'Relatório de Aplicações'}
+          {isCompletedPlannedArea ? 'Relatório de Área Total Concluída' : 'Relatório de Aplicações'}
         </p>
         <p className='text-xs text-center mb-10 leading-relaxed'>
           54.134.198/0001-25
@@ -222,47 +220,45 @@ export function ApplicationsReportLayoutMirror({
         {/* Resumo das Aplicações */}
         <div className='w-full mt-7 p-5 border border-[#E5E7EB] rounded-lg'>
           <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>
-            {isCompletedPlannedArea
-              ? 'Resumo dos Concluídos — Área Planejada'
-              : 'Resumo das Aplicações'}
+            {isCompletedPlannedArea ? 'Resumo da Área Total Concluída' : 'Resumo das Aplicações'}
           </h2>
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
             {isCompletedPlannedArea
-              ? 'Indicadores dos talhões classificados como concluídos e das aplicações registradas neles.'
+              ? 'Este relatório considera integralmente concluída a área cadastrada dos talhões classificados como concluídos.'
               : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
           </p>
           <div className='grid grid-cols-3 gap-2 mb-3'>
             <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea
-                  ? 'Área Total dos Talhões Concluídos'
-                  : 'Área Total Planejada da OS'}
+                {isCompletedPlannedArea ? 'Área Total Concluída' : 'Área Total Planejada da OS'}
               </p>
               <p className='text-sm font-bold text-[#1F2937] mt-1'>
                 {formatHectares(String(reportPlannedHectares))}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Soma das áreas cadastradas dos talhões concluídos, sem duplicação por aplicação.'
+                  ? 'Soma das áreas cadastradas dos talhões classificados como concluídos.'
                   : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
               </p>
             </div>
             <div className='bg-[#FFF3CD] p-2.5 rounded border-2 border-[#EAAE07]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Área Registrada nas Aplicações' : 'Área Total Aplicada'}
+                {isCompletedPlannedArea ? 'Talhões Concluídos' : 'Área Total Aplicada'}
               </p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
-                {formatHectares(String(totalHectares))}
+                {isCompletedPlannedArea
+                  ? completedPlotsById.size
+                  : formatHectares(String(totalHectares))}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Soma dos valores operacionais efetivamente registrados nas aplicações.'
+                  ? 'Quantidade de talhões incluídos neste relatório.'
                   : 'Soma das áreas informadas nas aplicações incluídas neste relatório.'}
               </p>
             </div>
             <div className='bg-[#FFFBEB] p-2.5 rounded border border-[#EAAE07]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Progresso dos Talhões Incluídos' : 'Progresso da OS'}
+                {isCompletedPlannedArea ? 'Progresso' : 'Progresso da OS'}
               </p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
                 {formatNumber(reportProgress)}%
@@ -278,47 +274,40 @@ export function ApplicationsReportLayoutMirror({
             <>
               <div className='flex mb-2'>
                 <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Talhões Concluídos:
-                </span>
-                <span className='text-[10px] w-1/2'>{completedPlotsById.size}</span>
-              </div>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Aplicações Registradas:
+                  Aplicações Realizadas:
                 </span>
                 <span className='text-[10px] w-1/2'>{applications.length}</span>
               </div>
-              <p className='text-[8px] leading-snug text-[#6B7280] mb-3'>
-                O total concluído considera integralmente a área cadastrada dos talhões
-                classificados como concluídos. Os valores individuais registrados pelas aplicações
-                permanecem disponíveis para consulta operacional.
-              </p>
             </>
           ) : null}
-          <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-              Taxa de Aplicação Média:
-            </span>
-            <span className='text-[10px] w-1/2'>{formatNumber(averageFlowRate)} L/ha</span>
-          </div>
-          <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-              Altitude Média de Voo:
-            </span>
-            <span className='text-[10px] w-1/2'>{formatNumber(averageAltitude)} m</span>
-          </div>
-          <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-              Espaçamento Médio entre Rotas:
-            </span>
-            <span className='text-[10px] w-1/2'>{formatNumber(averageRouteSpacing)} m</span>
-          </div>
-          <div className='flex mb-2'>
-            <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-              Tamanho Médio de Gota:
-            </span>
-            <span className='text-[10px] w-1/2'>{formatNumber(averageDropletSize)} µm</span>
-          </div>
+          {!isCompletedPlannedArea ? (
+            <>
+              <div className='flex mb-2'>
+                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+                  Taxa de Aplicação Média:
+                </span>
+                <span className='text-[10px] w-1/2'>{formatNumber(averageFlowRate)} L/ha</span>
+              </div>
+              <div className='flex mb-2'>
+                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+                  Altitude Média de Voo:
+                </span>
+                <span className='text-[10px] w-1/2'>{formatNumber(averageAltitude)} m</span>
+              </div>
+              <div className='flex mb-2'>
+                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+                  Espaçamento Médio entre Rotas:
+                </span>
+                <span className='text-[10px] w-1/2'>{formatNumber(averageRouteSpacing)} m</span>
+              </div>
+              <div className='flex mb-2'>
+                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
+                  Tamanho Médio de Gota:
+                </span>
+                <span className='text-[10px] w-1/2'>{formatNumber(averageDropletSize)} µm</span>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -424,27 +413,27 @@ export function ApplicationsReportLayoutMirror({
               </div>
               <div className='flex mb-1.5'>
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                  {isCompletedPlannedArea ? 'Área Total do Talhão:' : 'Área Cadastrada do Talhão:'}
+                  {isCompletedPlannedArea
+                    ? 'Área Total Concluída do Talhão:'
+                    : 'Área Cadastrada do Talhão:'}
                 </span>
                 <span className='text-[9px] w-[60%]'>
                   {formatHectares(plot.hectare)}
-                  <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
-                    Área delimitada no mapa do cadastro.
-                  </small>
+                  {!isCompletedPlannedArea ? (
+                    <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
+                      Área delimitada no mapa do cadastro.
+                    </small>
+                  ) : null}
                 </span>
               </div>
               {isCompletedPlannedArea ? (
                 <>
                   <div className='flex mb-1.5'>
-                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                      Área Concluída Considerada:
-                    </span>
-                    <span className='text-[9px] w-[60%]'>{formatHectares(plot.hectare)}</span>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Situação:</span>
+                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>Concluído</span>
                   </div>
                   <div className='flex mb-1.5'>
-                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                      Cobertura do Talhão:
-                    </span>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Cobertura:</span>
                     <span className='text-[9px] w-[60%] font-bold text-[#166534]'>100,00%</span>
                   </div>
                 </>
@@ -459,10 +448,9 @@ export function ApplicationsReportLayoutMirror({
 
             {/* Lista de aplicações */}
             {plotApplications.map((application) => {
-              const registeredAreaCoverage = formatRegisteredAreaCoverage(
-                application.hectares,
-                plot.hectare
-              );
+              const registeredAreaCoverage = isCompletedPlannedArea
+                ? null
+                : formatRegisteredAreaCoverage(application.hectares, plot.hectare);
 
               return (
                 <div
@@ -502,25 +490,23 @@ export function ApplicationsReportLayoutMirror({
                       <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Cultura:</span>
                       <span className='text-[8px]'>{application.culture?.name || 'N/A'}</span>
                     </div>
-                    <div className='flex'>
-                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
-                        {isCompletedPlannedArea
-                          ? 'Área Registrada na Aplicação:'
-                          : 'Área Aplicada:'}
-                      </span>
-                      <span className='text-[8px]'>
-                        {formatHectares(application.hectares)}
-                        <small className='block text-[7px] text-[#9CA3AF]'>
-                          Área informada nesta aplicação.
-                        </small>
-                      </span>
-                    </div>
+                    {!isCompletedPlannedArea ? (
+                      <div className='flex'>
+                        <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                          Área Aplicada:
+                        </span>
+                        <span className='text-[8px]'>
+                          {formatHectares(application.hectares)}
+                          <small className='block text-[7px] text-[#9CA3AF]'>
+                            Área informada nesta aplicação.
+                          </small>
+                        </span>
+                      </div>
+                    ) : null}
                     {registeredAreaCoverage ? (
                       <div className='w-[calc(50%_-_0.5rem)] min-w-0 rounded border border-[#FDE68A] bg-[#FFFBEB] p-2'>
                         <p className='text-[8px] font-bold text-[#6B7280]'>
-                          {isCompletedPlannedArea
-                            ? 'Cobertura Registrada da Aplicação'
-                            : 'Cobertura desta Aplicação'}
+                          Cobertura desta Aplicação
                         </p>
                         <p className='mt-1 text-[11px] font-bold text-[#EAAE07]'>
                           {registeredAreaCoverage}

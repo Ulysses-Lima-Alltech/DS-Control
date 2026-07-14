@@ -99,10 +99,11 @@ function formatRegisteredAreaCoverage(
 
 function buildDjiEvidenceCaption(
   application: Application,
-  metadata: Application['djiMetadata'] | undefined
+  metadata: Application['djiMetadata'] | undefined,
+  hideAreaValues = false
 ): string {
-  const dsArea = formatDjiArea(metadata?.dsAreaHa);
-  const djiArea = formatDjiArea(metadata?.djiAreaHa);
+  const dsArea = hideAreaValues ? null : formatDjiArea(metadata?.dsAreaHa);
+  const djiArea = hideAreaValues ? null : formatDjiArea(metadata?.djiAreaHa);
   const details = [
     typeof metadata?.flightCount === 'number'
       ? `Voos registrados na DJI: ${metadata.flightCount}`
@@ -226,7 +227,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     <Document
       title={
         isCompletedPlannedArea
-          ? `Relatório de Aplicações — Concluídos por Área Planejada - OS ${serviceOrder.number}`
+          ? `Relatório de Área Total Concluída - OS ${serviceOrder.number}`
           : `Relatório de Aplicações - OS ${serviceOrder.number}`
       }
     >
@@ -278,7 +279,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             }}
           >
             {isCompletedPlannedArea
-              ? 'Relatório de Aplicações — Concluídos por Área Planejada'
+              ? 'Relatório de Área Total Concluída'
               : 'Relatório de Aplicações'}
           </Text>
           <Text
@@ -540,9 +541,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 color: '#1F2937',
               }}
             >
-              {isCompletedPlannedArea
-                ? 'Resumo dos Concluídos — Área Planejada'
-                : 'Resumo das Aplicações'}
+              {isCompletedPlannedArea ? 'Resumo da Área Total Concluída' : 'Resumo das Aplicações'}
             </Text>
             <Text
               style={{
@@ -553,7 +552,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               }}
             >
               {isCompletedPlannedArea
-                ? 'Indicadores dos talhões classificados como concluídos e das aplicações registradas neles.'
+                ? 'Este relatório considera integralmente concluída a área cadastrada dos talhões classificados como concluídos.'
                 : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
             </Text>
 
@@ -569,16 +568,14 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  {isCompletedPlannedArea
-                    ? 'Área Total dos Talhões Concluídos'
-                    : 'Área Total Planejada da OS'}
+                  {isCompletedPlannedArea ? 'Área Total Concluída' : 'Área Total Planejada da OS'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginTop: 5 }}>
                   {formatHectares(reportPlannedHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
-                    ? 'Soma das áreas cadastradas dos talhões concluídos, sem duplicação por aplicação.'
+                    ? 'Soma das áreas cadastradas dos talhões classificados como concluídos.'
                     : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
                 </Text>
               </View>
@@ -594,16 +591,14 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  {isCompletedPlannedArea
-                    ? 'Área Registrada nas Aplicações'
-                    : 'Área Total Aplicada'}
+                  {isCompletedPlannedArea ? 'Talhões Concluídos' : 'Área Total Aplicada'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
-                  {formatHectares(totalHectares)}
+                  {isCompletedPlannedArea ? completedPlotsById.size : formatHectares(totalHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
-                    ? 'Soma dos valores operacionais efetivamente registrados nas aplicações.'
+                    ? 'Quantidade de talhões incluídos neste relatório.'
                     : 'Soma das áreas informadas nas aplicações incluídas neste relatório.'}
                 </Text>
               </View>
@@ -618,7 +613,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  {isCompletedPlannedArea ? 'Progresso dos Talhões Incluídos' : 'Progresso da OS'}
+                  {isCompletedPlannedArea ? 'Progresso' : 'Progresso da OS'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
                   {formatNumber(reportProgress)}%
@@ -635,135 +630,126 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               <>
                 <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                   <Text style={{ fontSize: 10, fontWeight: 700, width: '50%', color: '#6B7280' }}>
-                    Talhões Concluídos:
-                  </Text>
-                  <Text style={{ fontSize: 10, width: '50%', color: '#1F2937' }}>
-                    {completedPlotsById.size}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 10, fontWeight: 700, width: '50%', color: '#6B7280' }}>
-                    Aplicações Registradas:
+                    Aplicações Realizadas:
                   </Text>
                   <Text style={{ fontSize: 10, width: '50%', color: '#1F2937' }}>
                     {applications.length}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 8, color: '#6B7280', marginBottom: 10, lineHeight: 1.35 }}>
-                  O total concluído considera integralmente a área cadastrada dos talhões
-                  classificados como concluídos. Os valores individuais registrados pelas aplicações
-                  permanecem disponíveis para consulta operacional.
-                </Text>
               </>
             )}
 
-            <View
-              style={{
-                flexDirection: 'row',
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  width: '50%',
-                  color: '#6B7280',
-                }}
-              >
-                Taxa de Aplicação Média:
-              </Text>
-              <Text
-                style={{
-                  fontSize: 10,
-                  width: '50%',
-                  color: '#1F2937',
-                }}
-              >
-                {formatNumber(averageFlowRate)} L/ha
-              </Text>
-            </View>
+            {!isCompletedPlannedArea && (
+              <>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      width: '50%',
+                      color: '#6B7280',
+                    }}
+                  >
+                    Taxa de Aplicação Média:
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      width: '50%',
+                      color: '#1F2937',
+                    }}
+                  >
+                    {formatNumber(averageFlowRate)} L/ha
+                  </Text>
+                </View>
 
-            <View
-              style={{
-                flexDirection: 'row',
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  width: '50%',
-                  color: '#6B7280',
-                }}
-              >
-                Altitude Média de Voo:
-              </Text>
-              <Text
-                style={{
-                  fontSize: 10,
-                  width: '50%',
-                  color: '#1F2937',
-                }}
-              >
-                {formatNumber(averageAltitude)} m
-              </Text>
-            </View>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      width: '50%',
+                      color: '#6B7280',
+                    }}
+                  >
+                    Altitude Média de Voo:
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      width: '50%',
+                      color: '#1F2937',
+                    }}
+                  >
+                    {formatNumber(averageAltitude)} m
+                  </Text>
+                </View>
 
-            <View
-              style={{
-                flexDirection: 'row',
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  width: '50%',
-                  color: '#6B7280',
-                }}
-              >
-                Espaçamento Médio entre Rotas:
-              </Text>
-              <Text
-                style={{
-                  fontSize: 10,
-                  width: '50%',
-                  color: '#1F2937',
-                }}
-              >
-                {formatNumber(averageRouteSpacing)} m
-              </Text>
-            </View>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      width: '50%',
+                      color: '#6B7280',
+                    }}
+                  >
+                    Espaçamento Médio entre Rotas:
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      width: '50%',
+                      color: '#1F2937',
+                    }}
+                  >
+                    {formatNumber(averageRouteSpacing)} m
+                  </Text>
+                </View>
 
-            <View
-              style={{
-                flexDirection: 'row',
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  width: '50%',
-                  color: '#6B7280',
-                }}
-              >
-                Tamanho Médio de Gota:
-              </Text>
-              <Text
-                style={{
-                  fontSize: 10,
-                  width: '50%',
-                  color: '#1F2937',
-                }}
-              >
-                {formatNumber(averageDropletSize)} µm
-              </Text>
-            </View>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      width: '50%',
+                      color: '#6B7280',
+                    }}
+                  >
+                    Tamanho Médio de Gota:
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      width: '50%',
+                      color: '#1F2937',
+                    }}
+                  >
+                    {formatNumber(averageDropletSize)} µm
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Page>
@@ -803,7 +789,11 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const showDjiImage = Boolean(plotDjiImage?.imageSrc);
         const showMapImage = Boolean(reportImageSrc);
         const djiCaption = plotDjiApplication
-          ? buildDjiEvidenceCaption(plotDjiApplication, plotDjiImage?.djiMetadata)
+          ? buildDjiEvidenceCaption(
+              plotDjiApplication,
+              plotDjiImage?.djiMetadata,
+              isCompletedPlannedArea
+            )
           : null;
         const reportVisualHeight = plotApplications.length > 1 ? 120 : DJI_REPORT_IMAGE_HEIGHT;
         const reportMapHeight = plotApplications.length > 1 ? 120 : 200;
@@ -1110,30 +1100,34 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  {isCompletedPlannedArea ? 'Área Total do Talhão:' : 'Área Cadastrada do Talhão:'}
+                  {isCompletedPlannedArea
+                    ? 'Área Total Concluída do Talhão:'
+                    : 'Área Cadastrada do Talhão:'}
                 </Text>
                 <View style={{ width: '60%' }}>
                   <Text style={{ fontSize: 9, color: '#1F2937' }}>
                     {formatHectares(plot.hectare)}
                   </Text>
-                  <Text style={{ fontSize: 7, marginTop: 2, color: '#9CA3AF' }}>
-                    Área delimitada no mapa do cadastro.
-                  </Text>
+                  {!isCompletedPlannedArea && (
+                    <Text style={{ fontSize: 7, marginTop: 2, color: '#9CA3AF' }}>
+                      Área delimitada no mapa do cadastro.
+                    </Text>
+                  )}
                 </View>
               </View>
               {isCompletedPlannedArea && (
                 <>
                   <View style={{ flexDirection: 'row', marginBottom: 5 }}>
                     <Text style={{ fontSize: 9, fontWeight: 700, width: '40%', color: '#6B7280' }}>
-                      Área Concluída Considerada:
+                      Situação:
                     </Text>
-                    <Text style={{ fontSize: 9, width: '60%', color: '#1F2937' }}>
-                      {formatHectares(plot.hectare)}
+                    <Text style={{ fontSize: 9, width: '60%', color: '#166534', fontWeight: 700 }}>
+                      Concluído
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', marginBottom: 5 }}>
                     <Text style={{ fontSize: 9, fontWeight: 700, width: '40%', color: '#6B7280' }}>
-                      Cobertura do Talhão:
+                      Cobertura:
                     </Text>
                     <Text style={{ fontSize: 9, width: '60%', color: '#166534', fontWeight: 700 }}>
                       100,00%
@@ -1170,10 +1164,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             </View>
 
             {plotApplications.map((application) => {
-              const registeredAreaCoverage = formatRegisteredAreaCoverage(
-                application.hectares,
-                plot.hectare
-              );
+              const registeredAreaCoverage = isCompletedPlannedArea
+                ? null
+                : formatRegisteredAreaCoverage(application.hectares, plot.hectare);
 
               return (
                 <View
@@ -1325,34 +1318,34 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                         {application.culture?.name || 'N/A'}
                       </Text>
                     </View>
-                    <View
-                      style={{
-                        width: '50%',
-                        marginBottom: 4,
-                        flexDirection: 'row',
-                      }}
-                    >
-                      <Text
+                    {!isCompletedPlannedArea && (
+                      <View
                         style={{
-                          fontSize: 8,
-                          fontWeight: 700,
-                          color: '#6B7280',
-                          marginRight: 4,
+                          width: '50%',
+                          marginBottom: 4,
+                          flexDirection: 'row',
                         }}
                       >
-                        {isCompletedPlannedArea
-                          ? 'Área Registrada na Aplicação:'
-                          : 'Área Aplicada:'}
-                      </Text>
-                      <View>
-                        <Text style={{ fontSize: 8, color: '#1F2937' }}>
-                          {formatHectares(application.hectares)}
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: '#6B7280',
+                            marginRight: 4,
+                          }}
+                        >
+                          Área Aplicada:
                         </Text>
-                        <Text style={{ fontSize: 7, color: '#9CA3AF', marginTop: 2 }}>
-                          Área informada nesta aplicação.
-                        </Text>
+                        <View>
+                          <Text style={{ fontSize: 8, color: '#1F2937' }}>
+                            {formatHectares(application.hectares)}
+                          </Text>
+                          <Text style={{ fontSize: 7, color: '#9CA3AF', marginTop: 2 }}>
+                            Área informada nesta aplicação.
+                          </Text>
+                        </View>
                       </View>
-                    </View>
+                    )}
                     {registeredAreaCoverage && (
                       <View
                         style={{
@@ -1372,9 +1365,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                             color: '#6B7280',
                           }}
                         >
-                          {isCompletedPlannedArea
-                            ? 'Cobertura Registrada da Aplicação'
-                            : 'Cobertura desta Aplicação'}
+                          Cobertura desta Aplicação
                         </Text>
                         <Text
                           style={{ fontSize: 11, fontWeight: 700, color: '#EAAE07', marginTop: 4 }}
