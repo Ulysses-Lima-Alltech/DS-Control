@@ -41,13 +41,19 @@ import { useGetServiceOrderById } from '@/queries/service-order.query';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import {
+  APPLICATIONS_REPORT_SCOPES,
+  buildApplicationsReportFileName,
+  type ApplicationsReportScope,
+  REPORT_AREA_CRITERIA,
+  type ReportAreaCriterion,
+} from '@/utils/applicationsReportArea';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import { downloadPDF, generateApplicationsReportPDF } from '@/utils/pdfGenerator';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
-type ReportMode = 'all' | 'completed' | 'pending';
 
 export default function ServiceOrderPage({
   params,
@@ -61,6 +67,9 @@ export default function ServiceOrderPage({
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
+  const [reportAreaCriterion, setReportAreaCriterion] =
+    useState<ReportAreaCriterion>('applied-registered');
+  const [reportScope, setReportScope] = useState<ApplicationsReportScope>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const { data: applicationsData, isPending: isApplicationsLoading } =
@@ -362,31 +371,8 @@ export default function ServiceOrderPage({
     cancelServiceOrderMutation.mutate(serviceOrderData.id);
   };
 
-  const buildApplicationsForReport = (mode: ReportMode): Application[] => {
-    if (mode === 'all') {
-      return currentServiceOrderApplications;
-    }
-
-    if (mode === 'completed') {
-      return currentServiceOrderApplications;
-    }
-
-    return currentServiceOrderApplications.filter((application) => {
-      if (!application.plotId) {
-        return true;
-      }
-      return pendingPlotIds.includes(application.plotId);
-    });
-  };
-
-  const handleGenerateApplicationsReport = async (mode: ReportMode = 'all') => {
+  const handleGenerateApplicationsReport = async () => {
     if (!serviceOrderData) {
-      return;
-    }
-
-    const reportApplications = buildApplicationsForReport(mode);
-    if (reportApplications.length === 0) {
-      toast.info('Nao ha aplicacoes para o recorte selecionado');
       return;
     }
 
@@ -395,11 +381,19 @@ export default function ServiceOrderPage({
 
       const blob = await generateApplicationsReportPDF({
         serviceOrder: serviceOrderData,
-        applications: reportApplications,
+        applications: currentServiceOrderApplications,
+        areaCriterion: reportAreaCriterion,
+        scope: reportScope,
       });
 
-      const suffix = mode === 'all' ? 'geral' : mode === 'completed' ? 'concluidos' : 'pendentes';
-      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-${suffix}.pdf`);
+      downloadPDF(
+        blob,
+        buildApplicationsReportFileName({
+          serviceOrderNumber: serviceOrderData.number,
+          areaCriterion: reportAreaCriterion,
+          scope: reportScope,
+        })
+      );
       toast.success('Relatorio de aplicacao gerado com sucesso');
     } catch (error) {
       if (error instanceof Error) {
@@ -626,7 +620,10 @@ export default function ServiceOrderPage({
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={() => handleGenerateApplicationsReport('all')}
+            onClick={() => {
+              setReportScope('all');
+              setIsMapsModalOpen(true);
+            }}
           >
             <FileText className='mr-2 h-4 w-4' />
             Relatorio de aplicacao da OS
@@ -731,36 +728,65 @@ export default function ServiceOrderPage({
             >
               Pendentes
             </Button>
-            <div className='ml-auto flex flex-wrap gap-2'>
+          </div>
+
+          <div className='space-y-3 border-b bg-muted/20 px-6 py-3'>
+            <div className='flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between'>
+              <div className='space-y-2'>
+                <p className='text-sm font-semibold'>Critério de Área</p>
+                <div className='flex flex-wrap gap-2'>
+                  {(Object.keys(REPORT_AREA_CRITERIA) as ReportAreaCriterion[]).map((criterion) => (
+                    <Button
+                      key={criterion}
+                      type='button'
+                      size='sm'
+                      variant={reportAreaCriterion === criterion ? 'default' : 'outline'}
+                      aria-pressed={reportAreaCriterion === criterion}
+                      onClick={() => setReportAreaCriterion(criterion)}
+                    >
+                      {REPORT_AREA_CRITERIA[criterion].label}
+                    </Button>
+                  ))}
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  {REPORT_AREA_CRITERIA[reportAreaCriterion].shortDescription}
+                </p>
+              </div>
+
+              <div className='space-y-2'>
+                <p className='text-sm font-semibold'>Escopo</p>
+                <div className='flex flex-wrap gap-2'>
+                  {(Object.keys(APPLICATIONS_REPORT_SCOPES) as ApplicationsReportScope[]).map(
+                    (scope) => (
+                      <Button
+                        key={scope}
+                        type='button'
+                        size='sm'
+                        variant={reportScope === scope ? 'default' : 'outline'}
+                        aria-pressed={reportScope === scope}
+                        onClick={() => setReportScope(scope)}
+                      >
+                        {APPLICATIONS_REPORT_SCOPES[scope].label}
+                      </Button>
+                    )
+                  )}
+                </div>
+              </div>
+
               <Button
-                variant='outline'
+                type='button'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('all')}
+                onClick={handleGenerateApplicationsReport}
               >
-                PDF Aplicacoes (Geral)
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('completed')}
-              >
-                PDF Concluídos
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('pending')}
-              >
-                PDF Pendentes
+                <FileText className='mr-2 h-4 w-4' />
+                {isGeneratingReport ? 'Gerando PDF...' : 'Gerar PDF'}
               </Button>
             </div>
           </div>
 
-          <div className='grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]'>
-            <div className='relative h-[55vh] min-h-[500px] lg:h-[600px] lg:min-h-[600px] lg:border-r'>
+          <div className='grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]'>
+            <div className='relative h-[55vh] min-h-[420px] lg:h-full lg:min-h-[420px] lg:border-r'>
               {filteredMapGeoData && filteredMapGeoData.features.length > 0 ? (
                 <div className='h-full w-full'>
                   <MapViewer geoData={filteredMapGeoData} />
