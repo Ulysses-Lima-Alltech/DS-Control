@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'backend-ds-control-main/**'
-      - '.github/workflows/backend-production.yml'
+      - "backend-ds-control-main/**"
+      - ".github/workflows/backend-production.yml"
 
 jobs:
   deploy:
@@ -17,6 +17,8 @@ jobs:
       ECR_REPOSITORY: dscontrol_new
       ECS_CLUSTER: dscontrol-new-cluster
       ECS_SERVICE: dscontrol-new-isolado
+      ECS_TASK_DEFINITION: dscontrol-new-task
+      ECS_CONTAINER_NAME: backend
 
     steps:
       - name: Checkout
@@ -34,16 +36,90 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push image
+        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend-ds-control-main
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          LATEST_URI="$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
-      - name: Force new ECS deployment
+          docker build -t "$IMAGE_URI" -t "$LATEST_URI" ./backend-ds-control-main
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+
+          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Render Amazon ECS task definition
+        id: task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.ECS_CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-definition.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Validate deployed image digest
+        env:
+          EXPECTED_IMAGE: ${{ steps.build-image.outputs.image }}
         run: |
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --force-new-deployment
+          EXPECTED_DIGEST=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$GITHUB_SHA" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+
+          ACTIVE_TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          DEPLOYED_IMAGE=$(aws ecs describe-task-definition \
+            --task-definition "$ACTIVE_TASK_DEFINITION" \
+            --query "taskDefinition.containerDefinitions[?name=='$ECS_CONTAINER_NAME'].image | [0]" \
+            --output text)
+
+          if [ "$DEPLOYED_IMAGE" != "$EXPECTED_IMAGE" ]; then
+            echo "Expected task definition image $EXPECTED_IMAGE, found $DEPLOYED_IMAGE" >&2
+            exit 1
+          fi
+
+          TASK_ARNS=$(aws ecs list-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --service-name "$ECS_SERVICE" \
+            --desired-status RUNNING \
+            --query 'taskArns' \
+            --output text)
+
+          if [ -z "$TASK_ARNS" ] || [ "$TASK_ARNS" = "None" ]; then
+            echo "No running tasks found for $ECS_SERVICE" >&2
+            exit 1
+          fi
+
+          ACTUAL_DIGESTS=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks $TASK_ARNS \
+            --query "tasks[].containers[?name=='$ECS_CONTAINER_NAME'].imageDigest[]" \
+            --output text)
+
+          if [ -z "$ACTUAL_DIGESTS" ] || [ "$ACTUAL_DIGESTS" = "None" ]; then
+            echo "No image digest found for container $ECS_CONTAINER_NAME" >&2
+            exit 1
+          fi
+
+          for DIGEST in $ACTUAL_DIGESTS; do
+            if [ "$DIGEST" != "$EXPECTED_DIGEST" ]; then
+              echo "Expected running task digest $EXPECTED_DIGEST, found $DIGEST" >&2
+              exit 1
+            fi
+          done
+
+          echo "Validated image $DEPLOYED_IMAGE with digest $EXPECTED_DIGEST"
