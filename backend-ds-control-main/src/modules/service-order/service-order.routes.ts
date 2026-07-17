@@ -6,6 +6,10 @@ import { ServiceOrderWithDetailsSchema } from '@models/service-order.vm';
 import type { FastifyZodOpenApiTypeProvider } from 'fastify-zod-openapi';
 import z from 'zod';
 import { CreateServiceOrderSchema } from './dto/create-service-order';
+import {
+  CompletedPlotsReportRequestSchema,
+  CompletedPlotsReportResponseSchema,
+} from './dto/completed-plots-report.dto';
 import { GetServiceOrderQueryStringSchema } from './dto/get-all-service-order.dto';
 import { ServiceOrderSearchQueryStringByPilotSchema } from './dto/get-all-service-orders-by-pilot-dto';
 import { ServiceOrderDetailsQueryStringSchema } from './dto/get-service-order-details.dto';
@@ -82,6 +86,23 @@ export function ServiceOrderV1Routes(
     },
     preHandler: [AuthenticationJWT],
     handler: controller.getServiceOrderById,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: 'POST',
+    url: '/:id/reports/completed-plots',
+    schema: {
+      params: ServiceOrderIdParamSchema,
+      body: CompletedPlotsReportRequestSchema,
+      description: 'Build canonical completed-plot report data for an explicit area mode',
+      summary: 'Build completed plots report data',
+      tags: ['service-orders'],
+      response: {
+        200: CompletedPlotsReportResponseSchema,
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.getCompletedPlotsReportData,
   });
 
   // Update service order

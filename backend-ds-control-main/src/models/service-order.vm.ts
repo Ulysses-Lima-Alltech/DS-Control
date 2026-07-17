@@ -28,6 +28,7 @@ export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
   totalPlots: z.number(),
   myAppliedHectares: z.number(),
   myApplicationsCount: z.number(),
+  plotCompletionThresholdPercent: z.number(),
   farms: z
     .array(
       z.object({
@@ -107,6 +108,8 @@ export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
         status: z.enum(['PENDING', 'COMPLETED', 'CANCELLED']),
         completedAt: z.union([z.string(), z.date()]).nullable(),
         completedBy: z.string().uuid().nullable(),
+        effectiveAppliedHectares: z.string(),
+        coveragePercent: z.string(),
       }),
     )
     .nullable(),

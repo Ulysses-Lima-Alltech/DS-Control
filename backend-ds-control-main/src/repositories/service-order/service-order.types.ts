@@ -17,6 +17,7 @@ export type ServiceOrderWithDetails = ServiceOrder & {
   totalPlots: number;
   myAppliedHectares: number;
   myApplicationsCount: number;
+  plotCompletionThresholdPercent: number;
   farms: Array<{
     id: string;
     name: string;
@@ -79,6 +80,8 @@ export type ServiceOrderWithDetails = ServiceOrder & {
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
     completedAt: Date | null;
     completedBy: string | null;
+    effectiveAppliedHectares: string;
+    coveragePercent: string;
   }>;
 };
 

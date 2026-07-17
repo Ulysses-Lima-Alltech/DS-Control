@@ -13,6 +13,11 @@ import type { UpdateServiceOrderStatusDTO } from '@modules/service-order/dto/upd
 import type { UpdateServiceOrderDTO } from '@modules/service-order/dto/update-service-order.dto';
 import { buildServiceOrderPlotStatusUpdate } from '@modules/service-order/service-order-plot-status';
 import {
+  buildPlotCoverageAssessments,
+  PLOT_COMPLETION_THRESHOLD_PERCENT,
+  type PlotCoverageAssessment,
+} from '@modules/service-order/service-order-plot-coverage';
+import {
   and,
   asc,
   count,
@@ -85,9 +90,45 @@ export class ServiceOrderRepository {
     return Number(((completedHectares / plannedHectares) * 100).toFixed(2));
   }
 
+  public async getPlotCoverageAssessmentsByServiceOrderIds(
+    serviceOrderIds: string[],
+  ): Promise<PlotCoverageAssessment[]> {
+    const uniqueServiceOrderIds = Array.from(new Set(serviceOrderIds.filter(Boolean)));
+    if (uniqueServiceOrderIds.length === 0) return [];
+
+    const rows = await db
+      .select({
+        serviceOrderId: serviceOrderPlots.serviceOrderId,
+        plotId: plots.id,
+        farmId: plots.farmId,
+        registeredAreaHectares: plots.hectare,
+        applicationId: applications.id,
+        appliedAreaHectares: applications.hectares,
+      })
+      .from(serviceOrderPlots)
+      .innerJoin(plots, eq(serviceOrderPlots.plotId, plots.id))
+      .leftJoin(
+        applications,
+        and(
+          eq(applications.serviceOrderId, serviceOrderPlots.serviceOrderId),
+          eq(applications.plotId, plots.id),
+          isNull(applications.deletedAt),
+        ),
+      )
+      .where(
+        and(
+          inArray(serviceOrderPlots.serviceOrderId, uniqueServiceOrderIds),
+          isNull(plots.deletedAt),
+        ),
+      );
+
+    return buildPlotCoverageAssessments(rows);
+  }
+
   private async getProgressMetricsByServiceOrderIds(
     serviceOrderIds: string[],
     currentPilotId?: string,
+    coverageAssessments?: PlotCoverageAssessment[],
   ): Promise<Map<string, ServiceOrderProgressMetrics>> {
     const uniqueServiceOrderIds = Array.from(new Set(serviceOrderIds.filter(Boolean)));
     const metricsByServiceOrderId = new Map<string, ServiceOrderProgressMetrics>();
@@ -100,26 +141,9 @@ export class ServiceOrderRepository {
       return metricsByServiceOrderId;
     }
 
-    const [plannedRows, appliedRows, myAppliedRows] = await Promise.all([
-      db
-        .select({
-          serviceOrderId: serviceOrderPlots.serviceOrderId,
-          plannedHectares: sql<string>`COALESCE(SUM(${plots.hectare}), 0)`,
-          totalPlots: sql<number>`COUNT(DISTINCT ${plots.id})`,
-          completedHectares: sql<string>`COALESCE(SUM(CASE WHEN ${serviceOrderPlots.status} = 'COMPLETED' THEN ${plots.hectare} ELSE 0 END), 0)`,
-          pendingHectares: sql<string>`COALESCE(SUM(CASE WHEN ${serviceOrderPlots.status} = 'PENDING' THEN ${plots.hectare} ELSE 0 END), 0)`,
-          completedPlots: sql<number>`COUNT(DISTINCT CASE WHEN ${serviceOrderPlots.status} = 'COMPLETED' THEN ${plots.id} END)`,
-          pendingPlots: sql<number>`COUNT(DISTINCT CASE WHEN ${serviceOrderPlots.status} = 'PENDING' THEN ${plots.id} END)`,
-        })
-        .from(serviceOrderPlots)
-        .innerJoin(plots, eq(serviceOrderPlots.plotId, plots.id))
-        .where(
-          and(
-            inArray(serviceOrderPlots.serviceOrderId, uniqueServiceOrderIds),
-            isNull(plots.deletedAt),
-          ),
-        )
-        .groupBy(serviceOrderPlots.serviceOrderId),
+    const [canonicalCoverage, appliedRows, myAppliedRows] = await Promise.all([
+      coverageAssessments ??
+        this.getPlotCoverageAssessmentsByServiceOrderIds(uniqueServiceOrderIds),
       db
         .select({
           serviceOrderId: applications.serviceOrderId,
@@ -154,16 +178,20 @@ export class ServiceOrderRepository {
         : Promise.resolve([]),
     ]);
 
-    plannedRows.forEach((row) => {
+    canonicalCoverage.forEach((plot) => {
       const current =
-        metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
-      current.plannedHectares = Number(row.plannedHectares || 0);
-      current.totalPlots = Number(row.totalPlots || 0);
-      current.completedHectares = Number(row.completedHectares || 0);
-      current.pendingHectares = Number(row.pendingHectares || 0);
-      current.completedPlots = Number(row.completedPlots || 0);
-      current.pendingPlots = Number(row.pendingPlots || 0);
-      metricsByServiceOrderId.set(row.serviceOrderId, current);
+        metricsByServiceOrderId.get(plot.serviceOrderId) ?? this.getEmptyProgressMetrics();
+      const registeredArea = Number(plot.registeredAreaHectares) || 0;
+      current.plannedHectares += registeredArea;
+      current.totalPlots += 1;
+      if (plot.status === 'COMPLETED') {
+        current.completedHectares += registeredArea;
+        current.completedPlots += 1;
+      } else {
+        current.pendingHectares += registeredArea;
+        current.pendingPlots += 1;
+      }
+      metricsByServiceOrderId.set(plot.serviceOrderId, current);
     });
 
     appliedRows.forEach((row) => {
@@ -186,6 +214,9 @@ export class ServiceOrderRepository {
     });
 
     metricsByServiceOrderId.forEach((metrics) => {
+      metrics.plannedHectares = Number(metrics.plannedHectares.toFixed(2));
+      metrics.completedHectares = Number(metrics.completedHectares.toFixed(2));
+      metrics.pendingHectares = Number(metrics.pendingHectares.toFixed(2));
       metrics.progressPercent = this.calculateProgressPercent(
         metrics.completedHectares,
         metrics.plannedHectares,
@@ -199,15 +230,43 @@ export class ServiceOrderRepository {
     serviceOrdersList: T[],
     currentPilotId?: string,
   ): Promise<Array<T & ServiceOrderProgressMetrics>> {
+    const serviceOrderIds = serviceOrdersList.map((serviceOrder) => serviceOrder.id);
+    const coverageAssessments =
+      await this.getPlotCoverageAssessmentsByServiceOrderIds(serviceOrderIds);
     const metricsByServiceOrderId = await this.getProgressMetricsByServiceOrderIds(
-      serviceOrdersList.map((serviceOrder) => serviceOrder.id),
+      serviceOrderIds,
       currentPilotId,
+      coverageAssessments,
+    );
+    const coverageByScope = new Map(
+      coverageAssessments.map((plot) => [`${plot.serviceOrderId}:${plot.plotId}`, plot]),
     );
 
-    return serviceOrdersList.map((serviceOrder) => ({
-      ...serviceOrder,
-      ...(metricsByServiceOrderId.get(serviceOrder.id) ?? this.getEmptyProgressMetrics()),
-    }));
+    return serviceOrdersList.map((serviceOrder) => {
+      const serviceOrderPlots = (serviceOrder as T & { plots?: Array<{ id?: string }> }).plots;
+      const plotsWithCoverage = Array.isArray(serviceOrderPlots)
+        ? serviceOrderPlots.map((plot) => {
+            const assessment = plot.id
+              ? coverageByScope.get(`${serviceOrder.id}:${plot.id}`)
+              : undefined;
+            return assessment
+              ? {
+                  ...plot,
+                  status: assessment.status,
+                  effectiveAppliedHectares: assessment.effectiveAppliedHectares,
+                  coveragePercent: assessment.coveragePercent,
+                }
+              : plot;
+          })
+        : serviceOrderPlots;
+
+      return {
+        ...serviceOrder,
+        ...(Array.isArray(serviceOrderPlots) ? { plots: plotsWithCoverage } : {}),
+        ...(metricsByServiceOrderId.get(serviceOrder.id) ?? this.getEmptyProgressMetrics()),
+        plotCompletionThresholdPercent: PLOT_COMPLETION_THRESHOLD_PERCENT,
+      };
+    });
   }
 
   private filterActivePlots<T extends { deletedAt?: Date | null }>(items?: T[] | null): T[] {

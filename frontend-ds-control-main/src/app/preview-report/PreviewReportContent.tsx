@@ -109,6 +109,7 @@ const MOCK_SERVICE_ORDER: ServiceOrder = {
   totalPlots: 1,
   myAppliedHectares: 12.75,
   myApplicationsCount: 1,
+  plotCompletionThresholdPercent: 70,
 };
 
 const MOCK_APPLICATIONS: Application[] = [

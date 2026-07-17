@@ -12,4 +12,6 @@ export type Plot = {
   status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   completedAt?: string | null;
   completedBy?: string | null;
+  effectiveAppliedHectares?: string;
+  coveragePercent?: string;
 };

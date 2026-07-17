@@ -143,7 +143,9 @@ export function ApplicationsReportLayoutMirror({
         />
         <h1 className='text-2xl font-bold mb-2.5 text-center'>DS Drones Agrícolas LTDA</h1>
         <p className='text-base font-medium mb-2 text-center text-[#6B7280]'>
-          {isCompletedPlannedArea ? 'Relatório de Área Total Concluída' : 'Relatório de Aplicações'}
+          {isCompletedPlannedArea
+            ? 'Relatório de Concluídos — Área do Talhão'
+            : 'Relatório de Aplicações'}
         </p>
         <p className='text-xs text-center mb-10 leading-relaxed'>
           54.134.198/0001-25
@@ -225,24 +227,26 @@ export function ApplicationsReportLayoutMirror({
         {/* Resumo das Aplicações */}
         <div className='w-full mt-7 p-5 border border-[#E5E7EB] rounded-lg'>
           <h2 className='text-sm font-bold mb-4 text-[#1F2937]'>
-            {isCompletedPlannedArea ? 'Resumo da Área Total Concluída' : 'Resumo das Aplicações'}
+            {isCompletedPlannedArea ? 'Resumo — Área do Talhão' : 'Resumo das Aplicações'}
           </h2>
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
             {isCompletedPlannedArea
-              ? 'Este relatório considera integralmente concluída a área cadastrada dos talhões classificados como concluídos.'
+              ? `Este relatório apresenta integralmente a área cadastrada dos talhões cuja cobertura real atingiu pelo menos ${serviceOrder.plotCompletionThresholdPercent}%.`
               : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
           </p>
           <div className='grid grid-cols-3 gap-2 mb-3'>
             <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Área Total Concluída' : 'Área Total Planejada da OS'}
+                {isCompletedPlannedArea
+                  ? 'Área Aplicada Apresentada'
+                  : 'Área Total Planejada da OS'}
               </p>
               <p className='text-sm font-bold text-[#1F2937] mt-1'>
                 {formatHectares(String(reportPlannedHectares))}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Soma das áreas cadastradas dos talhões classificados como concluídos.'
+                  ? 'Soma das áreas totais cadastradas dos talhões concluídos, sem alterar os dados reais.'
                   : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
               </p>
             </div>
@@ -275,16 +279,6 @@ export function ApplicationsReportLayoutMirror({
               </p>
             </div>
           </div>
-          {isCompletedPlannedArea ? (
-            <>
-              <div className='flex mb-2'>
-                <span className='text-[10px] font-bold w-1/2 text-[#6B7280]'>
-                  Aplicações Realizadas:
-                </span>
-                <span className='text-[10px] w-1/2'>{applications.length}</span>
-              </div>
-            </>
-          ) : null}
           {!isCompletedPlannedArea ? (
             <>
               <div className='flex mb-2'>
@@ -418,9 +412,7 @@ export function ApplicationsReportLayoutMirror({
               </div>
               <div className='flex mb-1.5'>
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                  {isCompletedPlannedArea
-                    ? 'Área Total Concluída do Talhão:'
-                    : 'Área Cadastrada do Talhão:'}
+                  {isCompletedPlannedArea ? 'Área aplicada:' : 'Área Cadastrada do Talhão:'}
                 </span>
                 <span className='text-[9px] w-[60%]'>
                   {formatHectares(plot.hectare)}
@@ -452,7 +444,7 @@ export function ApplicationsReportLayoutMirror({
             </div>
 
             {/* Lista de aplicações */}
-            {plotApplications.map((application) => {
+            {(isCompletedPlannedArea ? [] : plotApplications).map((application) => {
               const registeredAreaCoverage = isCompletedPlannedArea
                 ? null
                 : formatRegisteredAreaCoverage(application.hectares, plot.hectare);

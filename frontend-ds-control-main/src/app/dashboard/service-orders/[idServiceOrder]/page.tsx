@@ -3,7 +3,7 @@
 import type { GeoJSON } from 'geojson';
 import { CheckCircle, Eye, FileText, Pencil, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { use, useMemo, useState } from 'react';
+import { use, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import DialogForm from '@/components/DialogForm';
@@ -38,9 +38,10 @@ import {
 } from '@/mutations/service-order.mutation';
 import { useGetApplicationsByServiceOrderId } from '@/queries/application.query';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
+import { getCompletedPlotsReport } from '@/services/service-order.service';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
-import { ServiceOrder } from '@/types/service-order.type';
+import { CompletedPlotsReportAreaMode, ServiceOrder } from '@/types/service-order.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import {
@@ -52,7 +53,6 @@ import {
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
-type ReportMode = 'all' | 'completed';
 
 export default function ServiceOrderPage({
   params,
@@ -65,8 +65,12 @@ export default function ServiceOrderPage({
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
+  const [isCompletedReportModalOpen, setIsCompletedReportModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [activeCompletedReportMode, setActiveCompletedReportMode] =
+    useState<CompletedPlotsReportAreaMode | null>(null);
+  const isGeneratingCompletedReportRef = useRef(false);
 
   const { data: applicationsData, isPending: isApplicationsLoading } =
     useGetApplicationsByServiceOrderId(idServiceOrder);
@@ -354,27 +358,12 @@ export default function ServiceOrderPage({
     cancelServiceOrderMutation.mutate(serviceOrderData.id);
   };
 
-  const buildApplicationsForReport = (mode: ReportMode): Application[] => {
-    if (mode === 'all') {
-      return currentServiceOrderApplications;
-    }
-
-    if (mode === 'completed') {
-      return currentServiceOrderApplications.filter((application) =>
-        Boolean(application.plotId && completedPlotIds.includes(application.plotId))
-      );
-    }
-
-    return currentServiceOrderApplications;
-  };
-
-  const handleGenerateApplicationsReport = async (mode: ReportMode = 'all') => {
+  const handleGenerateApplicationsReport = async () => {
     if (!serviceOrderData) {
       return;
     }
 
-    const reportApplications = buildApplicationsForReport(mode);
-    if (reportApplications.length === 0) {
+    if (currentServiceOrderApplications.length === 0) {
       toast.info('Nao ha aplicacoes para o recorte selecionado');
       return;
     }
@@ -384,11 +373,10 @@ export default function ServiceOrderPage({
 
       const blob = await generateApplicationsReportPDF({
         serviceOrder: serviceOrderData,
-        applications: reportApplications,
+        applications: currentServiceOrderApplications,
       });
 
-      const suffix = mode === 'all' ? 'geral' : 'concluidos';
-      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-${suffix}.pdf`);
+      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-geral.pdf`);
       toast.success('Relatorio de aplicacao gerado com sucesso');
     } catch (error) {
       if (error instanceof Error) {
@@ -401,29 +389,89 @@ export default function ServiceOrderPage({
     }
   };
 
-  const handleGenerateCompletedPlotsPlannedAreaReport = async () => {
-    if (!serviceOrderData) {
+  const handleGenerateCompletedPlotsReport = async (areaMode: CompletedPlotsReportAreaMode) => {
+    if (!serviceOrderData || isGeneratingReport || isGeneratingCompletedReportRef.current) {
       return;
     }
 
-    if (completedPlotIds.length === 0) {
-      toast.info('Não há talhões concluídos para gerar o relatório');
-      return;
-    }
-
+    isGeneratingCompletedReportRef.current = true;
     try {
+      setActiveCompletedReportMode(areaMode);
       setIsGeneratingReport(true);
-      const blob = await generateCompletedPlotsPlannedAreaReportPDF({
-        serviceOrder: serviceOrderData,
-        applications: currentServiceOrderApplications,
-        completedPlotIds,
-      });
+      const reportData = await getCompletedPlotsReport(serviceOrderData.id, areaMode);
+      const reportCompletedPlotIds = Array.from(new Set(reportData.rows.map((row) => row.plotId)));
 
-      downloadPDF(blob, `relatorio-area-total-concluida-os-${serviceOrderData.number}.pdf`);
-      toast.success('Relatório de Área Total Concluída gerado com sucesso');
+      if (reportCompletedPlotIds.length === 0) {
+        toast.info('Não há talhões concluídos para gerar o relatório');
+        return;
+      }
+
+      let blob: Blob;
+      let fileSuffix: string;
+      if (areaMode === 'plot_area') {
+        const reportRowsByPlotId = new Map(
+          reportData.rows.map((row) => [row.plotId, row] as const)
+        );
+        const reportPlots = (serviceOrderData.plots || []).map((plot) => {
+          const row = plot.id ? reportRowsByPlotId.get(plot.id) : undefined;
+          return row ? { ...plot, hectare: row.displayedAppliedHectares } : plot;
+        });
+        const reportPlotsById = new Map(
+          reportPlots.flatMap((plot) => (plot.id ? [[plot.id, plot] as const] : []))
+        );
+        const reportApplications = currentServiceOrderApplications.map((application) => ({
+          ...application,
+          plot: application.plotId
+            ? reportPlotsById.get(application.plotId) || application.plot
+            : application.plot,
+        }));
+        blob = await generateCompletedPlotsPlannedAreaReportPDF({
+          serviceOrder: { ...serviceOrderData, plots: reportPlots },
+          applications: reportApplications,
+          completedPlotIds: reportCompletedPlotIds,
+        });
+        fileSuffix = 'area-talhao';
+      } else {
+        const reportRowsByApplicationId = new Map(
+          reportData.rows.flatMap((row) =>
+            row.applicationId ? [[row.applicationId, row] as const] : []
+          )
+        );
+        const reportApplications = currentServiceOrderApplications.flatMap((application) => {
+          const row = reportRowsByApplicationId.get(application.id);
+          if (!row) return [];
+          return [
+            {
+              ...application,
+              hectares: row.displayedAppliedHectares,
+              plot: {
+                ...application.plot,
+                hectare: row.registeredAreaHectares,
+              },
+            },
+          ];
+        });
+        if (reportApplications.length !== reportRowsByApplicationId.size) {
+          throw new Error('Os dados reais das aplicações não puderam ser carregados integralmente');
+        }
+        blob = await generateApplicationsReportPDF({
+          serviceOrder: serviceOrderData,
+          applications: reportApplications,
+        });
+        fileSuffix = 'area-aplicada';
+      }
+
+      downloadPDF(
+        blob,
+        `relatorio-aplicacoes-os-${serviceOrderData.number}-concluidos-${fileSuffix}.pdf`
+      );
+      setIsCompletedReportModalOpen(false);
+      toast.success('Relatório de talhões concluídos gerado com sucesso');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
     } finally {
+      isGeneratingCompletedReportRef.current = false;
+      setActiveCompletedReportMode(null);
       setIsGeneratingReport(false);
     }
   };
@@ -662,7 +710,7 @@ export default function ServiceOrderPage({
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={() => handleGenerateApplicationsReport('all')}
+            onClick={handleGenerateApplicationsReport}
           >
             <FileText className='mr-2 h-4 w-4' />
             Relatorio de aplicacao da OS
@@ -772,7 +820,7 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('all')}
+                onClick={handleGenerateApplicationsReport}
               >
                 PDF Aplicacoes (Geral)
               </Button>
@@ -780,17 +828,9 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={() => handleGenerateApplicationsReport('completed')}
+                onClick={() => setIsCompletedReportModalOpen(true)}
               >
                 PDF Concluídos
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isGeneratingReport}
-                onClick={handleGenerateCompletedPlotsPlannedAreaReport}
-              >
-                PDF Área Total Concluída
               </Button>
               <Button
                 variant='outline'
@@ -879,6 +919,73 @@ export default function ServiceOrderPage({
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isCompletedReportModalOpen}
+        onOpenChange={(open) => {
+          if (!isGeneratingReport) setIsCompletedReportModalOpen(open);
+        }}
+      >
+        <DialogContent className='sm:max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>Tipo de área do relatório</DialogTitle>
+            <DialogDescription>
+              Escolha como as áreas dos talhões concluídos serão apresentadas no PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-3 sm:grid-cols-2'>
+            <Button
+              type='button'
+              variant='outline'
+              className='h-auto min-h-28 items-start justify-start whitespace-normal p-4 text-left'
+              disabled={isGeneratingReport}
+              onClick={() => handleGenerateCompletedPlotsReport('plot_area')}
+            >
+              <span className='space-y-2'>
+                <span className='block font-semibold'>Área do talhão</span>
+                <span className='block text-xs font-normal text-muted-foreground'>
+                  Apresenta a área total cadastrada dos talhões que atingiram pelo menos{' '}
+                  {serviceOrderData.plotCompletionThresholdPercent}% de cobertura.
+                </span>
+                {activeCompletedReportMode === 'plot_area' && (
+                  <span className='block text-xs font-medium'>Gerando...</span>
+                )}
+              </span>
+            </Button>
+
+            <Button
+              type='button'
+              variant='outline'
+              className='h-auto min-h-28 items-start justify-start whitespace-normal p-4 text-left'
+              disabled={isGeneratingReport}
+              onClick={() => handleGenerateCompletedPlotsReport('applied_area')}
+            >
+              <span className='space-y-2'>
+                <span className='block font-semibold'>Área aplicada</span>
+                <span className='block text-xs font-normal text-muted-foreground'>
+                  Apresenta os dados reais registrados nas aplicações, sem alterar áreas ou
+                  percentuais.
+                </span>
+                {activeCompletedReportMode === 'applied_area' && (
+                  <span className='block text-xs font-medium'>Gerando...</span>
+                )}
+              </span>
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={isGeneratingReport}
+              onClick={() => setIsCompletedReportModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

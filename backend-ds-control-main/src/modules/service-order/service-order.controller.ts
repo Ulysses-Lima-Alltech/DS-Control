@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { CreateServiceOrderDTO } from './dto/create-service-order';
+import type { CompletedPlotsReportRequestDTO } from './dto/completed-plots-report.dto';
 import type { UpdateServiceOrderStatusDTO } from './dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
 import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order-plot-status.dto';
@@ -86,6 +87,31 @@ export class ServiceOrderController {
         { error },
       );
       reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  };
+
+  public getCompletedPlotsReportData = async (
+    request: FastifyRequest<{
+      Params: { id: string };
+      Body: CompletedPlotsReportRequestDTO;
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const reportData = await this.service.getCompletedPlotsReportData(
+        request.params.id,
+        request.body,
+        request.payload?.userId,
+      );
+      return reply.status(200).send(reportData);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.throw());
+      }
+      app.log.error('[ServiceOrderController] - Unexpected completed report error: %o', {
+        error,
+      });
+      return reply.status(500).send(new AppError('Internal server error', 500, error).throw());
     }
   };
 

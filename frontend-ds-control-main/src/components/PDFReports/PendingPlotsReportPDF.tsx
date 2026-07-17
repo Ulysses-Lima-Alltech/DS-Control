@@ -48,7 +48,10 @@ export function PendingPlotsReportPDF({
         <View style={styles.summary}>
           <Text style={styles.summaryText}>Talhões pendentes: {plots.length}</Text>
           <Text style={styles.summaryText}>Área pendente: {hectares(area)}</Text>
-          <Text>Critério oficial: vínculo da OS com status PENDING.</Text>
+          <Text>
+            Critério oficial: cobertura real inferior a{' '}
+            {serviceOrder.plotCompletionThresholdPercent}% da área cadastrada.
+          </Text>
         </View>
         <View style={styles.header} fixed>
           <Text style={styles.plot}>Talhão</Text>

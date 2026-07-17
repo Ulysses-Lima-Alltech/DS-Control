@@ -5,6 +5,7 @@ import {
   UpdateServiceOrderByIdSchema,
 } from '@/schemas/service-order.schema';
 import {
+  CompletedPlotsReportAreaMode,
   ServiceOrder,
   ServiceOrderBy,
   ServiceOrderPlotStatus,
@@ -285,6 +286,43 @@ export async function updateServiceOrderPlotStatus({
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Erro ao atualizar o status do talhÃ£o');
+  }
+
+  return response.json();
+}
+
+export type CompletedPlotsReportRow = {
+  plotId: string;
+  farmId: string;
+  applicationId: string | null;
+  registeredAreaHectares: string;
+  effectiveAppliedHectares: string;
+  realCoveragePercent: string;
+  displayedAppliedHectares: string;
+  displayedCoveragePercent: string;
+  status: 'COMPLETED';
+};
+
+export type CompletedPlotsReportResponse = {
+  areaMode: CompletedPlotsReportAreaMode;
+  completionThresholdPercent: number;
+  coverageSource: 'maximum_registered_application_area';
+  rows: CompletedPlotsReportRow[];
+  totalDisplayedHectares: string;
+};
+
+export async function getCompletedPlotsReport(
+  serviceOrderId: string,
+  areaMode: CompletedPlotsReportAreaMode
+): Promise<CompletedPlotsReportResponse> {
+  const response = await api(`/service-orders/${serviceOrderId}/reports/completed-plots`, {
+    method: 'POST',
+    body: JSON.stringify({ areaMode }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message || 'Erro ao preparar o relatório de talhões concluídos');
   }
 
   return response.json();

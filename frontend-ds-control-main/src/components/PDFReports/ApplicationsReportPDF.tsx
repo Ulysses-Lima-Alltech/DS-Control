@@ -233,7 +233,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     <Document
       title={
         isCompletedPlannedArea
-          ? `Relatório de Área Total Concluída - OS ${serviceOrder.number}`
+          ? `Relatório de Concluídos - Área do Talhão - OS ${serviceOrder.number}`
           : `Relatório de Aplicações - OS ${serviceOrder.number}`
       }
     >
@@ -285,7 +285,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             }}
           >
             {isCompletedPlannedArea
-              ? 'Relatório de Área Total Concluída'
+              ? 'Relatório de Concluídos — Área do Talhão'
               : 'Relatório de Aplicações'}
           </Text>
           <Text
@@ -547,7 +547,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 color: '#1F2937',
               }}
             >
-              {isCompletedPlannedArea ? 'Resumo da Área Total Concluída' : 'Resumo das Aplicações'}
+              {isCompletedPlannedArea ? 'Resumo — Área do Talhão' : 'Resumo das Aplicações'}
             </Text>
             <Text
               style={{
@@ -558,7 +558,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               }}
             >
               {isCompletedPlannedArea
-                ? 'Este relatório considera integralmente concluída a área cadastrada dos talhões classificados como concluídos.'
+                ? `Este relatório apresenta integralmente a área cadastrada dos talhões cuja cobertura real atingiu pelo menos ${serviceOrder.plotCompletionThresholdPercent}%.`
                 : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
             </Text>
 
@@ -574,14 +574,16 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  {isCompletedPlannedArea ? 'Área Total Concluída' : 'Área Total Planejada da OS'}
+                  {isCompletedPlannedArea
+                    ? 'Área Aplicada Apresentada'
+                    : 'Área Total Planejada da OS'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginTop: 5 }}>
                   {formatHectares(reportPlannedHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
-                    ? 'Soma das áreas cadastradas dos talhões classificados como concluídos.'
+                    ? 'Soma das áreas totais cadastradas dos talhões concluídos, sem alterar os dados reais.'
                     : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
                 </Text>
               </View>
@@ -631,19 +633,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 </Text>
               </View>
             </View>
-
-            {isCompletedPlannedArea && (
-              <>
-                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 10, fontWeight: 700, width: '50%', color: '#6B7280' }}>
-                    Aplicações Realizadas:
-                  </Text>
-                  <Text style={{ fontSize: 10, width: '50%', color: '#1F2937' }}>
-                    {applications.length}
-                  </Text>
-                </View>
-              </>
-            )}
 
             {!isCompletedPlannedArea && (
               <>
@@ -1106,9 +1095,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     color: '#6B7280',
                   }}
                 >
-                  {isCompletedPlannedArea
-                    ? 'Área Total Concluída do Talhão:'
-                    : 'Área Cadastrada do Talhão:'}
+                  {isCompletedPlannedArea ? 'Área aplicada:' : 'Área Cadastrada do Talhão:'}
                 </Text>
                 <View style={{ width: '60%' }}>
                   <Text style={{ fontSize: 9, color: '#1F2937' }}>
@@ -1169,7 +1156,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               </View>
             </View>
 
-            {plotApplications.map((application) => {
+            {(isCompletedPlannedArea ? [] : plotApplications).map((application) => {
               const registeredAreaCoverage = isCompletedPlannedArea
                 ? null
                 : formatRegisteredAreaCoverage(application.hectares, plot.hectare);

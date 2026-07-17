@@ -25,6 +25,10 @@ import { UserType } from '@repositories/users/user.types';
 import { and, count, countDistinct, eq, exists, gte, inArray, isNull, lt, sum } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { CreateServiceOrderDTO } from './dto/create-service-order';
+import type {
+  CompletedPlotsReportRequestDTO,
+  CompletedPlotsReportResponseDTO,
+} from './dto/completed-plots-report.dto';
 import type { GetServiceOrderQueryString } from './dto/get-all-service-order.dto';
 import type { ServiceOrderSearchQueryStringByPilot } from './dto/get-all-service-orders-by-pilot-dto';
 import type { ServiceOrderDetailsQueryString } from './dto/get-service-order-details.dto';
@@ -32,6 +36,10 @@ import type { ServiceOrderStatsDTO, ServiceOrderStatsQueryString } from './dto/s
 import type { UpdateServiceOrderStatusDTO } from './dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
 import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order-plot-status.dto';
+import {
+  buildCompletedPlotsReportData,
+  PLOT_COMPLETION_THRESHOLD_PERCENT,
+} from './service-order-plot-coverage';
 
 export class ServiceOrderService {
   private readonly serviceOrderRepository: ServiceOrderRepository;
@@ -91,6 +99,28 @@ export class ServiceOrderService {
     }
 
     return ServiceOrderVM.toViewModelWithDetails(serviceOrder);
+  }
+
+  public async getCompletedPlotsReportData(
+    serviceOrderId: string,
+    dto: CompletedPlotsReportRequestDTO,
+    requestUserId?: string,
+  ): Promise<CompletedPlotsReportResponseDTO> {
+    await this.getAuthorizedPilotIdForServiceOrder(serviceOrderId, requestUserId);
+
+    const serviceOrder = await db.query.serviceOrders.findFirst({
+      where: eq(serviceOrders.id, serviceOrderId),
+      columns: { id: true },
+    });
+    if (!serviceOrder) {
+      throw new AppError('Ordem de serviÃ§o nÃ£o encontrada', HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    const assessments =
+      await this.serviceOrderRepository.getPlotCoverageAssessmentsByServiceOrderIds([
+        serviceOrderId,
+      ]);
+    return buildCompletedPlotsReportData(assessments, dto.areaMode, serviceOrderId);
   }
 
   /**
@@ -326,6 +356,20 @@ export class ServiceOrderService {
         'TalhÃ£o nÃ£o estÃ¡ vinculado a esta Ordem de ServiÃ§o',
         HTTP_STATUS_CODES.NOT_FOUND,
       );
+    }
+
+    if (dto.status !== 'CANCELLED') {
+      const assessments =
+        await this.serviceOrderRepository.getPlotCoverageAssessmentsByServiceOrderIds([
+          serviceOrderId,
+        ]);
+      const canonicalStatus = assessments.find((plot) => plot.plotId === plotId)?.status;
+      if (canonicalStatus && canonicalStatus !== dto.status) {
+        throw new AppError(
+          `O status do talhÃ£o Ã© calculado pela cobertura real: ${PLOT_COMPLETION_THRESHOLD_PERCENT}% ou mais para concluÃ­do.`,
+          HTTP_STATUS_CODES.BAD_REQUEST,
+        );
+      }
     }
 
     return this.serviceOrderRepository.updateServiceOrderPlotStatus(

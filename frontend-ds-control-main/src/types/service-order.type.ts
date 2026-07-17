@@ -6,6 +6,7 @@ import { User } from '@/types/user.type';
 
 export type ServiceOrderStatus = 'open' | 'completed' | 'cancelled';
 export type ServiceOrderPlotStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+export type CompletedPlotsReportAreaMode = 'plot_area' | 'applied_area';
 
 export type ServiceOrder = {
   id: string;
@@ -38,6 +39,7 @@ export type ServiceOrder = {
   totalPlots: number;
   myAppliedHectares: number;
   myApplicationsCount: number;
+  plotCompletionThresholdPercent: number;
 };
 
 export type StatsServiceOrders = {
