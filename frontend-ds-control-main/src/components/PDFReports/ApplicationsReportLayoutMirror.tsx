@@ -6,6 +6,7 @@
  * NÃO altera o fluxo do PDF nem substitui o arquivo real.
  */
 
+import type { ApplicationsReportMetrics } from '@/components/PDFReports/ApplicationsReportPDF';
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
@@ -17,10 +18,18 @@ interface ApplicationsReportLayoutMirrorProps {
   applications: Application[];
   mode?: 'operational' | 'completedPlannedArea';
   completedPlotIds?: string[];
+  reportMetrics?: ApplicationsReportMetrics;
 }
 
-const formatHectares = (hectares: string) => {
-  return `${parseFloat(hectares).toLocaleString('pt-BR', {
+const parseReportNumber = (value: unknown, fallback = 0) => {
+  const numericValue =
+    typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value) : NaN;
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+};
+
+const formatHectares = (hectares: string | number) => {
+  const numericValue = typeof hectares === 'number' ? hectares : parseFloat(hectares);
+  return `${numericValue.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ha`;
@@ -55,6 +64,7 @@ export function ApplicationsReportLayoutMirror({
   applications,
   mode = 'operational',
   completedPlotIds = [],
+  reportMetrics,
 }: ApplicationsReportLayoutMirrorProps) {
   const isCompletedPlannedArea = mode === 'completedPlannedArea';
   const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
@@ -87,8 +97,10 @@ export function ApplicationsReportLayoutMirror({
   });
 
   const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
-  const plannedHectares = Number(serviceOrder.plannedHectares) || 0;
-  const serviceOrderProgress = Number(serviceOrder.progressPercent) || 0;
+  const plannedHectares = parseReportNumber(
+    reportMetrics?.plannedAreaHa,
+    Number(serviceOrder.plannedHectares) || 0
+  );
   const completedIds = new Set(completedPlotIds);
   const completedPlotsById = new Map(
     (serviceOrder.plots || [])
@@ -104,12 +116,20 @@ export function ApplicationsReportLayoutMirror({
       applicationsByPlot[plotId] ??= [];
     });
   }
-  const completedPlannedHectares = Array.from(completedPlotsById.values()).reduce(
-    (total, plot) => total + (Number.parseFloat(plot.hectare) || 0),
-    0
+  const grossAppliedHectares = parseReportNumber(reportMetrics?.grossAppliedAreaHa, totalHectares);
+  const consolidatedPlotHectares = parseReportNumber(
+    reportMetrics?.consolidatedPlotAreaHa,
+    totalHectares
   );
-  const reportPlannedHectares = isCompletedPlannedArea ? completedPlannedHectares : plannedHectares;
-  const reportProgress = isCompletedPlannedArea ? 100 : serviceOrderProgress;
+  const reportAppliedHectares = isCompletedPlannedArea
+    ? consolidatedPlotHectares
+    : grossAppliedHectares;
+  const reportProgress = parseReportNumber(
+    isCompletedPlannedArea
+      ? reportMetrics?.consolidatedProgressPercent
+      : reportMetrics?.grossAppliedProgressPercent,
+    plannedHectares > 0 ? (reportAppliedHectares / plannedHectares) * 100 : 0
+  );
   const averageFlowRate =
     applications.length > 0
       ? applications.reduce((sum, app) => sum + parseFloat(app.flowRate), 0) / applications.length
@@ -231,51 +251,43 @@ export function ApplicationsReportLayoutMirror({
           </h2>
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
             {isCompletedPlannedArea
-              ? `Este relatório apresenta integralmente a área cadastrada dos talhões cuja cobertura real atingiu pelo menos ${serviceOrder.plotCompletionThresholdPercent}%.`
+              ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrder.plotCompletionThresholdPercent}% e área real aplicada para talhões em andamento.`
               : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
           </p>
           <div className='grid grid-cols-3 gap-2 mb-3'>
             <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
-              <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea
-                  ? 'Área Aplicada Apresentada'
-                  : 'Área Total Planejada da OS'}
-              </p>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Planejada da OS</p>
               <p className='text-sm font-bold text-[#1F2937] mt-1'>
-                {formatHectares(String(reportPlannedHectares))}
+                {formatHectares(plannedHectares)}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
-                {isCompletedPlannedArea
-                  ? 'Soma das áreas totais cadastradas dos talhões concluídos, sem alterar os dados reais.'
-                  : 'Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.'}
+                Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
               </p>
             </div>
             <div className='bg-[#FFF3CD] p-2.5 rounded border-2 border-[#EAAE07]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Talhões Concluídos' : 'Área Total Aplicada'}
+                {isCompletedPlannedArea ? 'Área Consolidada Contabilizada' : 'Área Bruta Aplicada'}
               </p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
-                {isCompletedPlannedArea
-                  ? completedPlotsById.size
-                  : formatHectares(String(totalHectares))}
+                {formatHectares(reportAppliedHectares)}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Quantidade de talhões incluídos neste relatório.'
-                  : 'Soma das áreas informadas nas aplicações incluídas neste relatório.'}
+                  ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com área real aplicada.'
+                  : 'Soma real das áreas informadas em todas as aplicações ativas da Ordem de Serviço.'}
               </p>
             </div>
             <div className='bg-[#FFFBEB] p-2.5 rounded border border-[#EAAE07]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Progresso' : 'Progresso da OS'}
+                {isCompletedPlannedArea ? 'Progresso Consolidado' : 'Progresso Bruto Aplicado'}
               </p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
                 {formatNumber(reportProgress)}%
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Os talhões deste relatório estão classificados como integralmente concluídos.'
-                  : 'Relação entre a área total aplicada e a área total planejada da Ordem de Serviço.'}
+                  ? 'Relação entre a área consolidada contabilizada e a área planejada.'
+                  : 'Relação entre a área bruta aplicada e a área planejada.'}
               </p>
             </div>
           </div>
@@ -315,6 +327,35 @@ export function ApplicationsReportLayoutMirror({
         const firstApp = plotApplications[0];
         const plot = firstApp?.plot ?? completedPlotsById.get(plotId)!;
         if (!plot) return null;
+        const registeredPlotArea = parseReportNumber(
+          plot.registeredAreaHectares,
+          parseReportNumber(plot.hectare)
+        );
+        const realAppliedArea = parseReportNumber(
+          plot.realAppliedHectares ?? plot.grossAppliedHectares,
+          plotApplications.reduce(
+            (sum, application) => sum + parseReportNumber(application.hectares),
+            0
+          )
+        );
+        const accountedArea = parseReportNumber(
+          plot.accountedAreaHectares,
+          parseReportNumber(plot.hectare)
+        );
+        const realCoverage = parseReportNumber(
+          plot.realCoveragePercent ?? plot.coveragePercent,
+          registeredPlotArea > 0 ? (realAppliedArea / registeredPlotArea) * 100 : 0
+        );
+        const accountedCoverage = parseReportNumber(
+          plot.accountedCoveragePercent,
+          plot.derivedStatus === 'COMPLETED' ? 100 : realCoverage
+        );
+        const plotStatus =
+          plot.derivedStatus === 'COMPLETED'
+            ? 'Concluído'
+            : plot.derivedStatus === 'IN_PROGRESS'
+              ? 'Em andamento'
+              : 'Pendente';
         const mapWidth = 1280;
         const mapHeight = 480;
         const plotPolygonOverlay = buildPlotPolygonSvgOverlay(plot, mapWidth, mapHeight);
@@ -412,26 +453,50 @@ export function ApplicationsReportLayoutMirror({
               </div>
               <div className='flex mb-1.5'>
                 <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
-                  {isCompletedPlannedArea ? 'Área aplicada:' : 'Área Cadastrada do Talhão:'}
+                  Área Cadastrada do Talhão:
                 </span>
                 <span className='text-[9px] w-[60%]'>
-                  {formatHectares(plot.hectare)}
-                  {!isCompletedPlannedArea ? (
-                    <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
-                      Área delimitada no mapa do cadastro.
-                    </small>
-                  ) : null}
+                  {formatHectares(registeredPlotArea)}
+                  <small className='block text-[7px] text-[#9CA3AF] mt-0.5'>
+                    Área delimitada no mapa do cadastro.
+                  </small>
                 </span>
               </div>
               {isCompletedPlannedArea ? (
                 <>
                   <div className='flex mb-1.5'>
-                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Situação:</span>
-                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>Concluído</span>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                      Área Real Aplicada:
+                    </span>
+                    <span className='text-[9px] w-[60%]'>{formatHectares(realAppliedArea)}</span>
                   </div>
                   <div className='flex mb-1.5'>
-                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Cobertura:</span>
-                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>100,00%</span>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                      Área Contabilizada:
+                    </span>
+                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>
+                      {formatHectares(accountedArea)}
+                    </span>
+                  </div>
+                  <div className='flex mb-1.5'>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                      Percentual Real:
+                    </span>
+                    <span className='text-[9px] w-[60%]'>{formatNumber(realCoverage)}%</span>
+                  </div>
+                  <div className='flex mb-1.5'>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>
+                      Percentual Contabilizado:
+                    </span>
+                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>
+                      {formatNumber(accountedCoverage)}%
+                    </span>
+                  </div>
+                  <div className='flex mb-1.5'>
+                    <span className='text-[9px] font-bold w-[40%] text-[#6B7280]'>Situação:</span>
+                    <span className='text-[9px] w-[60%] font-bold text-[#166534]'>
+                      {plotStatus}
+                    </span>
                   </div>
                 </>
               ) : null}
@@ -444,10 +509,11 @@ export function ApplicationsReportLayoutMirror({
             </div>
 
             {/* Lista de aplicações */}
-            {(isCompletedPlannedArea ? [] : plotApplications).map((application) => {
-              const registeredAreaCoverage = isCompletedPlannedArea
-                ? null
-                : formatRegisteredAreaCoverage(application.hectares, plot.hectare);
+            {plotApplications.map((application) => {
+              const registeredAreaCoverage = formatRegisteredAreaCoverage(
+                application.hectares,
+                String(registeredPlotArea)
+              );
 
               return (
                 <div
@@ -487,19 +553,17 @@ export function ApplicationsReportLayoutMirror({
                       <span className='text-[8px] font-bold text-[#6B7280] mr-1'>Cultura:</span>
                       <span className='text-[8px]'>{application.culture?.name || 'N/A'}</span>
                     </div>
-                    {!isCompletedPlannedArea ? (
-                      <div className='flex'>
-                        <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
-                          Área Aplicada:
-                        </span>
-                        <span className='text-[8px]'>
-                          {formatHectares(application.hectares)}
-                          <small className='block text-[7px] text-[#9CA3AF]'>
-                            Área informada nesta aplicação.
-                          </small>
-                        </span>
-                      </div>
-                    ) : null}
+                    <div className='flex'>
+                      <span className='text-[8px] font-bold text-[#6B7280] mr-1'>
+                        Área Aplicada:
+                      </span>
+                      <span className='text-[8px]'>
+                        {formatHectares(application.hectares)}
+                        <small className='block text-[7px] text-[#9CA3AF]'>
+                          Área real informada nesta aplicação.
+                        </small>
+                      </span>
+                    </div>
                     {registeredAreaCoverage ? (
                       <div className='w-[calc(50%_-_0.5rem)] min-w-0 rounded border border-[#FDE68A] bg-[#FFFBEB] p-2'>
                         <p className='text-[8px] font-bold text-[#6B7280]'>

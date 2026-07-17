@@ -105,6 +105,23 @@ export function ServiceOrderV1Routes(
     handler: controller.getCompletedPlotsReportData,
   });
 
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: 'POST',
+    url: '/:id/reports/plot-areas',
+    schema: {
+      params: ServiceOrderIdParamSchema,
+      body: CompletedPlotsReportRequestSchema,
+      description: 'Build canonical service-order plot area report data for an explicit area mode',
+      summary: 'Build plot area report data',
+      tags: ['service-orders'],
+      response: {
+        200: CompletedPlotsReportResponseSchema,
+      },
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.getCompletedPlotsReportData,
+  });
+
   // Update service order
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
     method: 'PUT',

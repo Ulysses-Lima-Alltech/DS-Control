@@ -12,10 +12,29 @@ export const CompletedPlotsReportRowSchema = z.object({
   applicationId: z.string().uuid().nullable(),
   registeredAreaHectares: z.string(),
   effectiveAppliedHectares: z.string(),
+  realAppliedHectares: z.string(),
   realCoveragePercent: z.string(),
   displayedAppliedHectares: z.string(),
   displayedCoveragePercent: z.string(),
-  status: z.literal('COMPLETED'),
+  accountedAreaHectares: z.string(),
+  accountedCoveragePercent: z.string(),
+  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED']),
+  applicationsCount: z.number(),
+});
+
+export const CompletedPlotsReportTotalsSchema = z.object({
+  plannedAreaHa: z.string(),
+  grossAppliedAreaHa: z.string(),
+  registeredCompletedAreaHa: z.string(),
+  inProgressAppliedAreaHa: z.string(),
+  consolidatedPlotAreaHa: z.string(),
+  registeredProgressPercent: z.string(),
+  grossAppliedProgressPercent: z.string(),
+  consolidatedProgressPercent: z.string(),
+  completedPlotsCount: z.number(),
+  inProgressPlotsCount: z.number(),
+  notStartedPlotsCount: z.number(),
+  applicationsCount: z.number(),
 });
 
 export const CompletedPlotsReportResponseSchema = z.object({
@@ -23,6 +42,7 @@ export const CompletedPlotsReportResponseSchema = z.object({
   completionThresholdPercent: z.number(),
   coverageSource: z.literal('maximum_registered_application_area'),
   rows: z.array(CompletedPlotsReportRowSchema),
+  totals: CompletedPlotsReportTotalsSchema,
   totalDisplayedHectares: z.string(),
 });
 

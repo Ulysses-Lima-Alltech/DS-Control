@@ -27,6 +27,8 @@ function sourceRow(
 
 describe('canonical plot completion threshold', () => {
   it.each([
+    ['0', false],
+    ['40', false],
     ['69.99', false],
     ['69.999', false],
     ['70.00', true],
@@ -55,8 +57,10 @@ describe('canonical plot completion threshold', () => {
     ]);
 
     expect(assessment.effectiveAppliedHectares).toBe('40');
+    expect(assessment.grossAppliedHectares).toBe('80');
     expect(assessment.coveragePercent).toBe('40');
     expect(assessment.status).toBe('PENDING');
+    expect(assessment.derivedStatus).toBe('IN_PROGRESS');
   });
 });
 
@@ -102,7 +106,7 @@ describe('completed plots report transformation', () => {
     }),
   ];
 
-  it('normalizes only plot_area and emits one row per completed plot', () => {
+  it('normalizes completed plots in plot_area and emits one row per reportable plot', () => {
     const snapshot = structuredClone(sourceRows);
     const report = buildCompletedPlotsReportData(
       buildPlotCoverageAssessments(sourceRows),
@@ -110,19 +114,42 @@ describe('completed plots report transformation', () => {
       SERVICE_ORDER_ID,
     );
 
-    expect(report.rows).toHaveLength(2);
-    expect(report.rows.map((row) => row.plotId)).toEqual([plotA, plotB]);
+    expect(report.rows).toHaveLength(3);
+    expect(report.rows.map((row) => row.plotId)).toEqual([plotA, plotB, pendingPlot]);
     expect(report.rows[0]).toMatchObject({
       applicationId: null,
       displayedAppliedHectares: '51.34',
       displayedCoveragePercent: '100',
+      accountedAreaHectares: '51.34',
+      accountedCoveragePercent: '100',
       status: 'COMPLETED',
+      applicationsCount: 2,
     });
-    expect(report.totalDisplayedHectares).toBe('83.44');
+    expect(report.rows[2]).toMatchObject({
+      applicationId: null,
+      displayedAppliedHectares: '13.99',
+      displayedCoveragePercent: '69.95',
+      accountedAreaHectares: '13.99',
+      accountedCoveragePercent: '69.95',
+      status: 'IN_PROGRESS',
+      applicationsCount: 1,
+    });
+    expect(report.totalDisplayedHectares).toBe('97.43');
+    expect(report.totals).toMatchObject({
+      plannedAreaHa: '103.44',
+      grossAppliedAreaHa: '118.04',
+      registeredCompletedAreaHa: '83.44',
+      inProgressAppliedAreaHa: '13.99',
+      consolidatedPlotAreaHa: '97.43',
+      completedPlotsCount: 2,
+      inProgressPlotsCount: 1,
+      notStartedPlotsCount: 0,
+      applicationsCount: 4,
+    });
     expect(sourceRows).toEqual(snapshot);
   });
 
-  it('preserves real application rows, areas and percentages in applied_area', () => {
+  it('preserves every real service-order application row, area and percentage in applied_area', () => {
     const snapshot = structuredClone(sourceRows);
     const report = buildCompletedPlotsReportData(
       buildPlotCoverageAssessments(sourceRows),
@@ -130,11 +157,12 @@ describe('completed plots report transformation', () => {
       SERVICE_ORDER_ID,
     );
 
-    expect(report.rows).toHaveLength(3);
+    expect(report.rows).toHaveLength(4);
     expect(report.rows.map((row) => row.applicationId)).toEqual([
       applicationA1,
       applicationA2,
       applicationB,
+      '99999999-9999-4999-8999-999999999999',
     ]);
     expect(report.rows[0]).toMatchObject({
       displayedAppliedHectares: '36.95',
@@ -145,18 +173,25 @@ describe('completed plots report transformation', () => {
       displayedAppliedHectares: '35',
       displayedCoveragePercent: '68.172964',
     });
-    expect(report.totalDisplayedHectares).toBe('104.05');
+    expect(report.rows[3]).toMatchObject({
+      displayedAppliedHectares: '13.99',
+      displayedCoveragePercent: '69.95',
+      status: 'IN_PROGRESS',
+    });
+    expect(report.totalDisplayedHectares).toBe('118.04');
+    expect(report.totals.grossAppliedAreaHa).toBe('118.04');
+    expect(report.totals.grossAppliedProgressPercent).toBe('114.11');
     expect(sourceRows).toEqual(snapshot);
   });
 
-  it('excludes pending plots and data from another service order', () => {
+  it('includes in-progress plots and excludes only data from another service order', () => {
     const report = buildCompletedPlotsReportData(
       buildPlotCoverageAssessments(sourceRows),
       'plot_area',
       SERVICE_ORDER_ID,
     );
 
-    expect(report.rows.some((row) => row.plotId === pendingPlot)).toBe(false);
+    expect(report.rows.some((row) => row.plotId === pendingPlot)).toBe(true);
     expect(report.rows.some((row) => row.registeredAreaHectares === '500')).toBe(false);
     expect(report.rows.every((row) => row.farmId === FARM_ID)).toBe(true);
   });

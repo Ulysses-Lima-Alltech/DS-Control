@@ -6,6 +6,7 @@ import { User } from '@/types/user.type';
 
 export type ServiceOrderStatus = 'open' | 'completed' | 'cancelled';
 export type ServiceOrderPlotStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+export type ServiceOrderPlotDerivedStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type CompletedPlotsReportAreaMode = 'plot_area' | 'applied_area';
 
 export type ServiceOrder = {
@@ -29,6 +30,13 @@ export type ServiceOrder = {
   deletedAt: Date | null;
   plannedHectares: number;
   totalAppliedHectares: number;
+  grossAppliedAreaHa?: number;
+  registeredCompletedAreaHa?: number;
+  inProgressAppliedAreaHa?: number;
+  consolidatedPlotAreaHa?: number;
+  registeredProgressPercent?: number;
+  grossAppliedProgressPercent?: number;
+  consolidatedProgressPercent?: number;
   progressPercent: number;
   completedHectares: number;
   pendingHectares: number;

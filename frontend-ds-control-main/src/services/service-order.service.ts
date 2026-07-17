@@ -297,10 +297,29 @@ export type CompletedPlotsReportRow = {
   applicationId: string | null;
   registeredAreaHectares: string;
   effectiveAppliedHectares: string;
+  realAppliedHectares: string;
   realCoveragePercent: string;
   displayedAppliedHectares: string;
   displayedCoveragePercent: string;
-  status: 'COMPLETED';
+  accountedAreaHectares: string;
+  accountedCoveragePercent: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+  applicationsCount: number;
+};
+
+export type CompletedPlotsReportTotals = {
+  plannedAreaHa: string;
+  grossAppliedAreaHa: string;
+  registeredCompletedAreaHa: string;
+  inProgressAppliedAreaHa: string;
+  consolidatedPlotAreaHa: string;
+  registeredProgressPercent: string;
+  grossAppliedProgressPercent: string;
+  consolidatedProgressPercent: string;
+  completedPlotsCount: number;
+  inProgressPlotsCount: number;
+  notStartedPlotsCount: number;
+  applicationsCount: number;
 };
 
 export type CompletedPlotsReportResponse = {
@@ -308,6 +327,7 @@ export type CompletedPlotsReportResponse = {
   completionThresholdPercent: number;
   coverageSource: 'maximum_registered_application_area';
   rows: CompletedPlotsReportRow[];
+  totals: CompletedPlotsReportTotals;
   totalDisplayedHectares: string;
 };
 
@@ -315,7 +335,7 @@ export async function getCompletedPlotsReport(
   serviceOrderId: string,
   areaMode: CompletedPlotsReportAreaMode
 ): Promise<CompletedPlotsReportResponse> {
-  const response = await api(`/service-orders/${serviceOrderId}/reports/completed-plots`, {
+  const response = await api(`/service-orders/${serviceOrderId}/reports/plot-areas`, {
     method: 'POST',
     body: JSON.stringify({ areaMode }),
   });

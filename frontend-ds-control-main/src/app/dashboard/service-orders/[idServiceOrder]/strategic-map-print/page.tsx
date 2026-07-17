@@ -85,6 +85,7 @@ type StrategicMapData = {
   featureCollection: FeatureCollection<DrawableGeometry>;
   farms: FarmLegendItem[];
   totalHectares: number;
+  totalAppliedHectares: number;
   bounds: LngLatBoundsTuple | null;
 };
 
@@ -266,6 +267,7 @@ export default function StrategicMapPrintPage({
         generatedAt,
         farms: strategicMapData.farms,
         totalHectares: strategicMapData.totalHectares,
+        totalAppliedHectares: strategicMapData.totalAppliedHectares,
         scaleBar,
       });
 
@@ -356,7 +358,10 @@ export default function StrategicMapPrintPage({
               ))}
             </div>
             <div className='strategic-map-legend-total'>
-              TOTAL: {formatHectares(strategicMapData.totalHectares)} HA
+              ÁREA CADASTRADA REPRESENTADA: {formatHectares(strategicMapData.totalHectares)} HA
+            </div>
+            <div className='strategic-map-legend-total'>
+              ÁREA TOTAL APLICADA: {formatHectares(strategicMapData.totalAppliedHectares)} HA
             </div>
           </aside>
         )}
@@ -1008,13 +1013,14 @@ async function drawStrategicMapPdfOverlays(
     generatedAt: string;
     farms: FarmLegendItem[];
     totalHectares: number;
+    totalAppliedHectares: number;
     scaleBar: PdfScaleBar | null;
   }
 ): Promise<void> {
   drawPdfTitle(pdf, params.title);
   drawPdfGeneratedAt(pdf, params.generatedAt);
   await drawPdfNorthArrow(pdf);
-  drawPdfLegend(pdf, params.farms, params.totalHectares);
+  drawPdfLegend(pdf, params.farms, params.totalHectares, params.totalAppliedHectares);
   drawPdfScaleBar(pdf, params.scaleBar);
   await drawPdfLogo(pdf);
 }
@@ -1071,7 +1077,12 @@ async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
   );
 }
 
-function drawPdfLegend(pdf: JsPdf, farms: FarmLegendItem[], totalHectares: number): void {
+function drawPdfLegend(
+  pdf: JsPdf,
+  farms: FarmLegendItem[],
+  totalHectares: number,
+  totalAppliedHectares: number
+): void {
   const x = cssPxToMm(100);
   const legendHeightCss =
     56 + 32 + farms.length * 60 + Math.max(0, farms.length - 1) * 24 + 48 + 32 + 8 + 56;
@@ -1122,7 +1133,13 @@ function drawPdfLegend(pdf: JsPdf, farms: FarmLegendItem[], totalHectares: numbe
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(cssPxToPt(56));
   pdf.setTextColor(0, 0, 0);
-  pdf.text(`TOTAL: ${formatHectares(totalHectares)} HA`, x, y, { baseline: 'top' });
+  pdf.text(`ÁREA CADASTRADA REPRESENTADA: ${formatHectares(totalHectares)} HA`, x, y, {
+    baseline: 'top',
+  });
+  y += cssPxToMm(72);
+  pdf.text(`ÁREA TOTAL APLICADA: ${formatHectares(totalAppliedHectares)} HA`, x, y, {
+    baseline: 'top',
+  });
 }
 
 function drawPdfScaleBar(pdf: JsPdf, scaleBar: PdfScaleBar | null): void {
@@ -1248,10 +1265,23 @@ function sanitizeFilePart(value: string | number): string {
   return sanitized || 'sem-numero';
 }
 
+function parseOptionalHectares(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = parseHectares(value as Plot['hectare']);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
   const farmsById = buildFarmMap(serviceOrder.farms || []);
   const farmSummaries = new Map<string, Omit<FarmLegendItem, 'fill'>>();
   const drafts: PlotFeatureDraft[] = [];
+  const totalAppliedHectares =
+    parseOptionalHectares(serviceOrder.grossAppliedAreaHa) ??
+    parseOptionalHectares(serviceOrder.totalAppliedHectares) ??
+    0;
 
   (serviceOrder.plots || []).forEach((plot) => {
     const farmKey = plot.farmId || `farmless-${plot.name}`;
@@ -1327,6 +1357,7 @@ function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
     featureCollection,
     farms: legendFarms,
     totalHectares: legendFarms.reduce((sum, farm) => sum + farm.hectares, 0),
+    totalAppliedHectares,
     bounds: getFeatureCollectionBounds(featureCollection),
   };
 }

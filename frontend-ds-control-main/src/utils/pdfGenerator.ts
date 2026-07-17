@@ -2,7 +2,9 @@ import ApplicationIndividualReportPDF from '@/components/PDFReports/ApplicationI
 import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
-import ApplicationsReportPDF from '@/components/PDFReports/ApplicationsReportPDF';
+import ApplicationsReportPDF, {
+  type ApplicationsReportMetrics,
+} from '@/components/PDFReports/ApplicationsReportPDF';
 import CompletedPlotsPlannedAreaReportPDF from '@/components/PDFReports/CompletedPlotsPlannedAreaReportPDF';
 import FarmsReportPDF, { type FarmsReportRow } from '@/components/PDFReports/FarmsReportPDF';
 import GeneralReportPDF, {
@@ -50,6 +52,7 @@ import {
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
   applications: Application[];
+  reportMetrics?: ApplicationsReportMetrics;
 }
 
 interface GenerateCompletedPlotsPlannedAreaPDFParams extends GeneratePDFParams {
@@ -468,6 +471,7 @@ function parseReportNumber(value: unknown): number {
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
+  reportMetrics,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const enrichedApplications = await enrichApplicationsWithDjiImageUrl(serviceOrder, applications);
@@ -479,6 +483,7 @@ export async function generateApplicationsReportPDF({
   const element = ApplicationsReportPDF({
     serviceOrder,
     applications: enrichedApplications,
+    reportMetrics,
     prefetchedMapImageDataUrls,
     djiImagesByApplicationId,
   });
@@ -492,6 +497,7 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
   serviceOrder,
   applications,
   completedPlotIds,
+  reportMetrics,
 }: GenerateCompletedPlotsPlannedAreaPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const completedIds = new Set(completedPlotIds);
@@ -510,6 +516,7 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
     serviceOrder,
     applications: enrichedApplications,
     completedPlotIds,
+    reportMetrics,
     prefetchedMapImageDataUrls,
     djiImagesByApplicationId,
   });

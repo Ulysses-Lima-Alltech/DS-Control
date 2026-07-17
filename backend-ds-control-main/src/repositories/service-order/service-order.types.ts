@@ -7,6 +7,13 @@ export type CreateServiceOrder = typeof serviceOrders.$inferInsert;
 export type ServiceOrderWithDetails = ServiceOrder & {
   plannedHectares: number;
   totalAppliedHectares: number;
+  grossAppliedAreaHa: number;
+  registeredCompletedAreaHa: number;
+  inProgressAppliedAreaHa: number;
+  consolidatedPlotAreaHa: number;
+  registeredProgressPercent: number;
+  grossAppliedProgressPercent: number;
+  consolidatedProgressPercent: number;
   progressPercent: number;
   completedHectares: number;
   pendingHectares: number;
@@ -81,7 +88,9 @@ export type ServiceOrderWithDetails = ServiceOrder & {
     completedAt: Date | null;
     completedBy: string | null;
     effectiveAppliedHectares: string;
+    grossAppliedHectares: string;
     coveragePercent: string;
+    derivedStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
   }>;
 };
 

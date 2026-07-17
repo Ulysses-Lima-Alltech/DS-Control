@@ -1,6 +1,7 @@
 export const PLOT_COMPLETION_THRESHOLD_PERCENT = 70;
 
 export type PlotCompletionStatus = 'PENDING' | 'COMPLETED';
+export type PlotDerivedStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type CompletedPlotsReportAreaMode = 'plot_area' | 'applied_area';
 
 export type PlotCoverageSourceRow = {
@@ -23,8 +24,10 @@ export type PlotCoverageAssessment = {
   farmId: string;
   registeredAreaHectares: string;
   effectiveAppliedHectares: string;
+  grossAppliedHectares: string;
   coveragePercent: string;
   status: PlotCompletionStatus;
+  derivedStatus: PlotDerivedStatus;
   applications: PlotCoverageApplication[];
 };
 
@@ -34,10 +37,29 @@ export type CompletedPlotsReportRow = {
   applicationId: string | null;
   registeredAreaHectares: string;
   effectiveAppliedHectares: string;
+  realAppliedHectares: string;
   realCoveragePercent: string;
   displayedAppliedHectares: string;
   displayedCoveragePercent: string;
-  status: 'COMPLETED';
+  accountedAreaHectares: string;
+  accountedCoveragePercent: string;
+  status: PlotDerivedStatus;
+  applicationsCount: number;
+};
+
+export type CompletedPlotsReportTotals = {
+  plannedAreaHa: string;
+  grossAppliedAreaHa: string;
+  registeredCompletedAreaHa: string;
+  inProgressAppliedAreaHa: string;
+  consolidatedPlotAreaHa: string;
+  registeredProgressPercent: string;
+  grossAppliedProgressPercent: string;
+  consolidatedProgressPercent: string;
+  completedPlotsCount: number;
+  inProgressPlotsCount: number;
+  notStartedPlotsCount: number;
+  applicationsCount: number;
 };
 
 type DecimalValue = {
@@ -94,6 +116,21 @@ function addDecimals(values: DecimalValue[]): DecimalValue {
     ),
     scale,
   };
+}
+
+function isZeroDecimal(value: DecimalValue): boolean {
+  return value.units === 0;
+}
+
+function getDerivedStatus(
+  effectiveAppliedHectares: string,
+  registeredAreaHectares: string,
+): PlotDerivedStatus {
+  if (isPlotCoverageCompleted(effectiveAppliedHectares, registeredAreaHectares)) {
+    return 'COMPLETED';
+  }
+
+  return isZeroDecimal(parseDecimal(effectiveAppliedHectares)) ? 'PENDING' : 'IN_PROGRESS';
 }
 
 function formatPercentage(
@@ -157,13 +194,18 @@ export function buildPlotCoverageAssessments(
 
   return Array.from(plotsByScope.values()).map((plot) => {
     const applicationEntries = Array.from(plot.applications, ([id, area]) => ({ id, area }));
+    // A cobertura/status do talhão usa a maior aplicação individual enquanto não houver uma
+    // geometria canônica de união espacial. A área bruta/consolidada soma as aplicações reais.
+    // Não trocar uma regra pela outra: múltiplas aplicações pequenas não concluem o talhão.
     const effectiveArea = applicationEntries.reduce(
       (largest, application) =>
         compareDecimals(application.area, largest) > 0 ? application.area : largest,
       ZERO_DECIMAL,
     );
+    const grossAppliedArea = addDecimals(applicationEntries.map((application) => application.area));
     const registeredAreaHectares = decimalToString(plot.registeredArea);
     const effectiveAppliedHectares = decimalToString(effectiveArea);
+    const derivedStatus = getDerivedStatus(effectiveAppliedHectares, registeredAreaHectares);
 
     return {
       serviceOrderId: plot.serviceOrderId,
@@ -171,10 +213,10 @@ export function buildPlotCoverageAssessments(
       farmId: plot.farmId,
       registeredAreaHectares,
       effectiveAppliedHectares,
+      grossAppliedHectares: decimalToString(grossAppliedArea),
       coveragePercent: formatPercentage(effectiveArea, plot.registeredArea),
-      status: isPlotCoverageCompleted(effectiveAppliedHectares, registeredAreaHectares)
-        ? 'COMPLETED'
-        : 'PENDING',
+      status: derivedStatus === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
+      derivedStatus,
       applications: applicationEntries.map(({ id, area }) => ({
         id,
         appliedAreaHectares: decimalToString(area),
@@ -183,16 +225,83 @@ export function buildPlotCoverageAssessments(
   });
 }
 
+function buildAccountedArea(assessment: PlotCoverageAssessment): string {
+  if (assessment.derivedStatus === 'COMPLETED') return assessment.registeredAreaHectares;
+  if (assessment.derivedStatus === 'IN_PROGRESS') return assessment.grossAppliedHectares;
+  return '0';
+}
+
+function buildAccountedPercent(assessment: PlotCoverageAssessment): string {
+  if (assessment.derivedStatus === 'COMPLETED') return '100';
+  if (assessment.derivedStatus === 'IN_PROGRESS') {
+    return formatPercentage(
+      parseDecimal(assessment.grossAppliedHectares),
+      parseDecimal(assessment.registeredAreaHectares),
+    );
+  }
+  return '0';
+}
+
+function buildTotals(assessments: PlotCoverageAssessment[]): CompletedPlotsReportTotals {
+  const plannedArea = addDecimals(
+    assessments.map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
+  );
+  const grossAppliedArea = addDecimals(
+    assessments.map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
+  );
+  const registeredCompletedArea = addDecimals(
+    assessments
+      .filter((assessment) => assessment.derivedStatus === 'COMPLETED')
+      .map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
+  );
+  const inProgressAppliedArea = addDecimals(
+    assessments
+      .filter((assessment) => assessment.derivedStatus === 'IN_PROGRESS')
+      .map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
+  );
+  const consolidatedPlotArea = addDecimals([registeredCompletedArea, inProgressAppliedArea]);
+
+  return {
+    plannedAreaHa: decimalToString(plannedArea),
+    grossAppliedAreaHa: decimalToString(grossAppliedArea),
+    registeredCompletedAreaHa: decimalToString(registeredCompletedArea),
+    inProgressAppliedAreaHa: decimalToString(inProgressAppliedArea),
+    consolidatedPlotAreaHa: decimalToString(consolidatedPlotArea),
+    registeredProgressPercent: formatPercentage(registeredCompletedArea, plannedArea, 2),
+    grossAppliedProgressPercent: formatPercentage(grossAppliedArea, plannedArea, 2),
+    consolidatedProgressPercent: formatPercentage(consolidatedPlotArea, plannedArea, 2),
+    completedPlotsCount: assessments.filter(
+      (assessment) => assessment.derivedStatus === 'COMPLETED',
+    ).length,
+    inProgressPlotsCount: assessments.filter(
+      (assessment) => assessment.derivedStatus === 'IN_PROGRESS',
+    ).length,
+    notStartedPlotsCount: assessments.filter((assessment) => assessment.derivedStatus === 'PENDING')
+      .length,
+    applicationsCount: assessments.reduce(
+      (total, assessment) => total + assessment.applications.length,
+      0,
+    ),
+  };
+}
+
 export function buildCompletedPlotsReportData(
   assessments: PlotCoverageAssessment[],
   areaMode: CompletedPlotsReportAreaMode,
   serviceOrderId: string,
 ) {
-  const completedPlots = assessments.filter(
-    (assessment) =>
-      assessment.serviceOrderId === serviceOrderId && assessment.status === 'COMPLETED',
+  const serviceOrderAssessments = assessments.filter(
+    (assessment) => assessment.serviceOrderId === serviceOrderId,
   );
-  const rows = completedPlots.flatMap<CompletedPlotsReportRow>((assessment) => {
+  const reportablePlots = serviceOrderAssessments.filter(
+    (assessment) => assessment.derivedStatus !== 'PENDING',
+  );
+  const rows = (
+    areaMode === 'plot_area' ? reportablePlots : serviceOrderAssessments
+  ).flatMap<CompletedPlotsReportRow>((assessment) => {
+    const accountedAreaHectares = buildAccountedArea(assessment);
+    const accountedCoveragePercent = buildAccountedPercent(assessment);
+
     if (areaMode === 'plot_area') {
       return [
         {
@@ -201,10 +310,14 @@ export function buildCompletedPlotsReportData(
           applicationId: null,
           registeredAreaHectares: assessment.registeredAreaHectares,
           effectiveAppliedHectares: assessment.effectiveAppliedHectares,
+          realAppliedHectares: assessment.grossAppliedHectares,
           realCoveragePercent: assessment.coveragePercent,
-          displayedAppliedHectares: assessment.registeredAreaHectares,
-          displayedCoveragePercent: '100',
-          status: 'COMPLETED' as const,
+          displayedAppliedHectares: accountedAreaHectares,
+          displayedCoveragePercent: accountedCoveragePercent,
+          accountedAreaHectares,
+          accountedCoveragePercent,
+          status: assessment.derivedStatus,
+          applicationsCount: assessment.applications.length,
         },
       ];
     }
@@ -215,21 +328,30 @@ export function buildCompletedPlotsReportData(
       applicationId: application.id,
       registeredAreaHectares: assessment.registeredAreaHectares,
       effectiveAppliedHectares: assessment.effectiveAppliedHectares,
+      realAppliedHectares: assessment.grossAppliedHectares,
       realCoveragePercent: assessment.coveragePercent,
       displayedAppliedHectares: application.appliedAreaHectares,
       displayedCoveragePercent: formatPercentage(
         parseDecimal(application.appliedAreaHectares),
         parseDecimal(assessment.registeredAreaHectares),
       ),
-      status: 'COMPLETED' as const,
+      accountedAreaHectares: application.appliedAreaHectares,
+      accountedCoveragePercent: formatPercentage(
+        parseDecimal(application.appliedAreaHectares),
+        parseDecimal(assessment.registeredAreaHectares),
+      ),
+      status: assessment.derivedStatus,
+      applicationsCount: assessment.applications.length,
     }));
   });
+  const totals = buildTotals(serviceOrderAssessments);
 
   return {
     areaMode,
     completionThresholdPercent: PLOT_COMPLETION_THRESHOLD_PERCENT,
     coverageSource: 'maximum_registered_application_area' as const,
     rows,
+    totals,
     totalDisplayedHectares: decimalToString(
       addDecimals(rows.map((row) => parseDecimal(row.displayedAppliedHectares))),
     ),

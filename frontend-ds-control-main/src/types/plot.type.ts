@@ -10,8 +10,16 @@ export type Plot = {
   updatedAt?: string;
   deletedAt?: string | null;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  derivedStatus?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
   completedAt?: string | null;
   completedBy?: string | null;
   effectiveAppliedHectares?: string;
+  grossAppliedHectares?: string;
   coveragePercent?: string;
+  registeredAreaHectares?: string;
+  realAppliedHectares?: string;
+  accountedAreaHectares?: string;
+  realCoveragePercent?: string;
+  accountedCoveragePercent?: string;
+  applicationsCount?: number;
 };

@@ -402,7 +402,7 @@ export default function ServiceOrderPage({
       const reportCompletedPlotIds = Array.from(new Set(reportData.rows.map((row) => row.plotId)));
 
       if (reportCompletedPlotIds.length === 0) {
-        toast.info('Não há talhões concluídos para gerar o relatório');
+        toast.info('Não há talhões com aplicação para gerar o relatório');
         return;
       }
 
@@ -414,7 +414,21 @@ export default function ServiceOrderPage({
         );
         const reportPlots = (serviceOrderData.plots || []).map((plot) => {
           const row = plot.id ? reportRowsByPlotId.get(plot.id) : undefined;
-          return row ? { ...plot, hectare: row.displayedAppliedHectares } : plot;
+          return row
+            ? {
+                ...plot,
+                hectare: row.accountedAreaHectares,
+                registeredAreaHectares: row.registeredAreaHectares,
+                realAppliedHectares: row.realAppliedHectares,
+                grossAppliedHectares: row.realAppliedHectares,
+                accountedAreaHectares: row.accountedAreaHectares,
+                coveragePercent: row.realCoveragePercent,
+                realCoveragePercent: row.realCoveragePercent,
+                accountedCoveragePercent: row.accountedCoveragePercent,
+                derivedStatus: row.status,
+                applicationsCount: row.applicationsCount,
+              }
+            : plot;
         });
         const reportPlotsById = new Map(
           reportPlots.flatMap((plot) => (plot.id ? [[plot.id, plot] as const] : []))
@@ -429,6 +443,7 @@ export default function ServiceOrderPage({
           serviceOrder: { ...serviceOrderData, plots: reportPlots },
           applications: reportApplications,
           completedPlotIds: reportCompletedPlotIds,
+          reportMetrics: reportData.totals,
         });
         fileSuffix = 'area-talhao';
       } else {
@@ -457,6 +472,7 @@ export default function ServiceOrderPage({
         blob = await generateApplicationsReportPDF({
           serviceOrder: serviceOrderData,
           applications: reportApplications,
+          reportMetrics: reportData.totals,
         });
         fileSuffix = 'area-aplicada';
       }
@@ -466,7 +482,7 @@ export default function ServiceOrderPage({
         `relatorio-aplicacoes-os-${serviceOrderData.number}-concluidos-${fileSuffix}.pdf`
       );
       setIsCompletedReportModalOpen(false);
-      toast.success('Relatório de talhões concluídos gerado com sucesso');
+      toast.success('Relatório de áreas da Ordem de Serviço gerado com sucesso');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório');
     } finally {
