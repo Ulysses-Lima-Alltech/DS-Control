@@ -62,6 +62,56 @@ export type CompletedPlotsReportTotals = {
   applicationsCount: number;
 };
 
+export type ServiceOrderMetrics = {
+  plannedAreaHa: number;
+  grossAppliedAreaHa: number;
+  effectiveCoveredAreaHa: number;
+  registeredCompletedAreaHa: number;
+  inProgressAppliedAreaHa: number;
+  consolidatedOperationalAreaHa: number;
+  registeredProgressPercent: number;
+  grossAppliedProgressPercent: number;
+  consolidatedProgressPercent: number;
+  totalPlots: number;
+  completedPlots: number;
+  inProgressPlots: number;
+  pendingPlots: number;
+  applicationsCount: number;
+  plotsWithApplications: number;
+  applicationsWithoutPlotCount: number;
+  completionThresholdPercent: number;
+  coverageMethod: 'maximum_application';
+  metricVersion: 1;
+};
+
+export type ServiceOrderApplicationSummary = {
+  grossAppliedAreaHa: string | number;
+  applicationsCount: number;
+  applicationsWithoutPlotCount: number;
+};
+
+export type LegacyServiceOrderMetricAliases = {
+  plannedHectares: number;
+  totalAppliedHectares: number;
+  grossAppliedAreaHa: number;
+  registeredCompletedAreaHa: number;
+  inProgressAppliedAreaHa: number;
+  consolidatedPlotAreaHa: number;
+  registeredProgressPercent: number;
+  grossAppliedProgressPercent: number;
+  consolidatedProgressPercent: number;
+  progressPercent: number;
+  completedHectares: number;
+  pendingHectares: number;
+  completedPlots: number;
+  inProgressPlots: number;
+  pendingPlots: number;
+  applicationsCount: number;
+  plotsWithApplications: number;
+  applicationsWithoutPlotCount: number;
+  totalPlots: number;
+};
+
 type DecimalValue = {
   units: number;
   scale: number;
@@ -98,6 +148,20 @@ function decimalToString(value: DecimalValue): string {
   const integerPart = padded.slice(0, -value.scale);
   const fractionPart = padded.slice(-value.scale).replace(/0+$/, '');
   return fractionPart ? `${integerPart}.${fractionPart}` : integerPart;
+}
+
+function decimalToResponseNumber(value: DecimalValue): number {
+  return Number(Number(decimalToString(value)).toFixed(2));
+}
+
+function percentageToResponseNumber(numerator: DecimalValue, denominator: DecimalValue): number {
+  if (denominator.units <= 0) return 0;
+  return Number(
+    (
+      (numerator.units * powerOfTen(denominator.scale) * 100) /
+      (denominator.units * powerOfTen(numerator.scale))
+    ).toFixed(2),
+  );
 }
 
 function compareDecimals(left: DecimalValue, right: DecimalValue): number {
@@ -225,6 +289,102 @@ export function buildPlotCoverageAssessments(
   });
 }
 
+export function buildServiceOrderMetrics(
+  assessments: PlotCoverageAssessment[],
+  applicationSummary?: ServiceOrderApplicationSummary,
+): ServiceOrderMetrics {
+  const plannedArea = addDecimals(
+    assessments.map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
+  );
+  const assessedGrossAppliedArea = addDecimals(
+    assessments.map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
+  );
+  const grossAppliedArea = applicationSummary
+    ? parseDecimal(applicationSummary.grossAppliedAreaHa)
+    : assessedGrossAppliedArea;
+  const effectiveCoveredArea = addDecimals(
+    assessments.map((assessment) => parseDecimal(assessment.effectiveAppliedHectares)),
+  );
+  const registeredCompletedArea = addDecimals(
+    assessments
+      .filter((assessment) => assessment.derivedStatus === 'COMPLETED')
+      .map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
+  );
+  const inProgressAppliedArea = addDecimals(
+    assessments
+      .filter((assessment) => assessment.derivedStatus === 'IN_PROGRESS')
+      .map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
+  );
+  const consolidatedOperationalArea = addDecimals([
+    registeredCompletedArea,
+    inProgressAppliedArea,
+  ]);
+
+  return {
+    plannedAreaHa: decimalToResponseNumber(plannedArea),
+    grossAppliedAreaHa: decimalToResponseNumber(grossAppliedArea),
+    effectiveCoveredAreaHa: decimalToResponseNumber(effectiveCoveredArea),
+    registeredCompletedAreaHa: decimalToResponseNumber(registeredCompletedArea),
+    inProgressAppliedAreaHa: decimalToResponseNumber(inProgressAppliedArea),
+    consolidatedOperationalAreaHa: decimalToResponseNumber(consolidatedOperationalArea),
+    registeredProgressPercent: percentageToResponseNumber(
+      registeredCompletedArea,
+      plannedArea,
+    ),
+    grossAppliedProgressPercent: percentageToResponseNumber(grossAppliedArea, plannedArea),
+    consolidatedProgressPercent: percentageToResponseNumber(
+      consolidatedOperationalArea,
+      plannedArea,
+    ),
+    totalPlots: assessments.length,
+    completedPlots: assessments.filter(
+      (assessment) => assessment.derivedStatus === 'COMPLETED',
+    ).length,
+    inProgressPlots: assessments.filter(
+      (assessment) => assessment.derivedStatus === 'IN_PROGRESS',
+    ).length,
+    pendingPlots: assessments.filter((assessment) => assessment.derivedStatus === 'PENDING').length,
+    applicationsCount:
+      applicationSummary?.applicationsCount ??
+      assessments.reduce((total, assessment) => total + assessment.applications.length, 0),
+    plotsWithApplications: assessments.filter((assessment) => assessment.applications.length > 0)
+      .length,
+    applicationsWithoutPlotCount: applicationSummary?.applicationsWithoutPlotCount ?? 0,
+    completionThresholdPercent: PLOT_COMPLETION_THRESHOLD_PERCENT,
+    coverageMethod: 'maximum_application',
+    metricVersion: 1,
+  };
+}
+
+export function buildLegacyServiceOrderMetricAliases(
+  metrics: ServiceOrderMetrics,
+): LegacyServiceOrderMetricAliases {
+  return {
+    plannedHectares: metrics.plannedAreaHa,
+    totalAppliedHectares: metrics.grossAppliedAreaHa,
+    grossAppliedAreaHa: metrics.grossAppliedAreaHa,
+    registeredCompletedAreaHa: metrics.registeredCompletedAreaHa,
+    inProgressAppliedAreaHa: metrics.inProgressAppliedAreaHa,
+    consolidatedPlotAreaHa: metrics.consolidatedOperationalAreaHa,
+    registeredProgressPercent: metrics.registeredProgressPercent,
+    grossAppliedProgressPercent: metrics.grossAppliedProgressPercent,
+    consolidatedProgressPercent: metrics.consolidatedProgressPercent,
+    progressPercent: metrics.registeredProgressPercent,
+    completedHectares: metrics.registeredCompletedAreaHa,
+    // Legacy pending values include both not-started and in-progress plots.
+    pendingHectares: Number(
+      (metrics.plannedAreaHa - metrics.registeredCompletedAreaHa).toFixed(2),
+    ),
+    completedPlots: metrics.completedPlots,
+    inProgressPlots: metrics.inProgressPlots,
+    pendingPlots: metrics.inProgressPlots + metrics.pendingPlots,
+    applicationsCount: metrics.applicationsCount,
+    plotsWithApplications: metrics.plotsWithApplications,
+    applicationsWithoutPlotCount: metrics.applicationsWithoutPlotCount,
+    totalPlots: metrics.totalPlots,
+  };
+}
+
 function buildAccountedArea(assessment: PlotCoverageAssessment): string {
   if (assessment.derivedStatus === 'COMPLETED') return assessment.registeredAreaHectares;
   if (assessment.derivedStatus === 'IN_PROGRESS') return assessment.grossAppliedHectares;
@@ -243,45 +403,21 @@ function buildAccountedPercent(assessment: PlotCoverageAssessment): string {
 }
 
 function buildTotals(assessments: PlotCoverageAssessment[]): CompletedPlotsReportTotals {
-  const plannedArea = addDecimals(
-    assessments.map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
-  );
-  const grossAppliedArea = addDecimals(
-    assessments.map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
-  );
-  const registeredCompletedArea = addDecimals(
-    assessments
-      .filter((assessment) => assessment.derivedStatus === 'COMPLETED')
-      .map((assessment) => parseDecimal(assessment.registeredAreaHectares)),
-  );
-  const inProgressAppliedArea = addDecimals(
-    assessments
-      .filter((assessment) => assessment.derivedStatus === 'IN_PROGRESS')
-      .map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
-  );
-  const consolidatedPlotArea = addDecimals([registeredCompletedArea, inProgressAppliedArea]);
+  const metrics = buildServiceOrderMetrics(assessments);
 
   return {
-    plannedAreaHa: decimalToString(plannedArea),
-    grossAppliedAreaHa: decimalToString(grossAppliedArea),
-    registeredCompletedAreaHa: decimalToString(registeredCompletedArea),
-    inProgressAppliedAreaHa: decimalToString(inProgressAppliedArea),
-    consolidatedPlotAreaHa: decimalToString(consolidatedPlotArea),
-    registeredProgressPercent: formatPercentage(registeredCompletedArea, plannedArea, 2),
-    grossAppliedProgressPercent: formatPercentage(grossAppliedArea, plannedArea, 2),
-    consolidatedProgressPercent: formatPercentage(consolidatedPlotArea, plannedArea, 2),
-    completedPlotsCount: assessments.filter(
-      (assessment) => assessment.derivedStatus === 'COMPLETED',
-    ).length,
-    inProgressPlotsCount: assessments.filter(
-      (assessment) => assessment.derivedStatus === 'IN_PROGRESS',
-    ).length,
-    notStartedPlotsCount: assessments.filter((assessment) => assessment.derivedStatus === 'PENDING')
-      .length,
-    applicationsCount: assessments.reduce(
-      (total, assessment) => total + assessment.applications.length,
-      0,
-    ),
+    plannedAreaHa: String(metrics.plannedAreaHa),
+    grossAppliedAreaHa: String(metrics.grossAppliedAreaHa),
+    registeredCompletedAreaHa: String(metrics.registeredCompletedAreaHa),
+    inProgressAppliedAreaHa: String(metrics.inProgressAppliedAreaHa),
+    consolidatedPlotAreaHa: String(metrics.consolidatedOperationalAreaHa),
+    registeredProgressPercent: String(metrics.registeredProgressPercent),
+    grossAppliedProgressPercent: String(metrics.grossAppliedProgressPercent),
+    consolidatedProgressPercent: String(metrics.consolidatedProgressPercent),
+    completedPlotsCount: metrics.completedPlots,
+    inProgressPlotsCount: metrics.inProgressPlots,
+    notStartedPlotsCount: metrics.pendingPlots,
+    applicationsCount: metrics.applicationsCount,
   };
 }
 

@@ -13,9 +13,12 @@ import type { UpdateServiceOrderStatusDTO } from '@modules/service-order/dto/upd
 import type { UpdateServiceOrderDTO } from '@modules/service-order/dto/update-service-order.dto';
 import { buildServiceOrderPlotStatusUpdate } from '@modules/service-order/service-order-plot-status';
 import {
+  buildLegacyServiceOrderMetricAliases,
   buildPlotCoverageAssessments,
+  buildServiceOrderMetrics,
   PLOT_COMPLETION_THRESHOLD_PERCENT,
   type PlotCoverageAssessment,
+  type ServiceOrderMetrics,
 } from '@modules/service-order/service-order-plot-coverage';
 import {
   and,
@@ -53,6 +56,7 @@ const EXCLUDED_SERVICE_ORDER_IDS = [
 
 type ServiceOrderProgressMetrics = Pick<
   ServiceOrderWithDetails,
+  | 'metrics'
   | 'plannedHectares'
   | 'totalAppliedHectares'
   | 'grossAppliedAreaHa'
@@ -66,9 +70,11 @@ type ServiceOrderProgressMetrics = Pick<
   | 'completedHectares'
   | 'pendingHectares'
   | 'completedPlots'
+  | 'inProgressPlots'
   | 'pendingPlots'
   | 'applicationsCount'
   | 'plotsWithApplications'
+  | 'applicationsWithoutPlotCount'
   | 'totalPlots'
   | 'myAppliedHectares'
   | 'myApplicationsCount'
@@ -76,7 +82,9 @@ type ServiceOrderProgressMetrics = Pick<
 
 export class ServiceOrderRepository {
   private getEmptyProgressMetrics(): ServiceOrderProgressMetrics {
+    const metrics = buildServiceOrderMetrics([]);
     return {
+      metrics,
       plannedHectares: 0,
       totalAppliedHectares: 0,
       grossAppliedAreaHa: 0,
@@ -90,18 +98,15 @@ export class ServiceOrderRepository {
       completedHectares: 0,
       pendingHectares: 0,
       completedPlots: 0,
+      inProgressPlots: 0,
       pendingPlots: 0,
       applicationsCount: 0,
       plotsWithApplications: 0,
+      applicationsWithoutPlotCount: 0,
       totalPlots: 0,
       myAppliedHectares: 0,
       myApplicationsCount: 0,
     };
-  }
-
-  private calculateProgressPercent(completedHectares: number, plannedHectares: number): number {
-    if (plannedHectares <= 0) return 0;
-    return Number(((completedHectares / plannedHectares) * 100).toFixed(2));
   }
 
   public async getPlotCoverageAssessmentsByServiceOrderIds(
@@ -163,7 +168,7 @@ export class ServiceOrderRepository {
           serviceOrderId: applications.serviceOrderId,
           totalAppliedHectares: sql<string>`COALESCE(SUM(${applications.hectares}), 0)`,
           applicationsCount: sql<number>`COUNT(${applications.id})`,
-          plotsWithApplications: sql<number>`COUNT(DISTINCT ${applications.plotId})`,
+          applicationsWithoutPlotCount: sql<number>`COUNT(*) FILTER (WHERE ${applications.plotId} IS NULL)`,
         })
         .from(applications)
         .where(
@@ -192,37 +197,35 @@ export class ServiceOrderRepository {
         : Promise.resolve([]),
     ]);
 
-    canonicalCoverage.forEach((plot) => {
-      const current =
-        metricsByServiceOrderId.get(plot.serviceOrderId) ?? this.getEmptyProgressMetrics();
-      const registeredArea = Number(plot.registeredAreaHectares) || 0;
-      current.plannedHectares += registeredArea;
-      current.totalPlots += 1;
-      if (plot.status === 'COMPLETED') {
-        current.completedHectares += registeredArea;
-        current.registeredCompletedAreaHa += registeredArea;
-        current.completedPlots += 1;
-      } else if (plot.derivedStatus === 'IN_PROGRESS') {
-        const inProgressAppliedArea = Number(plot.grossAppliedHectares) || 0;
-        current.inProgressAppliedAreaHa += inProgressAppliedArea;
-        current.pendingHectares += registeredArea;
-        current.pendingPlots += 1;
-      } else {
-        current.pendingHectares += registeredArea;
-        current.pendingPlots += 1;
-      }
-      metricsByServiceOrderId.set(plot.serviceOrderId, current);
+    const coverageByServiceOrderId = new Map<string, PlotCoverageAssessment[]>();
+    canonicalCoverage.forEach((assessment) => {
+      const current = coverageByServiceOrderId.get(assessment.serviceOrderId) ?? [];
+      current.push(assessment);
+      coverageByServiceOrderId.set(assessment.serviceOrderId, current);
     });
+    const applicationsByServiceOrderId = new Map(
+      appliedRows.flatMap((row) =>
+        row.serviceOrderId
+          ? [
+              [
+                row.serviceOrderId,
+                {
+                  grossAppliedAreaHa: row.totalAppliedHectares,
+                  applicationsCount: Number(row.applicationsCount || 0),
+                  applicationsWithoutPlotCount: Number(row.applicationsWithoutPlotCount || 0),
+                },
+              ] as const,
+            ]
+          : [],
+      ),
+    );
 
-    appliedRows.forEach((row) => {
-      if (!row.serviceOrderId) return;
-      const current =
-        metricsByServiceOrderId.get(row.serviceOrderId) ?? this.getEmptyProgressMetrics();
-      current.totalAppliedHectares = Number(row.totalAppliedHectares || 0);
-      current.grossAppliedAreaHa = Number(row.totalAppliedHectares || 0);
-      current.applicationsCount = Number(row.applicationsCount || 0);
-      current.plotsWithApplications = Number(row.plotsWithApplications || 0);
-      metricsByServiceOrderId.set(row.serviceOrderId, current);
+    uniqueServiceOrderIds.forEach((serviceOrderId) => {
+      const metrics = buildServiceOrderMetrics(
+        coverageByServiceOrderId.get(serviceOrderId) ?? [],
+        applicationsByServiceOrderId.get(serviceOrderId),
+      );
+      metricsByServiceOrderId.set(serviceOrderId, this.toProgressMetrics(metrics));
     });
 
     myAppliedRows.forEach((row) => {
@@ -234,32 +237,16 @@ export class ServiceOrderRepository {
       metricsByServiceOrderId.set(row.serviceOrderId, current);
     });
 
-    metricsByServiceOrderId.forEach((metrics) => {
-      metrics.plannedHectares = Number(metrics.plannedHectares.toFixed(2));
-      metrics.completedHectares = Number(metrics.completedHectares.toFixed(2));
-      metrics.pendingHectares = Number(metrics.pendingHectares.toFixed(2));
-      metrics.registeredCompletedAreaHa = Number(metrics.registeredCompletedAreaHa.toFixed(2));
-      metrics.inProgressAppliedAreaHa = Number(metrics.inProgressAppliedAreaHa.toFixed(2));
-      metrics.consolidatedPlotAreaHa = Number(
-        (metrics.registeredCompletedAreaHa + metrics.inProgressAppliedAreaHa).toFixed(2),
-      );
-      metrics.grossAppliedAreaHa = Number(metrics.grossAppliedAreaHa.toFixed(2));
-      metrics.registeredProgressPercent = this.calculateProgressPercent(
-        metrics.registeredCompletedAreaHa,
-        metrics.plannedHectares,
-      );
-      metrics.grossAppliedProgressPercent = this.calculateProgressPercent(
-        metrics.grossAppliedAreaHa,
-        metrics.plannedHectares,
-      );
-      metrics.consolidatedProgressPercent = this.calculateProgressPercent(
-        metrics.consolidatedPlotAreaHa,
-        metrics.plannedHectares,
-      );
-      metrics.progressPercent = metrics.registeredProgressPercent;
-    });
-
     return metricsByServiceOrderId;
+  }
+
+  private toProgressMetrics(metrics: ServiceOrderMetrics): ServiceOrderProgressMetrics {
+    return {
+      metrics,
+      ...buildLegacyServiceOrderMetricAliases(metrics),
+      myAppliedHectares: 0,
+      myApplicationsCount: 0,
+    };
   }
 
   private async attachProgressMetrics<T extends { id: string }>(

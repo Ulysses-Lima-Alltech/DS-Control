@@ -1,10 +1,12 @@
 import type { serviceOrders } from '@infra/database/schema';
+import type { ServiceOrderMetrics } from '@modules/service-order/service-order-plot-coverage';
 
 export type ServiceOrder = typeof serviceOrders.$inferSelect;
 
 export type CreateServiceOrder = typeof serviceOrders.$inferInsert;
 
 export type ServiceOrderWithDetails = ServiceOrder & {
+  metrics: ServiceOrderMetrics;
   plannedHectares: number;
   totalAppliedHectares: number;
   grossAppliedAreaHa: number;
@@ -18,9 +20,11 @@ export type ServiceOrderWithDetails = ServiceOrder & {
   completedHectares: number;
   pendingHectares: number;
   completedPlots: number;
+  inProgressPlots: number;
   pendingPlots: number;
   applicationsCount: number;
   plotsWithApplications: number;
+  applicationsWithoutPlotCount: number;
   totalPlots: number;
   myAppliedHectares: number;
   myApplicationsCount: number;
