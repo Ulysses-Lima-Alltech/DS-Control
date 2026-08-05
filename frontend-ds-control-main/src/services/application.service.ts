@@ -12,6 +12,7 @@ import {
   ApplicationStats,
 } from '@/types/applications.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
+import { normalizeApplicationSearch } from '@/utils/application-search';
 
 import { api } from './api.service';
 
@@ -79,7 +80,8 @@ export async function getAllApplications(
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.append('page', params.page);
   if (params?.limit) searchParams.append('limit', params.limit);
-  if (params?.search) searchParams.append('search', params.search);
+  const normalizedSearch = normalizeApplicationSearch(params?.search);
+  if (normalizedSearch) searchParams.append('search', normalizedSearch);
   if (params?.serviceOrderStatus)
     searchParams.append('serviceOrderStatus', params.serviceOrderStatus);
   if (params?.farmId) searchParams.append('farmId', params.farmId);

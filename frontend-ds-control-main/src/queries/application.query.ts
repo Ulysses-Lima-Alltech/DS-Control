@@ -1,6 +1,7 @@
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 
 import * as ApplicationService from '@/services/application.service';
+import { normalizeApplicationSearch } from '@/utils/application-search';
 
 export const useGetAllApplications = (
   params?: ApplicationService.GetAllApplicationsParams,
@@ -9,9 +10,13 @@ export const useGetAllApplications = (
     'queryKey' | 'queryFn'
   >
 ) => {
+  const normalizedParams = params
+    ? { ...params, search: normalizeApplicationSearch(params.search) }
+    : undefined;
+
   return useQuery<ApplicationService.GetAllApplicationsResponse, Error>({
-    queryKey: ['applications', params],
-    queryFn: () => ApplicationService.getAllApplications(params),
+    queryKey: ['applications', normalizedParams],
+    queryFn: () => ApplicationService.getAllApplications(normalizedParams),
     ...options,
   });
 };

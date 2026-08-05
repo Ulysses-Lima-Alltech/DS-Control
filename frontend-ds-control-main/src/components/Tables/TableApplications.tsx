@@ -70,6 +70,7 @@ import { Product } from '@/types/product.type';
 import { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
+import { normalizeApplicationSearch } from '@/utils/application-search';
 import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
 
 interface TableApplicationsProps {
@@ -482,9 +483,10 @@ export const TableApplications = ({
   const debouncedSearch = useMemo(
     () =>
       debounce((searchTerm: string) => {
-        setDebouncedSearchValue(searchTerm);
+        const normalizedSearch = normalizeApplicationSearch(searchTerm) || '';
+        setDebouncedSearchValue(normalizedSearch);
         setCurrentPage(1);
-        onFilterChange?.setSearch(searchTerm);
+        onFilterChange?.setSearch(normalizedSearch);
       }, 600),
     [onFilterChange]
   );
