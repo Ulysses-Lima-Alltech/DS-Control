@@ -20,3 +20,13 @@ export function withoutOfflinePlotApplicationDetails<T extends Record<string, un
   delete safe.applications;
   return safe;
 }
+
+export function withoutOfflineServiceOrderJoinDetails<T extends Record<string, unknown>>(
+  serviceOrder: T,
+): Omit<T, 'serviceOrderPilots' | 'serviceOrderFarms' | 'serviceOrderPlots'> {
+  const safe = { ...serviceOrder };
+  delete safe.serviceOrderPilots;
+  delete safe.serviceOrderFarms;
+  delete safe.serviceOrderPlots;
+  return safe;
+}

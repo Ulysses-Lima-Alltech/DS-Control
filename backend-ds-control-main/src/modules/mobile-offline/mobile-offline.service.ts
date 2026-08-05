@@ -17,7 +17,11 @@ import { ServiceOrderRepository } from '@repositories/service-order/service-orde
 import { UserType } from '@repositories/users/user.types';
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { buildOfflineDatasetManifest } from './offline-dataset-manifest';
-import { toSafeOfflineUser, withoutOfflinePlotApplicationDetails } from './offline-dataset-scope';
+import {
+  toSafeOfflineUser,
+  withoutOfflinePlotApplicationDetails,
+  withoutOfflineServiceOrderJoinDetails,
+} from './offline-dataset-scope';
 
 const MAPBOX_STYLE_URL = 'mapbox://styles/mapbox/satellite-streets-v12';
 const OFFLINE_MIN_ZOOM = 10;
@@ -224,7 +228,7 @@ export class MobileOfflineService {
     const serviceOrdersList = assignedOpenOrders
       .filter((serviceOrder) => selectedIdSet.has(serviceOrder.id))
       .map((serviceOrder) => ({
-        ...serviceOrder,
+        ...withoutOfflineServiceOrderJoinDetails(serviceOrder),
         farms: [...(serviceOrder.farms ?? [])].sort((left, right) =>
           left.id.localeCompare(right.id),
         ),

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { toSafeOfflineUser, withoutOfflinePlotApplicationDetails } from './offline-dataset-scope';
+import {
+  toSafeOfflineUser,
+  withoutOfflinePlotApplicationDetails,
+  withoutOfflineServiceOrderJoinDetails,
+} from './offline-dataset-scope';
 
 describe('offline dataset user scope', () => {
   it('never serializes password or password-reset state', () => {
@@ -30,5 +34,16 @@ describe('offline dataset user scope', () => {
 
     expect(safe).toEqual({ id: 'plot-1', status: 'COMPLETED' });
     expect(safe).not.toHaveProperty('applications');
+  });
+
+  it('removes raw service-order joins that contain unsanitized users', () => {
+    const safe = withoutOfflineServiceOrderJoinDetails({
+      id: 'order-1',
+      serviceOrderPilots: [{ pilot: { password: 'hash-must-not-leave-server' } }],
+      serviceOrderFarms: [{ farm: { id: 'farm-1' } }],
+      serviceOrderPlots: [{ plot: { id: 'plot-1' } }],
+    });
+
+    expect(safe).toEqual({ id: 'order-1' });
   });
 });
