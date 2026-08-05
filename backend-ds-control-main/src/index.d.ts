@@ -6,6 +6,7 @@ declare module 'fastify' {
       userId: string;
       email: string;
       type: 'backoffice' | 'pilot' | 'farmer';
+      customerId: string | null;
       mustChangePassword: boolean;
       tokenId: string;
     }

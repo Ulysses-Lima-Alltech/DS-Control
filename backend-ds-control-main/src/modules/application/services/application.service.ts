@@ -514,6 +514,7 @@ export class ApplicationService {
     page: number,
     limit: number,
     requestUserId?: string,
+    customerId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for pilot %s", pilotId);
     await this.enforcePilotOwnershipScope(requestUserId, pilotId);
@@ -523,6 +524,18 @@ export class ApplicationService {
     if(!pilot) {
       app.log.warn("[ApplicationService] - Pilot Id not found: %s", pilotId);
       throw new AppError("ID do piloto não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    if (customerId) {
+      return this.listApplications(
+        page,
+        limit,
+        undefined,
+        { pilotId, customerId },
+        undefined,
+        undefined,
+        requestUserId,
+      );
     }
 
     const queryResult = await this.applicationRepository.getApplicationsByPilotId(pilotId, page, limit);
@@ -550,6 +563,7 @@ export class ApplicationService {
     farmId: string,
     page: number,
     limit: number,
+    customerId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for farm %s", farmId);
 
@@ -558,6 +572,10 @@ export class ApplicationService {
     if(!farm) {
       app.log.warn("[ApplicationService] -  Farm ID not found: %s", farmId);
       throw new AppError("ID da fazenda não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    if (customerId && farm.customerId !== customerId) {
+      throw new AppError("Recurso não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     }
 
     const queryResult = await this.applicationRepository.getApplicationsByFarmId(farmId, page, limit);
@@ -586,6 +604,7 @@ export class ApplicationService {
     page: number,
     limit: number,
     requestUserId?: string,
+    customerId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for service order %s", serviceOrderId);
 
@@ -594,6 +613,10 @@ export class ApplicationService {
     if(!serviceOrder) {
         app.log.warn("[ApplicationService] - Service Order ID not Found: %s", serviceOrder);
         throw new AppError("Id da ordem de serviço não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    if (customerId && serviceOrder.customerId !== customerId) {
+      throw new AppError("Recurso não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     }
 
 
@@ -624,6 +647,7 @@ export class ApplicationService {
     plotId: string,
     page: number,
     limit: number,
+    customerId?: string,
   ): Promise<PaginatedRequest<typeof ApplicationWithRelationsViewModelSchema>> {
     app.log.info("[ApplicationService] - Fetching applications for plot %s", plotId);
 
@@ -632,6 +656,10 @@ export class ApplicationService {
     if(!plot) {
       app.log.warn("[ApplicationService] - Plot ID not found");
       throw new AppError("ID do talhão não encontrado", HTTP_STATUS_CODES.BAD_REQUEST);
+    }
+
+    if (customerId && plot.customerId !== customerId) {
+      throw new AppError("Recurso não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
     }
 
     const queryResult = await this.applicationRepository.getApplicationsByPlotId(plotId, page, limit);

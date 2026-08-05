@@ -3,6 +3,7 @@ import type { CreatePlotDTO } from "./dto/create-plot.dto";
 import type { UpdatePlotDTO } from "./dto/update-plot.dto";
 
 import AppError from "@common/handlers/app-error";
+import { assertCustomerScope, resolveCustomerScope } from "@common/security/customer-scope";
 import type { PaginatedRequestQueryString } from "@common/types/paginated-request.types";
 import { PlotVM } from "@models/plot.vm";
 import { app } from "@modules/app/app.module";
@@ -50,7 +51,8 @@ export class PlotController {
       app.log.info("[PlotController] - Listing plots");
       const page = request.query.page ?? 1;
       const limit = request.query.limit ?? 10;
-      const plots = await this.service.listPlots(page, limit);
+      const customerId = resolveCustomerScope(request.payload);
+      const plots = await this.service.listPlots(page, limit, customerId);
 
       app.log.info("[PlotController] - Successfully listed plots");
       return reply.status(200).send({
@@ -76,6 +78,7 @@ export class PlotController {
     try {
       app.log.info("[PlotController] - Fetching plot details for plot %s", request.params.id);
       const plotDb = await this.service.getPlotById(request.params.id);
+      assertCustomerScope(request.payload, plotDb.customerId);
       const plot = PlotVM.toViewModel(plotDb);
 
       app.log.info("[PlotController] - Successfully retrieved plot details");
@@ -101,7 +104,8 @@ export class PlotController {
   ) => {
     try {
       app.log.info("[PlotController] - Fetching plots for farm %s", request.params.farmId);
-      const plots = await this.service.getPlotsByFarmId(request.params.farmId);
+      const customerId = resolveCustomerScope(request.payload);
+      const plots = await this.service.getPlotsByFarmId(request.params.farmId, customerId);
 
       app.log.info("[PlotController] - Successfully retrieved plots for farm");
       return reply.status(200).send({
@@ -125,8 +129,9 @@ export class PlotController {
     reply: FastifyReply,
   ) => {
     try {
-      app.log.info("[PlotController] - Fetching plots for customer %s", request.params.customerId);
-      const plots = await this.service.getPlotsByCustomerId(request.params.customerId);
+      const customerId = resolveCustomerScope(request.payload, request.params.customerId);
+      app.log.info("[PlotController] - Fetching plots for customer %s", customerId);
+      const plots = await this.service.getPlotsByCustomerId(customerId!);
 
       app.log.info("[PlotController] - Successfully retrieved plots for customer");
       return reply.status(200).send({

@@ -6,6 +6,7 @@ import type {
 
 import { PaginatedRequestQueryStringSchema, PaginatedRequestSchema } from "@common/types/paginated-request.types";
 import { AuthenticationJWT } from "@middleware/authentication-jwt-middleware";
+import { BackofficeOnly } from "@middleware/backoffice-only-middleware";
 import { ApplicationWithRelationsViewModelSchema } from "@models/application.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
@@ -201,7 +202,7 @@ export function ApplicationV1Routes(
         }),
       },
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.applicationStatsSummary,
   })
 
@@ -228,7 +229,7 @@ export function ApplicationV1Routes(
         }),
       }
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.getApplicationsPerformance,
   })
 

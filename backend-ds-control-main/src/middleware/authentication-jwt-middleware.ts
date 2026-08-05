@@ -63,6 +63,7 @@ export async function AuthenticationJWT(
       userId: payload.userId as string,
       email: payload.email as string,
       type: user.type,
+      customerId: user.customerId,
       mustChangePassword: user.mustChangePassword,
       tokenId: payload.tokenId as string,
     } 

@@ -69,9 +69,12 @@ export class PlotRepository {
   public async getAllPlots(
     page: number,
     limit: number,
+    customerId?: string,
   ): Promise<Plot[]> {
     const plotsList = await db.query.plots.findMany({
-      where: isNull(plots.deletedAt),
+      where: customerId
+        ? and(eq(plots.customerId, customerId), isNull(plots.deletedAt))
+        : isNull(plots.deletedAt),
       offset: (page - 1) * limit,
       limit,
     });

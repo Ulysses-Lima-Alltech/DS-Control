@@ -94,13 +94,20 @@ export class PlotService {
   public async listPlots(
     page: number,
     limit: number,
+    customerId?: string,
   ): Promise<PaginatedRequest<typeof PlotViewModelSchema>> {
     app.log.info("[PlotService] - Listing all plots");
 
-    const queryResult = await this.plotRepository.getAllPlots(page, limit);
-    const [countResult] = await db.select({ count: count() }).from(plots);
+    const queryResult = await this.plotRepository.getAllPlots(page, limit, customerId);
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(plots)
+      .where(
+        customerId
+          ? and(eq(plots.customerId, customerId), isNull(plots.deletedAt))
+          : isNull(plots.deletedAt),
+      );
 
-    console.log(queryResult);
     app.log.info("[PlotService] - Retrieved %d plots", countResult.count);
 
     return {
@@ -142,12 +149,14 @@ export class PlotService {
    * @param {string} farmId - The farm's ID
    * @returns {Promise<Plot[]>} The list of plots for the farm
    */
-  public async getPlotsByFarmId(farmId: string): Promise<Plot[]> {
+  public async getPlotsByFarmId(farmId: string, customerId?: string): Promise<Plot[]> {
     app.log.info("[PlotService] - Fetching plots for farm %s", farmId);
 
     // Validate that farm exists
     const farm = await db.query.farms.findFirst({
-      where: eq(farms.id, farmId),
+      where: customerId
+        ? and(eq(farms.id, farmId), eq(farms.customerId, customerId))
+        : eq(farms.id, farmId),
     });
 
     if (!farm) {

@@ -6,6 +6,7 @@ import type {
 
 import { PaginatedRequestQueryStringSchema, PaginatedRequestSchema } from "@common/types/paginated-request.types";
 import { AuthenticationJWT } from "@middleware/authentication-jwt-middleware";
+import { BackofficeOnly } from "@middleware/backoffice-only-middleware";
 import { PlotViewModelSchema } from "@models/plot.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
@@ -45,7 +46,7 @@ export function PlotV1Routes(
       summary: "Create plot",
       tags: ["plots"],
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.createPlot,
   });
 
@@ -106,7 +107,7 @@ export function PlotV1Routes(
         id: z.string().uuid(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updatePlot,
   });
 
@@ -121,9 +122,9 @@ export function PlotV1Routes(
         id: z.string().uuid(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.deletePlot,
   });
 
   done();
-} 
+}

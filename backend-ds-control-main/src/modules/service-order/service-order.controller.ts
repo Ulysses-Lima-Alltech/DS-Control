@@ -6,6 +6,7 @@ import type { UpdateServiceOrderDTO } from './dto/update-service-order.dto';
 import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order-plot-status.dto';
 
 import AppError from '@common/handlers/app-error';
+import { assertCustomerScope, resolveCustomerScope } from '@common/security/customer-scope';
 import { app } from '@modules/app/app.module';
 import type { GetServiceOrderQueryString } from './dto/get-all-service-order.dto';
 import type { ServiceOrderSearchQueryStringByPilot } from './dto/get-all-service-orders-by-pilot-dto';
@@ -69,6 +70,7 @@ export class ServiceOrderController {
         request.query,
         request.payload?.userId,
       );
+      assertCustomerScope(request.payload, serviceOrder.customerId);
 
       app.log.info('[ServiceOrderController] - Successfully retrieved service order details');
       return reply.status(200).send(serviceOrder);
@@ -102,6 +104,7 @@ export class ServiceOrderController {
         request.params.id,
         request.body,
         request.payload?.userId,
+        resolveCustomerScope(request.payload),
       );
       return reply.status(200).send(reportData);
     } catch (error) {
@@ -124,7 +127,11 @@ export class ServiceOrderController {
     try {
       app.log.info('[ServiceOrderController] - Listing service orders');
 
-      const serviceOrders = await this.service.getAllServiceOrders(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const serviceOrders = await this.service.getAllServiceOrders({
+        ...request.query,
+        customerId,
+      });
 
       app.log.info('[ServiceOrderController] - Successfully listed service orders');
 
@@ -291,7 +298,8 @@ export class ServiceOrderController {
     try {
       app.log.info('[ServiceOrderController] - Fetching general statistics');
 
-      const stats = await this.service.getGeneralStats(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const stats = await this.service.getGeneralStats({ ...request.query, customerId });
 
       app.log.info('[ServiceOrderController] - Successfully retrieved general statistics');
       return reply.status(200).send({

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, HookHandlerDoneFunction } f
 
 import { PaginatedRequestSchema } from '@common/types/paginated-request.types';
 import { AuthenticationJWT } from '@middleware/authentication-jwt-middleware';
+import { BackofficeOnly } from '@middleware/backoffice-only-middleware';
 import { ServiceOrderWithDetailsSchema } from '@models/service-order.vm';
 import type { FastifyZodOpenApiTypeProvider } from 'fastify-zod-openapi';
 import z from 'zod';
@@ -49,7 +50,7 @@ export function ServiceOrderV1Routes(
       summary: 'Create service order',
       tags: ['service-orders'],
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.createServiceOrder,
   });
 
@@ -136,7 +137,7 @@ export function ServiceOrderV1Routes(
         200: ServiceOrderWithDetailsSchema,
       },
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updateServiceOrder,
   });
 
@@ -171,7 +172,7 @@ export function ServiceOrderV1Routes(
         200: ServiceOrderWithDetailsSchema,
       },
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updateServiceOrderStatus,
   });
 

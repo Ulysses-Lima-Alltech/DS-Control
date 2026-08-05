@@ -105,11 +105,14 @@ export class ServiceOrderService {
     serviceOrderId: string,
     dto: CompletedPlotsReportRequestDTO,
     requestUserId?: string,
+    customerId?: string,
   ): Promise<CompletedPlotsReportResponseDTO> {
     await this.getAuthorizedPilotIdForServiceOrder(serviceOrderId, requestUserId);
 
     const serviceOrder = await db.query.serviceOrders.findFirst({
-      where: eq(serviceOrders.id, serviceOrderId),
+      where: customerId
+        ? and(eq(serviceOrders.id, serviceOrderId), eq(serviceOrders.customerId, customerId))
+        : eq(serviceOrders.id, serviceOrderId),
       columns: { id: true },
     });
     if (!serviceOrder) {

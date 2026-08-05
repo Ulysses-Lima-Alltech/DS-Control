@@ -3,6 +3,7 @@ import type { CreateFarmDTO } from './dto/create-farm.dto';
 import type { UpdateFarmDTO } from './dto/update-farm.dto';
 
 import AppError from '@common/handlers/app-error';
+import { assertCustomerScope, resolveCustomerScope } from '@common/security/customer-scope';
 import type { PaginatedRequestQueryString } from '@common/types/paginated-request.types';
 import { FarmVM } from '@models/farm.vm';
 import { app } from '@modules/app/app.module';
@@ -59,7 +60,8 @@ export class FarmController {
     try {
       app.log.info('[FarmController] - Listing farms');
 
-      const result = await this.service.listFarms(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const result = await this.service.listFarms({ ...request.query, customerId });
 
       app.log.info('[FarmController] - Successfully listed farms');
       return reply.status(200).send({
@@ -85,7 +87,8 @@ export class FarmController {
     reply: FastifyReply,
   ) => {
     try {
-      const { farmId, customerId } = request.query;
+      const { farmId } = request.query;
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
 
       app.log.info(
         '[FarmController] - Fetching farms with farmId=%s and customerId=%s',
@@ -133,6 +136,7 @@ export class FarmController {
         request.query.includeGeoJson ?? false,
         request.query.includeCustomer ?? false,
       );
+      assertCustomerScope(request.payload, farmDb.customerId);
       const farm = FarmVM.toViewModelWithPlots(farmDb);
 
       app.log.info('[FarmController] - Successfully retrieved farm details');
@@ -162,10 +166,11 @@ export class FarmController {
     reply: FastifyReply,
   ) => {
     try {
-      app.log.info('[FarmController] - Fetching farms for customer %s', request.params.customerId);
+      const customerId = resolveCustomerScope(request.payload, request.params.customerId);
+      app.log.info('[FarmController] - Fetching farms for customer %s', customerId);
       const page = request.query.page ?? 1;
       const limit = request.query.limit ?? 10;
-      const farms = await this.service.getFarmsByCustomerId(request.params.customerId, page, limit);
+      const farms = await this.service.getFarmsByCustomerId(customerId!, page, limit);
 
       app.log.info('[FarmController] - Successfully retrieved farms for customer');
       return reply.status(200).send({

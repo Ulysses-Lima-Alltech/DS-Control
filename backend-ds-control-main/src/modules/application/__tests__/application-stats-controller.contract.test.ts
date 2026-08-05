@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mockTopFarms = vi.fn();
 const mockEvolution = vi.fn();
+const mockListApplications = vi.fn();
 
 vi.mock("@modules/app/app.module", () => ({
   app: {
@@ -18,6 +19,7 @@ vi.mock("../services/application.service", () => ({
     return {
       getTopFarmsStats: mockTopFarms,
       getApplicationsEvolution: mockEvolution,
+      listApplications: mockListApplications,
     };
   },
 }));
@@ -85,5 +87,43 @@ describe("ApplicationController — contrato de resposta dos endpoints de estat�
       message: "Applications evolution retrieved successfully",
       evolution: payload,
     });
+  });
+
+  it("força estatísticas farmer ao cliente autenticado e desativa ignoreFilters", async () => {
+    mockTopFarms.mockResolvedValue([]);
+    const customerId = "11111111-1111-4111-8111-111111111111";
+    const { reply } = createReplyMock();
+    const request = {
+      query: { limit: 5, ignoreFilters: true },
+      payload: { type: "farmer", customerId },
+    } as unknown as FastifyRequest;
+
+    await controller.getTopFarmsStats(request as never, reply);
+
+    expect(mockTopFarms).toHaveBeenCalledWith({
+      limit: 5,
+      ignoreFilters: false,
+      customerId,
+    });
+  });
+
+  it("rejeita customerId arbitrário antes de listar aplicações farmer", async () => {
+    const { status, reply } = createReplyMock();
+    const request = {
+      query: {
+        page: 1,
+        limit: 10,
+        customerId: "22222222-2222-4222-8222-222222222222",
+      },
+      payload: {
+        type: "farmer",
+        customerId: "11111111-1111-4111-8111-111111111111",
+      },
+    } as unknown as FastifyRequest;
+
+    await controller.listApplications(request as never, reply);
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(mockListApplications).not.toHaveBeenCalled();
   });
 });

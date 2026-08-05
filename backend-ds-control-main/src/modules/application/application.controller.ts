@@ -9,6 +9,7 @@ import type { DashboardMetricsQueryString } from "./dto/dashboard-metrics.dto";
 import type { ApplicationIssueFilter } from "./dto/get-all-application.dto";
 
 import AppError from "@common/handlers/app-error";
+import { assertCustomerScope, resolveCustomerScope } from "@common/security/customer-scope";
 import type { PaginatedRequestQueryString } from "@common/types/paginated-request.types";
 import { ApplicationVM } from "@models/application.vm";
 import { app } from "@modules/app/app.module";
@@ -100,6 +101,7 @@ export class ApplicationController {
       const page = request.query.page ?? 1;
       const limit = request.query.limit ?? 10;
       const search = request.query.search;
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
       const filters = {
         serviceOrderStatus: request.query.serviceOrderStatus,
         farmId: request.query.farmId,
@@ -107,7 +109,7 @@ export class ApplicationController {
         productId: request.query.productId,
         cropSeasonId: request.query.cropSeasonId,
         cropSeasonIds: request.query.cropSeasonIds,
-        customerId: request.query.customerId,
+        customerId,
         serviceOrderId: request.query.serviceOrderId,
         assistantId: request.query.assistantId,
         droneId: request.query.droneId,
@@ -175,6 +177,10 @@ export class ApplicationController {
     try {
       app.log.info("[ApplicationController] - Fetching application details for application %s", request.params.id);
       const applicationDb = await this.service.getApplicationById(request.params.id);
+      assertCustomerScope(
+        request.payload,
+        applicationDb.farm?.customer.id ?? applicationDb.plot?.farm.customer.id,
+      );
       const application = ApplicationVM.toViewModelWithRelations(applicationDb);
 
       app.log.info("[ApplicationController] - Successfully retrieved application details");
@@ -202,15 +208,16 @@ export class ApplicationController {
     reply: FastifyReply,
   ) => {
     try {
+      const customerId = resolveCustomerScope(request.payload, request.params.customerId);
       app.log.info(
         "[ApplicationController] - Listing applications for customer %s",
-        request.params.customerId,
+        customerId,
       );
       
       const page = request.query.page ?? 1;
       const limit = request.query.limit ?? 10;
       const result = await this.service.getApplicationsByCustomerId(
-        request.params.customerId,
+        customerId!,
         page,
         limit,
       );
@@ -253,6 +260,7 @@ export class ApplicationController {
         page,
         limit,
         request.payload?.userId,
+        resolveCustomerScope(request.payload),
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for pilot");
@@ -292,6 +300,7 @@ export class ApplicationController {
         request.params.farmId,
         page,
         limit,
+        resolveCustomerScope(request.payload),
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for farm");
@@ -332,6 +341,7 @@ export class ApplicationController {
         page,
         limit,
         request.payload?.userId,
+        resolveCustomerScope(request.payload),
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for service order");
@@ -371,6 +381,7 @@ export class ApplicationController {
         request.params.plotId,
         page,
         limit,
+        resolveCustomerScope(request.payload),
       );
 
       app.log.info("[ApplicationController] - Successfully listed applications for plot");
@@ -508,7 +519,12 @@ export class ApplicationController {
     try {
       app.log.info('[ApplicationController] -  Fetching general statistics');
 
-      const stats = await this.service.getGeneralStats(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const stats = await this.service.getGeneralStats({
+        ...request.query,
+        customerId,
+        ignoreFilters: customerId ? false : request.query.ignoreFilters,
+      });
 
       app.log.info('[ApplicationController] - Successfully retrieved general statistics');
       return reply.status(200).send({
@@ -541,7 +557,12 @@ export class ApplicationController {
     try {
       app.log.info("[ApplicationController] - Fetching top farms statistics");
 
-      const topFarms = await this.service.getTopFarmsStats(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const topFarms = await this.service.getTopFarmsStats({
+        ...request.query,
+        customerId,
+        ignoreFilters: customerId ? false : request.query.ignoreFilters,
+      });
 
       app.log.info("[ApplicationController] - Successfully retrieved top farms statistics");
       return reply.status(200).send({
@@ -573,7 +594,12 @@ export class ApplicationController {
     try {
       app.log.info("[ApplicationController] - Fetching applications evolution");
 
-      const evolution = await this.service.getApplicationsEvolution(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const evolution = await this.service.getApplicationsEvolution({
+        ...request.query,
+        customerId,
+        ignoreFilters: customerId ? false : request.query.ignoreFilters,
+      });
 
       app.log.info("[ApplicationController] - Successfully retrieved applications evolution");
       return reply.status(200).send({
@@ -605,7 +631,12 @@ export class ApplicationController {
     try {
       app.log.info("[ApplicationController] - Fetching by-pilot operational stats");
 
-      const byPilot = await this.service.getStatsByPilot(request.query);
+      const customerId = resolveCustomerScope(request.payload, request.query.customerId);
+      const byPilot = await this.service.getStatsByPilot({
+        ...request.query,
+        customerId,
+        ignoreFilters: customerId ? false : request.query.ignoreFilters,
+      });
 
       app.log.info("[ApplicationController] - Successfully retrieved by-pilot operational stats");
       return reply.status(200).send({
@@ -637,7 +668,11 @@ export class ApplicationController {
     try {
       app.log.info('[ApplicationController] - Fetching dashboard metrics');
 
-      const metrics = await this.service.getDashboardMetrics(request.query);
+      const customerId = resolveCustomerScope(request.payload);
+      const metrics = await this.service.getDashboardMetrics({
+        ...request.query,
+        customerIds: customerId ? [customerId] : request.query.customerIds,
+      });
 
       app.log.info('[ApplicationController] - Successfully retrieved dashboard metrics');
       return reply.status(200).send({
