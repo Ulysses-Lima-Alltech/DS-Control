@@ -5,6 +5,7 @@ import {
   applications,
   assistants,
   cultureTypes,
+  customers,
   drones,
   farms,
   plots,
@@ -119,15 +120,17 @@ export class MobileOfflineService {
   public async getBootstrap(userId: string) {
     const user = await db.query.users.findFirst({
       where: and(eq(users.id, userId), isNull(users.deletedAt)),
-      with: {
-        customer: true,
-      },
     });
 
     if (!user) {
       throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
     }
 
+    const tenant = user.customerId
+      ? await db.query.customers.findFirst({
+          where: and(eq(customers.id, user.customerId), isNull(customers.deletedAt)),
+        })
+      : null;
     const [serviceOrdersList, farmIds] = await this.getServiceOrdersAndFarmIds(user);
     const farmsList = await this.getFarms(Array.from(farmIds), user);
     const normalizedFarmIds = farmsList.map((farm) => farm.id);
@@ -169,7 +172,7 @@ export class MobileOfflineService {
 
     return {
       user: safeUser,
-      tenant: user.customer ?? null,
+      tenant,
       permissions: this.getPermissions(user.type),
       farms: farmsList,
       plots: farmsList.flatMap((farm) => farm.plots ?? []),
@@ -188,7 +191,6 @@ export class MobileOfflineService {
   public async getDataset(userId: string, requestedServiceOrderIds: string[]) {
     const user = await db.query.users.findFirst({
       where: and(eq(users.id, userId), isNull(users.deletedAt)),
-      with: { customer: true },
     });
     if (!user) {
       throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
@@ -199,6 +201,11 @@ export class MobileOfflineService {
         HTTP_STATUS_CODES.FORBIDDEN,
       );
     }
+    const tenant = user.customerId
+      ? await db.query.customers.findFirst({
+          where: and(eq(customers.id, user.customerId), isNull(customers.deletedAt)),
+        })
+      : null;
 
     const selectedIds = [...new Set(requestedServiceOrderIds)].sort();
     const assignedOpenOrders = await this.serviceOrderRepository.getOpenServiceOrdersByPilotId(
@@ -262,7 +269,7 @@ export class MobileOfflineService {
     const serverTime = new Date().toISOString();
     const payload = {
       user: safePilot,
-      tenant: user.customer ?? null,
+      tenant,
       permissions: this.getPermissions(user.type),
       farms: farmsList,
       plots: farmsList.flatMap((farm) => farm.plots ?? []),
