@@ -5,10 +5,12 @@ import type {
   OfflineDatasetManifest,
   OfflineMapPackStatus,
   OfflineOwner,
+  OfflineOutboxOperation,
   OfflineStatusSnapshot,
 } from '@/offline/offlineTypes';
 import type { Application } from '@/types/applications.type';
 import type { Farm } from '@/types/farm.type';
+import type { OfflineApplication } from '@/types/offline-application.type';
 import type { Route } from '@/types/route.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 
@@ -763,6 +765,479 @@ export async function getOfflineSupportData() {
   ]);
 
   return { assistants, drones, cultureTypes, products };
+}
+
+function toCanonicalLocalApplication(
+  application: OfflineApplication,
+  relations: {
+    serviceOrder: ServiceOrder | null;
+    farm: Farm | null;
+    plot: Record<string, unknown> | null;
+    assistant: Record<string, unknown> | null;
+    drone: Record<string, unknown> | null;
+    culture: Record<string, unknown> | null;
+    product: Record<string, unknown> | null;
+  }
+): Application {
+  return {
+    id: application.localId,
+    serviceOrderId: application.serviceOrderId ?? null,
+    serviceOrder: relations.serviceOrder,
+    pilotId: application.pilotId,
+    pilot: {
+      id: application.pilotId,
+      name: application.pilotName,
+      type: 'pilot',
+    } as Application['pilot'],
+    assistantId: application.assistantId || null,
+    assistant: relations.assistant as Application['assistant'],
+    droneId: application.droneId,
+    drone: relations.drone as Application['drone'],
+    cultureId: application.cultureId,
+    culture: relations.culture as Application['culture'],
+    hectares: application.hectares,
+    date: application.date,
+    applicationDate: application.date,
+    productId: application.productId,
+    product: relations.product as Application['product'],
+    plotId: application.plotId ?? null,
+    plot: relations.plot as Application['plot'],
+    flowRate: application.flowRate,
+    altitude: application.altitude,
+    routeSpacing: application.routeSpacing,
+    dropletSize: application.dropletSize,
+    observations: application.observations || null,
+    createdAt: application.createdAt,
+    updatedAt: application.createdAt,
+    deletedAt: null,
+    farmId: application.farmId ?? null,
+    farm: relations.farm,
+  };
+}
+
+export async function enqueueOfflineApplication(
+  application: OfflineApplication,
+  idempotencyKey = application.localId
+): Promise<void> {
+  const [owner, active, serviceOrders, farms, supportData] = await Promise.all([
+    getActiveOfflineOwner(),
+    getActiveDataset(),
+    getOfflineServiceOrders(),
+    getOfflineFarms(),
+    getOfflineSupportData(),
+  ]);
+  if (!owner || !active || owner.userId !== active.ownerUserId) {
+    throw new Error('Dataset offline ativo nao encontrado para este usuario.');
+  }
+  if (owner.role !== 'pilot' || application.pilotId !== owner.userId) {
+    throw new Error('Aplicacao offline fora do escopo do piloto autenticado.');
+  }
+
+  const serviceOrder = application.serviceOrderId
+    ? (serviceOrders.find((item) => item.id === application.serviceOrderId) ?? null)
+    : null;
+  if (application.serviceOrderId && !serviceOrder) {
+    throw new Error('Ordem de Servico nao pertence ao dataset offline selecionado.');
+  }
+  const farm = application.farmId
+    ? (farms.find((item) => item.id === application.farmId) ?? null)
+    : null;
+  const plot = application.plotId
+    ? (farms.flatMap((item) => item.plots ?? []).find((item) => item.id === application.plotId) ??
+      null)
+    : null;
+  if (application.farmId && !farm) throw new Error('Fazenda fora do dataset offline.');
+  if (application.plotId && !plot) throw new Error('Talhao fora do dataset offline.');
+
+  const localEntity = toCanonicalLocalApplication(application, {
+    serviceOrder,
+    farm,
+    plot: plot as Record<string, unknown> | null,
+    assistant: supportData.assistants.find((item) => item.id === application.assistantId) ?? null,
+    drone: supportData.drones.find((item) => item.id === application.droneId) ?? null,
+    culture: supportData.cultureTypes.find((item) => item.id === application.cultureId) ?? null,
+    product: supportData.products.find((item) => item.id === application.productId) ?? null,
+  });
+  const updatedServiceOrder =
+    application.plotCompleted && serviceOrder && application.plotId
+      ? {
+          ...serviceOrder,
+          plots: (serviceOrder.plots ?? []).map((item) =>
+            item.id === application.plotId ? { ...item, status: 'COMPLETED' as const } : item
+          ),
+        }
+      : null;
+  const payload = {
+    serviceOrderId: application.serviceOrderId ?? null,
+    farmId: application.farmId ?? null,
+    pilotId: application.pilotId,
+    assistantId: application.assistantId || null,
+    droneId: application.droneId,
+    cultureId: application.cultureId,
+    productId: application.productId,
+    plotId: application.plotId ?? null,
+    date: application.date,
+    hectares: application.hectares,
+    flowRate: application.flowRate,
+    altitude: application.altitude,
+    routeSpacing: application.routeSpacing,
+    dropletSize: application.dropletSize,
+    observations: application.observations || null,
+    plotCompleted: Boolean(application.plotCompleted),
+  };
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const existing = await tx.getFirstAsync<{ ownerUserId: string }>(
+      `SELECT owner_user_id AS ownerUserId FROM offline_v2_outbox WHERE idempotency_key = ?`,
+      idempotencyKey
+    );
+    if (existing && existing.ownerUserId !== owner.userId) {
+      throw new Error('Idempotency key pertence a outro usuario.');
+    }
+    await tx.runAsync(
+      `INSERT INTO offline_v2_outbox
+         (idempotency_key, owner_user_id, operation_type, payload_json, local_entity_json,
+          state, attempt_count, created_at, updated_at)
+       VALUES (?, ?, 'CREATE_APPLICATION', ?, ?, 'PENDING', 0, ?, ?)
+       ON CONFLICT(idempotency_key) DO NOTHING`,
+      idempotencyKey,
+      owner.userId,
+      JSON.stringify(payload),
+      JSON.stringify(application),
+      now,
+      now
+    );
+    await tx.runAsync(
+      `INSERT INTO offline_v2_entities
+         (dataset_id, owner_user_id, collection, entity_id, json, updated_at)
+       VALUES (?, ?, 'applications', ?, ?, ?)
+       ON CONFLICT(dataset_id, collection, entity_id) DO UPDATE SET
+         json = excluded.json,
+         updated_at = excluded.updated_at`,
+      active.datasetId,
+      owner.userId,
+      application.localId,
+      JSON.stringify(localEntity),
+      now
+    );
+    if (updatedServiceOrder) {
+      await tx.runAsync(
+        `UPDATE offline_v2_entities SET json = ?, updated_at = ?
+          WHERE dataset_id = ? AND owner_user_id = ?
+            AND collection = 'serviceOrders' AND entity_id = ?`,
+        JSON.stringify(updatedServiceOrder),
+        now,
+        active.datasetId,
+        owner.userId,
+        updatedServiceOrder.id
+      );
+    }
+  });
+}
+
+export async function getQueuedOfflineApplications(): Promise<OfflineApplication[]> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return [];
+  const db = await getDb();
+  const rows = await db.getAllAsync<{
+    localEntityJson: string;
+    state: string;
+    lastError: string | null;
+  }>(
+    `SELECT local_entity_json AS localEntityJson, state, last_error AS lastError
+       FROM offline_v2_outbox
+      WHERE owner_user_id = ? AND state <> 'SUCCEEDED'
+      ORDER BY created_at ASC`,
+    owner.userId
+  );
+  return rows.flatMap((row) => {
+    try {
+      const application = JSON.parse(row.localEntityJson) as OfflineApplication;
+      return [
+        {
+          ...application,
+          syncStatus:
+            row.state === 'SYNCING'
+              ? ('syncing' as const)
+              : row.state === 'RETRY'
+                ? ('error' as const)
+                : ('pending' as const),
+          syncError: row.lastError ?? undefined,
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export async function deleteQueuedOfflineApplication(localId: string): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  const active = await getActiveDataset();
+  if (!owner || !active) return;
+  const db = await getDb();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const operation = await tx.getFirstAsync<{ state: string }>(
+      `SELECT state FROM offline_v2_outbox
+        WHERE idempotency_key = ? AND owner_user_id = ?`,
+      localId,
+      owner.userId
+    );
+    if (!operation) return;
+    if (!['PENDING', 'RETRY'].includes(operation.state)) {
+      throw new Error('Operacao em sincronizacao nao pode ser removida.');
+    }
+    await tx.runAsync(
+      `DELETE FROM offline_v2_outbox WHERE idempotency_key = ? AND owner_user_id = ?`,
+      localId,
+      owner.userId
+    );
+    await tx.runAsync(
+      `DELETE FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ?
+          AND collection = 'applications' AND entity_id = ?`,
+      active.datasetId,
+      owner.userId,
+      localId
+    );
+  });
+}
+
+export async function countPendingOfflineOperations(): Promise<number> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return 0;
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: number }>(
+    `SELECT COUNT(*) AS value FROM offline_v2_outbox
+      WHERE owner_user_id = ? AND state <> 'SUCCEEDED'`,
+    owner.userId
+  );
+  return Number(row?.value ?? 0);
+}
+
+export async function claimOfflineOperations(limit = 20): Promise<OfflineOutboxOperation[]> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return [];
+  const db = await getDb();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const leaseExpiresAt = new Date(now.getTime() + 2 * 60 * 1000).toISOString();
+  const claimed: OfflineOutboxOperation[] = [];
+
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    await tx.runAsync(
+      `UPDATE offline_v2_outbox
+          SET state = 'RETRY', lease_expires_at = NULL, updated_at = ?
+        WHERE owner_user_id = ? AND state = 'SYNCING' AND lease_expires_at <= ?`,
+      nowIso,
+      owner.userId,
+      nowIso
+    );
+    const rows = await tx.getAllAsync<{
+      idempotencyKey: string;
+      operationType: OfflineOutboxOperation['operationType'];
+      payloadJson: string;
+      state: OfflineOutboxOperation['state'];
+      attemptCount: number;
+      createdAt: string;
+      updatedAt: string;
+      nextAttemptAt: string | null;
+      lastError: string | null;
+      remoteEntityId: string | null;
+    }>(
+      `SELECT idempotency_key AS idempotencyKey,
+              operation_type AS operationType,
+              payload_json AS payloadJson,
+              state,
+              attempt_count AS attemptCount,
+              created_at AS createdAt,
+              updated_at AS updatedAt,
+              next_attempt_at AS nextAttemptAt,
+              last_error AS lastError,
+              remote_entity_id AS remoteEntityId
+         FROM offline_v2_outbox
+        WHERE owner_user_id = ?
+          AND state IN ('PENDING', 'RETRY')
+          AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+        ORDER BY created_at ASC
+        LIMIT ?`,
+      owner.userId,
+      nowIso,
+      Math.max(1, Math.min(limit, 100))
+    );
+    for (const row of rows) {
+      await tx.runAsync(
+        `UPDATE offline_v2_outbox
+            SET state = 'SYNCING', attempt_count = attempt_count + 1,
+                lease_expires_at = ?, updated_at = ?, last_error = NULL
+          WHERE idempotency_key = ? AND owner_user_id = ?
+            AND state IN ('PENDING', 'RETRY')`,
+        leaseExpiresAt,
+        nowIso,
+        row.idempotencyKey,
+        owner.userId
+      );
+      claimed.push({
+        idempotencyKey: row.idempotencyKey,
+        ownerUserId: owner.userId,
+        operationType: row.operationType,
+        payload: JSON.parse(row.payloadJson) as Record<string, unknown>,
+        state: 'SYNCING',
+        attemptCount: row.attemptCount + 1,
+        createdAt: row.createdAt,
+        updatedAt: nowIso,
+        nextAttemptAt: row.nextAttemptAt,
+        lastError: row.lastError,
+        remoteEntityId: row.remoteEntityId,
+      });
+    }
+  });
+  return claimed;
+}
+
+export async function retryOfflineOperation(
+  idempotencyKey: string,
+  errorMessage: string,
+  attemptCount: number
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return;
+  const delaySeconds = Math.min(15 * 60, 2 ** Math.min(attemptCount, 8) * 5);
+  const now = new Date();
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE offline_v2_outbox
+        SET state = 'RETRY', next_attempt_at = ?, lease_expires_at = NULL,
+            last_error = ?, updated_at = ?
+      WHERE idempotency_key = ? AND owner_user_id = ? AND state = 'SYNCING'`,
+    new Date(now.getTime() + delaySeconds * 1000).toISOString(),
+    errorMessage.slice(0, 1000),
+    now.toISOString(),
+    idempotencyKey,
+    owner.userId
+  );
+}
+
+export async function completeOfflineOperation(
+  idempotencyKey: string,
+  application: Application
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  const active = await getActiveDataset();
+  if (!owner || !active) throw new Error('Dataset offline ativo nao encontrado.');
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const row = await tx.getFirstAsync<{ localEntityJson: string }>(
+      `SELECT local_entity_json AS localEntityJson
+         FROM offline_v2_outbox
+        WHERE idempotency_key = ? AND owner_user_id = ? AND state = 'SYNCING'`,
+      idempotencyKey,
+      owner.userId
+    );
+    if (!row) throw new Error('Operacao offline em sincronizacao nao encontrada.');
+    const local = JSON.parse(row.localEntityJson) as OfflineApplication;
+    await tx.runAsync(
+      `DELETE FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ?
+          AND collection = 'applications' AND entity_id = ?`,
+      active.datasetId,
+      owner.userId,
+      local.localId
+    );
+    await tx.runAsync(
+      `INSERT INTO offline_v2_entities
+         (dataset_id, owner_user_id, collection, entity_id, json, updated_at)
+       VALUES (?, ?, 'applications', ?, ?, ?)
+       ON CONFLICT(dataset_id, collection, entity_id) DO UPDATE SET
+         json = excluded.json,
+         updated_at = excluded.updated_at`,
+      active.datasetId,
+      owner.userId,
+      application.id,
+      JSON.stringify(application),
+      now
+    );
+    await tx.runAsync(
+      `UPDATE offline_v2_outbox
+          SET state = 'SUCCEEDED', remote_entity_id = ?, completed_at = ?, updated_at = ?,
+              lease_expires_at = NULL, next_attempt_at = NULL, last_error = NULL
+        WHERE idempotency_key = ? AND owner_user_id = ?`,
+      application.id,
+      now,
+      now,
+      idempotencyKey,
+      owner.userId
+    );
+  });
+}
+
+export async function getOfflineMigrationState(migrationKey: string): Promise<string | null> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return null;
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ state: string }>(
+    `SELECT state FROM offline_v2_migrations
+      WHERE owner_user_id = ? AND migration_key = ?`,
+    owner.userId,
+    migrationKey
+  );
+  return row?.state ?? null;
+}
+
+export async function startOfflineMigration(migrationKey: string): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) throw new Error('Owner offline ativo nao encontrado.');
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `INSERT INTO offline_v2_migrations
+       (owner_user_id, migration_key, state, migrated_count, started_at)
+     VALUES (?, ?, 'RUNNING', 0, ?)
+     ON CONFLICT(owner_user_id, migration_key) DO UPDATE SET
+       state = CASE WHEN state = 'COMPLETED' THEN state ELSE 'RUNNING' END,
+       last_error = NULL`,
+    owner.userId,
+    migrationKey,
+    now
+  );
+}
+
+export async function completeOfflineMigration(
+  migrationKey: string,
+  migratedCount: number
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) throw new Error('Owner offline ativo nao encontrado.');
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE offline_v2_migrations
+        SET state = 'COMPLETED', migrated_count = ?, completed_at = ?, last_error = NULL
+      WHERE owner_user_id = ? AND migration_key = ?`,
+    migratedCount,
+    now,
+    owner.userId,
+    migrationKey
+  );
+}
+
+export async function failOfflineMigration(
+  migrationKey: string,
+  errorMessage: string
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return;
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE offline_v2_migrations
+        SET state = 'FAILED', last_error = ?
+      WHERE owner_user_id = ? AND migration_key = ? AND state <> 'COMPLETED'`,
+    errorMessage.slice(0, 1000),
+    owner.userId,
+    migrationKey
+  );
 }
 
 export async function clearOfflineStorage(): Promise<void> {

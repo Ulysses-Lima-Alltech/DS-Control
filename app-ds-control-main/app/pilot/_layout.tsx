@@ -17,15 +17,13 @@ export default function RootLayout() {
   const pathname = usePathname();
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const { isConnected } = useNetworkConnectivity();
-  const { syncOfflineApplications, downloadOfflineData, pendingCount, isSyncing } =
-    useOfflineSync();
+  const { syncOfflineApplications, pendingCount, isSyncing } = useOfflineSync();
 
   useEffect(() => {
     if (isConnected && isPilotRole(user?.type)) {
       syncOfflineApplications();
-      downloadOfflineData();
     }
-  }, [isConnected, user, syncOfflineApplications, downloadOfflineData]);
+  }, [isConnected, user, syncOfflineApplications]);
 
   if (loading) {
     return (
@@ -140,8 +138,8 @@ export default function RootLayout() {
                       paddingHorizontal: 4,
                     }}
                   >
-                      <Text
-                        style={{
+                    <Text
+                      style={{
                         color: COLORS.white,
                         fontSize: 10,
                         fontWeight: 'bold',

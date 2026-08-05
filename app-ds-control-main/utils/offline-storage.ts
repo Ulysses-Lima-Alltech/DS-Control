@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { OfflineApplication, OfflineDataCache } from '@/types/offline-application.type';
 
 const OFFLINE_APPLICATIONS_KEY = '@offline_applications';
@@ -50,6 +51,12 @@ export const deleteOfflineApplication = async (localId: string): Promise<void> =
     console.error('Error deleting offline application:', error);
     throw error;
   }
+};
+
+export const replaceOfflineApplications = async (
+  applications: OfflineApplication[]
+): Promise<void> => {
+  await AsyncStorage.setItem(OFFLINE_APPLICATIONS_KEY, JSON.stringify(applications));
 };
 
 export const getPendingOfflineApplications = async (): Promise<OfflineApplication[]> => {

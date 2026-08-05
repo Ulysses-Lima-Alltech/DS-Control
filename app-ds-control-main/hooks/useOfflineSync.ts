@@ -1,24 +1,34 @@
-import { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNetworkConnectivity } from './useNetworkConnectivity';
+import { useCallback, useEffect, useState } from 'react';
+
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import { migrateLegacyOfflineApplicationQueue } from '@/offline/offlineLegacyMigration';
 import {
-  getOfflineApplications,
-  updateOfflineApplication,
-  deleteOfflineApplication,
-  saveOfflineDataCache,
-  getOfflineDataCache,
-} from '@/utils/offline-storage';
-import { OfflineDataCache } from '@/types/offline-application.type';
-import { useRegisterNewApplicationWithoutPlot } from '@/mutations/application.mutation';
+  claimOfflineOperations,
+  completeOfflineOperation,
+  countPendingOfflineOperations,
+  getOfflineServiceOrders,
+  getOfflineSupportData,
+  retryOfflineOperation,
+} from '@/offline/offlineStorage';
+import type { OfflineOutboxOperation } from '@/offline/offlineTypes';
 import { useAuth } from '@/providers/auth.provider';
-import { getAllAssistants } from '@/services/assistant.service';
-import { getAllDrones } from '@/services/drone.service';
-import { getAllCultureTypes } from '@/services/culture-type.service';
-import { getAllProducts } from '@/services/product.service';
-import {
-  getAllMyOpenServiceOrders,
-  updateServiceOrderPlotStatus,
-} from '@/services/service-order.service';
+import { api } from '@/services/api.service';
+import type { Application } from '@/types/applications.type';
+import type { OfflineDataCache } from '@/types/offline-application.type';
+
+type SyncOperationResult =
+  | {
+      idempotencyKey: string;
+      status: 'SUCCEEDED';
+      application: Application;
+      replayed: boolean;
+    }
+  | {
+      idempotencyKey: string;
+      status: 'FAILED';
+      error: string;
+    };
 
 export const useOfflineSync = () => {
   const { isConnected } = useNetworkConnectivity();
@@ -30,22 +40,43 @@ export const useOfflineSync = () => {
   const [offlineDataCache, setOfflineDataCache] = useState<OfflineDataCache | null>(null);
   const [isLoadingCache, setIsLoadingCache] = useState(true);
 
-  const { mutateAsync: registerLooseApplication } = useRegisterNewApplicationWithoutPlot();
-
   const checkPendingApplications = useCallback(async () => {
-    const applications = await getOfflineApplications();
-    const pending = applications.filter(
-      (app) => app.syncStatus === 'pending' || app.syncStatus === 'error'
-    );
-    setPendingCount(pending.length);
+    await migrateLegacyOfflineApplicationQueue().catch(() => undefined);
+    setPendingCount(await countPendingOfflineOperations());
   }, []);
 
   const checkOfflineDataCache = useCallback(async () => {
     setIsLoadingCache(true);
-    const cache = await getOfflineDataCache();
-    setOfflineDataCache(cache);
-    setIsLoadingCache(false);
-  }, []);
+    try {
+      const [supportData, serviceOrders] = await Promise.all([
+        getOfflineSupportData(),
+        getOfflineServiceOrders(),
+      ]);
+      setOfflineDataCache({
+        pilot: user?.type === 'pilot' ? { id: user.id, name: user.name } : null,
+        assistants: supportData.assistants.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        drones: supportData.drones.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        cultureTypes: supportData.cultureTypes.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        products: supportData.products.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        serviceOrders,
+        lastUpdated: new Date().toISOString(),
+      });
+    } finally {
+      setIsLoadingCache(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     checkPendingApplications();
@@ -54,130 +85,67 @@ export const useOfflineSync = () => {
 
   const syncOfflineApplications = useCallback(async () => {
     if (!isConnected || isSyncing) return;
-
     setIsSyncing(true);
     setSyncStatus('syncing');
-
+    let operations: OfflineOutboxOperation[] = [];
     try {
-      const applications = await getOfflineApplications();
-      const pending = applications.filter(
-        (app) => app.syncStatus === 'pending' || app.syncStatus === 'error'
-      );
-
-      for (const app of pending) {
-        try {
-          await updateOfflineApplication(app.localId, { syncStatus: 'syncing' });
-
-          if (!app.applicationSynced) {
-            await registerLooseApplication({
-              pilotId: app.pilotId,
-              date: app.date,
-              assistantId: app.assistantId,
-              droneId: app.droneId,
-              cultureId: app.cultureId,
-              productId: app.productId,
-              hectares: app.hectares,
-              flowRate: app.flowRate,
-              altitude: app.altitude,
-              routeSpacing: app.routeSpacing,
-              dropletSize: app.dropletSize,
-              observations: app.observations,
-              serviceOrderId: app.serviceOrderId || null,
-              farmId: app.farmId || null,
-              plotId: app.plotId || null,
-            });
-            await updateOfflineApplication(app.localId, { applicationSynced: true });
-          }
-
-          if (app.plotCompleted && app.serviceOrderId && app.plotId) {
-            try {
-              await updateServiceOrderPlotStatus({
-                serviceOrderId: app.serviceOrderId,
-                plotId: app.plotId,
-                status: 'COMPLETED',
-              });
-            } catch (error) {
-              console.error(
-                `[OfflineSync] Aplicação ${app.localId} salva, mas o status do talhão falhou:`,
-                error
-              );
-              throw new Error(
-                'A aplicação foi salva, mas não foi possível marcar o talhão como concluído.'
-              );
-            }
-          }
-
-          await deleteOfflineApplication(app.localId);
-          console.log(`Successfully synced application: ${app.localId}`);
-        } catch (error) {
-          console.error(`Failed to sync application ${app.localId}:`, error);
-          await updateOfflineApplication(app.localId, {
-            syncStatus: 'error',
-            syncError: error instanceof Error ? error.message : 'Unknown error',
-          });
+      operations = await claimOfflineOperations();
+      if (operations.length === 0) {
+        setSyncStatus('completed');
+        return;
+      }
+      const response = await api('/mobile/offline/operations/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          operations: operations.map((operation) => ({
+            idempotencyKey: operation.idempotencyKey,
+            operationType: operation.operationType,
+            payload: operation.payload,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Falha ao sincronizar operacoes offline (${response.status}).`);
+      }
+      const body = (await response.json()) as { results: SyncOperationResult[] };
+      const results = new Map(body.results.map((result) => [result.idempotencyKey, result]));
+      for (const operation of operations) {
+        const result = results.get(operation.idempotencyKey);
+        if (result?.status === 'SUCCEEDED') {
+          await completeOfflineOperation(operation.idempotencyKey, result.application);
+        } else {
+          await retryOfflineOperation(
+            operation.idempotencyKey,
+            result?.error ?? 'Servidor nao confirmou a operacao offline.',
+            operation.attemptCount
+          );
         }
       }
-
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
-
-      await checkPendingApplications();
-
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['applications'] }),
+        queryClient.invalidateQueries({ queryKey: ['service-orders'] }),
+      ]);
       setSyncStatus('completed');
     } catch (error) {
-      console.error('Error syncing offline applications:', error);
+      await Promise.all(
+        operations.map((operation) =>
+          retryOfflineOperation(
+            operation.idempotencyKey,
+            error instanceof Error ? error.message : 'Falha de sincronizacao.',
+            operation.attemptCount
+          )
+        )
+      );
       setSyncStatus('error');
     } finally {
+      await checkPendingApplications();
       setIsSyncing(false);
     }
-  }, [isConnected, isSyncing, queryClient, checkPendingApplications, registerLooseApplication]);
+  }, [checkPendingApplications, isConnected, isSyncing, queryClient]);
 
   const downloadOfflineData = useCallback(async () => {
-    if (!isConnected || !user) return;
-
-    try {
-      console.log('Starting offline data download...');
-
-      const [assistantsData, dronesData, cultureTypesData, productsData, serviceOrdersData] =
-        await Promise.all([
-          getAllAssistants({ limit: '100' }),
-          getAllDrones({ limit: '100' }),
-          getAllCultureTypes({ limit: '100' }),
-          getAllProducts({ limit: '100' }),
-          getAllMyOpenServiceOrders({
-            limit: '100',
-            includePlots: 'true',
-            includeFarms: 'true',
-          }),
-        ]);
-
-      console.log('Data fetched successfully:', {
-        assistants: assistantsData.data?.length,
-        drones: dronesData.data?.length,
-        cultureTypes: cultureTypesData.data?.length,
-        products: productsData.data?.length,
-      });
-
-      const cache: OfflineDataCache = {
-        pilot: {
-          id: user.id,
-          name: user.name,
-        },
-        assistants: assistantsData.data?.map((a: any) => ({ id: a.id, name: a.name })) || [],
-        drones: dronesData.data?.map((d: any) => ({ id: d.id, name: d.name })) || [],
-        cultureTypes: cultureTypesData.data?.map((c: any) => ({ id: c.id, name: c.name })) || [],
-        products: productsData.data?.map((p: any) => ({ id: p.id, name: p.name })) || [],
-        serviceOrders: serviceOrdersData.data || [],
-        lastUpdated: new Date().toISOString(),
-      };
-
-      await saveOfflineDataCache(cache);
-      await checkOfflineDataCache();
-      console.log('Offline data cache updated successfully');
-    } catch (error) {
-      console.error('Error downloading offline data:', error);
-      throw error;
-    }
-  }, [isConnected, user, checkOfflineDataCache]);
+    await checkOfflineDataCache();
+  }, [checkOfflineDataCache]);
 
   return {
     isSyncing,

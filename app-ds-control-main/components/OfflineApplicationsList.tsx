@@ -1,18 +1,22 @@
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { COLORS } from '@/constants/colors';
+import { Feather } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
-import { Feather, Ionicons } from '@expo/vector-icons';
-import { getOfflineApplications, deleteOfflineApplication } from '@/utils/offline-storage';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { Alert } from 'react-native';
+
+import { COLORS } from '@/constants/colors';
+import {
+  deleteQueuedOfflineApplication,
+  getQueuedOfflineApplications,
+} from '@/offline/offlineStorage';
 import { OfflineApplication } from '@/types/offline-application.type';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
-import { Alert } from 'react-native';
 
 export default function OfflineApplicationsList() {
   const [applications, setApplications] = useState<OfflineApplication[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadApplications = useCallback(async () => {
-    const apps = await getOfflineApplications();
+    const apps = await getQueuedOfflineApplications();
     setApplications(apps);
   }, []);
 
@@ -40,10 +44,10 @@ export default function OfflineApplicationsList() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteOfflineApplication(application.localId);
+              await deleteQueuedOfflineApplication(application.localId);
               await loadApplications();
               Alert.alert('Sucesso', 'Aplicação excluída com sucesso.');
-            } catch (error) {
+            } catch {
               Alert.alert('Erro', 'Não foi possível excluir a aplicação.');
             }
           },

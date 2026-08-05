@@ -1,3 +1,10 @@
+import { Feather, Ionicons, Octicons } from '@expo/vector-icons';
+import { zodResolver } from '@hookform/resolvers/zod';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Crypto from 'expo-crypto';
+import { useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import {
   View,
   Text,
@@ -9,24 +16,25 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
-import { COLORS } from '@/constants/colors';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import formatDateToDDMMYYYY from '@/utils/date-formatter';
-import { useState, useEffect } from 'react';
-import { Feather, Ionicons, Octicons } from '@expo/vector-icons';
+
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { isAndroid } from '@/utils/isAndroid';
-import Separator from './ui/Separator';
-import DatePickeriOSModal from './ui/DatePickeriOSModal';
-import { useRouter } from 'expo-router';
+import { COLORS } from '@/constants/colors';
+import {
+  enqueueOfflineApplication,
+  getOfflineServiceOrders,
+  getOfflineSupportData,
+} from '@/offline/offlineStorage';
+import { useAuth } from '@/providers/auth.provider';
 import {
   OfflineApplicationSchema,
   OfflineApplicationFormData,
 } from '@/schemas/offline-application.schema';
-import { getOfflineDataCache, saveOfflineApplication } from '@/utils/offline-storage';
 import { OfflineApplication, OfflineDataCache } from '@/types/offline-application.type';
+import formatDateToDDMMYYYY from '@/utils/date-formatter';
+import { isAndroid } from '@/utils/isAndroid';
+
+import DatePickeriOSModal from './ui/DatePickeriOSModal';
+import Separator from './ui/Separator';
 
 export default function OfflineFormApplication() {
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -34,16 +42,46 @@ export default function OfflineFormApplication() {
   const [offlineData, setOfflineData] = useState<OfflineDataCache | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     const loadOfflineData = async () => {
       setIsLoadingData(true);
-      const data = await getOfflineDataCache();
-      setOfflineData(data);
+      const [supportData, serviceOrders] = await Promise.all([
+        getOfflineSupportData(),
+        getOfflineServiceOrders(),
+      ]);
+      setOfflineData({
+        pilot:
+          user?.type === 'pilot'
+            ? {
+                id: user.id,
+                name: user.name,
+              }
+            : null,
+        assistants: supportData.assistants.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        drones: supportData.drones.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        cultureTypes: supportData.cultureTypes.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        products: supportData.products.map((item) => ({
+          id: String(item.id ?? ''),
+          name: String(item.name ?? ''),
+        })),
+        serviceOrders,
+        lastUpdated: new Date().toISOString(),
+      });
       setIsLoadingData(false);
     };
     loadOfflineData();
-  }, []);
+  }, [user]);
 
   const {
     control,
@@ -105,7 +143,7 @@ export default function OfflineFormApplication() {
       setIsSubmitting(true);
       try {
         const application: OfflineApplication = {
-          localId: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          localId: Crypto.randomUUID(),
           pilotId: data.pilotId,
           pilotName: data.pilotName,
           date: data.date,
@@ -131,7 +169,7 @@ export default function OfflineFormApplication() {
           syncStatus: 'pending',
         };
 
-        await saveOfflineApplication(application);
+        await enqueueOfflineApplication(application);
 
         Alert.alert(
           'Sucesso',

@@ -11,6 +11,7 @@ import { refreshOfflineStatus } from '@/offline/offlineStatus';
 import {
   activateOfflineDataset,
   clearOfflineStorage,
+  countPendingOfflineOperations,
   estimateOfflinePayloadBytes,
   failOfflineDataset,
   getMapPackStatuses,
@@ -207,6 +208,11 @@ export async function downloadOfflineDataAndMaps(options?: {
 }
 
 export async function removeOfflineModeData(): Promise<string[]> {
+  if ((await countPendingOfflineOperations()) > 0) {
+    throw new Error(
+      'Sincronize ou mantenha as operacoes pendentes antes de remover o modo offline.'
+    );
+  }
   const mapStatuses = await getMapPackStatuses();
   const mapErrors = await deleteOfflineMapPackages(mapStatuses.map((status) => status.packName));
 
