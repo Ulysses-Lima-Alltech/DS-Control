@@ -1,9 +1,12 @@
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { describe, expect, it } from 'vitest';
 
 import { KML_LIMITS } from './kml-parser';
 import {
   buildKmlStorageKey,
   KML_UPLOAD_EXPIRES_SECONDS,
+  KML_UPLOAD_UNHOISTABLE_HEADERS,
   sha256HexToBase64,
   validateKmlUploadMetadata,
 } from './kml-upload-policy';
@@ -68,5 +71,31 @@ describe('KML upload policy', () => {
 
   it('converts the declared hex checksum for the signed S3 header', () => {
     expect(sha256HexToBase64('00'.repeat(32))).toBe('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+  });
+
+  it('keeps the checksum in the signed headers required from the upload client', async () => {
+    const client = new S3Client({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'test-access-key', secretAccessKey: 'test-secret-key' },
+    });
+    const checksum = sha256HexToBase64(valid.sha256);
+    const uploadUrl = await getSignedUrl(
+      client,
+      new PutObjectCommand({
+        Bucket: 'private-test-bucket',
+        Key: 'customer-requests/areas/request/file.kml',
+        ChecksumSHA256: checksum,
+      }),
+      {
+        expiresIn: KML_UPLOAD_EXPIRES_SECONDS,
+        unhoistableHeaders: KML_UPLOAD_UNHOISTABLE_HEADERS,
+      },
+    );
+    const signedUrl = new URL(uploadUrl);
+    const signedHeaders = signedUrl.searchParams.get('X-Amz-SignedHeaders')?.split(';') ?? [];
+
+    expect(signedHeaders).toContain('x-amz-checksum-sha256');
+    expect(signedUrl.searchParams.has('x-amz-checksum-sha256')).toBe(false);
+    client.destroy();
   });
 });

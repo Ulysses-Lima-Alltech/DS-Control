@@ -4,6 +4,7 @@ import path from 'node:path';
 import { KML_LIMITS, KmlValidationError } from './kml-parser';
 
 export const KML_UPLOAD_EXPIRES_SECONDS = 300;
+export const KML_UPLOAD_UNHOISTABLE_HEADERS = new Set(['x-amz-checksum-sha256']);
 export const KML_ALLOWED_CONTENT_TYPES = [
   'application/vnd.google-earth.kml+xml',
   'application/xml',

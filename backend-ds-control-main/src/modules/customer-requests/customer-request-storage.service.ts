@@ -23,6 +23,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { CompleteKmlUploadDTO, PrepareKmlUploadDTO } from './customer-request.dto';
 import {
   buildKmlStorageKey,
+  KML_UPLOAD_UNHOISTABLE_HEADERS,
   KML_UPLOAD_EXPIRES_SECONDS,
   sha256HexToBase64,
   validateKmlUploadMetadata,
@@ -109,6 +110,7 @@ export class CustomerRequestStorageService {
       });
       const uploadUrl = await getSignedUrl(this.s3, command, {
         expiresIn: KML_UPLOAD_EXPIRES_SECONDS,
+        unhoistableHeaders: KML_UPLOAD_UNHOISTABLE_HEADERS,
       });
       return {
         fileId: file.id,
