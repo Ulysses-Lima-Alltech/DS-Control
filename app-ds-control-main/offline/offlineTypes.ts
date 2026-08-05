@@ -45,6 +45,49 @@ export type OfflineBootstrap = {
   products?: Record<string, unknown>[];
   mapPackages: OfflineMapPackageDefinition[];
   serverTime: string;
+  manifest: OfflineDatasetManifest;
+};
+
+export type OfflineDatasetManifest = {
+  schemaVersion: number;
+  datasetVersion: string;
+  checksum: string;
+  selectedServiceOrderIds: string[];
+  generatedAt: string;
+  counts: {
+    farms: number;
+    plots: number;
+    serviceOrders: number;
+    applications: number;
+    routes: number;
+    mapPackages: number;
+  };
+};
+
+export type OfflineOwner = {
+  userId: string;
+  customerId?: string | null;
+  role: string;
+};
+
+export type OfflineDatasetState = 'STAGING' | 'DATA_READY' | 'READY' | 'FAILED';
+
+export type OfflineOutboxOperationType = 'CREATE_APPLICATION';
+
+export type OfflineOutboxState = 'PENDING' | 'SYNCING' | 'RETRY' | 'SUCCEEDED';
+
+export type OfflineOutboxOperation<TPayload = Record<string, unknown>> = {
+  idempotencyKey: string;
+  ownerUserId: string;
+  operationType: OfflineOutboxOperationType;
+  payload: TPayload;
+  state: OfflineOutboxState;
+  attemptCount: number;
+  createdAt: string;
+  updatedAt: string;
+  nextAttemptAt?: string | null;
+  lastError?: string | null;
+  remoteEntityId?: string | null;
 };
 
 export type OfflineModeStatus =
@@ -71,6 +114,10 @@ export type OfflineStatusSnapshot = {
   warnings: string[];
   errors: string[];
   updatedAt: string;
+  datasetVersion?: string;
+  datasetChecksum?: string;
+  selectedServiceOrderIds?: string[];
+  pendingOperationsCount?: number;
 };
 
 export type OfflineSyncStage =
