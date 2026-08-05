@@ -1,5 +1,6 @@
 import {
   Building,
+  ClipboardCheck,
   Drone,
   Droplets,
   FileText,
@@ -81,6 +82,13 @@ export const pathItems: PathItem[] = [
     title: 'Ordens de Serviços',
     url: '/dashboard/service-orders',
     icon: NotepadText,
+    showOnSidebar: true,
+    category: 'cadastros',
+  },
+  {
+    title: 'Solicitações',
+    url: '/dashboard/customer-requests',
+    icon: ClipboardCheck,
     showOnSidebar: true,
     category: 'cadastros',
   },
