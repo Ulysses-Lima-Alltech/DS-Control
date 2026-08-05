@@ -17,7 +17,7 @@ import { ServiceOrderRepository } from '@repositories/service-order/service-orde
 import { UserType } from '@repositories/users/user.types';
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { buildOfflineDatasetManifest } from './offline-dataset-manifest';
-import { toSafeOfflineUser } from './offline-dataset-scope';
+import { toSafeOfflineUser, withoutOfflinePlotApplicationDetails } from './offline-dataset-scope';
 
 const MAPBOX_STYLE_URL = 'mapbox://styles/mapbox/satellite-streets-v12';
 const OFFLINE_MIN_ZOOM = 10;
@@ -228,9 +228,9 @@ export class MobileOfflineService {
         farms: [...(serviceOrder.farms ?? [])].sort((left, right) =>
           left.id.localeCompare(right.id),
         ),
-        plots: [...(serviceOrder.plots ?? [])].sort((left, right) =>
-          left.id.localeCompare(right.id),
-        ),
+        plots: [...(serviceOrder.plots ?? [])]
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map((plot) => withoutOfflinePlotApplicationDetails(plot)),
         pilots: serviceOrder.pilots?.filter((pilot) => pilot.id === user.id).map(() => safePilot),
       }))
       .sort((left, right) => left.id.localeCompare(right.id));

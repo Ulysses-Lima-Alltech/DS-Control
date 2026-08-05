@@ -12,3 +12,11 @@ export function toSafeOfflineUser(user: typeof users.$inferSelect) {
     deletedAt: user.deletedAt,
   };
 }
+
+export function withoutOfflinePlotApplicationDetails<T extends Record<string, unknown>>(
+  plot: T,
+): Omit<T, 'applications'> {
+  const safe = { ...plot };
+  delete safe.applications;
+  return safe;
+}

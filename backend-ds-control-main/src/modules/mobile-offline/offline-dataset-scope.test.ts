@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toSafeOfflineUser } from './offline-dataset-scope';
+import { toSafeOfflineUser, withoutOfflinePlotApplicationDetails } from './offline-dataset-scope';
 
 describe('offline dataset user scope', () => {
   it('never serializes password or password-reset state', () => {
@@ -19,5 +19,16 @@ describe('offline dataset user scope', () => {
     expect(safe).not.toHaveProperty('password');
     expect(safe).not.toHaveProperty('mustChangePassword');
     expect(safe.id).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  it('removes cross-pilot application details embedded in plot coverage', () => {
+    const safe = withoutOfflinePlotApplicationDetails({
+      id: 'plot-1',
+      status: 'COMPLETED',
+      applications: [{ id: 'other-pilot-application', appliedAreaHectares: '10' }],
+    });
+
+    expect(safe).toEqual({ id: 'plot-1', status: 'COMPLETED' });
+    expect(safe).not.toHaveProperty('applications');
   });
 });
