@@ -8,7 +8,7 @@ import {
   getValidOfflineAuthSession,
   saveOfflineAuthSession,
 } from '@/offline/offlineAuth';
-import { setActiveOfflineOwner } from '@/offline/offlineStorage';
+import { clearActiveOfflineOwner, setActiveOfflineOwner } from '@/offline/offlineStorage';
 import {
   getStoredAccessToken,
   removeStoredAccessToken,
@@ -82,6 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userData = await getMe();
       const previousSession = await getOfflineAuthSession();
+      const sameOfflineOwner = previousSession?.user.id === userData.id;
       await setActiveOfflineOwner({
         userId: userData.id,
         customerId: userData.customerId,
@@ -90,9 +91,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(userData);
       await saveOfflineAuthSession({
         user: userData,
-        tenant: previousSession?.tenant ?? null,
-        permissions: previousSession?.permissions ?? [],
-        offlineReady: previousSession?.offlineReady ?? false,
+        tenant: sameOfflineOwner ? (previousSession?.tenant ?? null) : null,
+        permissions: sameOfflineOwner ? (previousSession?.permissions ?? []) : [],
+        offlineReady: sameOfflineOwner ? (previousSession?.offlineReady ?? false) : false,
       });
     } catch (error) {
       if (__DEV__) {
@@ -121,6 +122,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      clearActiveOfflineOwner().catch(() => undefined);
+    }
+  }, [loading, user]);
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, setUser, refreshUser }}>
