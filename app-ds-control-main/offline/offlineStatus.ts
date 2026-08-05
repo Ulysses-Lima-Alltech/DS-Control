@@ -33,8 +33,10 @@ export async function buildOfflineStatusSnapshot(input?: {
     ? new Date(session.offlineExpiresAt).getTime() <= Date.now()
     : false;
   const hasData = farms.length > 0 || serviceOrders.length > 0 || applications.length > 0;
+  const requestedStatus =
+    input?.status === 'error' && manifest && session?.offlineReady ? 'partial' : input?.status;
   const status =
-    input?.status ??
+    requestedStatus ??
     (expired
       ? 'expired'
       : hasData && session?.offlineReady

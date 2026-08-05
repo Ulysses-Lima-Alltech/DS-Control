@@ -28,16 +28,6 @@ const isValidBounds = (mapPackage: OfflineMapPackageDefinition) => {
   return values.every((value) => typeof value === 'number' && Number.isFinite(value));
 };
 
-async function deleteExistingPack(packName: string): Promise<void> {
-  try {
-    await Mapbox.offlineManager.deletePack(packName);
-  } catch (error) {
-    if (__DEV__) {
-      console.warn('[OfflineMaps] Could not delete existing pack', packName, error);
-    }
-  }
-}
-
 async function waitForMapPackageDownload(
   mapPackage: OfflineMapPackageDefinition,
   datasetVersion: string,
@@ -45,7 +35,25 @@ async function waitForMapPackageDownload(
 ): Promise<OfflineMapPackStatus> {
   const packName = getOfflinePackName(mapPackage.farmId, datasetVersion);
 
-  await deleteExistingPack(packName);
+  const existingPack = await Mapbox.offlineManager.getPack(packName);
+  if (existingPack) {
+    const existingStatus = await existingPack.status();
+    const required = Number(existingStatus.requiredResourceCount ?? 0);
+    const completed = Number(existingStatus.completedResourceCount ?? 0);
+    if (Number(existingStatus.percentage ?? 0) >= 100 || (required > 0 && completed >= required)) {
+      const available: OfflineMapPackStatus = {
+        ...mapPackage,
+        packName,
+        status: 'available',
+        progress: 100,
+        completedResourceSize: Number(existingStatus.completedResourceSize ?? 0),
+        completedTileCount: Number(existingStatus.completedTileCount ?? 0),
+        downloadedAt: new Date().toISOString(),
+      };
+      onProgress?.(available);
+      return available;
+    }
+  }
 
   return new Promise<OfflineMapPackStatus>((resolve, reject) => {
     let settled = false;
@@ -100,29 +108,42 @@ async function waitForMapPackageDownload(
       );
     }, MAP_DOWNLOAD_TIMEOUT_MS);
 
-    Mapbox.offlineManager
-      .createPack(
-        {
-          name: packName,
-          styleURL: mapPackage.styleURL,
-          minZoom: mapPackage.minZoom,
-          maxZoom: mapPackage.maxZoom,
-          bounds: [mapPackage.bounds.northEast, mapPackage.bounds.southWest],
-          metadata: {
-            farmId: mapPackage.farmId,
-            farmName: mapPackage.name,
-            createdAt: new Date().toISOString(),
+    const startDownload = existingPack
+      ? Mapbox.offlineManager
+          .subscribe(
+            packName,
+            (_pack, nativeStatus) => {
+              maybeComplete(nativeStatus);
+            },
+            (_pack, error) => {
+              settle(() => reject(new Error(error.message)));
+            }
+          )
+          .then(() => existingPack.resume())
+      : Mapbox.offlineManager.createPack(
+          {
+            name: packName,
+            styleURL: mapPackage.styleURL,
+            minZoom: mapPackage.minZoom,
+            maxZoom: mapPackage.maxZoom,
+            bounds: [mapPackage.bounds.northEast, mapPackage.bounds.southWest],
+            metadata: {
+              farmId: mapPackage.farmId,
+              farmName: mapPackage.name,
+              createdAt: new Date().toISOString(),
+            },
           },
-        },
-        (_pack, nativeStatus) => {
-          maybeComplete(nativeStatus);
-        },
-        (_pack, error) => {
-          settle(() => reject(new Error(error.message)));
-        }
-      )
+          (_pack, nativeStatus) => {
+            maybeComplete(nativeStatus);
+          },
+          (_pack, error) => {
+            settle(() => reject(new Error(error.message)));
+          }
+        );
+
+    startDownload
       .then(async () => {
-        const pack = await Mapbox.offlineManager.getPack(packName);
+        const pack = existingPack ?? (await Mapbox.offlineManager.getPack(packName));
         pollInterval = setInterval(async () => {
           if (settled || !pack) return;
 

@@ -3,6 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import type {
   OfflineBootstrap,
   OfflineDatasetManifest,
+  OfflineDatasetState,
   OfflineMapPackStatus,
   OfflineOwner,
   OfflineOutboxOperation,
@@ -267,6 +268,9 @@ export function validateOfflineManifestShape(
   bootstrap: OfflineBootstrap,
   manifest: OfflineDatasetManifest
 ): boolean {
+  const selectedIds = new Set(manifest.selectedServiceOrderIds);
+  const farmIds = new Set(bootstrap.farms.map((farm) => farm.id));
+  const plotIds = new Set(bootstrap.plots.map((plot) => plot.id));
   return (
     manifest.schemaVersion === OFFLINE_SCHEMA_VERSION &&
     manifest.counts.farms === bootstrap.farms.length &&
@@ -275,7 +279,28 @@ export function validateOfflineManifestShape(
     manifest.counts.applications === bootstrap.applications.length &&
     manifest.counts.routes === bootstrap.routes.length &&
     manifest.counts.mapPackages === bootstrap.mapPackages.length &&
-    manifest.selectedServiceOrderIds.length > 0
+    manifest.selectedServiceOrderIds.length > 0 &&
+    selectedIds.size === manifest.selectedServiceOrderIds.length &&
+    bootstrap.user.type === 'pilot' &&
+    bootstrap.serviceOrders.length === selectedIds.size &&
+    bootstrap.serviceOrders.every(
+      (serviceOrder) =>
+        selectedIds.has(serviceOrder.id) &&
+        (serviceOrder.pilots ?? []).every((pilot) => pilot.id === bootstrap.user.id)
+    ) &&
+    bootstrap.plots.every((plot) => Boolean(plot.farmId && farmIds.has(plot.farmId))) &&
+    bootstrap.farms.every((farm) =>
+      (farm.plots ?? []).every((plot) => plotIds.has(plot.id) && plot.farmId === farm.id)
+    ) &&
+    bootstrap.applications.every(
+      (application) =>
+        application.pilotId === bootstrap.user.id &&
+        Boolean(application.serviceOrderId && selectedIds.has(application.serviceOrderId)) &&
+        Boolean(application.farmId && farmIds.has(application.farmId)) &&
+        Boolean(!application.plotId || plotIds.has(application.plotId))
+    ) &&
+    bootstrap.routes.every((route) => farmIds.has(route.farmId)) &&
+    bootstrap.mapPackages.every((mapPackage) => farmIds.has(mapPackage.farmId))
   );
 }
 
@@ -330,7 +355,25 @@ export async function stageOfflineBootstrapData(bootstrap: OfflineBootstrap): Pr
 
   const db = await getDb();
   const now = new Date().toISOString();
-  const datasetId = `${bootstrap.manifest.datasetVersion}:${now}`;
+  const existing = await db.getFirstAsync<{
+    datasetId: string;
+    state: OfflineDatasetState;
+    manifestChecksum: string;
+  }>(
+    `SELECT dataset_id AS datasetId, state, manifest_checksum AS manifestChecksum
+       FROM offline_v2_datasets
+      WHERE owner_user_id = ? AND dataset_version = ?
+      ORDER BY created_at DESC LIMIT 1`,
+    owner.userId,
+    bootstrap.manifest.datasetVersion
+  );
+  if (existing && existing.manifestChecksum !== bootstrap.manifest.checksum) {
+    throw new Error('Versao offline reutilizada com checksum diferente.');
+  }
+  if (existing?.state === 'DATA_READY' || existing?.state === 'READY') {
+    return existing.datasetId;
+  }
+  const datasetId = existing?.datasetId ?? `${owner.userId}:${bootstrap.manifest.datasetVersion}`;
   const mapStatuses: OfflineMapPackStatus[] = bootstrap.mapPackages.map((mapPackage) => ({
     ...mapPackage,
     packName: `dataset-${bootstrap.manifest.datasetVersion}-farm-${mapPackage.farmId}`,
@@ -352,20 +395,47 @@ export async function stageOfflineBootstrapData(bootstrap: OfflineBootstrap): Pr
   ];
 
   await db.withExclusiveTransactionAsync(async (tx) => {
-    await tx.runAsync(
-      `INSERT INTO offline_v2_datasets
+    if (existing) {
+      await tx.runAsync(
+        `DELETE FROM offline_v2_entities WHERE dataset_id = ? AND owner_user_id = ?`,
+        datasetId,
+        owner.userId
+      );
+      await tx.runAsync(
+        `DELETE FROM offline_v2_service_order_selections
+          WHERE dataset_id = ? AND owner_user_id = ?`,
+        datasetId,
+        owner.userId
+      );
+      await tx.runAsync(
+        `UPDATE offline_v2_datasets SET
+           schema_version = ?, manifest_checksum = ?, manifest_json = ?, state = 'STAGING',
+           server_time = ?, created_at = ?, activated_at = NULL, failure_reason = NULL
+         WHERE dataset_id = ? AND owner_user_id = ?`,
+        bootstrap.manifest.schemaVersion,
+        bootstrap.manifest.checksum,
+        JSON.stringify(bootstrap.manifest),
+        bootstrap.serverTime,
+        now,
+        datasetId,
+        owner.userId
+      );
+    } else {
+      await tx.runAsync(
+        `INSERT INTO offline_v2_datasets
          (dataset_id, owner_user_id, schema_version, dataset_version, manifest_checksum,
           manifest_json, state, server_time, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'STAGING', ?, ?)`,
-      datasetId,
-      owner.userId,
-      bootstrap.manifest.schemaVersion,
-      bootstrap.manifest.datasetVersion,
-      bootstrap.manifest.checksum,
-      JSON.stringify(bootstrap.manifest),
-      bootstrap.serverTime,
-      now
-    );
+         VALUES (?, ?, ?, ?, ?, ?, 'STAGING', ?, ?)`,
+        datasetId,
+        owner.userId,
+        bootstrap.manifest.schemaVersion,
+        bootstrap.manifest.datasetVersion,
+        bootstrap.manifest.checksum,
+        JSON.stringify(bootstrap.manifest),
+        bootstrap.serverTime,
+        now
+      );
+    }
 
     for (const serviceOrderId of bootstrap.manifest.selectedServiceOrderIds) {
       await tx.runAsync(
@@ -410,7 +480,7 @@ export async function saveStagedMapPackStatuses(
       datasetId,
       owner.userId
     );
-    if (!dataset || !['DATA_READY', 'STAGING'].includes(dataset.state)) {
+    if (!dataset || !['DATA_READY', 'STAGING', 'READY'].includes(dataset.state)) {
       throw new Error('Dataset offline nao aceita atualizacao de mapas.');
     }
     await tx.runAsync(
@@ -443,7 +513,7 @@ export async function activateOfflineDataset(
       datasetId,
       owner.userId
     );
-    if (dataset?.state !== 'DATA_READY') {
+    if (!dataset || !['DATA_READY', 'READY'].includes(dataset.state)) {
       throw new Error('Dataset offline nao esta pronto para ativacao.');
     }
     await tx.runAsync(
@@ -1138,6 +1208,22 @@ export async function completeOfflineOperation(
     );
     if (!row) throw new Error('Operacao offline em sincronizacao nao encontrada.');
     const local = JSON.parse(row.localEntityJson) as OfflineApplication;
+    const canonicalRow = await tx.getFirstAsync<{ json: string }>(
+      `SELECT json FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ?
+          AND collection = 'applications' AND entity_id = ?`,
+      active.datasetId,
+      owner.userId,
+      local.localId
+    );
+    const canonicalLocal = canonicalRow
+      ? (JSON.parse(canonicalRow.json) as Application)
+      : ({} as Application);
+    const canonicalRemote: Application = {
+      ...canonicalLocal,
+      ...application,
+      id: application.id,
+    };
     await tx.runAsync(
       `DELETE FROM offline_v2_entities
         WHERE dataset_id = ? AND owner_user_id = ?
@@ -1156,7 +1242,7 @@ export async function completeOfflineOperation(
       active.datasetId,
       owner.userId,
       application.id,
-      JSON.stringify(application),
+      JSON.stringify(canonicalRemote),
       now
     );
     await tx.runAsync(

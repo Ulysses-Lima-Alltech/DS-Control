@@ -7,6 +7,9 @@ import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
 import { refreshOfflineStatus } from '@/offline/offlineStatus';
 import { downloadOfflineDataAndMaps, removeOfflineModeData } from '@/offline/offlineSync';
 import type { OfflineStatusSnapshot, OfflineSyncProgress } from '@/offline/offlineTypes';
+import { useAuth } from '@/providers/auth.provider';
+import { getAllMyOpenServiceOrders } from '@/services/service-order.service';
+import type { ServiceOrder } from '@/types/service-order.type';
 
 const formatDateTime = (value?: string) => {
   if (!value) return 'ainda nao realizada';
@@ -42,9 +45,13 @@ const getStatusLabel = (status?: OfflineStatusSnapshot | null) => {
 
 export default function OfflineModeCard() {
   const { isConnected } = useNetworkConnectivity();
+  const { user } = useAuth();
   const [status, setStatus] = useState<OfflineStatusSnapshot | null>(null);
   const [progress, setProgress] = useState<OfflineSyncProgress | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [availableOrders, setAvailableOrders] = useState<ServiceOrder[]>([]);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setStatus(await refreshOfflineStatus());
@@ -53,6 +60,50 @@ export default function OfflineModeCard() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    if (user?.type !== 'pilot' || isConnected === false) return;
+    let active = true;
+    setIsLoadingOrders(true);
+    getAllMyOpenServiceOrders({
+      page: '1',
+      limit: '1000',
+      includePlots: 'true',
+      includeFarms: 'true',
+    })
+      .then((response) => {
+        if (!active) return;
+        setAvailableOrders(response.data);
+        setSelectedOrderIds((current) => {
+          const availableIds = new Set(response.data.map((order) => order.id));
+          if (current.size > 0) {
+            return new Set([...current].filter((id) => availableIds.has(id)));
+          }
+          const prior = new Set(status?.selectedServiceOrderIds ?? []);
+          return new Set(
+            response.data.filter((order) => prior.has(order.id)).map((order) => order.id)
+          );
+        });
+      })
+      .catch(() => {
+        if (active) setAvailableOrders([]);
+      })
+      .finally(() => {
+        if (active) setIsLoadingOrders(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isConnected, status?.selectedServiceOrderIds, user?.type]);
+
+  const toggleOrder = (orderId: string) => {
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
 
   const handleDownload = async () => {
     if (isConnected === false) {
@@ -66,6 +117,7 @@ export default function OfflineModeCard() {
     try {
       const nextStatus = await downloadOfflineDataAndMaps({
         onProgress: setProgress,
+        selectedServiceOrderIds: [...selectedOrderIds],
       });
       setStatus(nextStatus);
       Alert.alert(
@@ -162,6 +214,48 @@ export default function OfflineModeCard() {
         ) : null}
       </View>
 
+      {user?.type === 'pilot' ? (
+        <View style={styles.selectionBox}>
+          <Text style={styles.selectionTitle}>Ordens de Servico para uso offline</Text>
+          <Text style={styles.selectionHint}>
+            Selecione somente as OS que serao usadas sem sinal.
+          </Text>
+          {isLoadingOrders ? (
+            <ActivityIndicator size='small' color={COLORS.primaryDark} />
+          ) : availableOrders.length === 0 ? (
+            <Text style={styles.selectionHint}>Nenhuma OS aberta atribuida a este piloto.</Text>
+          ) : (
+            availableOrders.map((order) => {
+              const selected = selectedOrderIds.has(order.id);
+              return (
+                <TouchableOpacity
+                  key={order.id}
+                  style={[styles.orderRow, selected && styles.orderRowSelected]}
+                  onPress={() => toggleOrder(order.id)}
+                  disabled={isBusy}
+                >
+                  <Ionicons
+                    name={selected ? 'checkbox' : 'square-outline'}
+                    size={20}
+                    color={selected ? COLORS.primary : COLORS.textMuted}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.orderTitle}>OS {order.number}</Text>
+                    <Text style={styles.orderDetail}>
+                      {order.farms?.map((farm) => farm.name).join(', ') || 'Sem fazenda'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+      ) : (
+        <Text style={styles.selectionHint}>
+          O dataset operacional offline seletivo esta disponivel somente para pilotos.
+        </Text>
+      )}
+
       {progress && (
         <View style={styles.progressBox}>
           <ActivityIndicator size='small' color={COLORS.primaryDark} />
@@ -192,9 +286,12 @@ export default function OfflineModeCard() {
       )}
 
       <TouchableOpacity
-        style={[styles.primaryButton, isBusy && styles.disabled]}
+        style={[
+          styles.primaryButton,
+          (isBusy || user?.type !== 'pilot' || selectedOrderIds.size === 0) && styles.disabled,
+        ]}
         onPress={handleDownload}
-        disabled={isBusy}
+        disabled={isBusy || user?.type !== 'pilot' || selectedOrderIds.size === 0}
       >
         {isBusy ? (
           <ActivityIndicator size='small' color={COLORS.white} />
@@ -274,6 +371,41 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 13,
     lineHeight: 18,
+  },
+  selectionBox: {
+    gap: 7,
+  },
+  selectionTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  selectionHint: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+  },
+  orderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 10,
+  },
+  orderRowSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
+  },
+  orderTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  orderDetail: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: 2,
   },
   countText: {
     color: COLORS.textMuted,
