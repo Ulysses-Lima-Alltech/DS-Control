@@ -1338,6 +1338,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
                 }
                 selectedFarmId={selectedFarmId || null}
                 plots={selectedFarmPlots}
+                farms={selectedFarm ? [selectedFarm] : []}
                 routes={routesForMap}
                 selectedRouteId={selectedRoute?.id ?? null}
                 onRoutePress={handleRouteSelect}

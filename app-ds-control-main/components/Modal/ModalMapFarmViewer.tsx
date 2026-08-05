@@ -1,9 +1,10 @@
 import { Entypo } from '@expo/vector-icons';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
-import { COLORS } from '@/constants/colors';
-import MapViewer from '@/components/Map/MapViewer';
-import { useGetFarmById } from '@/queries/farm.query';
 import Toast from 'react-native-toast-message';
+
+import MapViewer from '@/components/Map/MapViewer';
+import { COLORS } from '@/constants/colors';
+import { useGetFarmById } from '@/queries/farm.query';
 
 interface ModalMapFarmViewerProps {
   farmId: string;
@@ -90,6 +91,7 @@ export default function ModalMapFarmViewer({
           isFetching={isFetchingFarm}
           selectedFarmId={farmId}
           plots={farmData?.farm?.plots ?? []}
+          farms={farmData?.farm ? [farmData.farm] : []}
           buttonsOffset={{ mapControls: { bottom: 20 } }}
         />
       </View>

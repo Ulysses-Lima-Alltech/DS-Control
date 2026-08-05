@@ -198,10 +198,7 @@ export default function ScreenMapViewerWithSearch({
     if (!normalizedFarm) return;
 
     setSelectedFarms((previousSelectedFarms) => {
-      if (
-        previousSelectedFarms.length === 1 &&
-        previousSelectedFarms[0].id === normalizedFarm.id
-      ) {
+      if (previousSelectedFarms.length === 1 && previousSelectedFarms[0].id === normalizedFarm.id) {
         return previousSelectedFarms;
       }
 
@@ -269,9 +266,9 @@ export default function ScreenMapViewerWithSearch({
       }
 
       setOfflineBannerText(
-        `Modo offline ativo - usando dados salvos em ${new Date(
-          status.lastSyncAt
-        ).toLocaleString('pt-BR')}.`
+        `Modo offline ativo - usando dados salvos em ${new Date(status.lastSyncAt).toLocaleString(
+          'pt-BR'
+        )}.`
       );
     });
   }, [isOffline]);
@@ -402,6 +399,7 @@ export default function ScreenMapViewerWithSearch({
         isFetching={isRouteLoading || isFetchingNavigation}
         selectedFarmId={primarySelectedFarm?.id ?? null}
         plots={allPlots}
+        farms={safeSelectedFarms}
         routes={routesForMap}
         navigationRoute={navigationRoute}
         showMapTools={showMapTools}

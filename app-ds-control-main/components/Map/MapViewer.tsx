@@ -6,6 +6,7 @@ import MapControls from '@/components/Map/MapControls';
 import MapTools, { useMapTools } from '@/components/Map/MapTools';
 import ModalPlotViewer from '@/components/Modal/ModalPlotViewer';
 import { COLORS } from '@/constants/colors';
+import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
 import {
@@ -28,6 +29,7 @@ export type MapViewerProps = {
   isFetching?: boolean;
   selectedFarmId: string | null;
   plots: Plot[];
+  farms?: Farm[];
   routes?: Route[];
   navigationRoute?: GeoJSON.FeatureCollection | null;
   operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
@@ -47,6 +49,7 @@ export default function MapViewer({
   isFetching,
   selectedFarmId,
   plots,
+  farms = [],
   routes = [],
   navigationRoute = null,
   operationalRouteMarkers = null,
@@ -70,8 +73,8 @@ export default function MapViewer({
   const lastCameraMoveSignatureRef = useRef<string>('');
 
   const geoData = useMemo(() => {
-    return convertDatabasePlotsToMapViewerPlotsFeatureCollection(plots);
-  }, [plots]);
+    return convertDatabasePlotsToMapViewerPlotsFeatureCollection(plots, farms);
+  }, [plots, farms]);
 
   const geoDataRoute = useMemo(() => {
     return convertDatabaseRoutesToMapViewerRoutesFeatureCollection(routes);

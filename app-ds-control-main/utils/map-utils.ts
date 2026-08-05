@@ -1,8 +1,11 @@
+import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
+import { deriveFarmStrokeColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 
 export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
-  geoData: Plot[]
+  geoData: Plot[],
+  farms: Farm[] = []
 ): GeoJSON.FeatureCollection {
   const formattedPlots: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -10,6 +13,7 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
   };
 
   const safePlots = Array.isArray(geoData) ? geoData : [];
+  const farmById = new Map(farms.map((farm) => [farm.id, farm]));
 
   safePlots.forEach((plot) => {
     const plotGeoJson = plot?.geoJson as any;
@@ -18,6 +22,9 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
     const plotId = String(plot?.id ?? '');
     const plotName = plot?.name ?? 'Talhao sem nome';
     const plotHectare = Number.isFinite(Number(plot?.hectare)) ? Number(plot.hectare) : 0;
+    const farm = plot.farmId ? farmById.get(plot.farmId) : undefined;
+    const fill = resolveFarmMapColor(farm ?? { id: plot.farmId || 'farm-unknown' });
+    const stroke = deriveFarmStrokeColor(fill);
 
     if (plotGeoJson.type === 'FeatureCollection' && Array.isArray(plotGeoJson.features)) {
       const featuresWithPlotId = plotGeoJson.features
@@ -26,6 +33,10 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
           ...feature,
           properties: {
             ...(feature?.properties ?? {}),
+            imported_fill: feature?.properties?.fill,
+            imported_stroke: feature?.properties?.stroke,
+            fill,
+            stroke,
             plot_id: plotId,
             plot_name: plotName,
             hectare: plotHectare,
@@ -40,6 +51,10 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
         ...plotGeoJson,
         properties: {
           ...(plotGeoJson?.properties ?? {}),
+          imported_fill: plotGeoJson?.properties?.fill,
+          imported_stroke: plotGeoJson?.properties?.stroke,
+          fill,
+          stroke,
           plot_id: plotId,
           plot_name: plotName,
           hectare: plotHectare,
@@ -53,6 +68,8 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
         type: 'Feature',
         geometry: plotGeoJson,
         properties: {
+          fill,
+          stroke,
           plot_id: plotId,
           plot_name: plotName,
           hectare: plotHectare,

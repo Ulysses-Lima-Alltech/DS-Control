@@ -3,8 +3,8 @@ import { StyleSheet, Text, View, ScrollView, RefreshControl, Dimensions } from '
 
 import FarmPlotList from '@/components/FarmPlotList';
 import LoadingDSIcon from '@/components/IconLoadingDS';
-import PlotDetails from '@/components/PlotDetails';
 import MapViewer from '@/components/Map/MapViewer';
+import PlotDetails from '@/components/PlotDetails';
 import Drawer from '@/components/ui/Drawer';
 import { COLORS } from '@/constants/colors';
 import { Farm } from '@/types/farm.type';
@@ -196,6 +196,7 @@ export default function PlotMapViewer({
             <MapViewer
               selectedFarmId={selectedPlot?.farmId ?? null}
               plots={plots}
+              farms={farms}
               selectedPlotId={selectedPlot?.id}
               onPlotPress={handleMapPlotPress}
               showMapTools={false}
@@ -210,6 +211,7 @@ export default function PlotMapViewer({
             <MapViewer
               selectedFarmId={selectedPlot?.farmId ?? null}
               plots={plots}
+              farms={farms}
               selectedPlotId={selectedPlot?.id}
               onPlotPress={handleMapPlotPress}
               showMapTools={false}

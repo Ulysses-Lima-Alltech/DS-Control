@@ -1,6 +1,7 @@
 import type { FeatureCollection, GeoJSON } from 'geojson';
 
 import type { Plot } from '@/types/plot.type';
+import { deriveFarmStrokeColor, FARM_MAP_COLOR_PATTERN } from '@/utils/farm-map-color';
 
 /** Limite da API Mapbox Static (8192); margem para query string. */
 const MAPBOX_STATIC_URL_SAFE_MAX = 7900;
@@ -37,7 +38,6 @@ function logReportMapSuccess(params: {
     mapMode: params.mapMode,
     usedLongUrlFallback: params.usedLongUrlFallback,
     finalUrlLength: params.finalUrl.length,
-    finalUrl: params.finalUrl,
     overlayUrlLengthBeforeFallback: params.overlayUrlLengthBeforeFallback,
   });
 }
@@ -127,12 +127,7 @@ export function calculatePlotBounds(plot: Plot): ReportMapBoundingBox | null {
     }
   }
 
-  if (
-    minLng === Infinity ||
-    maxLng === -Infinity ||
-    minLat === Infinity ||
-    maxLat === -Infinity
-  ) {
+  if (minLng === Infinity || maxLng === -Infinity || minLat === Infinity || maxLat === -Infinity) {
     return null;
   }
 
@@ -167,14 +162,21 @@ function getDefaultStrokeFromPlot(plot: Plot): string {
 /**
  * GeoJSON para overlay Mapbox Static (simplestyle-spec: fill, fill-opacity, stroke, stroke-width).
  */
-export function buildPlotOverlayFeatureCollection(plot: Plot): FeatureCollection | null {
+export function buildPlotOverlayFeatureCollection(
+  plot: Plot,
+  farmMapColor?: string
+): FeatureCollection | null {
   const geoJson = parsePlotGeoJson(plot);
   if (!geoJson || geoJson.type !== 'FeatureCollection' || !geoJson.features?.length) {
     return null;
   }
 
-  const fillDefault = getDefaultFillFromPlot(plot);
-  const strokeDefault = getDefaultStrokeFromPlot(plot);
+  const resolvedFarmColor =
+    farmMapColor && FARM_MAP_COLOR_PATTERN.test(farmMapColor) ? farmMapColor.toUpperCase() : null;
+  const fillDefault = resolvedFarmColor || getDefaultFillFromPlot(plot);
+  const strokeDefault = resolvedFarmColor
+    ? deriveFarmStrokeColor(resolvedFarmColor)
+    : getDefaultStrokeFromPlot(plot);
 
   const features = geoJson.features
     .filter((f) => {
@@ -183,9 +185,14 @@ export function buildPlotOverlayFeatureCollection(plot: Plot): FeatureCollection
     })
     .map((f) => {
       const props = { ...(f.properties as Record<string, unknown> | null | undefined) };
-      const fill = typeof props.fill === 'string' && props.fill.length > 0 ? props.fill : fillDefault;
-      const stroke =
-        typeof props.stroke === 'string' && props.stroke.length > 0 ? props.stroke : strokeDefault;
+      const fill =
+        resolvedFarmColor ||
+        (typeof props.fill === 'string' && props.fill.length > 0 ? props.fill : fillDefault);
+      const stroke = resolvedFarmColor
+        ? strokeDefault
+        : typeof props.stroke === 'string' && props.stroke.length > 0
+          ? props.stroke
+          : strokeDefault;
 
       return {
         type: 'Feature' as const,
@@ -251,12 +258,11 @@ export type BuildReportMapboxStaticUrlParams = {
   /** Padding em torno do bbox (0–1), padrão 0.1 como antes. */
   padding?: number;
   accessToken: string | undefined;
+  farmMapColor?: string;
 };
 
 /** Mensagem curta para placeholder do relatório (diagnóstico temporário). */
-export function getReportMapPlaceholderMessage(
-  reason: ReportMapUnavailableReason | null
-): string {
+export function getReportMapPlaceholderMessage(reason: ReportMapUnavailableReason | null): string {
   switch (reason) {
     case 'token_missing':
       return 'Mapa indisponível: token ausente';
@@ -379,7 +385,7 @@ export function buildReportMapboxStaticUrl(
   }
 
   const bboxStr = paddedBboxString(bounds, padding);
-  const overlayFc = buildPlotOverlayFeatureCollection(plot);
+  const overlayFc = buildPlotOverlayFeatureCollection(plot, params.farmMapColor);
 
   if (!overlayFc) {
     const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
@@ -395,13 +401,7 @@ export function buildReportMapboxStaticUrl(
     return { url, unavailableReason: null, usedLongUrlFallback: false };
   }
 
-  const urlWithOverlay = buildOverlayStaticUrl(
-    bboxStr,
-    mapWidth,
-    mapHeight,
-    token,
-    overlayFc
-  );
+  const urlWithOverlay = buildOverlayStaticUrl(bboxStr, mapWidth, mapHeight, token, overlayFc);
   const overlayUrlLength = urlWithOverlay.length;
 
   if (overlayUrlLength <= MAPBOX_STATIC_URL_SAFE_MAX) {

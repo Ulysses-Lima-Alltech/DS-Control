@@ -16,6 +16,7 @@ import { COLORS } from '@/constants/colors';
 import { useGetApplicationsByPlotId } from '@/queries/application.query';
 import { useGetPlotById } from '@/queries/plot.query';
 import { Application } from '@/types/applications.type';
+import { resolveFarmMapColor } from '@/utils/farm-map-color';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
@@ -187,13 +188,18 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
       mapWidth: 1200,
       mapHeight: 600,
       accessToken: process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || MAPBOX_FALLBACK_TOKEN,
+      farmMapColor: resolveFarmMapColor(
+        sortedApplications.find((application) => application.farm)?.farm ?? {
+          id: plotData.plot.farmId || 'farm-unknown',
+        }
+      ),
     });
 
     return {
       url: mapResult.url,
       placeholder: getReportMapPlaceholderMessage(mapResult.unavailableReason),
     };
-  }, [plotData?.plot]);
+  }, [plotData?.plot, sortedApplications]);
 
   return (
     <Modal visible={visible} animationType='slide' presentationStyle='pageSheet'>
@@ -281,7 +287,9 @@ export default function ModalPlotViewer({ plotId, visible, setVisible }: ModalPl
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Data de Cadastro</Text>
-                <Text style={styles.infoValue}>{formatOperationalDateBR(plotData?.plot?.createdAt)}</Text>
+                <Text style={styles.infoValue}>
+                  {formatOperationalDateBR(plotData?.plot?.createdAt)}
+                </Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Cultura Mais Recente</Text>

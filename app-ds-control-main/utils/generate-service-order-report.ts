@@ -3,6 +3,7 @@ import { Image } from 'react-native';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import { resolveFarmMapColor } from '@/utils/farm-map-color';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
@@ -224,6 +225,9 @@ export const generateServiceOrderReportHTML = (
             accessToken:
               process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
               'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
+            farmMapColor: resolveFarmMapColor(
+              firstApp.farm ?? { id: firstApp.farmId || plot.farmId || 'farm-unknown' }
+            ),
           })
         : { url: null, unavailableReason: 'geojson_missing' as const };
       const mapUrl = mapResult.url;
