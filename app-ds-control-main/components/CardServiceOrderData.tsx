@@ -6,13 +6,15 @@ import {
   Octicons,
   SimpleLineIcons,
 } from '@expo/vector-icons';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useGetServiceOrderById } from '@/queries/service-order.query';
-import Skeleton from '@/components/ui/Skeleton';
-import formatDateToDDMMYYYY from '@/utils/date-formatter';
-import { COLORS } from '../constants/colors';
-import ModalMapFarmViewer from './Modal/ModalMapFarmViewer';
 import { useState } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+
+import { COLORS } from '@/constants/colors';
+import { useGetServiceOrderById } from '@/queries/service-order.query';
+import formatDateToDDMMYYYY from '@/utils/date-formatter';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
+
+import ModalMapFarmViewer from './Modal/ModalMapFarmViewer';
 
 const formatHectares = (value?: number) =>
   `${Number(value || 0).toLocaleString('pt-BR', {
@@ -53,9 +55,7 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
     return <SkeletonLoading />;
   }
 
-  const plannedHectares = Number(serviceOrder.plannedHectares || 0);
-  const totalAppliedHectares = Number(serviceOrder.totalAppliedHectares || 0);
-  const progressPercent = Number(serviceOrder.progressPercent || 0);
+  const metrics = resolveServiceOrderMetrics(serviceOrder);
   const myAppliedHectares = Number(serviceOrder.myAppliedHectares || 0);
   const myApplicationsCount = Number(serviceOrder.myApplicationsCount || 0);
 
@@ -181,9 +181,34 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          <SummaryItem label='Total planejado' value={formatHectares(plannedHectares)} />
-          <SummaryItem label='Total aplicado na OS' value={formatHectares(totalAppliedHectares)} />
-          <SummaryItem label='Progresso total' value={formatPercent(progressPercent)} />
+          <SummaryItem
+            label='Área cadastrada da OS'
+            value={formatHectares(metrics.plannedAreaHa)}
+          />
+          <SummaryItem
+            label='Área bruta aplicada'
+            value={formatHectares(metrics.grossAppliedAreaHa)}
+          />
+          <SummaryItem
+            label='Área cadastrada concluída'
+            value={formatHectares(metrics.registeredCompletedAreaHa)}
+          />
+          <SummaryItem
+            label='Área aplicada em andamento'
+            value={formatHectares(metrics.inProgressAppliedAreaHa)}
+          />
+          <SummaryItem
+            label='Área operacional consolidada'
+            value={formatHectares(metrics.consolidatedOperationalAreaHa)}
+          />
+          <SummaryItem
+            label='Progresso cadastral concluído'
+            value={formatPercent(metrics.registeredProgressPercent)}
+          />
+          <SummaryItem
+            label='Progresso bruto aplicado'
+            value={formatPercent(metrics.grossAppliedProgressPercent)}
+          />
           <SummaryItem
             label='Minhas aplicações'
             value={`${formatHectares(myAppliedHectares)} (${myApplicationsCount})`}

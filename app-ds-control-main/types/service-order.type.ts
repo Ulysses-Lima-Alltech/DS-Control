@@ -6,6 +6,28 @@ import { User } from '@/types/user.type';
 
 export type ServiceOrderStatus = 'open' | 'completed' | 'cancelled';
 
+export type ServiceOrderMetrics = {
+  plannedAreaHa: number;
+  grossAppliedAreaHa: number;
+  effectiveCoveredAreaHa: number;
+  registeredCompletedAreaHa: number;
+  inProgressAppliedAreaHa: number;
+  consolidatedOperationalAreaHa: number;
+  registeredProgressPercent: number;
+  grossAppliedProgressPercent: number;
+  consolidatedProgressPercent: number;
+  totalPlots: number;
+  completedPlots: number;
+  inProgressPlots: number;
+  pendingPlots: number;
+  applicationsCount: number;
+  plotsWithApplications: number;
+  applicationsWithoutPlotCount: number;
+  completionThresholdPercent: number;
+  coverageMethod: 'maximum_application';
+  metricVersion: 1;
+};
+
 export type ServiceOrder = {
   id: string;
   number: number;
@@ -22,18 +44,29 @@ export type ServiceOrder = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  metrics?: ServiceOrderMetrics;
   plannedHectares: number;
   totalAppliedHectares: number;
+  grossAppliedAreaHa?: number;
+  registeredCompletedAreaHa?: number;
+  inProgressAppliedAreaHa?: number;
+  consolidatedPlotAreaHa?: number;
+  registeredProgressPercent?: number;
+  grossAppliedProgressPercent?: number;
+  consolidatedProgressPercent?: number;
   progressPercent: number;
   completedHectares: number;
   pendingHectares: number;
   completedPlots: number;
+  inProgressPlots?: number;
   pendingPlots: number;
   applicationsCount: number;
   plotsWithApplications: number;
+  applicationsWithoutPlotCount?: number;
   totalPlots: number;
   myAppliedHectares: number;
   myApplicationsCount: number;
+  plotCompletionThresholdPercent?: number;
 };
 
 export enum ServiceOrderBy {

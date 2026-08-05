@@ -1,13 +1,14 @@
-import { Application } from '@/types/applications.type';
-import { ServiceOrder } from '@/types/service-order.type';
-import { Plot } from '@/types/plot.type';
 import { Image } from 'react-native';
 
+import { Application } from '@/types/applications.type';
+import { Plot } from '@/types/plot.type';
+import { ServiceOrder } from '@/types/service-order.type';
 import {
   buildReportMapboxStaticUrl,
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR } from '@/utils/operational-date';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 const resolveImageUri = (imagePath: any): string => {
   if (typeof imagePath === 'number') {
@@ -18,14 +19,24 @@ const resolveImageUri = (imagePath: any): string => {
 
 const formatDate = (dateString: string | Date) => formatOperationalDateBR(dateString);
 
-const formatHectares = (hectares: string) => {
-  return `${parseFloat(hectares).toFixed(2)} ha`;
+const formatHectares = (hectares: string | number) => {
+  return `${Number(hectares || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
 };
+
+const formatPercent = (value: number) =>
+  `${Number(value || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
 
 export const generateServiceOrderReportHTML = (
   serviceOrder: ServiceOrder,
   applications: Application[]
 ): string => {
+  const metrics = resolveServiceOrderMetrics(serviceOrder);
   // Load PDF logos
   let PDF_LOGO_COMPLETE: string;
   let PDF_LOGO_ONLY: string;
@@ -66,8 +77,8 @@ export const generateServiceOrderReportHTML = (
   }
 
   // Filter applications with plots and group by plot
-  const applicationsWithPlot = applications.filter(
-    (app): app is Application & { plotId: string } => Boolean(app.plotId)
+  const applicationsWithPlot = applications.filter((app): app is Application & { plotId: string } =>
+    Boolean(app.plotId)
   );
   const applicationsByPlot = applicationsWithPlot.reduce(
     (acc, app) => {
@@ -129,6 +140,41 @@ export const generateServiceOrderReportHTML = (
         <div class="info-row">
           <span class="info-label">Data Planejada:</span>
           <span class="info-value">${formatDate(serviceOrder.plannedDate)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Área cadastrada da OS:</span>
+          <span class="info-value">${formatHectares(metrics.plannedAreaHa)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Área bruta aplicada:</span>
+          <span class="info-value">${formatHectares(metrics.grossAppliedAreaHa)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Área cadastrada concluída:</span>
+          <span class="info-value">${formatHectares(metrics.registeredCompletedAreaHa)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Área aplicada em andamento:</span>
+          <span class="info-value">${formatHectares(metrics.inProgressAppliedAreaHa)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Área operacional consolidada:</span>
+          <span class="info-value">${formatHectares(metrics.consolidatedOperationalAreaHa)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Progresso cadastral concluído:</span>
+          <span class="info-value">${formatPercent(metrics.registeredProgressPercent)}</span>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Progresso bruto aplicado:</span>
+          <span class="info-value">${formatPercent(metrics.grossAppliedProgressPercent)}</span>
         </div>
         
         ${

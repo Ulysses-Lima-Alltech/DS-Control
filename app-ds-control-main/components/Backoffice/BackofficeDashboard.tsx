@@ -47,6 +47,7 @@ import { Product } from '@/types/product.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 import formatDateToDDMMYYYY from '@/utils/date-formatter';
 import { isAndroid } from '@/utils/isAndroid';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 type RangeMode = 'month' | 'day';
 type PilotEntityMode = 'pilots' | 'assistants';
@@ -157,7 +158,7 @@ const getIntersectingCropSeasonIds = (cropSeasons: CropSeason[], range?: Dashboa
 };
 
 const getCombinedCropSeasonElapsedDays = (
-  cropSeasons: Array<{ startDate: string; endDate: string }>,
+  cropSeasons: { startDate: string; endDate: string }[],
   todayYmd: string
 ) => {
   const today = parseStrictCivilDate(todayYmd);
@@ -179,7 +180,7 @@ const getCombinedCropSeasonElapsedDays = (
 
   if (ranges.length === 0) return 0;
 
-  const mergedRanges: Array<{ start: Date; end: Date }> = [];
+  const mergedRanges: { start: Date; end: Date }[] = [];
 
   for (const range of ranges) {
     const lastRange = mergedRanges[mergedRanges.length - 1];
@@ -1713,11 +1714,12 @@ export default function BackofficeDashboard() {
           <View style={styles.serviceOrderGrid}>
             {visibleOpenServiceOrders.map(({ serviceOrder, queryIndex }) => {
               const yesterdayStats = orderYesterdayStatsQueries[queryIndex]?.data?.stats;
-              const totalPlots = Number(serviceOrder.totalPlots || serviceOrder.plots?.length || 0);
-              const totalHectaresAllPlots = Number(serviceOrder.plannedHectares || 0);
-              const totalHectaresCompleted = Number(serviceOrder.completedHectares || 0);
-              const completedPlots = Number(serviceOrder.completedPlots || 0);
-              const rawProgress = Number(serviceOrder.progressPercent || 0);
+              const metrics = resolveServiceOrderMetrics(serviceOrder);
+              const totalPlots = metrics.totalPlots;
+              const totalHectaresAllPlots = metrics.plannedAreaHa;
+              const totalHectaresCompleted = metrics.registeredCompletedAreaHa;
+              const completedPlots = metrics.completedPlots;
+              const rawProgress = metrics.registeredProgressPercent;
               const progressValue = Math.min(rawProgress, 100);
               const customerName = serviceOrder.customer?.name || 'Cliente nao informado';
               const farmDetails = (serviceOrder.farms || [])
