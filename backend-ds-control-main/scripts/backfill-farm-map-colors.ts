@@ -1,48 +1,61 @@
 import { FARM_MAP_COLOR_PATTERN, deriveAutomaticFarmMapColor } from '../src/common/utils/farm-map-color';
-import { asc, eq, isNull } from 'drizzle-orm';
+import { Client } from 'pg';
 
 const BATCH_SIZE = 100;
 
 export async function backfillFarmMapColors(): Promise<void> {
-  const [{ db, client }, { farms }] = await Promise.all([
-    import('../src/infra/database'),
-    import('../src/infra/database/schema'),
-  ]);
+  const client = new Client({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 5432),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  });
   let updated = 0;
 
   try {
+    await client.connect();
+
     while (true) {
-      const pending = await db
-        .select({ id: farms.id })
-        .from(farms)
-        .where(isNull(farms.mapColor))
-        .orderBy(asc(farms.id))
-        .limit(BATCH_SIZE);
+      const pending = await client.query<{ id: string }>(
+        'SELECT id FROM farms WHERE map_color IS NULL ORDER BY id LIMIT $1',
+        [BATCH_SIZE],
+      );
 
-      if (pending.length === 0) break;
+      if (pending.rowCount === 0) break;
 
-      for (const farm of pending) {
-        await db
-          .update(farms)
-          .set({ mapColor: deriveAutomaticFarmMapColor(farm.id) })
-          .where(eq(farms.id, farm.id));
-        updated += 1;
+      await client.query('BEGIN');
+      try {
+        for (const farm of pending.rows) {
+          const result = await client.query(
+            'UPDATE farms SET map_color = $1 WHERE id = $2 AND map_color IS NULL',
+            [deriveAutomaticFarmMapColor(farm.id), farm.id],
+          );
+          updated += result.rowCount ?? 0;
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
       }
     }
 
-    const all = await db.select({ mapColor: farms.mapColor }).from(farms);
-    const invalid = all.filter(
-      (farm) => farm.mapColor === null || !FARM_MAP_COLOR_PATTERN.test(farm.mapColor),
+    const validation = await client.query<{ map_color: string | null }>(
+      'SELECT map_color FROM farms',
+    );
+    const invalid = validation.rows.filter(
+      (farm) => farm.map_color === null || !FARM_MAP_COLOR_PATTERN.test(farm.map_color),
     );
     if (invalid.length > 0) {
       throw new Error(`Farm map-color backfill validation failed for ${invalid.length} row(s)`);
     }
 
     process.stdout.write(
-      `Farm map-color backfill complete: total=${all.length}, updated=${updated}, ignored=${all.length - updated}, invalid=0\n`,
+      `Farm map-color backfill complete: total=${validation.rowCount}, updated=${updated}, ignored=${(validation.rowCount ?? 0) - updated}, invalid=0\n`,
     );
   } finally {
-    await client.end();
+    await client.end().catch(() => undefined);
   }
 }
 
