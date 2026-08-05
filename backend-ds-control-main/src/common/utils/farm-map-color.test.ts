@@ -4,8 +4,12 @@ import {
   deriveFarmStrokeColor,
   resolveFarmMapColor,
 } from './farm-map-color';
+import { backfillFarmMapColors } from '../../../scripts/backfill-farm-map-colors';
 
 describe('farm map colors', () => {
+  it('keeps the backfill import side-effect free', () => {
+    expect(backfillFarmMapColors).toBeTypeOf('function');
+  });
   it('uses stable automatic colors independent of collection order', () => {
     expect(deriveAutomaticFarmMapColor('00000000-0000-0000-0000-000000000001')).toBe('#94A3B8');
     expect(deriveAutomaticFarmMapColor('00000000-0000-0000-0000-000000000002')).toBe('#F59E0B');
