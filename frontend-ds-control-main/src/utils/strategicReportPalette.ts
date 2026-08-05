@@ -1,3 +1,5 @@
+import { deriveFarmStrokeColor, resolveFarmMapColor, type FarmColorSource } from './farm-map-color';
+
 export type StrategicFarmColor = {
   fill: string;
   stroke: string;
@@ -43,10 +45,14 @@ export const STRATEGIC_PLOT_BASE_COLORS: string[] = [
   '#334155',
 ];
 
-export function buildStrategicFarmColorMap(farmIds: string[]): Map<string, StrategicFarmColor> {
+export function buildStrategicFarmColorMap(
+  farms: Array<string | FarmColorSource>
+): Map<string, StrategicFarmColor> {
   const map = new Map<string, StrategicFarmColor>();
-  farmIds.forEach((farmId, index) => {
-    map.set(farmId, STRATEGIC_FARM_COLORS[index % STRATEGIC_FARM_COLORS.length]);
+  farms.forEach((farm) => {
+    const source = typeof farm === 'string' ? { id: farm } : farm;
+    const fill = resolveFarmMapColor(source);
+    map.set(source.id, { fill, stroke: deriveFarmStrokeColor(fill) });
   });
   return map;
 }

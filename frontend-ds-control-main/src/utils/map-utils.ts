@@ -1,5 +1,6 @@
 import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
+import { deriveFarmStrokeColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MapboxExpression = any;
@@ -13,12 +14,11 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
     features: [],
   };
 
-  // Create a map of farmId to farm name for quick lookup
-  const farmMap = new Map<string, string>();
+  const farmMap = new Map<string, Farm>();
   if (farms) {
-    farms.forEach(farm => {
+    farms.forEach((farm) => {
       if (farm?.id && farm?.name) {
-        farmMap.set(farm.id, farm.name);
+        farmMap.set(farm.id, farm);
       }
     });
   }
@@ -26,15 +26,22 @@ export function convertDatabasePlotsToMapViewerPlotsFeatureCollection(
   geoData.forEach((plot) => {
     const plotFeatureCollection = plot.geoJson as GeoJSON.FeatureCollection;
     if (plotFeatureCollection.features && Array.isArray(plotFeatureCollection.features)) {
+      const farm = plot.farmId ? farmMap.get(plot.farmId) : undefined;
+      const fill = resolveFarmMapColor(farm ?? { id: plot.farmId || 'farm-unknown' });
+      const stroke = deriveFarmStrokeColor(fill);
       // Stable plot identity for map ↔ list sync (prefer plot.id over plot_name)
       const featuresWithFarmInfo = plotFeatureCollection.features.map((feature) => ({
         ...feature,
         properties: {
           ...feature.properties,
+          imported_fill: feature.properties?.fill,
+          imported_stroke: feature.properties?.stroke,
+          fill,
+          stroke,
           ...(plot.id ? { plot_id: plot.id } : {}),
           plot_name: plot.name,
           hectare: plot.hectare,
-          farm_name: plot.farmId ? farmMap.get(plot.farmId) || 'Unknown Farm' : 'Unknown Farm',
+          farm_name: farm?.name || 'Unknown Farm',
           farm_id: plot.farmId,
         },
       }));

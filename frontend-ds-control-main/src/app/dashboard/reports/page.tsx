@@ -29,14 +29,22 @@ import {
   type GetAllApplicationsParams,
   type GetAllApplicationsResponse,
 } from '@/services/application.service';
-import { getAllFarms, type GetAllFarmsParams, type GetAllFarmsResponse } from '@/services/farm.service';
+import {
+  getAllFarms,
+  type GetAllFarmsParams,
+  type GetAllFarmsResponse,
+} from '@/services/farm.service';
 import {
   getAllServiceOrders,
   getServiceOrderById,
   type GetAllServiceOrdersParams,
   type GetAllServiceOrdersResponse,
 } from '@/services/service-order.service';
-import { getAllUsers, type GetAllUsersParams, type GetAllUsersResponse } from '@/services/user.service';
+import {
+  getAllUsers,
+  type GetAllUsersParams,
+  type GetAllUsersResponse,
+} from '@/services/user.service';
 import {
   APPLICATION_ISSUE_LABELS,
   type Application,
@@ -46,6 +54,7 @@ import type { Farm } from '@/types/farm.type';
 import type { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.type';
 import type { User } from '@/types/user.type';
 import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
+import { resolveFarmMapColor } from '@/utils/farm-map-color';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
   downloadPDF,
@@ -56,10 +65,7 @@ import {
   generateServiceOrderStrategicReportPDF,
   generateServiceOrdersDetailedConsolidatedPDF,
 } from '@/utils/pdfGenerator';
-import {
-  buildStrategicMapFilename,
-  type StrategicMapScope,
-} from '@/utils/strategic-map-scope';
+import { buildStrategicMapFilename, type StrategicMapScope } from '@/utils/strategic-map-scope';
 
 import { reportsCatalog, type ReportFilterKey, type ReportId } from './reportsCatalog';
 
@@ -204,10 +210,7 @@ async function fetchAllApplicationsByFilters(
     throw new Error('Nao foi possivel carregar as aplicacoes para o relatorio.');
   }
 
-  if (
-    page >= REPORT_FETCH_MAX_PAGES &&
-    applicationsById.size < firstResponse.totalCount
-  ) {
+  if (page >= REPORT_FETCH_MAX_PAGES && applicationsById.size < firstResponse.totalCount) {
     throw new Error('Nao foi possivel carregar todas as aplicacoes filtradas para o relatorio.');
   }
 
@@ -290,7 +293,9 @@ async function fetchAllServiceOrdersByFilters(
     }
 
     const pageServiceOrders = response.data || [];
-    pageServiceOrders.forEach((serviceOrder) => serviceOrdersById.set(serviceOrder.id, serviceOrder));
+    pageServiceOrders.forEach((serviceOrder) =>
+      serviceOrdersById.set(serviceOrder.id, serviceOrder)
+    );
 
     const totalCount = response.totalCount ?? serviceOrdersById.size;
     if (
@@ -309,7 +314,9 @@ async function fetchAllServiceOrdersByFilters(
   }
 
   if (page >= REPORT_FETCH_MAX_PAGES && serviceOrdersById.size < firstResponse.totalCount) {
-    throw new Error('Nao foi possivel carregar todas as ordens de servico filtradas para o relatorio.');
+    throw new Error(
+      'Nao foi possivel carregar todas as ordens de servico filtradas para o relatorio.'
+    );
   }
 
   return {
@@ -430,7 +437,9 @@ function formatOperationalDate(value?: string): string {
 
 export default function ReportsCenterPage() {
   const [selectedReportId, setSelectedReportId] = useState<ReportId>('applications');
-  const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(undefined);
+  const [selectedServiceOrderId, setSelectedServiceOrderId] = useState<string | undefined>(
+    undefined
+  );
   const [selectedServiceOrderIds, setSelectedServiceOrderIds] = useState<string[]>([]);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | undefined>(undefined);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -454,7 +463,9 @@ export default function ReportsCenterPage() {
   const [generalPreview, setGeneralPreview] = useState<GeneralPreview | null>(null);
   const [generalPreviewLoading, setGeneralPreviewLoading] = useState(false);
   const [generalPreviewError, setGeneralPreviewError] = useState<string | null>(null);
-  const [applicationsPreviewRows, setApplicationsPreviewRows] = useState<ApplicationPreviewRow[]>([]);
+  const [applicationsPreviewRows, setApplicationsPreviewRows] = useState<ApplicationPreviewRow[]>(
+    []
+  );
   const [applicationsPreviewData, setApplicationsPreviewData] = useState<Application[]>([]);
   const [applicationsPreviewLoading, setApplicationsPreviewLoading] = useState(false);
   const [applicationsPreviewError, setApplicationsPreviewError] = useState<string | null>(null);
@@ -469,7 +480,8 @@ export default function ReportsCenterPage() {
     [selectedReportId]
   );
 
-  const supports = (filterKey: ReportFilterKey) => selectedReport.supportedFilters.includes(filterKey);
+  const supports = (filterKey: ReportFilterKey) =>
+    selectedReport.supportedFilters.includes(filterKey);
 
   const { data: customersData } = useGetAllCustomers({
     page: '1',
@@ -574,16 +586,23 @@ export default function ReportsCenterPage() {
     value: serviceOrder.id,
     label: `#${serviceOrder.number} - ${serviceOrder.customer?.name || 'Cliente N/A'}`,
     aditionalInformation:
-      serviceOrder.farms?.length > 0 ? serviceOrder.farms.map((farm) => farm.name).join(', ') : 'Sem fazenda',
+      serviceOrder.farms?.length > 0
+        ? serviceOrder.farms.map((farm) => farm.name).join(', ')
+        : 'Sem fazenda',
   }));
 
   const toggleServiceOrderSelection = (serviceOrderId: string) => {
     setSelectedServiceOrderIds((prev) =>
-      prev.includes(serviceOrderId) ? prev.filter((id) => id !== serviceOrderId) : [...prev, serviceOrderId]
+      prev.includes(serviceOrderId)
+        ? prev.filter((id) => id !== serviceOrderId)
+        : [...prev, serviceOrderId]
     );
   };
 
-  const updateFilter = <K extends keyof ReportsFiltersState>(key: K, value: ReportsFiltersState[K]) => {
+  const updateFilter = <K extends keyof ReportsFiltersState>(
+    key: K,
+    value: ReportsFiltersState[K]
+  ) => {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
@@ -602,7 +621,15 @@ export default function ReportsCenterPage() {
       return;
     }
 
-    if (key === 'farmId' || key === 'pilotId' || key === 'serviceOrderStatus' || key === 'startDate' || key === 'endDate' || key === 'serviceOrderNumber' || key === 'observation') {
+    if (
+      key === 'farmId' ||
+      key === 'pilotId' ||
+      key === 'serviceOrderStatus' ||
+      key === 'startDate' ||
+      key === 'endDate' ||
+      key === 'serviceOrderNumber' ||
+      key === 'observation'
+    ) {
       setSelectedServiceOrderId(undefined);
       setSelectedServiceOrderIds([]);
     }
@@ -616,12 +643,14 @@ export default function ReportsCenterPage() {
     }
 
     if (filters.cropSeasonId) {
-      const cropSeasonName = cropSeasons.find((item) => item.id === filters.cropSeasonId)?.name || filters.cropSeasonId;
+      const cropSeasonName =
+        cropSeasons.find((item) => item.id === filters.cropSeasonId)?.name || filters.cropSeasonId;
       summary.push({ label: 'Safra', value: cropSeasonName });
     }
 
     if (filters.customerId) {
-      const customerName = customers.find((item) => item.id === filters.customerId)?.name || filters.customerId;
+      const customerName =
+        customers.find((item) => item.id === filters.customerId)?.name || filters.customerId;
       summary.push({ label: 'Cliente', value: customerName });
     }
 
@@ -636,12 +665,14 @@ export default function ReportsCenterPage() {
     }
 
     if (filters.productId) {
-      const productName = products.find((item) => item.id === filters.productId)?.name || filters.productId;
+      const productName =
+        products.find((item) => item.id === filters.productId)?.name || filters.productId;
       summary.push({ label: 'Produto', value: productName });
     }
 
     if (filters.assistantId) {
-      const assistantName = assistants.find((item) => item.id === filters.assistantId)?.name || filters.assistantId;
+      const assistantName =
+        assistants.find((item) => item.id === filters.assistantId)?.name || filters.assistantId;
       summary.push({ label: 'Ajudante', value: assistantName });
     }
 
@@ -651,7 +682,9 @@ export default function ReportsCenterPage() {
     }
 
     if (filters.serviceOrderStatus) {
-      const statusLabel = STATUS_OPTIONS.find((item) => item.value === filters.serviceOrderStatus)?.label || filters.serviceOrderStatus;
+      const statusLabel =
+        STATUS_OPTIONS.find((item) => item.value === filters.serviceOrderStatus)?.label ||
+        filters.serviceOrderStatus;
       summary.push({ label: 'Status OS', value: statusLabel });
     }
 
@@ -767,7 +800,8 @@ export default function ReportsCenterPage() {
       setGenerationSuccess('Relatorio da aplicacao gerado com sucesso.');
       toast.success('Relatorio da aplicacao gerado com sucesso.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio da aplicacao.';
+      const message =
+        error instanceof Error ? error.message : 'Erro ao gerar relatorio da aplicacao.';
       setGenerationError(message);
       toast.error(message);
     } finally {
@@ -782,7 +816,8 @@ export default function ReportsCenterPage() {
     }
 
     for (const serviceOrderId of targets) {
-      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const { serviceOrderForReport, applications } =
+        await fetchServiceOrderAndApplications(serviceOrderId);
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
@@ -800,7 +835,8 @@ export default function ReportsCenterPage() {
       setIsGeneratingRowReport(`${scope}-${serviceOrderId}`);
       setGenerationError(null);
       setGenerationSuccess(null);
-      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const { serviceOrderForReport, applications } =
+        await fetchServiceOrderAndApplications(serviceOrderId);
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
@@ -827,7 +863,8 @@ export default function ReportsCenterPage() {
       setGenerationError(null);
       setGenerationSuccess(null);
 
-      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const { serviceOrderForReport, applications } =
+        await fetchServiceOrderAndApplications(serviceOrderId);
       if (applications.length === 0) {
         throw new Error('Nao ha aplicacoes para gerar o relatorio detalhado desta OS.');
       }
@@ -838,7 +875,9 @@ export default function ReportsCenterPage() {
       });
 
       downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderForReport.number}.pdf`);
-      setGenerationSuccess(`Relatorio detalhado da OS #${serviceOrderForReport.number} gerado com sucesso.`);
+      setGenerationSuccess(
+        `Relatorio detalhado da OS #${serviceOrderForReport.number} gerado com sucesso.`
+      );
       toast.success('Relatorio detalhado gerado com sucesso.');
       setSelectedServiceOrderId(serviceOrderId);
       setSelectedServiceOrderIds([serviceOrderId]);
@@ -859,7 +898,8 @@ export default function ReportsCenterPage() {
 
     const sections: Array<{ serviceOrder: ServiceOrder; applications: Application[] }> = [];
     for (const serviceOrderId of targets) {
-      const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
+      const { serviceOrderForReport, applications } =
+        await fetchServiceOrderAndApplications(serviceOrderId);
       sections.push({
         serviceOrder: serviceOrderForReport,
         applications,
@@ -963,6 +1003,7 @@ export default function ReportsCenterPage() {
       return {
         farmId: farm.id,
         farmName: farm.name,
+        mapColor: resolveFarmMapColor(farm),
         customerName: farm.customer?.name || 'Cliente N/A',
         plotsCount: farm.plots?.length || 0,
         totalAreaHectares,
@@ -1024,8 +1065,10 @@ export default function ReportsCenterPage() {
 
     const statusSummary = {
       openCount: serviceOrders.filter((serviceOrder) => serviceOrder.status === 'open').length,
-      completedCount: serviceOrders.filter((serviceOrder) => serviceOrder.status === 'completed').length,
-      cancelledCount: serviceOrders.filter((serviceOrder) => serviceOrder.status === 'cancelled').length,
+      completedCount: serviceOrders.filter((serviceOrder) => serviceOrder.status === 'completed')
+        .length,
+      cancelledCount: serviceOrders.filter((serviceOrder) => serviceOrder.status === 'cancelled')
+        .length,
     };
 
     const blob = await generateGeneralReportPDF({
@@ -1199,7 +1242,9 @@ export default function ReportsCenterPage() {
           map.set(current.pilotId, current);
         });
 
-        const rows = Array.from(map.values()).sort((a, b) => a.pilotName.localeCompare(b.pilotName, 'pt-BR'));
+        const rows = Array.from(map.values()).sort((a, b) =>
+          a.pilotName.localeCompare(b.pilotName, 'pt-BR')
+        );
         setPilotPreviewRows(rows);
       } catch (error) {
         if (!isMounted) return;
@@ -1225,16 +1270,17 @@ export default function ReportsCenterPage() {
       setFarmsPreviewLoading(true);
       setFarmsPreviewError(null);
       try {
-        const [farmsReportData, applicationsReportData, serviceOrdersReportData] = await Promise.all([
-          fetchAllFarmsByFilters(filters.customerId, {
-            includeCustomer: 'true',
-            includePlots: 'true',
-            includeGeoJson: 'false',
-            search: undefined,
-          }),
-          fetchAllApplicationsByFilters(buildApplicationFilters()),
-          fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
-        ]);
+        const [farmsReportData, applicationsReportData, serviceOrdersReportData] =
+          await Promise.all([
+            fetchAllFarmsByFilters(filters.customerId, {
+              includeCustomer: 'true',
+              includePlots: 'true',
+              includeGeoJson: 'false',
+              search: undefined,
+            }),
+            fetchAllApplicationsByFilters(buildApplicationFilters()),
+            fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
+          ]);
 
         if (!isMounted) return;
         const rows = farmsReportData.farms
@@ -1242,10 +1288,16 @@ export default function ReportsCenterPage() {
           .map((farm) => ({
             farmId: farm.id,
             farmName: farm.name,
+            mapColor: resolveFarmMapColor(farm),
             customerName: farm.customer?.name || 'Cliente N/A',
             plotsCount: farm.plots?.length || 0,
-            totalAreaHectares: (farm.plots || []).reduce((sum, plot) => sum + parseNumber(plot.hectare), 0),
-            applicationsCount: applicationsReportData.applications.filter((app) => app.farmId === farm.id).length,
+            totalAreaHectares: (farm.plots || []).reduce(
+              (sum, plot) => sum + parseNumber(plot.hectare),
+              0
+            ),
+            applicationsCount: applicationsReportData.applications.filter(
+              (app) => app.farmId === farm.id
+            ).length,
             serviceOrdersCount: serviceOrdersReportData.serviceOrders.filter((serviceOrder) =>
               (serviceOrder.farms || []).some((serviceOrderFarm) => serviceOrderFarm.id === farm.id)
             ).length,
@@ -1274,15 +1326,16 @@ export default function ReportsCenterPage() {
       setGeneralPreviewLoading(true);
       setGeneralPreviewError(null);
       try {
-        const [applicationsReportData, serviceOrdersReportData, farmsReportData] = await Promise.all([
-          fetchAllApplicationsByFilters(buildApplicationFilters()),
-          fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
-          fetchAllFarmsByFilters(filters.customerId, {
-            includeCustomer: 'true',
-            includePlots: 'true',
-            includeGeoJson: 'false',
-          }),
-        ]);
+        const [applicationsReportData, serviceOrdersReportData, farmsReportData] =
+          await Promise.all([
+            fetchAllApplicationsByFilters(buildApplicationFilters()),
+            fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
+            fetchAllFarmsByFilters(filters.customerId, {
+              includeCustomer: 'true',
+              includePlots: 'true',
+              includeGeoJson: 'false',
+            }),
+          ]);
 
         if (!isMounted) return;
         setGeneralPreview({
@@ -1382,7 +1435,9 @@ export default function ReportsCenterPage() {
                     label: item.name,
                   }))}
                   value={filters.cropSeasonId}
-                  onValueChange={(value) => updateFilter('cropSeasonId', value as string | undefined)}
+                  onValueChange={(value) =>
+                    updateFilter('cropSeasonId', value as string | undefined)
+                  }
                   placeholder='Selecionar safra'
                   searchPlaceholder='Buscar safra...'
                   onSearchChange={setCropSeasonSearch}
@@ -1458,7 +1513,9 @@ export default function ReportsCenterPage() {
                     label: item.name,
                   }))}
                   value={filters.assistantId}
-                  onValueChange={(value) => updateFilter('assistantId', value as string | undefined)}
+                  onValueChange={(value) =>
+                    updateFilter('assistantId', value as string | undefined)
+                  }
                   placeholder='Selecionar ajudante'
                   searchPlaceholder='Buscar ajudante...'
                   onSearchChange={setAssistantSearch}
@@ -1512,7 +1569,9 @@ export default function ReportsCenterPage() {
                 <SearchableSelectQuery
                   options={STATUS_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
                   value={filters.serviceOrderStatus}
-                  onValueChange={(value) => updateFilter('serviceOrderStatus', value as ServiceOrderStatus | undefined)}
+                  onValueChange={(value) =>
+                    updateFilter('serviceOrderStatus', value as ServiceOrderStatus | undefined)
+                  }
                   placeholder='Selecionar status'
                   searchPlaceholder='Buscar status...'
                   clearable
@@ -1530,7 +1589,9 @@ export default function ReportsCenterPage() {
                     label,
                   }))}
                   value={filters.applicationIssue}
-                  onValueChange={(value) => updateFilter('applicationIssue', value as ApplicationIssueFilter | undefined)}
+                  onValueChange={(value) =>
+                    updateFilter('applicationIssue', value as ApplicationIssueFilter | undefined)
+                  }
                   placeholder='Selecionar issue'
                   searchPlaceholder='Buscar issue...'
                   clearable
@@ -1555,7 +1616,9 @@ export default function ReportsCenterPage() {
                 <p className='text-sm font-medium'>Busca por numero da OS</p>
                 <Input
                   value={filters.serviceOrderNumber || ''}
-                  onChange={(event) => updateFilter('serviceOrderNumber', event.target.value || undefined)}
+                  onChange={(event) =>
+                    updateFilter('serviceOrderNumber', event.target.value || undefined)
+                  }
                   placeholder='Ex.: 135'
                 />
               </div>
@@ -1602,8 +1665,7 @@ export default function ReportsCenterPage() {
                   (applicationsPreviewLoading ||
                     applicationsPreviewRows.length === 0 ||
                     !selectedApplicationId)) ||
-                (selectedReport.id === 'service-orders' &&
-                  selectedServiceOrderIds.length === 0)
+                (selectedReport.id === 'service-orders' && selectedServiceOrderIds.length === 0)
               }
             >
               {isGeneratingReport ? (
@@ -1611,14 +1673,14 @@ export default function ReportsCenterPage() {
                   <Loader2 className='h-4 w-4 mr-2 animate-spin' />
                   Gerando relatorio...
                 </>
+              ) : selectedReport.id === 'applications' ? (
+                'Gerar relatorio da aplicacao'
+              ) : selectedReport.id === 'service-orders' ? (
+                'Gerar relatorio da OS'
+              ) : selectedReport.id === 'pilot' ? (
+                'Gerar relatorio por piloto'
               ) : (
-                selectedReport.id === 'applications'
-                  ? 'Gerar relatorio da aplicacao'
-                  : selectedReport.id === 'service-orders'
-                    ? 'Gerar relatorio da OS'
-                    : selectedReport.id === 'pilot'
-                      ? 'Gerar relatorio por piloto'
-                      : 'Gerar relatorio'
+                'Gerar relatorio'
               )}
             </Button>
             <Button variant='outline' onClick={clearFilters} disabled={isGeneratingReport}>
@@ -1674,7 +1736,9 @@ export default function ReportsCenterPage() {
               </div>
 
               {filteredServiceOrders.length === 0 && (
-                <p className='text-sm text-muted-foreground'>Nenhuma OS encontrada para os filtros atuais.</p>
+                <p className='text-sm text-muted-foreground'>
+                  Nenhuma OS encontrada para os filtros atuais.
+                </p>
               )}
 
               <div className='space-y-2'>
@@ -1700,7 +1764,8 @@ export default function ReportsCenterPage() {
                             Selecionar OS
                           </label>
                           <p className='text-sm font-semibold'>
-                            OS #{serviceOrder.number} | {serviceOrder.customer?.name || 'Cliente N/A'}
+                            OS #{serviceOrder.number} |{' '}
+                            {serviceOrder.customer?.name || 'Cliente N/A'}
                           </p>
                           <p className='text-xs text-muted-foreground'>
                             Fazendas:{' '}
@@ -1764,9 +1829,12 @@ export default function ReportsCenterPage() {
                           <Button
                             size='sm'
                             variant='secondary'
-                            onClick={() => handleGenerateServiceOrderApplicationsReportById(serviceOrder.id)}
+                            onClick={() =>
+                              handleGenerateServiceOrderApplicationsReportById(serviceOrder.id)
+                            }
                             disabled={
-                              isGeneratingReport || isGeneratingRowReport === `apps-${serviceOrder.id}`
+                              isGeneratingReport ||
+                              isGeneratingRowReport === `apps-${serviceOrder.id}`
                             }
                           >
                             {isGeneratingRowReport === `apps-${serviceOrder.id}` ? (
@@ -1779,7 +1847,9 @@ export default function ReportsCenterPage() {
                             )}
                           </Button>
                           <Button size='sm' variant='outline' asChild>
-                            <Link href={`/dashboard/service-orders/${serviceOrder.id}`}>Abrir OS</Link>
+                            <Link href={`/dashboard/service-orders/${serviceOrder.id}`}>
+                              Abrir OS
+                            </Link>
                           </Button>
                         </div>
                       </div>
@@ -1822,13 +1892,16 @@ export default function ReportsCenterPage() {
               </div>
               {selectedApplicationId && (
                 <p className='text-xs text-muted-foreground'>
-                  Aplicacao selecionada: <span className='font-medium'>{selectedApplicationId}</span>
+                  Aplicacao selecionada:{' '}
+                  <span className='font-medium'>{selectedApplicationId}</span>
                 </p>
               )}
               {applicationsPreviewLoading && (
                 <p className='text-sm text-muted-foreground'>Carregando aplicacoes...</p>
               )}
-              {applicationsPreviewError && <p className='text-sm text-red-500'>{applicationsPreviewError}</p>}
+              {applicationsPreviewError && (
+                <p className='text-sm text-red-500'>{applicationsPreviewError}</p>
+              )}
               {!applicationsPreviewLoading &&
                 !applicationsPreviewError &&
                 applicationsPreviewRows.length === 0 && (
@@ -1861,43 +1934,48 @@ export default function ReportsCenterPage() {
                           {applicationsPreviewRows.map((row) => {
                             const isSelected = selectedApplicationId === row.id;
                             return (
-                            <tr key={row.id} className={`border-t ${isSelected ? 'bg-primary/5' : ''}`}>
-                              <td className='px-3 py-2'>{row.date}</td>
-                              <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
-                              <td className='px-3 py-2'>{row.customerName}</td>
-                              <td className='px-3 py-2'>{row.farmName}</td>
-                              <td className='px-3 py-2'>{row.plotName}</td>
-                              <td className='px-3 py-2'>{row.pilotName}</td>
-                              <td className='px-3 py-2'>{row.productName}</td>
-                              <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
-                              <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
-                              <td className='px-3 py-2'>{row.statusLabel}</td>
-                              <td className='px-3 py-2'>
-                                <div className='flex justify-end gap-2'>
-                                  <Button
-                                    size='sm'
-                                    variant={isSelected ? 'default' : 'outline'}
-                                    onClick={() => setSelectedApplicationId(row.id)}
-                                  >
-                                    {isSelected ? 'Selecionada' : 'Selecionar'}
-                                  </Button>
-                                  <Button
-                                    size='sm'
-                                    onClick={() => handleGenerateApplicationReportById(row.id)}
-                                    disabled={isGeneratingReport || isGeneratingRowReport === row.id}
-                                  >
-                                    {isGeneratingRowReport === row.id ? (
-                                      <>
-                                        <Loader2 className='h-4 w-4 mr-2 animate-spin' />
-                                        Gerando...
-                                      </>
-                                    ) : (
-                                      'Gerar relatorio'
-                                    )}
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
+                              <tr
+                                key={row.id}
+                                className={`border-t ${isSelected ? 'bg-primary/5' : ''}`}
+                              >
+                                <td className='px-3 py-2'>{row.date}</td>
+                                <td className='px-3 py-2'>{row.serviceOrderNumber}</td>
+                                <td className='px-3 py-2'>{row.customerName}</td>
+                                <td className='px-3 py-2'>{row.farmName}</td>
+                                <td className='px-3 py-2'>{row.plotName}</td>
+                                <td className='px-3 py-2'>{row.pilotName}</td>
+                                <td className='px-3 py-2'>{row.productName}</td>
+                                <td className='px-3 py-2'>{row.typeOrIssueLabel}</td>
+                                <td className='px-3 py-2'>{row.appliedHectares.toFixed(2)} ha</td>
+                                <td className='px-3 py-2'>{row.statusLabel}</td>
+                                <td className='px-3 py-2'>
+                                  <div className='flex justify-end gap-2'>
+                                    <Button
+                                      size='sm'
+                                      variant={isSelected ? 'default' : 'outline'}
+                                      onClick={() => setSelectedApplicationId(row.id)}
+                                    >
+                                      {isSelected ? 'Selecionada' : 'Selecionar'}
+                                    </Button>
+                                    <Button
+                                      size='sm'
+                                      onClick={() => handleGenerateApplicationReportById(row.id)}
+                                      disabled={
+                                        isGeneratingReport || isGeneratingRowReport === row.id
+                                      }
+                                    >
+                                      {isGeneratingRowReport === row.id ? (
+                                        <>
+                                          <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                          Gerando...
+                                        </>
+                                      ) : (
+                                        'Gerar relatorio'
+                                      )}
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
                             );
                           })}
                         </tbody>
@@ -1909,7 +1987,8 @@ export default function ReportsCenterPage() {
                       <p>Area total filtrada: {applicationsPreviewTotalHectares.toFixed(2)} ha.</p>
                     </div>
                     <p className='text-xs text-muted-foreground'>
-                      Exibindo ate 50 aplicacoes na previa. O PDF e gerado apenas para a aplicacao selecionada.
+                      Exibindo ate 50 aplicacoes na previa. O PDF e gerado apenas para a aplicacao
+                      selecionada.
                     </p>
                   </div>
                 )}
@@ -1923,7 +2002,9 @@ export default function ReportsCenterPage() {
                 <Button
                   size='sm'
                   onClick={handleGenerateReport}
-                  disabled={isGeneratingReport || farmsPreviewLoading || farmsPreviewRows.length === 0}
+                  disabled={
+                    isGeneratingReport || farmsPreviewLoading || farmsPreviewRows.length === 0
+                  }
                 >
                   {isGeneratingReport ? (
                     <>
@@ -1935,10 +2016,14 @@ export default function ReportsCenterPage() {
                   )}
                 </Button>
               </div>
-              {farmsPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>}
+              {farmsPreviewLoading && (
+                <p className='text-sm text-muted-foreground'>Carregando fazendas...</p>
+              )}
               {farmsPreviewError && <p className='text-sm text-red-500'>{farmsPreviewError}</p>}
               {!farmsPreviewLoading && !farmsPreviewError && farmsPreviewRows.length === 0 && (
-                <p className='text-sm text-muted-foreground'>Nenhuma fazenda encontrada para os filtros atuais.</p>
+                <p className='text-sm text-muted-foreground'>
+                  Nenhuma fazenda encontrada para os filtros atuais.
+                </p>
               )}
               <div className='space-y-2'>
                 {farmsPreviewRows.map((farmRow) => (
@@ -1946,7 +2031,8 @@ export default function ReportsCenterPage() {
                     <p className='text-sm font-semibold'>{farmRow.farmName}</p>
                     <p className='text-xs text-muted-foreground'>Cliente: {farmRow.customerName}</p>
                     <p className='text-xs text-muted-foreground'>
-                      Area total: {farmRow.totalAreaHectares.toFixed(2)} ha | Talhoes/Mapas: {farmRow.plotsCount}
+                      Area total: {farmRow.totalAreaHectares.toFixed(2)} ha | Talhoes/Mapas:{' '}
+                      {farmRow.plotsCount}
                     </p>
                     <p className='text-xs text-muted-foreground'>
                       Aplicacoes vinculadas: {farmRow.applicationsCount || 0} | OS vinculadas:{' '}
@@ -1978,7 +2064,9 @@ export default function ReportsCenterPage() {
                   )}
                 </Button>
               </div>
-              {pilotPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando pilotos...</p>}
+              {pilotPreviewLoading && (
+                <p className='text-sm text-muted-foreground'>Carregando pilotos...</p>
+              )}
               {pilotPreviewError && <p className='text-sm text-red-500'>{pilotPreviewError}</p>}
               {!pilotPreviewLoading && !pilotPreviewError && (
                 <div className='space-y-2'>
@@ -1987,9 +2075,12 @@ export default function ReportsCenterPage() {
                       <div className='flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between'>
                         <div className='space-y-1'>
                           <p className='text-sm font-semibold'>{pilotRow.pilotName}</p>
-                          <p className='text-xs text-muted-foreground'>Status: {pilotRow.statusLabel}</p>
                           <p className='text-xs text-muted-foreground'>
-                            Aplicacoes: {pilotRow.applicationsCount} | Hectares: {pilotRow.totalHectares.toFixed(2)} ha
+                            Status: {pilotRow.statusLabel}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
+                            Aplicacoes: {pilotRow.applicationsCount} | Hectares:{' '}
+                            {pilotRow.totalHectares.toFixed(2)} ha
                           </p>
                         </div>
                         <Button
@@ -1999,18 +2090,29 @@ export default function ReportsCenterPage() {
                               setIsGeneratingRowReport(`pilot-${pilotRow.pilotId}`);
                               setGenerationError(null);
                               setGenerationSuccess(null);
-                              await handleGeneratePilotReportById(pilotRow.pilotId, pilotRow.pilotName);
-                              setGenerationSuccess(`Relatorio do piloto ${pilotRow.pilotName} gerado com sucesso.`);
+                              await handleGeneratePilotReportById(
+                                pilotRow.pilotId,
+                                pilotRow.pilotName
+                              );
+                              setGenerationSuccess(
+                                `Relatorio do piloto ${pilotRow.pilotName} gerado com sucesso.`
+                              );
                               toast.success('Relatorio do piloto gerado com sucesso.');
                             } catch (error) {
-                              const message = error instanceof Error ? error.message : 'Erro ao gerar relatorio do piloto.';
+                              const message =
+                                error instanceof Error
+                                  ? error.message
+                                  : 'Erro ao gerar relatorio do piloto.';
                               setGenerationError(message);
                               toast.error(message);
                             } finally {
                               setIsGeneratingRowReport(null);
                             }
                           }}
-                          disabled={isGeneratingReport || isGeneratingRowReport === `pilot-${pilotRow.pilotId}`}
+                          disabled={
+                            isGeneratingReport ||
+                            isGeneratingRowReport === `pilot-${pilotRow.pilotId}`
+                          }
                         >
                           {isGeneratingRowReport === `pilot-${pilotRow.pilotId}` ? (
                             <>
@@ -2027,7 +2129,8 @@ export default function ReportsCenterPage() {
                 </div>
               )}
               <p className='text-xs text-muted-foreground'>
-                Se um piloto estiver filtrado, o PDF trara apenas esse piloto. Sem filtro de piloto, o PDF agrupa todos os pilotos retornados.
+                Se um piloto estiver filtrado, o PDF trara apenas esse piloto. Sem filtro de piloto,
+                o PDF agrupa todos os pilotos retornados.
               </p>
             </div>
           )}
@@ -2036,7 +2139,11 @@ export default function ReportsCenterPage() {
             <div className='space-y-3'>
               <div className='flex flex-wrap items-center justify-between gap-2'>
                 <p className='text-sm font-semibold'>Resumo do recorte filtrado</p>
-                <Button size='sm' onClick={handleGenerateReport} disabled={isGeneratingReport || generalPreviewLoading}>
+                <Button
+                  size='sm'
+                  onClick={handleGenerateReport}
+                  disabled={isGeneratingReport || generalPreviewLoading}
+                >
                   {isGeneratingReport ? (
                     <>
                       <Loader2 className='h-4 w-4 mr-2 animate-spin' />
@@ -2047,13 +2154,17 @@ export default function ReportsCenterPage() {
                   )}
                 </Button>
               </div>
-              {generalPreviewLoading && <p className='text-sm text-muted-foreground'>Carregando resumo...</p>}
+              {generalPreviewLoading && (
+                <p className='text-sm text-muted-foreground'>Carregando resumo...</p>
+              )}
               {generalPreviewError && <p className='text-sm text-red-500'>{generalPreviewError}</p>}
               {generalPreview && (
                 <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2'>
                   <div className='rounded-lg border p-3'>
                     <p className='text-xs text-muted-foreground'>Total aplicado</p>
-                    <p className='text-sm font-semibold'>{generalPreview.totalAppliedHectares.toFixed(2)} ha</p>
+                    <p className='text-sm font-semibold'>
+                      {generalPreview.totalAppliedHectares.toFixed(2)} ha
+                    </p>
                   </div>
                   <div className='rounded-lg border p-3'>
                     <p className='text-xs text-muted-foreground'>Aplicacoes</p>

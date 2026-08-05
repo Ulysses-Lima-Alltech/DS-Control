@@ -61,6 +61,8 @@ type ApplicationIndividualReportPDFProps = {
   mapOverlayPathDs?: string[] | null;
   mapFallbackVectorPathD?: string | null;
   mapUnavailableMessage?: string | null;
+  farmMapColor?: string;
+  farmMapStrokeColor?: string;
 };
 
 function parseNumber(value: unknown): number {
@@ -109,9 +111,7 @@ function formatDjiArea(value: unknown): string | null {
 
 function formatDjiFlightDateTime(flight: DjiFlightMap): string | null {
   const datePart = typeof flight.flightDate === 'string' ? flight.flightDate.slice(0, 10) : null;
-  const formattedDate = datePart
-    ? datePart.split('-').reverse().join('/')
-    : null;
+  const formattedDate = datePart ? datePart.split('-').reverse().join('/') : null;
 
   return [formattedDate, flight.startTime].filter(Boolean).join(' ') || null;
 }
@@ -190,6 +190,8 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
   mapOverlayPathDs,
   mapFallbackVectorPathD,
   mapUnavailableMessage,
+  farmMapColor = '#60A5FA',
+  farmMapStrokeColor = '#1D4ED8',
 }) => {
   const serviceOrder = application.serviceOrder;
   const customerName =
@@ -222,7 +224,8 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
       application.djiMatchType === 'high_confidence' ||
       application.djiMatchType === 'manual');
   const showLinkedDjiFlightMaps = djiFlightMaps.length > 0;
-  const showDjiImage = showLinkedDjiFlightMaps || Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
+  const showDjiImage =
+    showLinkedDjiFlightMaps || Boolean(djiImageUrl && djiImageDataUrl && hasTrustedDjiMatch);
   const showMapImage = !showDjiImage && Boolean(mapImageDataUrl);
   const showMapVectorFallback = !showDjiImage && !showMapImage && Boolean(mapFallbackVectorPathD);
   const djiEvidenceCaption = buildDjiEvidenceCaption(application, applicationDateLabel);
@@ -365,8 +368,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
                       style={{
                         marginTop: index === 0 ? 0 : 10,
                         padding: djiFlightMaps.length > 1 ? 8 : 0,
-                        border:
-                          djiFlightMaps.length > 1 ? `1px solid ${LIGHT_BORDER}` : undefined,
+                        border: djiFlightMaps.length > 1 ? `1px solid ${LIGHT_BORDER}` : undefined,
                         borderRadius: djiFlightMaps.length > 1 ? 6 : 0,
                       }}
                     >
@@ -489,10 +491,10 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
                         <Path
                           key={`overlay-${index}`}
                           d={pathD}
-                          fill='#3388ff'
+                          fill={farmMapColor}
                           fillOpacity={0.35}
                           fillRule='evenodd'
-                          stroke='#1d4ed8'
+                          stroke={farmMapStrokeColor}
                           strokeWidth={2}
                         />
                       ))}
@@ -516,10 +518,10 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
                   />
                   <Path
                     d={mapFallbackVectorPathD!}
-                    fill='#60A5FA'
+                    fill={farmMapColor}
                     fillOpacity={0.58}
                     fillRule='evenodd'
-                    stroke='#1D4ED8'
+                    stroke={farmMapStrokeColor}
                     strokeWidth={2.2}
                   />
                 </Svg>
@@ -595,9 +597,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
-            IControl - Gerado em {generatedAt}
-          </Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
@@ -687,9 +687,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
-            IControl - Gerado em {generatedAt}
-          </Text>
+          <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
           <Text
             style={{ fontSize: 8, color: MUTED_TEXT }}
             render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}

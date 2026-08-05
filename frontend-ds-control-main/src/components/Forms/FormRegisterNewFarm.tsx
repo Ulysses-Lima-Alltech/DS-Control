@@ -24,9 +24,13 @@ import {
 } from '@/components/ui/select';
 import { useRegisterNewFarm } from '@/mutations/farm.mutation';
 import { useGetAllCustomers } from '@/queries/customer.query';
+import { useGetLiterallyAllFarms } from '@/queries/farm.query';
 import type { Customer } from '@/types/customer.type';
 import type { Plot } from '@/types/plot.type';
+import { deriveAutomaticFarmMapColor } from '@/utils/farm-map-color';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
+
+import FarmMapColorField from './FarmMapColorField';
 
 type FormRegisterNewFarmProps = {
   customer?: Customer;
@@ -38,11 +42,13 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
   const [farmGeojson, setFarmGeojson] = useState<Plot[] | null>(null);
   const [convertionFileErrors, setConvertionFileErrors] = useState<string[]>([]);
   const [isConvertionFileErrorsOpen, setIsConvertionFileErrorsOpen] = useState(true);
+  const [automaticMapColor, setAutomaticMapColor] = useState(true);
   const inputFarmNameRef = useRef<HTMLInputElement>(null);
 
   const NewFarmFormSchema = z.object({
     customerId: z.string().min(1, { message: 'Cliente é obrigatório' }),
     name: z.string().min(1, { message: 'Nome é obrigatório' }),
+    mapColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, { message: 'Use o formato #RRGGBB' }),
   });
 
   const [customerSearch, setCustomerSearch] = useState('');
@@ -65,10 +71,12 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
     formState: { errors },
     control,
     setValue,
+    watch,
   } = useForm<z.infer<typeof NewFarmFormSchema>>({
     resolver: zodResolver(NewFarmFormSchema),
     defaultValues: {
       customerId: customer?.id ?? '',
+      mapColor: '#38BDF8',
     },
   });
 
@@ -90,8 +98,20 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
       return;
     }
 
-    registerNewFarm({ ...data, plots: farmGeojson });
+    const mapColor = automaticMapColor
+      ? deriveAutomaticFarmMapColor(`${data.customerId}:${data.name}`)
+      : data.mapColor.toUpperCase();
+    registerNewFarm({ ...data, mapColor, plots: farmGeojson });
   };
+
+  const watchedCustomerId = watch('customerId');
+  const watchedName = watch('name');
+  const watchedMapColor = watch('mapColor');
+  const automaticPreview = deriveAutomaticFarmMapColor(`${watchedCustomerId}:${watchedName}`);
+  const { data: siblingFarms } = useGetLiterallyAllFarms(
+    { customerId: watchedCustomerId },
+    { enabled: Boolean(watchedCustomerId) }
+  );
 
   return (
     <div className='max-w-7xl h-[600px] p-0'>
@@ -102,7 +122,7 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
               <CardTitle>Informações da Fazenda</CardTitle>
               <CardDescription>Preencha os dados da nova fazenda</CardDescription>
             </CardHeader>
-            <CardContent className='flex-1 flex flex-col space-y-4 overflow-hidden'>
+            <CardContent className='flex-1 flex flex-col space-y-4 overflow-y-auto'>
               <div className='space-y-2'>
                 <Label>Cliente</Label>
                 <Controller
@@ -173,6 +193,17 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
                   }}
                 />
               </div>
+
+              <FarmMapColorField
+                value={watchedMapColor}
+                onChange={(value) => setValue('mapColor', value, { shouldValidate: true })}
+                automatic={automaticMapColor}
+                onAutomaticChange={setAutomaticMapColor}
+                previewColor={automaticPreview}
+                siblingColors={(siblingFarms?.farms || []).flatMap((farm) =>
+                  farm.mapColor ? [farm.mapColor] : []
+                )}
+              />
 
               <div className='flex-1 flex flex-col min-h-0'>
                 {convertionFileErrors.length > 0 && (
@@ -246,7 +277,17 @@ export default function FormRegisterNewFarm({ customer, closeDialog }: FormRegis
                 <MapViewer
                   geoData={
                     farmGeojson
-                      ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmGeojson)
+                      ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmGeojson, [
+                          {
+                            id: farmGeojson[0]?.farmId || 'new-farm',
+                            name: watchedName || 'Nova fazenda',
+                            mapColor: automaticMapColor ? automaticPreview : watchedMapColor,
+                            customer: { id: watchedCustomerId, name: '' },
+                            plots: farmGeojson,
+                            createdAt: '',
+                            updatedAt: '',
+                          },
+                        ])
                       : undefined
                   }
                 />

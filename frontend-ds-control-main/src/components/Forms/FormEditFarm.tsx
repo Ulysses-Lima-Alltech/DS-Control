@@ -25,9 +25,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEditFarmById } from '@/mutations/farm.mutation';
 import { useGetAllCustomers } from '@/queries/customer.query';
-import { useGetFarmById } from '@/queries/farm.query';
+import { useGetFarmById, useGetLiterallyAllFarms } from '@/queries/farm.query';
 import type { Plot } from '@/types/plot.type';
+import { deriveAutomaticFarmMapColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
+
+import FarmMapColorField from './FarmMapColorField';
 
 type FormEditFarmProps = {
   farmId: string;
@@ -39,6 +42,7 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
   const [farmGeojson, setFarmGeojson] = useState<Plot[] | null>(null);
   const [convertionFileErrors, setConvertionFileErrors] = useState<string[]>([]);
   const [isConvertionFileErrorsOpen, setIsConvertionFileErrorsOpen] = useState(true);
+  const [automaticMapColor, setAutomaticMapColor] = useState(false);
   const inputFarmNameRef = useRef<HTMLInputElement>(null);
 
   const { data: farmData, isLoading: isLoadingFarmData } = useGetFarmById(farmId, {
@@ -50,6 +54,7 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
   const EditFarmFormSchema = z.object({
     customerId: z.string().min(1, { message: 'Cliente é obrigatório' }),
     name: z.string().min(1, { message: 'Nome é obrigatório' }),
+    mapColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, { message: 'Use o formato #RRGGBB' }),
   });
 
   const [customerSearch, setCustomerSearch] = useState('');
@@ -72,11 +77,13 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
     formState: { errors },
     control,
     setValue,
+    watch,
   } = useForm<z.infer<typeof EditFarmFormSchema>>({
     resolver: zodResolver(EditFarmFormSchema),
     defaultValues: {
       customerId: farmData?.farm.customer.id,
       name: farmData?.farm.name,
+      mapColor: farmData?.farm ? resolveFarmMapColor(farmData.farm) : '#38BDF8',
     },
   });
 
@@ -85,6 +92,7 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
     setFarmGeojson(farmData.farm.plots.filter((plot) => plot.deletedAt === null));
     setValue('customerId', farmData.farm.customer.id);
     setValue('name', farmData.farm.name);
+    setValue('mapColor', resolveFarmMapColor(farmData.farm));
   }, [farmData]);
 
   const { mutate: editFarm, isPending: isEditingFarm } = useEditFarmById({
@@ -107,7 +115,13 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
 
     editFarm({
       farmId: farmId,
-      data: { ...data, plots: farmGeojson },
+      data: {
+        ...data,
+        mapColor: automaticMapColor
+          ? deriveAutomaticFarmMapColor(farmId)
+          : data.mapColor.toUpperCase(),
+        plots: farmGeojson,
+      },
     });
   };
 
@@ -116,6 +130,14 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
       inputFarmNameRef.current.value = farmData?.farm.name || '';
     }
   }, [farmData?.farm.name]);
+
+  const watchedMapColor = watch('mapColor');
+  const watchedCustomerId = watch('customerId');
+  const previewMapColor = automaticMapColor ? deriveAutomaticFarmMapColor(farmId) : watchedMapColor;
+  const { data: siblingFarms } = useGetLiterallyAllFarms(
+    { customerId: watchedCustomerId },
+    { enabled: Boolean(watchedCustomerId) }
+  );
 
   return (
     <div className='max-w-7xl h-[600px] p-0'>
@@ -128,7 +150,7 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
             </CardHeader>
 
             {isLoadingFarmData ? (
-              <CardContent className='flex-1 flex flex-col space-y-4 overflow-hidden'>
+              <CardContent className='flex-1 flex flex-col space-y-4 overflow-y-auto'>
                 <div className='flex flex-col h-full space-y-2'>
                   <Skeleton className='h-6 w-40' />
                   <Skeleton className='h-8 w-full' />
@@ -138,7 +160,7 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
                 </div>
               </CardContent>
             ) : (
-              <CardContent className='flex-1 flex flex-col space-y-4 overflow-hidden'>
+              <CardContent className='flex-1 flex flex-col space-y-4 overflow-y-auto'>
                 <div className='space-y-2'>
                   <Label>Cliente</Label>
                   <Controller
@@ -217,6 +239,17 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
                     Deixe em branco para manter os talhões atuais
                   </p>
                 </div>
+
+                <FarmMapColorField
+                  value={watchedMapColor}
+                  onChange={(value) => setValue('mapColor', value, { shouldValidate: true })}
+                  automatic={automaticMapColor}
+                  onAutomaticChange={setAutomaticMapColor}
+                  previewColor={deriveAutomaticFarmMapColor(farmId)}
+                  siblingColors={(siblingFarms?.farms || []).flatMap((farm) =>
+                    farm.id !== farmId && farm.mapColor ? [farm.mapColor] : []
+                  )}
+                />
 
                 <div className='flex-1 flex flex-col min-h-0'>
                   {convertionFileErrors.length > 0 && (
@@ -301,7 +334,12 @@ export default function FormEditFarm({ farmId, closeDialog }: FormEditFarmProps)
                   <MapViewer
                     geoData={
                       farmGeojson
-                        ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmGeojson)
+                        ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(farmGeojson, [
+                            {
+                              ...farmData!.farm,
+                              mapColor: previewMapColor,
+                            },
+                          ])
                         : undefined
                     }
                   />

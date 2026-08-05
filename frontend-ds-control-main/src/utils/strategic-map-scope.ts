@@ -3,7 +3,7 @@ import type { Feature, FeatureCollection, GeoJSON, MultiPolygon, Polygon, Positi
 import type { Plot } from '@/types/plot.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 
-import { STRATEGIC_FARM_COLORS } from './strategicReportPalette';
+import { resolveFarmMapColor } from './farm-map-color';
 
 export type StrategicMapScope = 'completed' | 'pending';
 export type StrategicMapDerivedStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
@@ -111,9 +111,9 @@ export function buildStrategicMapData(
   });
 
   const colorByFarm = new Map(
-    farmKeys.map((farmKey, index) => [
+    farmKeys.map((farmKey) => [
       farmKey,
-      STRATEGIC_FARM_COLORS[index % STRATEGIC_FARM_COLORS.length].fill,
+      resolveFarmMapColor(farmById.get(farmKey) ?? { id: farmKey }),
     ])
   );
   const featureCollection: FeatureCollection<StrategicMapDrawableGeometry> = {

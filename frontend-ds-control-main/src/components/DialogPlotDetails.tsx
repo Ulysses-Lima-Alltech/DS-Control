@@ -397,8 +397,11 @@ export default function DialogPlotDetails({
 
   const geoData = useMemo(() => {
     if (!activePlot) return undefined;
-    return convertDatabasePlotsToMapViewerPlotsFeatureCollection([activePlot]);
-  }, [activePlot]);
+    return convertDatabasePlotsToMapViewerPlotsFeatureCollection(
+      [activePlot],
+      data?.farm ? [data.farm] : undefined
+    );
+  }, [activePlot, data?.farm]);
 
   const reportPreviewMap = useMemo(() => {
     if (!activePlot) {

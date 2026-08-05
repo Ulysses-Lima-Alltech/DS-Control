@@ -26,7 +26,6 @@ function logReportMapSuccess(params: {
     geometryTypes: params.geometryTypes,
     mapMode: params.mapMode,
     finalUrlLength: params.finalUrl.length,
-    finalUrl: params.finalUrl,
   });
 }
 
@@ -115,12 +114,7 @@ export function calculatePlotBounds(plot: Plot): ReportMapBoundingBox | null {
     }
   }
 
-  if (
-    minLng === Infinity ||
-    maxLng === -Infinity ||
-    minLat === Infinity ||
-    maxLat === -Infinity
-  ) {
+  if (minLng === Infinity || maxLng === -Infinity || minLat === Infinity || maxLat === -Infinity) {
     return null;
   }
 
@@ -232,12 +226,7 @@ export function calculateGeometryBbox(points: LngLatPoint[]): ReportMapBoundingB
     maxLat = Math.max(maxLat, lat);
   }
 
-  if (
-    minLng === Infinity ||
-    maxLng === -Infinity ||
-    minLat === Infinity ||
-    maxLat === -Infinity
-  ) {
+  if (minLng === Infinity || maxLng === -Infinity || minLat === Infinity || maxLat === -Infinity) {
     return null;
   }
 
@@ -266,9 +255,8 @@ export function expandBboxWithAspectRatio(
   lngSpan *= paddingFactor;
   latSpan *= paddingFactor;
 
-  const safeAspectRatio = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0
-    ? targetAspectRatio
-    : 1;
+  const safeAspectRatio =
+    Number.isFinite(targetAspectRatio) && targetAspectRatio > 0 ? targetAspectRatio : 1;
   const currentAspectRatio = lngSpan / latSpan;
 
   if (currentAspectRatio > safeAspectRatio) {
@@ -325,9 +313,7 @@ export type BuildReportMapboxStaticUrlParams = {
 };
 
 /** Mensagem curta para placeholder do relatório (diagnóstico temporário). */
-export function getReportMapPlaceholderMessage(
-  reason: ReportMapUnavailableReason | null
-): string {
+export function getReportMapPlaceholderMessage(reason: ReportMapUnavailableReason | null): string {
   switch (reason) {
     case 'token_missing':
       return 'Mapa indisponível: token ausente';
@@ -431,12 +417,10 @@ export function buildReportMapboxStaticUrl(
     };
   }
 
-  const worldBounds = expandBboxWithAspectRatio(
-    bounds,
-    mapWidth / mapHeight,
-    padding
+  const worldBounds = expandBboxWithAspectRatio(bounds, mapWidth / mapHeight, padding);
+  const bboxStr = [worldBounds.west, worldBounds.south, worldBounds.east, worldBounds.north].join(
+    ','
   );
-  const bboxStr = [worldBounds.west, worldBounds.south, worldBounds.east, worldBounds.north].join(',');
   const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
 
   logReportMapSuccess({

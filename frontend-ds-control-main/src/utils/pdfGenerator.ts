@@ -30,6 +30,7 @@ import {
   prefetchDjiReportImagesByApplicationId,
   type DjiReportImageByApplicationId,
 } from '@/utils/djiReportAssets';
+import { deriveFarmStrokeColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
 import {
   buildReportMapboxStaticUrl,
@@ -210,7 +211,10 @@ function buildStrategicFarmColorMapFromServiceOrder(
         .filter((farmId): farmId is string => Boolean(farmId))
     )
   );
-  return buildStrategicFarmColorMap(orderedFarmIds);
+  const farmById = new Map((serviceOrder.farms || []).map((farm) => [farm.id, farm]));
+  return buildStrategicFarmColorMap(
+    orderedFarmIds.map((farmId) => farmById.get(farmId) ?? { id: farmId })
+  );
 }
 
 async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promise<{
@@ -722,6 +726,9 @@ export async function generateApplicationIndividualReportPDF({
         mapUnavailableMessage: null,
       }
     : await prefetchApplicationIndividualMap(applicationForPdf);
+  const farmMapColor = resolveFarmMapColor(
+    applicationForPdf.farm ?? { id: applicationForPdf.farmId || 'farm-unknown' }
+  );
 
   const element = ApplicationIndividualReportPDF({
     application: applicationForPdf,
@@ -733,6 +740,8 @@ export async function generateApplicationIndividualReportPDF({
     mapOverlayPathDs: mapData.mapOverlayPathDs,
     mapFallbackVectorPathD: mapData.mapFallbackVectorPathD,
     mapUnavailableMessage: mapData.mapUnavailableMessage,
+    farmMapColor,
+    farmMapStrokeColor: deriveFarmStrokeColor(farmMapColor),
   });
 
   // @ts-expect-error - toBlob is not typed

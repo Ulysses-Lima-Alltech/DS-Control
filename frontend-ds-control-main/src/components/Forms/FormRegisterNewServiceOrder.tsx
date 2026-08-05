@@ -277,7 +277,7 @@ export default function FormRegisterNewServiceOrder({
   // PLOTS
   const currentSelectedPlots = watch('plotsIds');
   const currentSelectedFarms = watch('farmsIds');
-  const selectedFarms = allListedFarms.filter( farm => currentSelectedFarms.includes(farm.id!))
+  const selectedFarms = allListedFarms.filter((farm) => currentSelectedFarms.includes(farm.id!));
 
   const hasDeletedPlots = (farmId: string): boolean => {
     const farm = allListedFarms.find((f) => f.id === farmId);
@@ -343,12 +343,12 @@ export default function FormRegisterNewServiceOrder({
         // Deselect: remove all plots of this farm
         const newPlotIds = currentPlotIds.filter((plotId) => !farmPlotIds.includes(plotId));
         setValue('plotsIds', newPlotIds);
-        setLastClickedFarmId(null)
+        setLastClickedFarmId(null);
       } else {
         // Select: add all plots of this farm
         const newPlotIds = [...new Set([...currentPlotIds, ...farmPlotIds])];
         setValue('plotsIds', newPlotIds);
-        setLastClickedFarmId(farmId)
+        setLastClickedFarmId(farmId);
       }
     }
   };
@@ -524,81 +524,88 @@ export default function FormRegisterNewServiceOrder({
                           name='farmsIds'
                           control={control}
                           render={() => (
-                          <>
-                            <SearchableSelectQuery
-                              options={allListedFarms.map((farm: Partial<Farm>) => ({
-                                value: farm.id ?? 'N/A',
-                                label: farm.name ? `${farm.name}` : 'N/A'
-                              }))}
-                              value={watch('farmsIds')}
-                              onValueChange={(newValue) => {
-                                if (Array.isArray(newValue)) {
-                                  // Determine toggled farm by diffing
-                                  const current = watch('farmsIds');
-                                  const added = newValue.find((id) => !current.includes(id));
-                                  const removed = current.find((id) => !newValue.includes(id));
-                                  const toggled = added || removed;
-                                  if (toggled) {
-                                    toggleFarmSelection(toggled);
+                            <>
+                              <SearchableSelectQuery
+                                options={allListedFarms.map((farm: Partial<Farm>) => ({
+                                  value: farm.id ?? 'N/A',
+                                  label: farm.name ? `${farm.name}` : 'N/A',
+                                }))}
+                                value={watch('farmsIds')}
+                                onValueChange={(newValue) => {
+                                  if (Array.isArray(newValue)) {
+                                    // Determine toggled farm by diffing
+                                    const current = watch('farmsIds');
+                                    const added = newValue.find((id) => !current.includes(id));
+                                    const removed = current.find((id) => !newValue.includes(id));
+                                    const toggled = added || removed;
+                                    if (toggled) {
+                                      toggleFarmSelection(toggled);
+                                    }
                                   }
+                                }}
+                                placeholder={
+                                  !selectedCustomerId
+                                    ? 'Selecione um cliente primeiro'
+                                    : 'Selecione fazendas'
                                 }
-                              }}
-                              placeholder={
-                                !selectedCustomerId
-                                  ? 'Selecione um cliente primeiro'
-                                  : 'Selecione fazendas'
-                              }
-                              searchPlaceholder='Buscar fazenda por nome...'
-                              disabled={
-                                (!selectedCustomerId && !isEditingServiceOrder) ||
-                                isSavingData ||
-                                isLoadingFarms ||
-                                isLoadingLastClickedFarm
-                              }
-                              isMultipleSelections={true}
-                              onSearchChange={setFarmSearch}
-                              onScrollEnd={fetchNextPageFarms}
-                              hasNextPage={hasNextPageFarms}
-                              isFetchingNextPage={isFetchingNextPageFarms}
-                              isLoading={isLoadingFarms}
-                              onItemClick={(farmId: string) => toggleFarmSelection(farmId)}
-                              className='w-full'
-                            />
-                            {(selectedFarms.length > 0) && <>
-                              <div className='flex flex-col min-h-0'>
-                                <Card className='gap-1 px-2 py-4 flex-1 flex flex-col min-h-0'>
-                                  <CardHeader className='!pb-0 flex-shrink-0 text-center'>
-                                    <CardTitle className='text-sm'>Fazendas selecionadas para esta ordem de serviço</CardTitle>
-                                  </CardHeader>
-                                  <CardContent className='px-3 gap-2 flex-1 overflow-y-auto scrollbar-hide'>
-                                    <div className="flex flex-col gap-2">
-                                      {selectedFarms.map((farm) => (
-                                        <div
-                                            key={farm.id}
-                                            className='flex flex-row gap-2 items-center'>
-                                          <div
-                                            className="p-2 flex flex-1 justify-between border rounded cursor-pointer hover:opacity-[80%]"
-                                            onClick={() => setLastClickedFarmId(farm.id!)} // se quiser permitir selecionar também
-                                          >
-                                            <p className="text-sm font-medium">{farm.name}</p>
-                                            {farm.plots?.length ? (
-                                              <p className="text-xs text-muted-foreground">{farm.plots.length} talhões</p>
-                                            ) : null}
-                                          </div>
-                                          <div
-                                            className='p-1 w-8 h-8 flex items-center justify-center rounded bg-red-700 cursor-pointer'
-                                            onClick={() => toggleFarmSelection(farm.id!)}>
-                                            <X className='w-4 h-4'/>
-                                          </div>
+                                searchPlaceholder='Buscar fazenda por nome...'
+                                disabled={
+                                  (!selectedCustomerId && !isEditingServiceOrder) ||
+                                  isSavingData ||
+                                  isLoadingFarms ||
+                                  isLoadingLastClickedFarm
+                                }
+                                isMultipleSelections={true}
+                                onSearchChange={setFarmSearch}
+                                onScrollEnd={fetchNextPageFarms}
+                                hasNextPage={hasNextPageFarms}
+                                isFetchingNextPage={isFetchingNextPageFarms}
+                                isLoading={isLoadingFarms}
+                                onItemClick={(farmId: string) => toggleFarmSelection(farmId)}
+                                className='w-full'
+                              />
+                              {selectedFarms.length > 0 && (
+                                <>
+                                  <div className='flex flex-col min-h-0'>
+                                    <Card className='gap-1 px-2 py-4 flex-1 flex flex-col min-h-0'>
+                                      <CardHeader className='!pb-0 flex-shrink-0 text-center'>
+                                        <CardTitle className='text-sm'>
+                                          Fazendas selecionadas para esta ordem de serviço
+                                        </CardTitle>
+                                      </CardHeader>
+                                      <CardContent className='px-3 gap-2 flex-1 overflow-y-auto scrollbar-hide'>
+                                        <div className='flex flex-col gap-2'>
+                                          {selectedFarms.map((farm) => (
+                                            <div
+                                              key={farm.id}
+                                              className='flex flex-row gap-2 items-center'
+                                            >
+                                              <div
+                                                className='p-2 flex flex-1 justify-between border rounded cursor-pointer hover:opacity-[80%]'
+                                                onClick={() => setLastClickedFarmId(farm.id!)} // se quiser permitir selecionar também
+                                              >
+                                                <p className='text-sm font-medium'>{farm.name}</p>
+                                                {farm.plots?.length ? (
+                                                  <p className='text-xs text-muted-foreground'>
+                                                    {farm.plots.length} talhões
+                                                  </p>
+                                                ) : null}
+                                              </div>
+                                              <div
+                                                className='p-1 w-8 h-8 flex items-center justify-center rounded bg-red-700 cursor-pointer'
+                                                onClick={() => toggleFarmSelection(farm.id!)}
+                                              >
+                                                <X className='w-4 h-4' />
+                                              </div>
+                                            </div>
+                                          ))}
                                         </div>
-                                      ))}
-                                    </div>
-                                  </CardContent>
-
-                                </Card>
-                              </div>
-                            </>}
-                          </>
+                                      </CardContent>
+                                    </Card>
+                                  </div>
+                                </>
+                              )}
+                            </>
                           )}
                         />
                       </div>
@@ -686,19 +693,19 @@ export default function FormRegisterNewServiceOrder({
                 geoData={
                   lastClickedFarmData?.farm.plots
                     ? convertDatabasePlotsToMapViewerPlotsFeatureCollection(
-                        lastClickedFarmData?.farm.plots.filter((plot) =>
-                          plot.name.toLowerCase().includes(plotSearch.toLowerCase()) && !plot.deletedAt
-                        )
+                        lastClickedFarmData?.farm.plots.filter(
+                          (plot) =>
+                            plot.name.toLowerCase().includes(plotSearch.toLowerCase()) &&
+                            !plot.deletedAt
+                        ),
+                        [lastClickedFarmData.farm]
                       )
                     : undefined
                 }
                 layerPlotIdsToHighlight={
                   lastClickedFarmData?.farm.plots
                     ?.filter(
-                      (plot) =>
-                        plot.id &&
-                        currentSelectedPlots.includes(plot.id) &&
-                        !plot.deletedAt
+                      (plot) => plot.id && currentSelectedPlots.includes(plot.id) && !plot.deletedAt
                     )
                     .map((plot) => plot.id!) ?? []
                 }
@@ -836,8 +843,10 @@ export default function FormRegisterNewServiceOrder({
                           allListedPlots.length > 0 ? (
                             <>
                               {allListedPlots
-                                .filter((plot) =>
-                                  plot.name.toLowerCase().includes(plotSearch.toLowerCase()) && !plot.deletedAt
+                                .filter(
+                                  (plot) =>
+                                    plot.name.toLowerCase().includes(plotSearch.toLowerCase()) &&
+                                    !plot.deletedAt
                                 )
                                 .map((plot) => (
                                   <div

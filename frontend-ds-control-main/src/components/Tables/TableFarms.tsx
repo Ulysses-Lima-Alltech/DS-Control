@@ -36,6 +36,7 @@ import { useGetAllFarms } from '@/queries/farm.query';
 import { Customer } from '@/types/customer.type';
 import { Farm, FarmOrderBy, FarmOrderType } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
+import { deriveFarmStrokeColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type TableFarmsProps = {
@@ -57,19 +58,19 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
   const [farmToEdit, setFarmToEdit] = React.useState<Farm | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
-  const [orderBy, setOrderBy] = React.useState<FarmOrderBy | undefined>(undefined)
-  const [orderType, setOrderType] = React.useState<FarmOrderType | undefined>(undefined)
+  const [orderBy, setOrderBy] = React.useState<FarmOrderBy | undefined>(undefined);
+  const [orderType, setOrderType] = React.useState<FarmOrderType | undefined>(undefined);
 
   const orderByOptions = [
     { value: 'name' as FarmOrderBy, label: 'Nome' },
     { value: 'created_at' as FarmOrderBy, label: 'Data de criação' },
     { value: 'customer' as FarmOrderBy, label: 'Cliente' },
-  ]
+  ];
 
   const orderTypeOptions = [
-    { value: 'asc' as FarmOrderType, label: 'Ascendente'},
-    { value: 'desc' as FarmOrderType, label: 'Descendente'},
-  ]
+    { value: 'asc' as FarmOrderType, label: 'Ascendente' },
+    { value: 'desc' as FarmOrderType, label: 'Descendente' },
+  ];
 
   const {
     data: customersData,
@@ -100,7 +101,7 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
     includePlots: 'true',
     includeGeoJson: 'false',
     orderBy: orderBy ?? FarmOrderBy.CREATEDAT,
-    orderType: orderType ?? FarmOrderType.DESC
+    orderType: orderType ?? FarmOrderType.DESC,
   });
 
   const { mutate: deleteFarmById, isPending: isDeletingFarm } = useDeleteFarmById({
@@ -180,14 +181,14 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
   );
 
   const handleOrderByChange = (orderBy: FarmOrderBy | undefined) => {
-      setOrderBy(orderBy)
-      setCurrentPage(1)
-  }
+    setOrderBy(orderBy);
+    setCurrentPage(1);
+  };
 
   const handleOrderTypeChange = (orderType: FarmOrderType | undefined) => {
-    setOrderType(orderType)
-    setCurrentPage(1)
-  }
+    setOrderType(orderType);
+    setCurrentPage(1);
+  };
 
   const toggleRowExpansion = (rowId: string) => {
     setExpandedRows((prev) => {
@@ -228,7 +229,14 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
 
         return (
           <div className='flex items-start space-x-3 py-2'>
-            <div className='flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center'>
+            <div
+              className='flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center'
+              title={`Cor no mapa: ${resolveFarmMapColor(farm)}`}
+              style={{
+                backgroundColor: resolveFarmMapColor(farm),
+                border: `2px solid ${deriveFarmStrokeColor(resolveFarmMapColor(farm))}`,
+              }}
+            >
               <MapPin className='h-5 w-5 text-black dark:text-white' />
             </div>
             <div className='flex-1 min-w-0'>
@@ -524,31 +532,30 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
           searchValue: inputSearchValue,
           onSearchChange: handleSearchChange,
         }}
-
         filters={
           <>
-
-            {!initialCustomerId &&
-            <SearchableSelectQuery
-              options={allCustomers.map((customer: Customer) => ({
-                value: customer.id,
-                label: customer.name,
-              }))}
-              value={selectedCustomerId}
-              onValueChange={(value) => handleCustomerChange(value as string | undefined)}
-              placeholder='Todos os clientes'
-              searchPlaceholder='Buscar cliente...'
-              className='w-[200px]'
-              clearable
-              disabled={!!initialCustomerId}
-              onSearchChange={(search) => {
-                setCustomerSearchValue(search);
-              }}
-              onScrollEnd={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              isLoading={isLoadingCustomers}
-            />}
+            {!initialCustomerId && (
+              <SearchableSelectQuery
+                options={allCustomers.map((customer: Customer) => ({
+                  value: customer.id,
+                  label: customer.name,
+                }))}
+                value={selectedCustomerId}
+                onValueChange={(value) => handleCustomerChange(value as string | undefined)}
+                placeholder='Todos os clientes'
+                searchPlaceholder='Buscar cliente...'
+                className='w-[200px]'
+                clearable
+                disabled={!!initialCustomerId}
+                onSearchChange={(search) => {
+                  setCustomerSearchValue(search);
+                }}
+                onScrollEnd={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                isLoading={isLoadingCustomers}
+              />
+            )}
 
             <SearchableSelectQuery
               options={orderByOptions}
@@ -569,7 +576,6 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
               className='w-[150px]'
               clearable
             />
-
           </>
         }
         pagination={{

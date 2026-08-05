@@ -3,6 +3,7 @@ import { Plot } from '@/types/plot.type';
 export type Farm = {
   id: string;
   name: string;
+  mapColor?: string | null;
   customer: {
     id: string;
     name: string;
@@ -15,10 +16,10 @@ export type Farm = {
 export enum FarmOrderBy {
   NAME = 'name',
   CREATEDAT = 'created_at',
-  CUSTOMER = 'customer'
+  CUSTOMER = 'customer',
 }
 
 export enum FarmOrderType {
   ASC = 'asc',
-  DESC = 'desc'
+  DESC = 'desc',
 }

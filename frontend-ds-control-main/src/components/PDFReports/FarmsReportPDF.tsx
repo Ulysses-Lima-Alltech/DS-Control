@@ -32,6 +32,7 @@ const BACKGROUND_SUBTLE = '#F9FAFB';
 export type FarmsReportRow = {
   farmId: string;
   farmName: string;
+  mapColor: string;
   customerName: string;
   plotsCount: number;
   totalAreaHectares: number;
@@ -93,7 +94,10 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
           }}
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
+          <Image
+            src='/images/pdf-logo-only.png'
+            style={{ width: 126, height: 32, objectFit: 'contain' }}
+          />
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Relatorio de Fazendas</Text>
             <Text style={{ fontSize: 10, color: MUTED_TEXT, marginTop: 2 }}>
@@ -119,18 +123,26 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
               <Text style={{ fontSize: 12, fontWeight: 700 }}>{totalFarms}</Text>
             </View>
             <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Talhoes / mapas</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>
+                Talhoes / mapas
+              </Text>
               <Text style={{ fontSize: 12, fontWeight: 700 }}>{totalPlots}</Text>
             </View>
           </View>
 
           <View style={{ flexDirection: 'row', marginBottom: 6 }}>
             <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Area total cadastrada</Text>
-              <Text style={{ fontSize: 12, fontWeight: 700 }}>{formatHectares(totalAreaHectares)}</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>
+                Area total cadastrada
+              </Text>
+              <Text style={{ fontSize: 12, fontWeight: 700 }}>
+                {formatHectares(totalAreaHectares)}
+              </Text>
             </View>
             <View style={{ width: '50%' }}>
-              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>Aplicacoes vinculadas</Text>
+              <Text style={{ fontSize: 9, color: MUTED_TEXT, marginBottom: 2 }}>
+                Aplicacoes vinculadas
+              </Text>
               <Text style={{ fontSize: 12, fontWeight: 700 }}>{totalApplications}</Text>
             </View>
           </View>
@@ -147,11 +159,21 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
           </View>
         </View>
 
-        <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
+        <View
+          style={{
+            border: `1px solid ${LIGHT_BORDER}`,
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 12,
+          }}
+        >
           <Text style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Filtros aplicados</Text>
           {filtersSummary.length > 0 ? (
             filtersSummary.map((item) => (
-              <View key={`${item.label}-${item.value}`} style={{ flexDirection: 'row', marginBottom: 4 }}>
+              <View
+                key={`${item.label}-${item.value}`}
+                style={{ flexDirection: 'row', marginBottom: 4 }}
+              >
                 <Text style={{ width: '34%', fontSize: 8.5, color: MUTED_TEXT }}>{item.label}</Text>
                 <Text style={{ width: '66%', fontSize: 8.5, fontWeight: 500 }}>{item.value}</Text>
               </View>
@@ -173,10 +195,18 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
           >
             <Text style={{ width: '25%', fontSize: 8, fontWeight: 700 }}>Cliente</Text>
             <Text style={{ width: '25%', fontSize: 8, fontWeight: 700 }}>Fazenda</Text>
-            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Talhoes</Text>
-            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Area</Text>
-            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Aplic.</Text>
-            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>OS</Text>
+            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              Talhoes
+            </Text>
+            <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              Area
+            </Text>
+            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              Aplic.
+            </Text>
+            <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+              OS
+            </Text>
           </View>
 
           {rows.slice(0, 11).map((row, index) => (
@@ -187,17 +217,35 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
                 paddingVertical: 6,
                 paddingHorizontal: 6,
                 backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
-                borderBottom: index === Math.min(rows.length, 11) - 1 ? 0 : `1px solid ${LIGHT_BORDER}`,
+                borderBottom:
+                  index === Math.min(rows.length, 11) - 1 ? 0 : `1px solid ${LIGHT_BORDER}`,
               }}
             >
               <Text style={{ width: '25%', fontSize: 8 }}>{row.customerName}</Text>
-              <Text style={{ width: '25%', fontSize: 8 }}>{row.farmName}</Text>
-              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.plotsCount}</Text>
+              <View style={{ width: '25%', flexDirection: 'row', alignItems: 'center' }}>
+                <View
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: 2,
+                    marginRight: 4,
+                    backgroundColor: row.mapColor,
+                  }}
+                />
+                <Text style={{ fontSize: 8 }}>{row.farmName}</Text>
+              </View>
+              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                {row.plotsCount}
+              </Text>
               <Text style={{ width: '14%', fontSize: 8, textAlign: 'right' }}>
                 {formatHectares(row.totalAreaHectares)}
               </Text>
-              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.applicationsCount}</Text>
-              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.serviceOrdersCount}</Text>
+              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                {row.applicationsCount}
+              </Text>
+              <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                {row.serviceOrdersCount}
+              </Text>
             </View>
           ))}
         </View>
@@ -248,14 +296,19 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
             }}
           >
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            <Image src='/images/pdf-logo-only.png' style={{ width: 126, height: 32, objectFit: 'contain' }} />
+            <Image
+              src='/images/pdf-logo-only.png'
+              style={{ width: 126, height: 32, objectFit: 'contain' }}
+            />
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={{ fontSize: 13, fontWeight: 700 }}>Detalhamento de Fazendas</Text>
               <Text style={{ fontSize: 9, color: MUTED_TEXT }}>Central de Relatorios IControl</Text>
             </View>
           </View>
 
-          <View style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, overflow: 'hidden' }}>
+          <View
+            style={{ border: `1px solid ${LIGHT_BORDER}`, borderRadius: 6, overflow: 'hidden' }}
+          >
             <View
               style={{
                 flexDirection: 'row',
@@ -267,10 +320,18 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
             >
               <Text style={{ width: '25%', fontSize: 8, fontWeight: 700 }}>Cliente</Text>
               <Text style={{ width: '25%', fontSize: 8, fontWeight: 700 }}>Fazenda</Text>
-              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Talhoes</Text>
-              <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Area</Text>
-              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>Aplic.</Text>
-              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>OS</Text>
+              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+                Talhoes
+              </Text>
+              <Text style={{ width: '14%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+                Area
+              </Text>
+              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+                Aplic.
+              </Text>
+              <Text style={{ width: '12%', fontSize: 8, fontWeight: 700, textAlign: 'right' }}>
+                OS
+              </Text>
             </View>
 
             {rowsChunk.map((row, index) => (
@@ -285,13 +346,30 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
                 }}
               >
                 <Text style={{ width: '25%', fontSize: 8 }}>{row.customerName}</Text>
-                <Text style={{ width: '25%', fontSize: 8 }}>{row.farmName}</Text>
-                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.plotsCount}</Text>
+                <View style={{ width: '25%', flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 2,
+                      marginRight: 4,
+                      backgroundColor: row.mapColor,
+                    }}
+                  />
+                  <Text style={{ fontSize: 8 }}>{row.farmName}</Text>
+                </View>
+                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                  {row.plotsCount}
+                </Text>
                 <Text style={{ width: '14%', fontSize: 8, textAlign: 'right' }}>
                   {formatHectares(row.totalAreaHectares)}
                 </Text>
-                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.applicationsCount}</Text>
-                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>{row.serviceOrdersCount}</Text>
+                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                  {row.applicationsCount}
+                </Text>
+                <Text style={{ width: '12%', fontSize: 8, textAlign: 'right' }}>
+                  {row.serviceOrdersCount}
+                </Text>
               </View>
             ))}
           </View>
@@ -309,7 +387,9 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>IControl - Gerado em {generatedAt}</Text>
+            <Text style={{ fontSize: 8, color: MUTED_TEXT }}>
+              IControl - Gerado em {generatedAt}
+            </Text>
             <Text
               style={{ fontSize: 8, color: MUTED_TEXT }}
               render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`}
