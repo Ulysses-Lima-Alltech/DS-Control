@@ -210,8 +210,12 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
             value={formatPercent(metrics.grossAppliedProgressPercent)}
           />
           <SummaryItem
-            label='Minhas aplicações'
-            value={`${formatHectares(myAppliedHectares)} (${myApplicationsCount})`}
+            label='Meus hectares nesta OS'
+            value={formatHectares(myAppliedHectares)}
+          />
+          <SummaryItem
+            label='Minhas aplicações nesta OS'
+            value={myApplicationsCount.toLocaleString('pt-BR')}
           />
         </View>
       </View>

@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
+import PilotSummaryCard from '@/components/PilotSummaryCard';
 import ServiceOrdersEmptyState from '@/components/ServiceOrdersEmptyState';
 import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
@@ -18,6 +19,7 @@ import TextInputSearch from '@/components/ui/TextInputSearch';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import { useGetAllFarmsInfinite } from '@/queries/farm.query';
+import { useGetMyPilotSummary } from '@/queries/mobile.query';
 import { useGetAllMyOpenServiceOrders } from '@/queries/service-order.query';
 import { Farm } from '@/types/farm.type';
 import { ServiceOrder, ServiceOrderBy, ServiceOrderType } from '@/types/service-order.type';
@@ -155,6 +157,12 @@ export default function ServiceOrders() {
     page: currentPage.toString(),
     limit: pageSize,
   });
+  const {
+    data: pilotSummary,
+    isLoading: isLoadingPilotSummary,
+    error: pilotSummaryError,
+    refetch: refetchPilotSummary,
+  } = useGetMyPilotSummary();
 
   const serviceOrdersList: ServiceOrder[] = data?.data ?? [];
 
@@ -168,7 +176,7 @@ export default function ServiceOrders() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([refetch(), refetchPilotSummary()]);
     setRefreshing(false);
   };
 
@@ -199,6 +207,12 @@ export default function ServiceOrders() {
         ListHeaderComponent={() => {
           return (
             <View style={{ gap: 12, marginBottom: 12 }}>
+              <PilotSummaryCard
+                summary={pilotSummary}
+                isLoading={isLoadingPilotSummary}
+                error={pilotSummaryError}
+                onRetry={() => void refetchPilotSummary()}
+              />
               <View
                 style={{
                   flexDirection: 'row',
