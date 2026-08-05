@@ -316,6 +316,13 @@
       "when": 1785941000000,
       "tag": "0044_enforce_farm_map_color",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1785942000000,
+      "tag": "0045_add_customer_requests",
+      "breakpoints": true
     }
   ]
 }
