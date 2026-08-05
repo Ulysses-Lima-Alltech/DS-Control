@@ -89,6 +89,15 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
+        name='requests'
+        options={{
+          title: 'Solicitações',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name='clipboard-check-outline' size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name='profile'
         options={{
           title: 'Perfil',
