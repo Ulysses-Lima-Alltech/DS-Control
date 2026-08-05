@@ -10,10 +10,10 @@ import {
   toOperationalDateYMD,
 } from "@common/utils/operational-date";
 import type { ApplicationIssueFilter } from "@modules/application/dto/get-all-application.dto";
-import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, isNull, lt, not, or, sql, sum } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, isNull, lt, max, not, or, sql, sum } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { DateTime } from 'luxon';
-import { Application, ApplicationOrderBy, ApplicationOrderType, ApplicationWithRelations, CreateApplication, DrizzleApplicationQueryResult, UpdateApplication } from "./application.types";
+import { Application, ApplicationOrderBy, ApplicationOrderType, ApplicationWithRelations, CreateApplication, DrizzleApplicationQueryResult, PilotApplicationSummary, UpdateApplication } from "./application.types";
 import { buildApplicationSearchCondition } from "./application-search";
 
 // Service orders to exclude from "aplicações avulsas" and invalid applications metrics
@@ -42,6 +42,23 @@ export class ApplicationRepository {
       sql`${operationalDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
       sql`${operationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
     )!;
+  }
+
+  public async getPilotApplicationSummary(pilotId: string): Promise<PilotApplicationSummary> {
+    const [summary] = await db
+      .select({
+        historicalAppliedAreaHa: sum(applications.hectares),
+        applicationsCount: count(applications.id),
+        lastApplicationAt: max(applications.date),
+      })
+      .from(applications)
+      .where(and(eq(applications.pilotId, pilotId), isNull(applications.deletedAt)));
+
+    return {
+      historicalAppliedAreaHa: Number(summary?.historicalAppliedAreaHa || 0),
+      applicationsCount: Number(summary?.applicationsCount || 0),
+      lastApplicationAt: summary?.lastApplicationAt ?? null,
+    };
   }
 
   private operationalDateRangesCondition(

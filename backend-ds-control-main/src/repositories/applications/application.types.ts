@@ -22,6 +22,12 @@ export type Application = {
   farmId: string | null;
 };
 
+export type PilotApplicationSummary = {
+  historicalAppliedAreaHa: number;
+  applicationsCount: number;
+  lastApplicationAt: Date | null;
+};
+
 export interface CreateApplication {
   serviceOrderId?: string | null;
   pilotId: string;
