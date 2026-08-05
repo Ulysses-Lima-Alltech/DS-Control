@@ -17,6 +17,7 @@ import type {
   CustomerRequestListQuery,
   UpdateAreaSubmissionPlotDTO,
 } from './customer-request.dto';
+import { resolveAreaPlotValidationStatus } from './area-plot-validation';
 import {
   assertCustomerRequestTransition,
   type CustomerRequestStatus,
@@ -237,6 +238,16 @@ export class CustomerRequestService {
         throw new AppError('Solicitação não pode mais ser editada', HTTP_STATUS_CODES.CONFLICT);
       }
 
+      const [existingPlot] = await tx
+        .select()
+        .from(areaSubmissionPlots)
+        .where(
+          and(eq(areaSubmissionPlots.id, plotId), eq(areaSubmissionPlots.requestId, requestId)),
+        );
+      if (!existingPlot) {
+        throw new AppError('Talhão extraído não encontrado', HTTP_STATUS_CODES.NOT_FOUND);
+      }
+
       const updates: Partial<typeof areaSubmissionPlots.$inferInsert> = { updatedAt: new Date() };
       if (dto.suggestedName !== undefined) {
         updates.suggestedName = dto.suggestedName;
@@ -248,7 +259,11 @@ export class CustomerRequestService {
           .toLocaleLowerCase('pt-BR');
       }
       if (dto.excluded !== undefined) {
-        updates.validationStatus = dto.excluded ? 'EXCLUDED' : 'VALID';
+        updates.validationStatus = resolveAreaPlotValidationStatus(
+          existingPlot.validationStatus,
+          existingPlot.validationErrors,
+          dto.excluded,
+        );
       }
       const [plot] = await tx
         .update(areaSubmissionPlots)
