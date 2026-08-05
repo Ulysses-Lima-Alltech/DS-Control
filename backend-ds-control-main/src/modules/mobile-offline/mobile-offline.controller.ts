@@ -1,9 +1,27 @@
-import AppError from "@common/handlers/app-error";
-import type { FastifyReply, FastifyRequest } from "fastify";
-import { MobileOfflineService } from "./mobile-offline.service";
+import AppError from '@common/handlers/app-error';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { MobileOfflineService } from './mobile-offline.service';
+import type { SyncOfflineOperationsDTO } from './dto/sync-offline-operations.dto';
+import { MobileOfflineOperationsService } from './mobile-offline-operations.service';
 
 export class MobileOfflineController {
   private readonly service = new MobileOfflineService();
+  private readonly operationsService = new MobileOfflineOperationsService();
+
+  public syncOperations = async (
+    request: FastifyRequest<{ Body: SyncOfflineOperationsDTO }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const result = await this.operationsService.sync(request.payload?.userId!, request.body);
+      return reply.status(200).send(result);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.throw());
+      }
+      return reply.status(500).send(new AppError('Internal server error', 500, error).throw());
+    }
+  };
 
   public bootstrap = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
@@ -15,7 +33,7 @@ export class MobileOfflineController {
         return;
       }
 
-      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw());
     }
   };
 
@@ -36,7 +54,7 @@ export class MobileOfflineController {
         return;
       }
 
-      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+      reply.status(500).send(new AppError('Internal server error', 500, error).throw());
     }
   };
 }

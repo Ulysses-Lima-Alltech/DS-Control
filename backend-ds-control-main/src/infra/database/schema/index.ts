@@ -11,6 +11,7 @@ export * from './drone.schema';
 export * from './farms.schema';
 export * from './flight-records.schema';
 export * from './integration-events.schema';
+export * from './offline-operation-receipts.schema';
 export * from './plot.schema';
 export * from './products.schema';
 export * from './routes.schema';
