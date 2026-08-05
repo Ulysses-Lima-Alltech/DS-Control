@@ -1,6 +1,7 @@
 import { getOfflineAuthSession } from '@/offline/offlineAuth';
 import {
   getMapPackStatuses,
+  getActiveOfflineManifest,
   getOfflineApplications,
   getOfflineFarms,
   getOfflineServiceOrders,
@@ -15,8 +16,9 @@ export async function buildOfflineStatusSnapshot(input?: {
   errors?: string[];
   approximateSizeBytes?: number;
 }): Promise<OfflineStatusSnapshot> {
-  const [session, farms, serviceOrders, applications, mapStatuses] = await Promise.all([
+  const [session, manifest, farms, serviceOrders, applications, mapStatuses] = await Promise.all([
     getOfflineAuthSession(),
+    getActiveOfflineManifest(),
     getOfflineFarms(),
     getOfflineServiceOrders(),
     getOfflineApplications(),
@@ -56,6 +58,9 @@ export async function buildOfflineStatusSnapshot(input?: {
     warnings: input?.warnings ?? [],
     errors: input?.errors ?? [],
     updatedAt: new Date().toISOString(),
+    datasetVersion: manifest?.datasetVersion,
+    datasetChecksum: manifest?.checksum,
+    selectedServiceOrderIds: manifest?.selectedServiceOrderIds,
   };
 }
 

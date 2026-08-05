@@ -1,14 +1,21 @@
 import NetInfo from '@react-native-community/netinfo';
 
-import { clearOfflineAuthSession, saveOfflineAuthSession } from '@/offline/offlineAuth';
+import {
+  clearOfflineAuthSession,
+  getOfflineAuthSession,
+  saveOfflineAuthSession,
+} from '@/offline/offlineAuth';
+import { assertOfflineDatasetChecksum } from '@/offline/offlineManifest';
 import { deleteOfflineMapPackages, downloadOfflineMapPackages } from '@/offline/offlineMaps';
 import { refreshOfflineStatus } from '@/offline/offlineStatus';
 import {
+  activateOfflineDataset,
   clearOfflineStorage,
   estimateOfflinePayloadBytes,
+  failOfflineDataset,
   getMapPackStatuses,
-  saveMapPackStatuses,
-  saveOfflineBootstrapData,
+  setActiveOfflineOwner,
+  stageOfflineBootstrapData,
 } from '@/offline/offlineStorage';
 import type {
   OfflineBootstrap,
@@ -17,10 +24,7 @@ import type {
 } from '@/offline/offlineTypes';
 import { api } from '@/services/api.service';
 import { removeSecureAccessToken } from '@/services/auth-token-storage.service';
-import {
-  clearOfflineDataCache as clearLegacyOfflineDataCache,
-  saveOfflineDataCache as saveLegacyOfflineDataCache,
-} from '@/utils/offline-storage';
+import { clearOfflineDataCache as clearLegacyOfflineDataCache } from '@/utils/offline-storage';
 
 const isOnline = async () => {
   const state = await NetInfo.fetch();
@@ -34,9 +38,12 @@ const emit = (
   onProgress?.(progress);
 };
 
-export async function fetchOfflineBootstrap(): Promise<OfflineBootstrap> {
-  const response = await api('/mobile/offline/bootstrap', {
-    method: 'GET',
+export async function fetchOfflineBootstrap(
+  selectedServiceOrderIds: string[]
+): Promise<OfflineBootstrap> {
+  const response = await api('/mobile/offline/dataset', {
+    method: 'POST',
+    body: JSON.stringify({ serviceOrderIds: selectedServiceOrderIds }),
   });
 
   if (!response.ok) {
@@ -49,9 +56,14 @@ export async function fetchOfflineBootstrap(): Promise<OfflineBootstrap> {
 
 export async function downloadOfflineDataAndMaps(options?: {
   onProgress?: (progress: OfflineSyncProgress) => void;
+  selectedServiceOrderIds?: string[];
 }): Promise<OfflineStatusSnapshot> {
   if (!(await isOnline())) {
     throw new Error('Conecte-se a internet para baixar os dados offline.');
+  }
+  const selectedServiceOrderIds = [...new Set(options?.selectedServiceOrderIds ?? [])];
+  if (selectedServiceOrderIds.length === 0) {
+    throw new Error('Selecione ao menos uma Ordem de Servico para uso offline.');
   }
 
   emit(options?.onProgress, {
@@ -66,15 +78,27 @@ export async function downloadOfflineDataAndMaps(options?: {
     message: 'Baixando fazendas, talhoes, ordens de servico e aplicacoes...',
   });
 
-  const bootstrap = await fetchOfflineBootstrap();
-  const approximateDataBytes = estimateOfflinePayloadBytes(bootstrap);
-  const session = await saveOfflineAuthSession({
-    user: bootstrap.user,
-    tenant: bootstrap.tenant,
-    permissions: bootstrap.permissions,
-    lastOnlineAuthAt: bootstrap.serverTime,
-    offlineReady: true,
+  const bootstrap = await fetchOfflineBootstrap(selectedServiceOrderIds);
+  await setActiveOfflineOwner({
+    userId: bootstrap.user.id,
+    customerId: bootstrap.user.customerId,
+    role: bootstrap.user.type,
   });
+  await assertOfflineDatasetChecksum(bootstrap);
+  const approximateDataBytes = estimateOfflinePayloadBytes(bootstrap);
+  const previousMapStatuses = await getMapPackStatuses();
+  let datasetId: string | null = null;
+  const previousSession = await getOfflineAuthSession();
+  const pendingSession =
+    previousSession?.user.id === bootstrap.user.id
+      ? previousSession
+      : await saveOfflineAuthSession({
+          user: bootstrap.user,
+          tenant: bootstrap.tenant,
+          permissions: bootstrap.permissions,
+          lastOnlineAuthAt: bootstrap.serverTime,
+          offlineReady: false,
+        });
 
   emit(options?.onProgress, {
     stage: 'saving-data',
@@ -84,8 +108,8 @@ export async function downloadOfflineDataAndMaps(options?: {
   const initialStatus: OfflineStatusSnapshot = {
     status: 'downloading-maps',
     isReady: false,
-    lastSyncAt: session.lastOnlineAuthAt,
-    offlineExpiresAt: session.offlineExpiresAt,
+    lastSyncAt: bootstrap.serverTime,
+    offlineExpiresAt: pendingSession.offlineExpiresAt,
     approximateSizeBytes: approximateDataBytes,
     farmsCount: bootstrap.farms.length,
     plotsCount: bootstrap.plots.length,
@@ -96,39 +120,13 @@ export async function downloadOfflineDataAndMaps(options?: {
     warnings: [],
     errors: [],
     updatedAt: new Date().toISOString(),
+    datasetVersion: bootstrap.manifest.datasetVersion,
+    datasetChecksum: bootstrap.manifest.checksum,
+    selectedServiceOrderIds: bootstrap.manifest.selectedServiceOrderIds,
   };
 
-  await saveOfflineBootstrapData(bootstrap, initialStatus);
-  await saveLegacyOfflineDataCache({
-    pilot:
-      bootstrap.user.type === 'pilot'
-        ? {
-            id: bootstrap.user.id,
-            name: bootstrap.user.name,
-          }
-        : null,
-    assistants:
-      bootstrap.assistants?.map((assistant) => ({
-        id: String(assistant.id ?? ''),
-        name: String(assistant.name ?? ''),
-      })) ?? [],
-    drones:
-      bootstrap.drones?.map((drone) => ({
-        id: String(drone.id ?? ''),
-        name: String(drone.name ?? ''),
-      })) ?? [],
-    cultureTypes:
-      bootstrap.cultureTypes?.map((cultureType) => ({
-        id: String(cultureType.id ?? ''),
-        name: String(cultureType.name ?? ''),
-      })) ?? [],
-    products:
-      bootstrap.products?.map((product) => ({
-        id: String(product.id ?? ''),
-        name: String(product.name ?? ''),
-      })) ?? [],
-    lastUpdated: bootstrap.serverTime,
-  });
+  await refreshOfflineStatus(initialStatus);
+  datasetId = await stageOfflineBootstrapData(bootstrap);
 
   emit(options?.onProgress, {
     stage: 'downloading-maps',
@@ -137,21 +135,41 @@ export async function downloadOfflineDataAndMaps(options?: {
     totalMapPackages: bootstrap.mapPackages.length,
   });
 
-  const mapResult = await downloadOfflineMapPackages(
-    bootstrap.mapPackages,
-    (mapStatus, completed, total) => {
-      emit(options?.onProgress, {
-        stage: 'downloading-maps',
-        message: `Baixando mapa: ${mapStatus.name}`,
-        currentMapPackage: mapStatus.name,
-        mapPackageProgress: mapStatus.progress,
-        completedMapPackages: completed,
-        totalMapPackages: total,
-      });
+  let mapResult;
+  try {
+    mapResult = await downloadOfflineMapPackages(
+      bootstrap.mapPackages,
+      bootstrap.manifest.datasetVersion,
+      (mapStatus, completed, total) => {
+        emit(options?.onProgress, {
+          stage: 'downloading-maps',
+          message: `Baixando mapa: ${mapStatus.name}`,
+          currentMapPackage: mapStatus.name,
+          mapPackageProgress: mapStatus.progress,
+          completedMapPackages: completed,
+          totalMapPackages: total,
+        });
+      }
+    );
+    if (mapResult.warnings.length > 0) {
+      throw new Error(`Mapas offline incompletos: ${mapResult.warnings.join(' | ')}`);
     }
-  );
+    await activateOfflineDataset(datasetId, mapResult.statuses);
+  } catch (error) {
+    await failOfflineDataset(
+      datasetId,
+      error instanceof Error ? error.message : 'Falha ao preparar mapas offline.'
+    );
+    throw error;
+  }
 
-  await saveMapPackStatuses(mapResult.statuses);
+  await saveOfflineAuthSession({
+    user: bootstrap.user,
+    tenant: bootstrap.tenant,
+    permissions: bootstrap.permissions,
+    lastOnlineAuthAt: bootstrap.serverTime,
+    offlineReady: true,
+  });
 
   emit(options?.onProgress, {
     stage: 'finalizing',
@@ -159,17 +177,30 @@ export async function downloadOfflineDataAndMaps(options?: {
     warnings: mapResult.warnings,
   });
 
-  const finalStatus = await refreshOfflineStatus({
-    status: mapResult.warnings.length > 0 ? 'partial' : 'available',
-    warnings: mapResult.warnings,
+  let finalStatus = await refreshOfflineStatus({
+    status: 'available',
+    warnings: [],
     approximateSizeBytes: approximateDataBytes + mapResult.totalResourceSize,
   });
+
+  const currentPackNames = new Set(mapResult.statuses.map((status) => status.packName));
+  const obsoletePackNames = previousMapStatuses
+    .map((status) => status.packName)
+    .filter((packName) => !currentPackNames.has(packName));
+  const cleanupWarnings = await deleteOfflineMapPackages(obsoletePackNames);
+  if (cleanupWarnings.length > 0) {
+    finalStatus = await refreshOfflineStatus({
+      status: 'available',
+      warnings: cleanupWarnings,
+      approximateSizeBytes: approximateDataBytes + mapResult.totalResourceSize,
+    });
+  }
 
   emit(options?.onProgress, {
     stage: 'completed',
     message:
-      mapResult.warnings.length > 0 ? 'Download concluido com avisos.' : 'Modo offline disponivel.',
-    warnings: mapResult.warnings,
+      cleanupWarnings.length > 0 ? 'Download concluido com avisos.' : 'Modo offline disponivel.',
+    warnings: cleanupWarnings,
   });
 
   return finalStatus;

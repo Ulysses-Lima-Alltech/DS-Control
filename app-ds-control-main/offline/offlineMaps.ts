@@ -20,7 +20,8 @@ export type OfflineMapDownloadResult = {
 
 const MAP_DOWNLOAD_TIMEOUT_MS = 45 * 60 * 1000;
 
-export const getOfflinePackName = (farmId: string) => `farm-${farmId}`;
+export const getOfflinePackName = (farmId: string, datasetVersion?: string) =>
+  datasetVersion ? `dataset-${datasetVersion}-farm-${farmId}` : `farm-${farmId}`;
 
 const isValidBounds = (mapPackage: OfflineMapPackageDefinition) => {
   const values = [...mapPackage.bounds.northEast, ...mapPackage.bounds.southWest];
@@ -39,9 +40,10 @@ async function deleteExistingPack(packName: string): Promise<void> {
 
 async function waitForMapPackageDownload(
   mapPackage: OfflineMapPackageDefinition,
+  datasetVersion: string,
   onProgress?: (status: OfflineMapPackStatus) => void
 ): Promise<OfflineMapPackStatus> {
-  const packName = getOfflinePackName(mapPackage.farmId);
+  const packName = getOfflinePackName(mapPackage.farmId, datasetVersion);
 
   await deleteExistingPack(packName);
 
@@ -142,6 +144,7 @@ async function waitForMapPackageDownload(
 
 export async function downloadOfflineMapPackages(
   mapPackages: OfflineMapPackageDefinition[],
+  datasetVersion: string,
   onProgress?: (status: OfflineMapPackStatus, completed: number, total: number) => void
 ): Promise<OfflineMapDownloadResult> {
   const statuses: OfflineMapPackStatus[] = [];
@@ -152,7 +155,7 @@ export async function downloadOfflineMapPackages(
   Mapbox.offlineManager.setProgressEventThrottle(1000);
 
   for (const mapPackage of mapPackages) {
-    const packName = getOfflinePackName(mapPackage.farmId);
+    const packName = getOfflinePackName(mapPackage.farmId, datasetVersion);
 
     if (!isValidBounds(mapPackage)) {
       const skippedStatus: OfflineMapPackStatus = {
@@ -168,9 +171,13 @@ export async function downloadOfflineMapPackages(
     }
 
     try {
-      const completedStatus = await waitForMapPackageDownload(mapPackage, (status) => {
-        onProgress?.(status, statuses.length, mapPackages.length);
-      });
+      const completedStatus = await waitForMapPackageDownload(
+        mapPackage,
+        datasetVersion,
+        (status) => {
+          onProgress?.(status, statuses.length, mapPackages.length);
+        }
+      );
       totalResourceSize += completedStatus.completedResourceSize ?? 0;
       statuses.push(completedStatus);
       onProgress?.(completedStatus, statuses.length, mapPackages.length);

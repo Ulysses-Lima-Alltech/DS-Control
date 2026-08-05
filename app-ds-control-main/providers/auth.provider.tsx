@@ -8,7 +8,11 @@ import {
   getValidOfflineAuthSession,
   saveOfflineAuthSession,
 } from '@/offline/offlineAuth';
-import { getStoredAccessToken, removeStoredAccessToken } from '@/services/auth-token-storage.service';
+import { setActiveOfflineOwner } from '@/offline/offlineStorage';
+import {
+  getStoredAccessToken,
+  removeStoredAccessToken,
+} from '@/services/auth-token-storage.service';
 import { getMe } from '@/services/user.service';
 import { User } from '@/types/user.type';
 
@@ -40,6 +44,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (__DEV__) {
           console.log('[AuthProvider] offline session accepted');
         }
+        await setActiveOfflineOwner({
+          userId: session.user.id,
+          customerId: session.user.customerId,
+          role: session.user.type,
+        });
         setUser(session.user as User);
         return true;
       }
@@ -73,6 +82,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userData = await getMe();
       const previousSession = await getOfflineAuthSession();
+      await setActiveOfflineOwner({
+        userId: userData.id,
+        customerId: userData.customerId,
+        role: userData.type,
+      });
       setUser(userData);
       await saveOfflineAuthSession({
         user: userData,

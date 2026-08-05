@@ -37,6 +37,11 @@ type OfflineMetaRow = {
   value: string;
 };
 
+type ActiveDatasetRow = {
+  datasetId: string;
+  ownerUserId: string;
+};
+
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 const getEntityId = (item: unknown, fallback: string) => {
@@ -272,6 +277,227 @@ export function validateOfflineManifestShape(
   );
 }
 
+async function getActiveDataset(): Promise<ActiveDatasetRow | null> {
+  const db = await getDb();
+  return db.getFirstAsync<ActiveDatasetRow>(
+    `SELECT active.dataset_id AS datasetId, active.owner_user_id AS ownerUserId
+       FROM offline_v2_runtime runtime
+       JOIN offline_v2_active_datasets active
+         ON active.owner_user_id = runtime.active_user_id
+       JOIN offline_v2_datasets datasets
+         ON datasets.dataset_id = active.dataset_id
+        AND datasets.owner_user_id = active.owner_user_id
+      WHERE runtime.singleton_id = 1
+        AND datasets.state = 'READY'`
+  );
+}
+
+async function insertDatasetCollection(
+  tx: SQLite.SQLiteDatabase,
+  datasetId: string,
+  ownerUserId: string,
+  collection: EntityCollection,
+  items: unknown[],
+  now: string
+): Promise<void> {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    await tx.runAsync(
+      `INSERT INTO offline_v2_entities
+         (dataset_id, owner_user_id, collection, entity_id, json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      datasetId,
+      ownerUserId,
+      collection,
+      getEntityId(item, String(index)),
+      JSON.stringify(item),
+      now
+    );
+  }
+}
+
+export async function stageOfflineBootstrapData(bootstrap: OfflineBootstrap): Promise<string> {
+  if (!validateOfflineManifestShape(bootstrap, bootstrap.manifest)) {
+    throw new Error('Manifesto offline incompativel com o dataset recebido.');
+  }
+
+  const owner = await getActiveOfflineOwner();
+  if (!owner || owner.userId !== bootstrap.user.id) {
+    throw new Error('Owner offline ativo nao corresponde ao dataset recebido.');
+  }
+
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const datasetId = `${bootstrap.manifest.datasetVersion}:${now}`;
+  const mapStatuses: OfflineMapPackStatus[] = bootstrap.mapPackages.map((mapPackage) => ({
+    ...mapPackage,
+    packName: `dataset-${bootstrap.manifest.datasetVersion}-farm-${mapPackage.farmId}`,
+    status: 'pending',
+    progress: 0,
+  }));
+  const collections: [EntityCollection, unknown[]][] = [
+    ['farms', bootstrap.farms],
+    ['plots', bootstrap.plots],
+    ['serviceOrders', bootstrap.serviceOrders],
+    ['applications', bootstrap.applications],
+    ['routes', bootstrap.routes],
+    ['mapPackages', bootstrap.mapPackages],
+    ['mapPackStatuses', mapStatuses],
+    ['assistants', bootstrap.assistants ?? []],
+    ['drones', bootstrap.drones ?? []],
+    ['cultureTypes', bootstrap.cultureTypes ?? []],
+    ['products', bootstrap.products ?? []],
+  ];
+
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    await tx.runAsync(
+      `INSERT INTO offline_v2_datasets
+         (dataset_id, owner_user_id, schema_version, dataset_version, manifest_checksum,
+          manifest_json, state, server_time, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'STAGING', ?, ?)`,
+      datasetId,
+      owner.userId,
+      bootstrap.manifest.schemaVersion,
+      bootstrap.manifest.datasetVersion,
+      bootstrap.manifest.checksum,
+      JSON.stringify(bootstrap.manifest),
+      bootstrap.serverTime,
+      now
+    );
+
+    for (const serviceOrderId of bootstrap.manifest.selectedServiceOrderIds) {
+      await tx.runAsync(
+        `INSERT INTO offline_v2_service_order_selections
+           (owner_user_id, service_order_id, dataset_id, selected_at)
+         VALUES (?, ?, ?, ?)`,
+        owner.userId,
+        serviceOrderId,
+        datasetId,
+        now
+      );
+    }
+
+    for (const [collection, items] of collections) {
+      await insertDatasetCollection(tx, datasetId, owner.userId, collection, items, now);
+    }
+
+    await tx.runAsync(
+      `UPDATE offline_v2_datasets SET state = 'DATA_READY'
+        WHERE dataset_id = ? AND owner_user_id = ? AND state = 'STAGING'`,
+      datasetId,
+      owner.userId
+    );
+  });
+
+  return datasetId;
+}
+
+export async function saveStagedMapPackStatuses(
+  datasetId: string,
+  statuses: OfflineMapPackStatus[]
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) throw new Error('Owner offline ativo nao encontrado.');
+  const db = await getDb();
+  const now = new Date().toISOString();
+
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const dataset = await tx.getFirstAsync<{ state: string }>(
+      `SELECT state FROM offline_v2_datasets
+        WHERE dataset_id = ? AND owner_user_id = ?`,
+      datasetId,
+      owner.userId
+    );
+    if (!dataset || !['DATA_READY', 'STAGING'].includes(dataset.state)) {
+      throw new Error('Dataset offline nao aceita atualizacao de mapas.');
+    }
+    await tx.runAsync(
+      `DELETE FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ? AND collection = 'mapPackStatuses'`,
+      datasetId,
+      owner.userId
+    );
+    await insertDatasetCollection(tx, datasetId, owner.userId, 'mapPackStatuses', statuses, now);
+  });
+}
+
+export async function activateOfflineDataset(
+  datasetId: string,
+  statuses: OfflineMapPackStatus[]
+): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) throw new Error('Owner offline ativo nao encontrado.');
+  if (statuses.some((status) => status.status !== 'available')) {
+    throw new Error('Todos os mapas precisam estar validados antes de ativar o dataset.');
+  }
+
+  await saveStagedMapPackStatuses(datasetId, statuses);
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const dataset = await tx.getFirstAsync<{ state: string }>(
+      `SELECT state FROM offline_v2_datasets
+        WHERE dataset_id = ? AND owner_user_id = ?`,
+      datasetId,
+      owner.userId
+    );
+    if (dataset?.state !== 'DATA_READY') {
+      throw new Error('Dataset offline nao esta pronto para ativacao.');
+    }
+    await tx.runAsync(
+      `UPDATE offline_v2_datasets
+          SET state = 'READY', activated_at = ?, failure_reason = NULL
+        WHERE dataset_id = ? AND owner_user_id = ?`,
+      now,
+      datasetId,
+      owner.userId
+    );
+    await tx.runAsync(
+      `INSERT INTO offline_v2_active_datasets (owner_user_id, dataset_id, activated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(owner_user_id) DO UPDATE SET
+         dataset_id = excluded.dataset_id,
+         activated_at = excluded.activated_at`,
+      owner.userId,
+      datasetId,
+      now
+    );
+  });
+}
+
+export async function failOfflineDataset(datasetId: string, reason: string): Promise<void> {
+  const owner = await getActiveOfflineOwner();
+  if (!owner) return;
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE offline_v2_datasets
+        SET state = 'FAILED', failure_reason = ?
+      WHERE dataset_id = ? AND owner_user_id = ? AND state <> 'READY'`,
+    reason.slice(0, 1000),
+    datasetId,
+    owner.userId
+  );
+}
+
+export async function getActiveOfflineManifest(): Promise<OfflineDatasetManifest | null> {
+  const active = await getActiveDataset();
+  if (!active) return null;
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ manifestJson: string }>(
+    `SELECT manifest_json AS manifestJson
+       FROM offline_v2_datasets
+      WHERE dataset_id = ? AND owner_user_id = ? AND state = 'READY'`,
+    active.datasetId,
+    active.ownerUserId
+  );
+  if (!row) return null;
+  try {
+    return JSON.parse(row.manifestJson) as OfflineDatasetManifest;
+  } catch {
+    return null;
+  }
+}
+
 async function replaceCollection(collection: EntityCollection, items: unknown[]): Promise<void> {
   const db = await getDb();
   const now = new Date().toISOString();
@@ -293,6 +519,26 @@ async function replaceCollection(collection: EntityCollection, items: unknown[])
 
 async function getCollection<T>(collection: EntityCollection): Promise<T[]> {
   const db = await getDb();
+  const active = await getActiveDataset();
+  if (active) {
+    const rows = await db.getAllAsync<OfflineEntityRow>(
+      `SELECT json FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ? AND collection = ?
+        ORDER BY entity_id ASC`,
+      active.datasetId,
+      active.ownerUserId,
+      collection
+    );
+    return rows.flatMap((row) => {
+      try {
+        return [JSON.parse(row.json) as T];
+      } catch {
+        return [];
+      }
+    });
+  }
+  if (await getActiveOfflineOwner()) return [];
+
   const rows = await db.getAllAsync<OfflineEntityRow>(
     'SELECT json FROM offline_entities WHERE collection = ? ORDER BY entity_id ASC',
     collection
@@ -312,6 +558,25 @@ async function getCollectionItem<T>(
   entityId: string
 ): Promise<T | null> {
   const db = await getDb();
+  const active = await getActiveDataset();
+  if (active) {
+    const row = await db.getFirstAsync<OfflineEntityRow>(
+      `SELECT json FROM offline_v2_entities
+        WHERE dataset_id = ? AND owner_user_id = ? AND collection = ? AND entity_id = ?`,
+      active.datasetId,
+      active.ownerUserId,
+      collection,
+      entityId
+    );
+    if (!row) return null;
+    try {
+      return JSON.parse(row.json) as T;
+    } catch {
+      return null;
+    }
+  }
+  if (await getActiveOfflineOwner()) return null;
+
   const row = await db.getFirstAsync<OfflineEntityRow>(
     'SELECT json FROM offline_entities WHERE collection = ? AND entity_id = ?',
     collection,
@@ -329,6 +594,21 @@ async function getCollectionItem<T>(
 
 async function setMeta<T>(key: string, value: T): Promise<void> {
   const db = await getDb();
+  const owner = await getActiveOfflineOwner();
+  if (owner) {
+    await db.runAsync(
+      `INSERT INTO offline_v2_meta (owner_user_id, key, value, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(owner_user_id, key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`,
+      owner.userId,
+      key,
+      JSON.stringify(value),
+      new Date().toISOString()
+    );
+    return;
+  }
   await db.runAsync(
     `INSERT OR REPLACE INTO offline_meta (key, value, updated_at)
      VALUES (?, ?, ?)`,
@@ -340,6 +620,20 @@ async function setMeta<T>(key: string, value: T): Promise<void> {
 
 async function getMeta<T>(key: string): Promise<T | null> {
   const db = await getDb();
+  const owner = await getActiveOfflineOwner();
+  if (owner) {
+    const scopedRow = await db.getFirstAsync<OfflineMetaRow>(
+      `SELECT value FROM offline_v2_meta WHERE owner_user_id = ? AND key = ?`,
+      owner.userId,
+      key
+    );
+    if (!scopedRow) return null;
+    try {
+      return JSON.parse(scopedRow.value) as T;
+    } catch {
+      return null;
+    }
+  }
   const row = await db.getFirstAsync<OfflineMetaRow>(
     'SELECT value FROM offline_meta WHERE key = ?',
     key
@@ -388,6 +682,28 @@ export async function getOfflineStatus(): Promise<OfflineStatusSnapshot | null> 
 }
 
 export async function saveMapPackStatuses(statuses: OfflineMapPackStatus[]): Promise<void> {
+  const active = await getActiveDataset();
+  if (active) {
+    const db = await getDb();
+    const now = new Date().toISOString();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.runAsync(
+        `DELETE FROM offline_v2_entities
+          WHERE dataset_id = ? AND owner_user_id = ? AND collection = 'mapPackStatuses'`,
+        active.datasetId,
+        active.ownerUserId
+      );
+      await insertDatasetCollection(
+        tx,
+        active.datasetId,
+        active.ownerUserId,
+        'mapPackStatuses',
+        statuses,
+        now
+      );
+    });
+    return;
+  }
   await replaceCollection('mapPackStatuses', statuses);
 }
 
@@ -451,8 +767,30 @@ export async function getOfflineSupportData() {
 
 export async function clearOfflineStorage(): Promise<void> {
   const db = await getDb();
-  await db.runAsync('DELETE FROM offline_entities');
-  await db.runAsync('DELETE FROM offline_meta');
+  const owner = await getActiveOfflineOwner();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    await tx.runAsync('DELETE FROM offline_entities');
+    await tx.runAsync('DELETE FROM offline_meta');
+    if (!owner) return;
+    const datasets = await tx.getAllAsync<{ datasetId: string }>(
+      `SELECT dataset_id AS datasetId FROM offline_v2_datasets WHERE owner_user_id = ?`,
+      owner.userId
+    );
+    for (const dataset of datasets) {
+      await tx.runAsync('DELETE FROM offline_v2_entities WHERE dataset_id = ?', dataset.datasetId);
+      await tx.runAsync(
+        'DELETE FROM offline_v2_service_order_selections WHERE dataset_id = ?',
+        dataset.datasetId
+      );
+    }
+    await tx.runAsync(
+      'DELETE FROM offline_v2_active_datasets WHERE owner_user_id = ?',
+      owner.userId
+    );
+    await tx.runAsync('DELETE FROM offline_v2_datasets WHERE owner_user_id = ?', owner.userId);
+    await tx.runAsync('DELETE FROM offline_v2_meta WHERE owner_user_id = ?', owner.userId);
+    await tx.runAsync('DELETE FROM offline_v2_runtime WHERE singleton_id = 1');
+  });
 }
 
 export function estimateOfflinePayloadBytes(bootstrap: OfflineBootstrap): number {
