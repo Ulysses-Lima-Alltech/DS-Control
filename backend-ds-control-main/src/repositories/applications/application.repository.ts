@@ -14,6 +14,7 @@ import { and, asc, count, countDistinct, desc, eq, exists, gte, ilike, inArray, 
 import type { SQL } from "drizzle-orm";
 import { DateTime } from 'luxon';
 import { Application, ApplicationOrderBy, ApplicationOrderType, ApplicationWithRelations, CreateApplication, DrizzleApplicationQueryResult, UpdateApplication } from "./application.types";
+import { buildApplicationSearchCondition } from "./application-search";
 
 // Service orders to exclude from "aplicações avulsas" and invalid applications metrics
 // These are special service orders used to organize loose/invalid applications in the system
@@ -362,19 +363,7 @@ export class ApplicationRepository {
     }
 
     if (search) {
-      whereConditions.push(
-        or(
-          ilike(applications.observations, `%${search}%`),
-          ilike(users.name, `%${search}%`),
-          ilike(assistants.name, `%${search}%`),
-          ilike(drones.name, `%${search}%`),
-          ilike(cultureTypes.name, `%${search}%`),
-          ilike(products.name, `%${search}%`),
-          ilike(plots.name, `%${search}%`),
-          ilike(customers.name, `%${search}%`),
-          ilike(farms.name, `%${search}%`),
-        )!,
-      );
+      whereConditions.push(buildApplicationSearchCondition(search));
     }
 
     if (filters?.serviceOrderStatus) {
@@ -1243,6 +1232,7 @@ export class ApplicationRepository {
       .leftJoin(farms, eq(applications.farmId, farms.id))
       .leftJoin(customers, eq(farms.customerId, customers.id))
       .leftJoin(serviceOrders, eq(applications.serviceOrderId, serviceOrders.id))
+      .leftJoin(products, eq(applications.productId, products.id))
       .where(whereClause);
 
     return result.count;

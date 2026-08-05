@@ -295,6 +295,13 @@
       "when": 1784054805797,
       "tag": "0041_unique_service_order_plot",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1785928684812,
+      "tag": "0042_enable_unaccent",
+      "breakpoints": true
     }
   ]
 }

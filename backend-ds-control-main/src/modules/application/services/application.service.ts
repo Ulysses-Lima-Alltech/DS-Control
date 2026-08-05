@@ -1,4 +1,5 @@
 import AppError from "@common/handlers/app-error";
+import { normalizeApplicationSearch } from "@common/utils/application-search";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import type { PaginatedRequest } from "@common/types/paginated-request.types";
 import {
@@ -414,11 +415,19 @@ export class ApplicationService {
 
     const scopedFilters = await this.applyPilotScopeToFilters(requestUserId, filters);
     const resolvedFilters = await this.resolveCropSeasonFilters(scopedFilters);
+    const normalizedSearch = normalizeApplicationSearch(search);
 
     const [queryResult, totalCount, summary] = await Promise.all([
-      this.applicationRepository.getAllApplications(page, limit, search, resolvedFilters, orderBy, orderType),
-      this.applicationRepository.countApplications(search, resolvedFilters),
-      this.applicationRepository.getApplicationsListSummary(search, resolvedFilters),
+      this.applicationRepository.getAllApplications(
+        page,
+        limit,
+        normalizedSearch,
+        resolvedFilters,
+        orderBy,
+        orderType,
+      ),
+      this.applicationRepository.countApplications(normalizedSearch, resolvedFilters),
+      this.applicationRepository.getApplicationsListSummary(normalizedSearch, resolvedFilters),
     ]);
 
     app.log.info("[ApplicationService] - Retrieved %d applications", totalCount);

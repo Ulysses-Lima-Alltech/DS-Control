@@ -1,4 +1,5 @@
 import { PaginatedRequestQueryStringSchema } from "@common/types/paginated-request.types";
+import { normalizeApplicationSearch } from "@common/utils/application-search";
 import { isOperationalDateString } from "@common/utils/operational-date";
 import { ApplicationOrderBy, ApplicationOrderType } from "@repositories/applications/application.types";
 import z from "zod";
@@ -48,7 +49,8 @@ export const GetApplicationQueryStringSchema = PaginatedRequestQueryStringSchema
   search: z
     .string()
     .optional()
-    .describe("Search term to filter applications by observations, customer name, pilot name, or farm name"),
+    .transform(normalizeApplicationSearch)
+    .describe("Search applications by related names, observation, plot, farm, customer, or service order number"),
   serviceOrderStatus: z
     .enum(["open", "completed", "cancelled"])
     .optional()
