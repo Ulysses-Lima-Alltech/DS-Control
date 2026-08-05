@@ -218,6 +218,12 @@ export class MobileOfflineService {
       .filter((serviceOrder) => selectedIdSet.has(serviceOrder.id))
       .map((serviceOrder) => ({
         ...serviceOrder,
+        farms: [...(serviceOrder.farms ?? [])].sort((left, right) =>
+          left.id.localeCompare(right.id),
+        ),
+        plots: [...(serviceOrder.plots ?? [])].sort((left, right) =>
+          left.id.localeCompare(right.id),
+        ),
         pilots: serviceOrder.pilots?.filter((pilot) => pilot.id === user.id).map(() => safePilot),
       }))
       .sort((left, right) => left.id.localeCompare(right.id));
@@ -242,11 +248,17 @@ export class MobileOfflineService {
     const farmsList = await this.getFarms([...farmIds], user, plotIds);
     const normalizedFarmIds = farmsList.map((farm) => farm.id);
     const [applicationsList, routesList, supportData] = await Promise.all([
-      this.getSelectedPilotApplications(selectedIds, user.id),
+      this.getSelectedPilotApplications(selectedIds, normalizedFarmIds, [...plotIds], user.id),
       this.getRoutes(normalizedFarmIds),
       this.getSupportData(),
     ]);
     const mapPackages = this.buildMapPackages(farmsList);
+    if (mapPackages.length !== farmsList.length) {
+      throw new AppError(
+        'Uma ou mais fazendas selecionadas nao possuem geometria valida para mapa offline',
+        HTTP_STATUS_CODES.BAD_REQUEST,
+      );
+    }
     const serverTime = new Date().toISOString();
     const payload = {
       user: safePilot,
@@ -378,12 +390,21 @@ export class MobileOfflineService {
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  private async getSelectedPilotApplications(serviceOrderIds: string[], pilotId: string) {
-    if (serviceOrderIds.length === 0) return [];
+  private async getSelectedPilotApplications(
+    serviceOrderIds: string[],
+    farmIds: string[],
+    plotIds: string[],
+    pilotId: string,
+  ) {
+    if (serviceOrderIds.length === 0 || farmIds.length === 0) return [];
     const result = await db.query.applications.findMany({
       where: and(
         isNull(applications.deletedAt),
         inArray(applications.serviceOrderId, serviceOrderIds),
+        inArray(applications.farmId, farmIds),
+        plotIds.length > 0
+          ? or(isNull(applications.plotId), inArray(applications.plotId, plotIds))
+          : isNull(applications.plotId),
         eq(applications.pilotId, pilotId),
       ),
       with: {
@@ -465,7 +486,7 @@ export class MobileOfflineService {
   private async getRoutes(farmIds: string[]) {
     if (farmIds.length === 0) return [];
 
-    return await db.query.routes.findMany({
+    const result = await db.query.routes.findMany({
       where: and(inArray(routes.farmId, farmIds), isNull(routes.deletedAt)),
       with: {
         farm: true,
@@ -473,6 +494,7 @@ export class MobileOfflineService {
       },
       orderBy: (table, { asc }) => [asc(table.name)],
     });
+    return result.sort((left, right) => left.id.localeCompare(right.id));
   }
 
   private async getSupportData() {
@@ -496,10 +518,10 @@ export class MobileOfflineService {
     ]);
 
     return {
-      assistants: assistantsList,
-      drones: dronesList,
-      cultureTypes: cultureTypesList,
-      products: productsList,
+      assistants: assistantsList.sort((left, right) => left.id.localeCompare(right.id)),
+      drones: dronesList.sort((left, right) => left.id.localeCompare(right.id)),
+      cultureTypes: cultureTypesList.sort((left, right) => left.id.localeCompare(right.id)),
+      products: productsList.sort((left, right) => left.id.localeCompare(right.id)),
     };
   }
 }
