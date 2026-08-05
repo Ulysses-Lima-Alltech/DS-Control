@@ -12,6 +12,7 @@ import type { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 interface ApplicationsReportLayoutMirrorProps {
   serviceOrder: ServiceOrder;
@@ -96,10 +97,10 @@ export function ApplicationsReportLayoutMirror({
     second: '2-digit',
   });
 
-  const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
+  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder);
   const plannedHectares = parseReportNumber(
     reportMetrics?.plannedAreaHa,
-    Number(serviceOrder.plannedHectares) || 0
+    serviceOrderMetrics.plannedAreaHa
   );
   const completedIds = new Set(completedPlotIds);
   const completedPlotsById = new Map(
@@ -116,10 +117,21 @@ export function ApplicationsReportLayoutMirror({
       applicationsByPlot[plotId] ??= [];
     });
   }
-  const grossAppliedHectares = parseReportNumber(reportMetrics?.grossAppliedAreaHa, totalHectares);
+  const grossAppliedHectares = parseReportNumber(
+    reportMetrics?.grossAppliedAreaHa,
+    serviceOrderMetrics.grossAppliedAreaHa
+  );
   const consolidatedPlotHectares = parseReportNumber(
-    reportMetrics?.consolidatedPlotAreaHa,
-    totalHectares
+    reportMetrics?.consolidatedOperationalAreaHa ?? reportMetrics?.consolidatedPlotAreaHa,
+    serviceOrderMetrics.consolidatedOperationalAreaHa
+  );
+  const registeredCompletedHectares = parseReportNumber(
+    reportMetrics?.registeredCompletedAreaHa,
+    serviceOrderMetrics.registeredCompletedAreaHa
+  );
+  const inProgressAppliedHectares = parseReportNumber(
+    reportMetrics?.inProgressAppliedAreaHa,
+    serviceOrderMetrics.inProgressAppliedAreaHa
   );
   const reportAppliedHectares = isCompletedPlannedArea
     ? consolidatedPlotHectares
@@ -128,7 +140,9 @@ export function ApplicationsReportLayoutMirror({
     isCompletedPlannedArea
       ? reportMetrics?.consolidatedProgressPercent
       : reportMetrics?.grossAppliedProgressPercent,
-    plannedHectares > 0 ? (reportAppliedHectares / plannedHectares) * 100 : 0
+    isCompletedPlannedArea
+      ? serviceOrderMetrics.consolidatedProgressPercent
+      : serviceOrderMetrics.grossAppliedProgressPercent
   );
   const averageFlowRate =
     applications.length > 0
@@ -251,29 +265,29 @@ export function ApplicationsReportLayoutMirror({
           </h2>
           <p className='text-[8px] text-[#6B7280] -mt-2 mb-3'>
             {isCompletedPlannedArea
-              ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrder.plotCompletionThresholdPercent}% e área real aplicada para talhões em andamento.`
+              ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrderMetrics.completionThresholdPercent}% e soma bruta aplicada para talhões em andamento.`
               : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
           </p>
           <div className='grid grid-cols-3 gap-2 mb-3'>
             <div className='bg-[#F9FAFB] p-2.5 rounded border border-[#E5E7EB]'>
-              <p className='text-[9px] font-bold text-[#6B7280]'>Área Total Planejada da OS</p>
+              <p className='text-[9px] font-bold text-[#6B7280]'>Área Cadastrada da OS</p>
               <p className='text-sm font-bold text-[#1F2937] mt-1'>
                 {formatHectares(plannedHectares)}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
-                Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
+                Soma das áreas cadastradas dos talhões ativos vinculados à Ordem de Serviço.
               </p>
             </div>
             <div className='bg-[#FFF3CD] p-2.5 rounded border-2 border-[#EAAE07]'>
               <p className='text-[9px] font-bold text-[#6B7280]'>
-                {isCompletedPlannedArea ? 'Área Consolidada Contabilizada' : 'Área Bruta Aplicada'}
+                {isCompletedPlannedArea ? 'Área Operacional Consolidada' : 'Área Bruta Aplicada'}
               </p>
               <p className='text-sm font-bold text-[#EAAE07] mt-1'>
                 {formatHectares(reportAppliedHectares)}
               </p>
               <p className='text-[7px] leading-snug text-[#6B7280] mt-1'>
                 {isCompletedPlannedArea
-                  ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com área real aplicada.'
+                  ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com soma bruta aplicada.'
                   : 'Soma real das áreas informadas em todas as aplicações ativas da Ordem de Serviço.'}
               </p>
             </div>
@@ -290,6 +304,11 @@ export function ApplicationsReportLayoutMirror({
                   : 'Relação entre a área bruta aplicada e a área planejada.'}
               </p>
             </div>
+          </div>
+          <div className='grid grid-cols-3 gap-2 mb-3 text-[8px] text-[#6B7280]'>
+            <span>Área cadastrada concluída: {formatHectares(registeredCompletedHectares)}</span>
+            <span>Área aplicada em andamento: {formatHectares(inProgressAppliedHectares)}</span>
+            <span>Área operacional consolidada: {formatHectares(consolidatedPlotHectares)}</span>
           </div>
           {!isCompletedPlannedArea ? (
             <>

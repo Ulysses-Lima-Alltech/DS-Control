@@ -4,6 +4,7 @@ import React from 'react';
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 import {
   buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
@@ -106,14 +107,6 @@ type StrategicVectorShape = {
   isApplied: boolean;
 };
 
-type ServiceOrderMetrics = {
-  plannedHectares: number;
-  totalAppliedHectares: number;
-  progressPercent: number;
-  plotsWithApplications: number;
-  totalPlots: number;
-};
-
 function parseNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -121,16 +114,6 @@ function parseNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
-}
-
-function parseOptionalNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value.replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
 }
 
 function formatHectares(value: number): string {
@@ -145,51 +128,6 @@ function formatPercent(value: number): string {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   })}%`;
-}
-
-function resolveServiceOrderMetrics(
-  serviceOrder: ServiceOrder,
-  applications: Application[]
-): ServiceOrderMetrics {
-  const fallbackPlannedHectares = (serviceOrder.plots || []).reduce(
-    (sum, plot) => sum + parseNumber(plot.hectare),
-    0
-  );
-  const serviceOrderApplications = applications.filter(
-    (application) => application.serviceOrderId === serviceOrder.id
-  );
-  const fallbackAppliedHectares = serviceOrderApplications.reduce(
-    (sum, application) => sum + parseNumber(application.hectares),
-    0
-  );
-  const fallbackAppliedPlotIds = new Set(
-    serviceOrderApplications
-      .map((application) => application.plotId)
-      .filter((plotId): plotId is string => Boolean(plotId))
-  );
-  const plannedHectares =
-    parseOptionalNumber(serviceOrder.plannedHectares) ?? fallbackPlannedHectares;
-  const totalAppliedHectares =
-    parseOptionalNumber(serviceOrder.grossAppliedAreaHa) ??
-    parseOptionalNumber(serviceOrder.totalAppliedHectares) ??
-    fallbackAppliedHectares;
-  const fallbackProgressPercent =
-    plannedHectares > 0 ? (totalAppliedHectares / plannedHectares) * 100 : 0;
-  const progressPercent =
-    parseOptionalNumber(serviceOrder.grossAppliedProgressPercent) ?? fallbackProgressPercent;
-
-  return {
-    plannedHectares,
-    totalAppliedHectares,
-    progressPercent,
-    plotsWithApplications:
-      parseOptionalNumber(serviceOrder.plotsWithApplications) ?? fallbackAppliedPlotIds.size,
-    totalPlots:
-      parseOptionalNumber(serviceOrder.totalPlots) ??
-      serviceOrder.plots?.length ??
-      serviceOrder.plotsIds?.length ??
-      0,
-  };
 }
 
 function formatGeneratedAt(): string {
@@ -745,7 +683,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     );
 
   const plotRowsById = new Map(validPlotRows.map((row) => [row.plotId, row]));
-  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder, applications);
+  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder);
 
   const appliedPlotIds = new Set(
     applications
@@ -753,7 +691,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
       .map((application) => application.plotId)
       .filter((plotId): plotId is string => Boolean(plotId))
   );
-  const progressBarWidth = `${clamp(serviceOrderMetrics.progressPercent, 0, 100)}%`;
+  const progressBarWidth = `${clamp(serviceOrderMetrics.registeredProgressPercent, 0, 100)}%`;
 
   const customerName = serviceOrder.customer?.name || 'CLIENTE';
   const observationTitle = (serviceOrder.observation || 'PROGRAMACAO').toUpperCase();
@@ -1091,9 +1029,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               <View
                 style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.4 }}
               >
-                <Text style={{ fontSize: 6.3, color: MUTED_TEXT }}>Progresso real da OS</Text>
+                <Text style={{ fontSize: 6.3, color: MUTED_TEXT }}>
+                  Progresso cadastral concluido
+                </Text>
                 <Text style={{ fontSize: 6.6, fontWeight: 700 }}>
-                  {formatPercent(serviceOrderMetrics.progressPercent)}
+                  {formatPercent(serviceOrderMetrics.registeredProgressPercent)}
                 </Text>
               </View>
               <View
@@ -1114,8 +1054,19 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                 />
               </View>
               <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Aplicado: {formatHectares(serviceOrderMetrics.totalAppliedHectares)} de{' '}
-                {formatHectares(serviceOrderMetrics.plannedHectares)}
+                Area cadastrada da OS: {formatHectares(serviceOrderMetrics.plannedAreaHa)}
+              </Text>
+              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                Area bruta aplicada: {formatHectares(serviceOrderMetrics.grossAppliedAreaHa)} (
+                {formatPercent(serviceOrderMetrics.grossAppliedProgressPercent)})
+              </Text>
+              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                Area cadastrada concluida:{' '}
+                {formatHectares(serviceOrderMetrics.registeredCompletedAreaHa)}
+              </Text>
+              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
+                Area operacional consolidada:{' '}
+                {formatHectares(serviceOrderMetrics.consolidatedOperationalAreaHa)}
               </Text>
               <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
                 Talhoes com aplicacao: {serviceOrderMetrics.plotsWithApplications}/

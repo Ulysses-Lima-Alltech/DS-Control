@@ -2,6 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
 import type { ServiceOrder } from '@/types/service-order.type';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 9, color: '#1f2937', fontFamily: 'Helvetica' },
@@ -31,6 +32,7 @@ export function PendingPlotsReportPDF({
   serviceOrder: ServiceOrder;
   pendingPlotIds: string[];
 }) {
+  const metrics = resolveServiceOrderMetrics(serviceOrder);
   const pendingIds = new Set(pendingPlotIds);
   const plots = (serviceOrder.plots || [])
     .filter((plot) => Boolean(plot.id && pendingIds.has(plot.id)))
@@ -50,7 +52,7 @@ export function PendingPlotsReportPDF({
           <Text style={styles.summaryText}>Área pendente: {hectares(area)}</Text>
           <Text>
             Critério oficial: cobertura real inferior a{' '}
-            {serviceOrder.plotCompletionThresholdPercent}% da área cadastrada.
+            {metrics.completionThresholdPercent}% da área cadastrada.
           </Text>
         </View>
         <View style={styles.header} fixed>

@@ -19,6 +19,7 @@ import { useGetServiceOrderById } from '@/queries/service-order.query';
 import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 const MAPBOX_TOKEN =
   'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
@@ -358,10 +359,10 @@ export default function StrategicMapPrintPage({
               ))}
             </div>
             <div className='strategic-map-legend-total'>
-              ÁREA CADASTRADA REPRESENTADA: {formatHectares(strategicMapData.totalHectares)} HA
+              ÁREA CADASTRADA DA OS: {formatHectares(strategicMapData.totalHectares)} HA
             </div>
             <div className='strategic-map-legend-total'>
-              ÁREA TOTAL APLICADA: {formatHectares(strategicMapData.totalAppliedHectares)} HA
+              ÁREA BRUTA APLICADA: {formatHectares(strategicMapData.totalAppliedHectares)} HA
             </div>
           </aside>
         )}
@@ -1133,11 +1134,11 @@ function drawPdfLegend(
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(cssPxToPt(56));
   pdf.setTextColor(0, 0, 0);
-  pdf.text(`ÁREA CADASTRADA REPRESENTADA: ${formatHectares(totalHectares)} HA`, x, y, {
+  pdf.text(`ÁREA CADASTRADA DA OS: ${formatHectares(totalHectares)} HA`, x, y, {
     baseline: 'top',
   });
   y += cssPxToMm(72);
-  pdf.text(`ÁREA TOTAL APLICADA: ${formatHectares(totalAppliedHectares)} HA`, x, y, {
+  pdf.text(`ÁREA BRUTA APLICADA: ${formatHectares(totalAppliedHectares)} HA`, x, y, {
     baseline: 'top',
   });
 }
@@ -1265,23 +1266,11 @@ function sanitizeFilePart(value: string | number): string {
   return sanitized || 'sem-numero';
 }
 
-function parseOptionalHectares(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  const parsed = parseHectares(value as Plot['hectare']);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
   const farmsById = buildFarmMap(serviceOrder.farms || []);
   const farmSummaries = new Map<string, Omit<FarmLegendItem, 'fill'>>();
   const drafts: PlotFeatureDraft[] = [];
-  const totalAppliedHectares =
-    parseOptionalHectares(serviceOrder.grossAppliedAreaHa) ??
-    parseOptionalHectares(serviceOrder.totalAppliedHectares) ??
-    0;
+  const metrics = resolveServiceOrderMetrics(serviceOrder);
 
   (serviceOrder.plots || []).forEach((plot) => {
     const farmKey = plot.farmId || `farmless-${plot.name}`;
@@ -1356,8 +1345,8 @@ function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
   return {
     featureCollection,
     farms: legendFarms,
-    totalHectares: legendFarms.reduce((sum, farm) => sum + farm.hectares, 0),
-    totalAppliedHectares,
+    totalHectares: metrics.plannedAreaHa,
+    totalAppliedHectares: metrics.grossAppliedAreaHa,
     bounds: getFeatureCollectionBounds(featureCollection),
   };
 }

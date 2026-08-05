@@ -50,6 +50,7 @@ import {
   generateCompletedPlotsPlannedAreaReportPDF,
   generatePendingPlotsReportPDF,
 } from '@/utils/pdfGenerator';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -152,28 +153,20 @@ export default function ServiceOrderPage({
   );
 
   const progressData = useMemo(() => {
-    const mapasTotal = Number(serviceOrderData?.totalPlots ?? serviceOrderData?.plots?.length ?? 0);
-    const mapasConcluidos = Number(serviceOrderData?.completedPlots ?? completedPlotIds.length);
-    const areaTotal = Number(serviceOrderData?.plannedHectares || 0);
-    const areaConcluida = Number(serviceOrderData?.completedHectares || 0);
-    const percentual = Number(serviceOrderData?.progressPercent || 0);
+    const metrics = resolveServiceOrderMetrics(serviceOrderData);
 
     return {
-      mapasTotal,
-      mapasConcluidos,
-      areaTotal,
-      areaConcluida,
-      percentual,
+      mapasTotal: metrics.totalPlots,
+      mapasConcluidos: metrics.completedPlots,
+      areaTotal: metrics.plannedAreaHa,
+      areaBrutaAplicada: metrics.grossAppliedAreaHa,
+      areaConcluida: metrics.registeredCompletedAreaHa,
+      areaEmAndamento: metrics.inProgressAppliedAreaHa,
+      areaConsolidada: metrics.consolidatedOperationalAreaHa,
+      progressoCadastral: metrics.registeredProgressPercent,
+      progressoBruto: metrics.grossAppliedProgressPercent,
     };
-  }, [
-    completedPlotIds.length,
-    serviceOrderData?.completedHectares,
-    serviceOrderData?.completedPlots,
-    serviceOrderData?.plannedHectares,
-    serviceOrderData?.plots,
-    serviceOrderData?.progressPercent,
-    serviceOrderData?.totalPlots,
-  ]);
+  }, [serviceOrderData]);
 
   const mapsGeoData = useMemo<GeoJSON.FeatureCollection | undefined>(() => {
     if (!serviceOrderData?.plots?.length) {
@@ -563,29 +556,50 @@ export default function ServiceOrderPage({
           </CardHeader>
           <CardContent className='space-y-4'>
             <div className='grid grid-cols-2 gap-3'>
-              <MetricItem label='Mapas' value={String(progressData.mapasTotal)} />
+              <MetricItem label='Talhões da OS' value={String(progressData.mapasTotal)} />
               <MetricItem
-                label='Total em hectares'
+                label='Área cadastrada da OS'
                 value={`${progressData.areaTotal.toFixed(2).replace('.', ',')} ha`}
               />
               <MetricItem
-                label='Concluído'
+                label='Talhões concluídos'
                 value={`${progressData.mapasConcluidos}/${progressData.mapasTotal || 0}`}
               />
               <MetricItem
-                label='Total concluído'
+                label='Área bruta aplicada'
+                value={`${progressData.areaBrutaAplicada.toFixed(2).replace('.', ',')} ha`}
+              />
+              <MetricItem
+                label='Área cadastrada concluída'
                 value={`${progressData.areaConcluida.toFixed(2).replace('.', ',')} ha`}
+              />
+              <MetricItem
+                label='Área aplicada em andamento'
+                value={`${progressData.areaEmAndamento.toFixed(2).replace('.', ',')} ha`}
+              />
+              <MetricItem
+                label='Área operacional consolidada'
+                value={`${progressData.areaConsolidada.toFixed(2).replace('.', ',')} ha`}
               />
             </div>
 
             <div className='space-y-2'>
               <div className='flex items-center justify-between text-sm'>
-                <span className='text-muted-foreground'>Progresso</span>
+                <span className='text-muted-foreground'>Progresso cadastral concluído</span>
                 <span className='font-semibold'>
-                  {progressData.percentual.toFixed(1).replace('.', ',')}%
+                  {progressData.progressoCadastral.toFixed(2).replace('.', ',')}%
                 </span>
               </div>
-              <Progress value={Math.min(progressData.percentual, 100)} className='h-2.5' />
+              <Progress
+                value={Math.min(progressData.progressoCadastral, 100)}
+                className='h-2.5'
+              />
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Progresso bruto aplicado</span>
+                <span className='font-semibold'>
+                  {progressData.progressoBruto.toFixed(2).replace('.', ',')}%
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>

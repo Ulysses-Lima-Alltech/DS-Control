@@ -10,6 +10,7 @@ import {
 } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR } from '@/utils/operational-date';
 import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
+import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 const DJI_REPORT_IMAGE_HEIGHT = 280;
 const PDF_ASSET_BASE_PATH = process.env.NEXT_PUBLIC_PDF_ASSET_BASE_PATH || '';
@@ -43,6 +44,7 @@ export interface ApplicationsReportMetrics {
   grossAppliedAreaHa?: string | number;
   registeredCompletedAreaHa?: string | number;
   inProgressAppliedAreaHa?: string | number;
+  consolidatedOperationalAreaHa?: string | number;
   consolidatedPlotAreaHa?: string | number;
   registeredProgressPercent?: string | number;
   grossAppliedProgressPercent?: string | number;
@@ -216,27 +218,38 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     }
   };
 
-  const totalHectares = applications.reduce((sum, app) => sum + parseFloat(app.hectares), 0);
+  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder);
   const plannedHectares = parseReportNumber(
     reportMetrics?.plannedAreaHa,
-    Number(serviceOrder.plannedHectares) || 0
+    serviceOrderMetrics.plannedAreaHa
   );
-  const grossAppliedHectares = parseReportNumber(reportMetrics?.grossAppliedAreaHa, totalHectares);
+  const grossAppliedHectares = parseReportNumber(
+    reportMetrics?.grossAppliedAreaHa,
+    serviceOrderMetrics.grossAppliedAreaHa
+  );
   const consolidatedPlotHectares = parseReportNumber(
-    reportMetrics?.consolidatedPlotAreaHa,
-    totalHectares
+    reportMetrics?.consolidatedOperationalAreaHa ?? reportMetrics?.consolidatedPlotAreaHa,
+    serviceOrderMetrics.consolidatedOperationalAreaHa
+  );
+  const registeredCompletedHectares = parseReportNumber(
+    reportMetrics?.registeredCompletedAreaHa,
+    serviceOrderMetrics.registeredCompletedAreaHa
+  );
+  const inProgressAppliedHectares = parseReportNumber(
+    reportMetrics?.inProgressAppliedAreaHa,
+    serviceOrderMetrics.inProgressAppliedAreaHa
   );
   const grossAppliedProgress = parseReportNumber(
     reportMetrics?.grossAppliedProgressPercent,
-    plannedHectares > 0 ? (grossAppliedHectares / plannedHectares) * 100 : 0
+    serviceOrderMetrics.grossAppliedProgressPercent
   );
   const consolidatedProgress = parseReportNumber(
     reportMetrics?.consolidatedProgressPercent,
-    plannedHectares > 0 ? (consolidatedPlotHectares / plannedHectares) * 100 : 0
+    serviceOrderMetrics.consolidatedProgressPercent
   );
   const registeredProgress = parseReportNumber(
     reportMetrics?.registeredProgressPercent,
-    Number(serviceOrder.progressPercent) || 0
+    serviceOrderMetrics.registeredProgressPercent
   );
   const completedIds = new Set(completedPlotIds);
   const completedPlotsById = new Map(
@@ -261,10 +274,14 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     ? consolidatedPlotHectares
     : grossAppliedHectares;
   const reportProgress = isCompletedPlannedArea ? consolidatedProgress : grossAppliedProgress;
-  const reportApplicationsCount = reportMetrics?.applicationsCount ?? applications.length;
-  const reportCompletedPlotsCount = reportMetrics?.completedPlotsCount ?? completedPlotsById.size;
-  const reportInProgressPlotsCount = reportMetrics?.inProgressPlotsCount ?? 0;
-  const reportNotStartedPlotsCount = reportMetrics?.notStartedPlotsCount ?? 0;
+  const reportApplicationsCount =
+    reportMetrics?.applicationsCount ?? serviceOrderMetrics.applicationsCount;
+  const reportCompletedPlotsCount =
+    reportMetrics?.completedPlotsCount ?? serviceOrderMetrics.completedPlots;
+  const reportInProgressPlotsCount =
+    reportMetrics?.inProgressPlotsCount ?? serviceOrderMetrics.inProgressPlots;
+  const reportNotStartedPlotsCount =
+    reportMetrics?.notStartedPlotsCount ?? serviceOrderMetrics.pendingPlots;
 
   const averageFlowRate =
     applications.length > 0
@@ -617,7 +634,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               }}
             >
               {isCompletedPlannedArea
-                ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrder.plotCompletionThresholdPercent}% e área real aplicada para talhões em andamento.`
+                ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrderMetrics.completionThresholdPercent}% e soma bruta aplicada para talhões em andamento.`
                 : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
             </Text>
 
@@ -633,13 +650,13 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  Área Total Planejada da OS
+                  Área Cadastrada da OS
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', marginTop: 5 }}>
                   {formatHectares(plannedHectares)}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
-                  Soma das áreas cadastradas dos mapas vinculados à Ordem de Serviço.
+                  Soma das áreas cadastradas dos talhões ativos vinculados à Ordem de Serviço.
                 </Text>
               </View>
 
@@ -655,7 +672,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
                   {isCompletedPlannedArea
-                    ? 'Área Consolidada Contabilizada'
+                    ? 'Área Operacional Consolidada'
                     : 'Área Bruta Aplicada'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
@@ -663,7 +680,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
-                    ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com área real aplicada.'
+                    ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com soma bruta aplicada.'
                     : 'Soma real das áreas informadas em todas as aplicações ativas da Ordem de Serviço.'}
                 </Text>
               </View>
@@ -689,6 +706,18 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     : 'Relação entre a área bruta aplicada e a área planejada.'}
                 </Text>
               </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+              <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
+                Área cadastrada concluída: {formatHectares(registeredCompletedHectares)}
+              </Text>
+              <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
+                Área aplicada em andamento: {formatHectares(inProgressAppliedHectares)}
+              </Text>
+              <Text style={{ fontSize: 8, color: '#6B7280', width: '34%' }}>
+                Área operacional consolidada: {formatHectares(consolidatedPlotHectares)}
+              </Text>
             </View>
 
             <View style={{ flexDirection: 'row', marginBottom: 12 }}>
