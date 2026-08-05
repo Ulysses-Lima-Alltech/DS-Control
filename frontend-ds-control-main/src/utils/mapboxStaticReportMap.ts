@@ -6,29 +6,6 @@ const DEFAULT_PADDING = 0.1;
 const MIN_SPAN = 1e-4;
 const WEB_MERCATOR_MAX_LAT = 85.05112878;
 
-const DEBUG_PREFIX = '[REPORT_MAP_DEBUG]';
-
-export type ReportMapSuccessMode = 'bbox_only';
-
-function logReportMapSuccess(params: {
-  plotId: string;
-  plotName: string;
-  bounds: ReportMapBoundingBox;
-  geometryTypes: string[];
-  finalUrl: string;
-  mapMode: ReportMapSuccessMode;
-}): void {
-  console.log(DEBUG_PREFIX, {
-    phase: 'buildReportMapboxStaticUrl:success',
-    plotId: params.plotId,
-    plotName: params.plotName,
-    bounds: params.bounds,
-    geometryTypes: params.geometryTypes,
-    mapMode: params.mapMode,
-    finalUrlLength: params.finalUrl.length,
-  });
-}
-
 export type ReportMapBoundingBox = {
   minLng: number;
   minLat: number;
@@ -66,13 +43,6 @@ export function parsePlotGeoJson(plot: Plot): GeoJSON | null {
     }
   }
   return geoJson as GeoJSON;
-}
-
-function collectGeometryTypes(geoJson: GeoJSON | null): string[] {
-  if (!geoJson || geoJson.type !== 'FeatureCollection' || !geoJson.features?.length) {
-    return [];
-  }
-  return geoJson.features.map((f) => f.geometry?.type ?? 'null_geometry');
 }
 
 export function calculatePlotBounds(plot: Plot): ReportMapBoundingBox | null {
@@ -339,25 +309,12 @@ export function buildReportMapboxStaticUrl(
   const { plot, mapWidth, mapHeight, accessToken } = params;
   const padding = params.padding ?? DEFAULT_PADDING;
 
-  const plotId = plot.id ?? '(sem id)';
-  const plotName = plot.name ?? '(sem nome)';
   const rawGeoPresent = plot.geoJson !== undefined && plot.geoJson !== null;
   const parsed = parsePlotGeoJson(plot);
-  const geometryTypes = collectGeometryTypes(parsed);
 
   const token = accessToken?.trim();
 
   if (!token) {
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: false,
-      plotId,
-      plotName,
-      geoJsonPresent: rawGeoPresent,
-      geometryTypes,
-      boundsCalculated: false,
-      returnNullReason: 'token_missing',
-      usedLongUrlFallback: false,
-    });
     return {
       url: null,
       unavailableReason: 'token_missing',
@@ -367,49 +324,16 @@ export function buildReportMapboxStaticUrl(
 
   if (!rawGeoPresent || parsed === null) {
     const reason: ReportMapUnavailableReason = 'geojson_missing';
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
-      plotId,
-      plotName,
-      geoJsonPresent: rawGeoPresent,
-      geometryTypes: [],
-      boundsCalculated: false,
-      returnNullReason: reason,
-      detail: parsed === null && rawGeoPresent ? 'parse_failed_or_invalid' : 'missing',
-      usedLongUrlFallback: false,
-    });
     return { url: null, unavailableReason: reason, usedLongUrlFallback: false };
   }
 
   if (parsed.type !== 'FeatureCollection' || !parsed.features?.length) {
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
-      plotId,
-      plotName,
-      geoJsonPresent: true,
-      geometryTypes,
-      boundsCalculated: false,
-      returnNullReason: 'geojson_missing',
-      detail: 'not_feature_collection_or_empty_features',
-      usedLongUrlFallback: false,
-    });
     return { url: null, unavailableReason: 'geojson_missing', usedLongUrlFallback: false };
   }
 
   const points = extractLngLatPointsFromGeometry(parsed);
   const bounds = calculateGeometryBbox(points);
   if (!bounds) {
-    console.log(DEBUG_PREFIX, {
-      tokenPresent: true,
-      plotId,
-      plotName,
-      geoJsonPresent: true,
-      geometryTypes,
-      boundsCalculated: false,
-      returnNullReason: 'unsupported_geometry',
-      detail: 'no_polygon_or_multipolygon_coordinates_for_bounds',
-      usedLongUrlFallback: false,
-    });
     return {
       url: null,
       unavailableReason: 'unsupported_geometry',
@@ -422,15 +346,6 @@ export function buildReportMapboxStaticUrl(
     ','
   );
   const url = buildBboxOnlyStaticUrl(bboxStr, mapWidth, mapHeight, token);
-
-  logReportMapSuccess({
-    plotId,
-    plotName,
-    bounds,
-    geometryTypes,
-    finalUrl: url,
-    mapMode: 'bbox_only',
-  });
 
   return {
     url,

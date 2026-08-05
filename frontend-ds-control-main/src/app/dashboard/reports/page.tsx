@@ -65,6 +65,10 @@ import {
   generateServiceOrderStrategicReportPDF,
   generateServiceOrdersDetailedConsolidatedPDF,
 } from '@/utils/pdfGenerator';
+import {
+  REPORT_MAP_PROGRESS_EVENT,
+  type ReportMapProgress,
+} from '@/utils/report-map-assets';
 import { buildStrategicMapFilename, type StrategicMapScope } from '@/utils/strategic-map-scope';
 
 import { reportsCatalog, type ReportFilterKey, type ReportId } from './reportsCatalog';
@@ -273,6 +277,19 @@ async function fetchAllFarmsByFilters(
   };
 }
 
+function hydrateApplicationsWithFarmPlots(applications: Application[], farms: Farm[]): Application[] {
+  const farmById = new Map(farms.map((farm) => [farm.id, farm]));
+  const plotById = new Map(
+    farms.flatMap((farm) => (farm.plots || []).map((plot) => [plot.id, plot] as const))
+  );
+
+  return applications.map((application) => ({
+    ...application,
+    farm: farmById.get(application.farmId) ?? application.farm,
+    plot: application.plotId ? (plotById.get(application.plotId) ?? application.plot) : application.plot,
+  }));
+}
+
 async function fetchAllServiceOrdersByFilters(
   filters: GetAllServiceOrdersParams
 ): Promise<ServiceOrdersReportData> {
@@ -445,6 +462,7 @@ export default function ReportsCenterPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState<string | null>(null);
+  const [mapProgress, setMapProgress] = useState<ReportMapProgress | null>(null);
 
   const [customerSearch, setCustomerSearch] = useState('');
   const [farmSearch, setFarmSearch] = useState('');
@@ -479,6 +497,14 @@ export default function ReportsCenterPage() {
     () => reportsCatalog.find((item) => item.id === selectedReportId) || reportsCatalog[0],
     [selectedReportId]
   );
+
+  useEffect(() => {
+    const handleProgress = (event: Event) => {
+      setMapProgress((event as CustomEvent<ReportMapProgress>).detail);
+    };
+    window.addEventListener(REPORT_MAP_PROGRESS_EVENT, handleProgress);
+    return () => window.removeEventListener(REPORT_MAP_PROGRESS_EVENT, handleProgress);
+  }, []);
 
   const supports = (filterKey: ReportFilterKey) =>
     selectedReport.supportedFilters.includes(filterKey);
@@ -795,6 +821,7 @@ export default function ReportsCenterPage() {
       setIsGeneratingRowReport(applicationId);
       setGenerationError(null);
       setGenerationSuccess(null);
+      setMapProgress(null);
 
       await handleGenerateApplicationReport(applicationId);
       setGenerationSuccess('Relatorio da aplicacao gerado com sucesso.');
@@ -972,7 +999,7 @@ export default function ReportsCenterPage() {
       fetchAllFarmsByFilters(filters.customerId, {
         includeCustomer: 'true',
         includePlots: 'true',
-        includeGeoJson: 'false',
+        includeGeoJson: 'true',
         search: undefined,
       }),
       fetchAllApplicationsByFilters(buildApplicationFilters()),
@@ -1014,6 +1041,7 @@ export default function ReportsCenterPage() {
 
     const blob = await generateFarmsReportPDF({
       rows: farmRows,
+      farms: filteredFarms,
       generatedAt: formatGeneratedAt(),
       filtersSummary: resolveFiltersSummary(),
     });
@@ -1022,12 +1050,20 @@ export default function ReportsCenterPage() {
   };
 
   const handleGenerateGeneralReport = async () => {
-    const [applicationsReportData, serviceOrdersReportData] = await Promise.all([
+    const [applicationsReportData, serviceOrdersReportData, farmsReportData] = await Promise.all([
       fetchAllApplicationsByFilters(buildApplicationFilters()),
       fetchAllServiceOrdersByFilters(buildServiceOrderFilters()),
+      fetchAllFarmsByFilters(filters.customerId, {
+        includeCustomer: 'true',
+        includePlots: 'true',
+        includeGeoJson: 'true',
+      }),
     ]);
 
-    const applications = applicationsReportData.applications;
+    const applications = hydrateApplicationsWithFarmPlots(
+      applicationsReportData.applications,
+      farmsReportData.farms
+    );
     const serviceOrders = serviceOrdersReportData.serviceOrders;
 
     const byFarm = aggregateByName(
@@ -1084,6 +1120,7 @@ export default function ReportsCenterPage() {
       byPilot,
       byProduct,
       byAssistant,
+      applications,
     });
 
     downloadPDF(blob, 'relatorio-geral.pdf');
@@ -1094,6 +1131,7 @@ export default function ReportsCenterPage() {
       setIsGeneratingReport(true);
       setGenerationError(null);
       setGenerationSuccess(null);
+      setMapProgress(null);
 
       if (selectedReport.id === 'applications') {
         await handleGenerateApplicationReport();
@@ -2190,6 +2228,11 @@ export default function ReportsCenterPage() {
           {!generationError && !generationSuccess && (
             <p className='text-sm text-muted-foreground'>
               Selecione o tipo de relatorio, aplique os filtros e clique em Gerar relatorio.
+            </p>
+          )}
+          {isGeneratingReport && mapProgress && mapProgress.total > 0 && (
+            <p className='text-sm text-muted-foreground'>
+              Preparando mapas: {mapProgress.completed} de {mapProgress.total} talhoes.
             </p>
           )}
           {generationError && <p className='text-sm text-red-500'>{generationError}</p>}

@@ -15,6 +15,7 @@ import GeneralReportPDF, {
 } from '@/components/PDFReports/GeneralReportPDF';
 import { PendingPlotsReportPDF } from '@/components/PDFReports/PendingPlotsReportPDF';
 import PilotApplicationsReportPDF from '@/components/PDFReports/PilotApplicationsReportPDF';
+import type { ReportPlotMapSection } from '@/components/PDFReports/ReportPlotMapPages';
 import ServiceOrderStrategicReportPDF from '@/components/PDFReports/ServiceOrderStrategicReportPDF';
 import ServiceOrdersDetailedReportPDF, {
   type ServiceOrderDetailedSection,
@@ -24,6 +25,7 @@ import {
   type ApplicationDjiFlight,
 } from '@/services/application.service';
 import { Application } from '@/types/applications.type';
+import type { Farm } from '@/types/farm.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import {
   enrichApplicationsWithDjiImageUrl,
@@ -32,11 +34,7 @@ import {
 } from '@/utils/djiReportAssets';
 import { deriveFarmStrokeColor, resolveFarmMapColor } from '@/utils/farm-map-color';
 import { fetchRemoteImageAsDataUrl } from '@/utils/fetchRemoteImageAsDataUrl';
-import {
-  buildReportMapboxStaticUrl,
-  getReportMapPlaceholderMessage,
-} from '@/utils/mapboxStaticReportMap';
-import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
+import { buildReportMapAssets } from '@/utils/report-map-assets';
 import {
   buildStrategicMapFilename,
   scopeStrategicMapServiceOrder,
@@ -45,7 +43,6 @@ import {
 import {
   buildStrategicMapStaticBaseUrl,
   buildStrategicMapViewport,
-  buildStrategicMapProjection,
   extractPlotPolygons,
   sanitizeStrategicPolygons,
   type StrategicMapShapeInput,
@@ -69,6 +66,7 @@ interface GenerateCompletedPlotsPlannedAreaPDFParams extends GeneratePDFParams {
 
 export interface GenerateFarmsReportPDFParams {
   rows: FarmsReportRow[];
+  farms: Farm[];
   generatedAt: string;
   filtersSummary: Array<{ label: string; value: string }>;
 }
@@ -82,6 +80,7 @@ export interface GenerateGeneralReportPDFParams {
   byPilot: GeneralNamedValue[];
   byProduct: GeneralNamedValue[];
   byAssistant: GeneralNamedValue[];
+  applications: Application[];
 }
 
 export interface GenerateApplicationsGeneralReportPDFParams {
@@ -90,6 +89,7 @@ export interface GenerateApplicationsGeneralReportPDFParams {
   periodLabel: string;
   rows: ApplicationsGeneralReportRow[];
   totalAppliedHectares: number;
+  applications?: Application[];
 }
 
 export interface GenerateApplicationIndividualReportPDFParams {
@@ -109,8 +109,6 @@ export interface GeneratePilotApplicationsReportPDFParams {
   groups: Array<{ pilotName: string; applications: Application[] }>;
 }
 
-const REPORT_MAP_WIDTH = 1280;
-const REPORT_MAP_HEIGHT = 480;
 const STRATEGIC_REPORT_MAP_WIDTH = 1200;
 const STRATEGIC_REPORT_MAP_HEIGHT = 760;
 const STRATEGIC_REPORT_MAP_PADDING = 48;
@@ -125,58 +123,7 @@ const STRATEGIC_REPORT_SAFE_AREA_INSETS_PX = {
 } as const;
 
 function getReportMapboxAccessToken(): string {
-  return (
-    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-    'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q'
-  );
-}
-
-/**
- * Mesma regra de páginas por talhão que ApplicationsReportPDF; pré-busca cada mapUrl Mapbox para data URL antes do pdf().
- */
-async function prefetchReportMapImagesByPlotId(
-  applications: Application[]
-): Promise<Record<string, string | null>> {
-  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
-  const applicationsByPlot = applicationsWithPlot.reduce(
-    (acc, app) => {
-      const plotId = app.plotId!;
-      if (!acc[plotId]) {
-        acc[plotId] = [];
-      }
-      acc[plotId].push(app);
-      return acc;
-    },
-    {} as Record<string, Application[]>
-  );
-
-  const accessToken = getReportMapboxAccessToken();
-  const out: Record<string, string | null> = {};
-
-  for (const plotId of Object.keys(applicationsByPlot)) {
-    const plotApplications = applicationsByPlot[plotId];
-    const plot = plotApplications[0]?.plot;
-    if (!plot) {
-      out[plotId] = null;
-      continue;
-    }
-
-    const mapResult = buildReportMapboxStaticUrl({
-      plot,
-      mapWidth: REPORT_MAP_WIDTH,
-      mapHeight: REPORT_MAP_HEIGHT,
-      accessToken,
-    });
-
-    if (!mapResult.url) {
-      out[plotId] = null;
-      continue;
-    }
-
-    out[plotId] = await fetchRemoteImageAsDataUrl(mapResult.url);
-  }
-
-  return out;
+  return process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 }
 
 function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeInput[] {
@@ -301,85 +248,6 @@ function buildStrategicPlotDiagnostics(serviceOrder: ServiceOrder): {
   };
 }
 
-async function prefetchApplicationIndividualMap(application: Application): Promise<{
-  mapImageDataUrl: string | null;
-  mapOverlayPathDs: string[] | null;
-  mapFallbackVectorPathD: string | null;
-  mapUnavailableMessage: string | null;
-}> {
-  const plot = application.plot;
-  if (!plot) {
-    return {
-      mapImageDataUrl: null,
-      mapOverlayPathDs: null,
-      mapFallbackVectorPathD: null,
-      mapUnavailableMessage: 'Mapa indisponivel para esta aplicacao.',
-    };
-  }
-
-  const accessToken = getReportMapboxAccessToken();
-  const mapResult = buildReportMapboxStaticUrl({
-    plot,
-    mapWidth: REPORT_MAP_WIDTH,
-    mapHeight: REPORT_MAP_HEIGHT,
-    accessToken,
-  });
-
-  let mapImageDataUrl: string | null = null;
-  let mapUnavailableMessage: string | null = getReportMapPlaceholderMessage(
-    mapResult.unavailableReason
-  );
-  if (mapResult.url) {
-    try {
-      mapImageDataUrl = await fetchRemoteImageAsDataUrl(mapResult.url);
-      mapUnavailableMessage = null;
-    } catch {
-      mapUnavailableMessage = 'Falha ao carregar o mapa da aplicacao.';
-    }
-  }
-
-  let mapOverlayPathDs: string[] | null = null;
-  try {
-    mapOverlayPathDs = buildPlotPolygonSvgPathDs(plot, REPORT_MAP_WIDTH, REPORT_MAP_HEIGHT);
-  } catch {
-    mapOverlayPathDs = null;
-  }
-
-  let mapFallbackVectorPathD: string | null = null;
-  try {
-    const polygons = extractPlotPolygons(plot);
-    if (polygons.length > 0) {
-      const projection = buildStrategicMapProjection(
-        [
-          {
-            id: plot.id || application.id,
-            label: plot.name || `Talhao ${plot.id || application.id}`,
-            farmKey: plot.farmId || application.farmId || 'farm-unknown',
-            polygons,
-          },
-        ],
-        REPORT_MAP_WIDTH,
-        REPORT_MAP_HEIGHT,
-        10
-      );
-      mapFallbackVectorPathD = projection?.shapes[0]?.pathD || null;
-    }
-  } catch {
-    mapFallbackVectorPathD = null;
-  }
-
-  if (!mapImageDataUrl && !mapFallbackVectorPathD && !mapUnavailableMessage) {
-    mapUnavailableMessage = 'Mapa indisponivel para esta aplicacao.';
-  }
-
-  return {
-    mapImageDataUrl,
-    mapOverlayPathDs,
-    mapFallbackVectorPathD,
-    mapUnavailableMessage,
-  };
-}
-
 type LinkedDjiFlightMap = {
   imageSrc: string;
   imageUrl: string;
@@ -479,6 +347,24 @@ function parseReportNumber(value: unknown): number {
   return 0;
 }
 
+function applicationFarm(application: Application, serviceOrder?: ServiceOrder) {
+  return (
+    application.farm ??
+    serviceOrder?.farms?.find((farm) => farm.id === application.farmId) ??
+    { id: application.farmId || application.plot?.farmId || 'farm-unknown' }
+  );
+}
+
+function compareMapSections(a: ReportPlotMapSection, b: ReportPlotMapSection): number {
+  const aKey = [a.customerName, a.farmName, a.serviceOrderNumber, a.asset.plot.name]
+    .filter((value) => value !== undefined)
+    .join('|');
+  const bKey = [b.customerName, b.farmName, b.serviceOrderNumber, b.asset.plot.name]
+    .filter((value) => value !== undefined)
+    .join('|');
+  return aKey.localeCompare(bKey, 'pt-BR', { numeric: true });
+}
+
 export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
@@ -487,8 +373,16 @@ export async function generateApplicationsReportPDF({
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const enrichedApplications = await enrichApplicationsWithDjiImageUrl(serviceOrder, applications);
-  const [prefetchedMapImageDataUrls, djiImagesByApplicationId] = await Promise.all([
-    prefetchReportMapImagesByPlotId(enrichedApplications),
+  const [reportMapAssets, djiImagesByApplicationId] = await Promise.all([
+    buildReportMapAssets(
+      enrichedApplications
+        .filter((application) => Boolean(application.plotId && application.plot))
+        .map((application) => ({
+          plot: application.plot,
+          farm: applicationFarm(application, serviceOrder),
+        })),
+      { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+    ),
     prefetchDjiReportImagesByApplicationId(enrichedApplications).catch(() => ({})),
   ]);
 
@@ -497,7 +391,7 @@ export async function generateApplicationsReportPDF({
     applications: enrichedApplications,
     reportMetrics,
     reportPeriod,
-    prefetchedMapImageDataUrls,
+    reportMapAssetsByPlotId: reportMapAssets.byPlotId,
     djiImagesByApplicationId,
   });
 
@@ -521,8 +415,26 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
     serviceOrder,
     completedApplications
   );
-  const [prefetchedMapImageDataUrls, djiImagesByApplicationId] = await Promise.all([
-    prefetchReportMapImagesByPlotId(enrichedApplications),
+  const farmById = new Map((serviceOrder.farms || []).map((farm) => [farm.id, farm]));
+  const completedPlots = (serviceOrder.plots || []).filter((plot) =>
+    Boolean(plot.id && completedIds.has(plot.id))
+  );
+  const [reportMapAssets, djiImagesByApplicationId] = await Promise.all([
+    buildReportMapAssets(
+      [
+        ...completedPlots.map((plot) => ({
+          plot,
+          farm: farmById.get(plot.farmId || ''),
+        })),
+        ...enrichedApplications
+          .filter((application) => Boolean(application.plotId && application.plot))
+          .map((application) => ({
+            plot: application.plot,
+            farm: applicationFarm(application, serviceOrder),
+          })),
+      ],
+      { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+    ),
     prefetchDjiReportImagesByApplicationId(enrichedApplications).catch(() => ({})),
   ]);
   const element = CompletedPlotsPlannedAreaReportPDF({
@@ -530,7 +442,7 @@ export async function generateCompletedPlotsPlannedAreaReportPDF({
     applications: enrichedApplications,
     completedPlotIds,
     reportMetrics,
-    prefetchedMapImageDataUrls,
+    reportMapAssetsByPlotId: reportMapAssets.byPlotId,
     djiImagesByApplicationId,
   });
 
@@ -546,7 +458,22 @@ export async function generatePendingPlotsReportPDF({
   pendingPlotIds: string[];
 }): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
-  return pdf(PendingPlotsReportPDF({ serviceOrder, pendingPlotIds })).toBlob();
+  const pendingIds = new Set(pendingPlotIds);
+  const plots = (serviceOrder.plots || []).filter((plot) => Boolean(plot.id && pendingIds.has(plot.id)));
+  const farmById = new Map((serviceOrder.farms || []).map((farm) => [farm.id, farm]));
+  const mapBatch = await buildReportMapAssets(
+    plots.map((plot) => ({ plot, farm: farmById.get(plot.farmId || '') })),
+    { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+  );
+  const mapSections: ReportPlotMapSection[] = mapBatch.assets
+    .map((asset) => ({
+      asset,
+      customerName: serviceOrder.customer?.name,
+      farmName: farmById.get(asset.farmId || '')?.name,
+      serviceOrderNumber: serviceOrder.number,
+    }))
+    .sort(compareMapSections);
+  return pdf(PendingPlotsReportPDF({ serviceOrder, pendingPlotIds, mapSections })).toBlob();
 }
 
 export async function generateServiceOrdersDetailedConsolidatedPDF({
@@ -555,11 +482,52 @@ export async function generateServiceOrdersDetailedConsolidatedPDF({
   sections,
 }: GenerateServiceOrdersDetailedConsolidatedPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const applications = sections.flatMap((section) => section.applications);
+  const mapBatch = await buildReportMapAssets(
+    applications
+      .filter((application) => Boolean(application.plotId && application.plot))
+      .map((application) => ({
+        plot: application.plot,
+        farm: applicationFarm(
+          application,
+          sections.find((section) => section.serviceOrder.id === application.serviceOrderId)
+            ?.serviceOrder
+        ),
+      })),
+    { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+  );
+  const mapSections: ReportPlotMapSection[] = mapBatch.assets.map((asset) => {
+    const plotApplications = applications.filter((application) => application.plotId === asset.plotId);
+    const firstApplication = plotApplications[0];
+    const serviceOrder = sections.find(
+      (section) => section.serviceOrder.id === firstApplication?.serviceOrderId
+    )?.serviceOrder;
+    return {
+      asset,
+      applications: plotApplications,
+      customerName: serviceOrder?.customer?.name,
+      farmName:
+        firstApplication?.farm?.name ||
+        serviceOrder?.farms?.find((farm) => farm.id === asset.farmId)?.name,
+      serviceOrderNumber: serviceOrder?.number,
+      serviceOrderNumbers: Array.from(
+        new Set(
+          plotApplications
+            .map((application) =>
+              sections.find((section) => section.serviceOrder.id === application.serviceOrderId)
+                ?.serviceOrder.number
+            )
+            .filter((value): value is number => typeof value === 'number')
+        )
+      ),
+    };
+  }).sort(compareMapSections);
   const element = ServiceOrdersDetailedReportPDF({
     title: 'Relatorio Detalhado de Ordens de Servico',
     generatedAt,
     filtersSummary,
     sections,
+    mapSections,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -623,15 +591,32 @@ export { buildStrategicMapFilename };
 
 export async function generateFarmsReportPDF({
   rows,
+  farms,
   generatedAt,
   filtersSummary,
 }: GenerateFarmsReportPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const mapBatch = await buildReportMapAssets(
+    farms.flatMap((farm) => (farm.plots || []).map((plot) => ({ plot, farm }))),
+    { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+  );
+  const farmById = new Map(farms.map((farm) => [farm.id, farm]));
+  const rowById = new Map(rows.map((row) => [row.farmId, row]));
+  const mapSections: ReportPlotMapSection[] = mapBatch.assets.map((asset) => {
+    const farm = farmById.get(asset.farmId || '');
+    const row = farm ? rowById.get(farm.id) : undefined;
+    return {
+      asset,
+      customerName: row?.customerName || farm?.customer?.name,
+      farmName: row?.farmName || farm?.name,
+    };
+  }).sort(compareMapSections);
 
   const element = FarmsReportPDF({
     rows,
     generatedAt,
     filtersSummary,
+    mapSections,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -648,8 +633,33 @@ export async function generateGeneralReportPDF({
   byPilot,
   byProduct,
   byAssistant,
+  applications,
 }: GenerateGeneralReportPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const mapBatch = await buildReportMapAssets(
+    applications
+      .filter((application) => Boolean(application.plotId && application.plot))
+      .map((application) => ({ plot: application.plot, farm: applicationFarm(application, application.serviceOrder) })),
+    { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+  );
+  const mapSections: ReportPlotMapSection[] = mapBatch.assets.map((asset) => {
+    const plotApplications = applications.filter((application) => application.plotId === asset.plotId);
+    const firstApplication = plotApplications[0];
+    return {
+      asset,
+      applications: plotApplications,
+      customerName: firstApplication?.serviceOrder?.customer?.name,
+      farmName: firstApplication?.farm?.name,
+      serviceOrderNumber: firstApplication?.serviceOrder?.number,
+      serviceOrderNumbers: Array.from(
+        new Set(
+          plotApplications
+            .map((application) => application.serviceOrder?.number)
+            .filter((value): value is number => typeof value === 'number')
+        )
+      ),
+    };
+  }).sort(compareMapSections);
 
   const element = GeneralReportPDF({
     generatedAt,
@@ -660,6 +670,7 @@ export async function generateGeneralReportPDF({
     byPilot,
     byProduct,
     byAssistant,
+    mapSections,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -673,8 +684,36 @@ export async function generateApplicationsGeneralReportPDF({
   periodLabel,
   rows,
   totalAppliedHectares,
+  applications = [],
 }: GenerateApplicationsGeneralReportPDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
+  const mapBatch = await buildReportMapAssets(
+    applications
+      .filter((application) => Boolean(application.plotId && application.plot))
+      .map((application) => ({
+        plot: application.plot,
+        farm: applicationFarm(application, application.serviceOrder),
+      })),
+    { accessToken: getReportMapboxAccessToken(), concurrency: 3 }
+  );
+  const mapSections: ReportPlotMapSection[] = mapBatch.assets.map((asset) => {
+    const plotApplications = applications.filter((application) => application.plotId === asset.plotId);
+    const firstApplication = plotApplications[0];
+    return {
+      asset,
+      applications: plotApplications,
+      customerName: firstApplication?.serviceOrder?.customer?.name,
+      farmName: firstApplication?.farm?.name,
+      serviceOrderNumber: firstApplication?.serviceOrder?.number,
+      serviceOrderNumbers: Array.from(
+        new Set(
+          plotApplications
+            .map((application) => application.serviceOrder?.number)
+            .filter((value): value is number => typeof value === 'number')
+        )
+      ),
+    };
+  }).sort(compareMapSections);
 
   const element = ApplicationsGeneralReportPDF({
     generatedAt,
@@ -682,6 +721,7 @@ export async function generateApplicationsGeneralReportPDF({
     periodLabel,
     rows,
     totalAppliedHectares,
+    mapSections,
   });
 
   // @ts-expect-error - toBlob is not typed
@@ -725,7 +765,25 @@ export async function generateApplicationIndividualReportPDF({
         mapFallbackVectorPathD: null,
         mapUnavailableMessage: null,
       }
-    : await prefetchApplicationIndividualMap(applicationForPdf);
+    : await buildReportMapAssets(
+        applicationForPdf.plot
+          ? [
+              {
+                plot: applicationForPdf.plot,
+                farm: applicationFarm(applicationForPdf, applicationForPdf.serviceOrder),
+              },
+            ]
+          : [],
+        { accessToken: getReportMapboxAccessToken(), concurrency: 1 }
+      ).then((batch) => {
+        const asset = batch.assets[0];
+        return {
+          mapImageDataUrl: asset?.imageDataUrl ?? null,
+          mapOverlayPathDs: asset?.overlayPathDs ?? null,
+          mapFallbackVectorPathD: asset?.vectorPathD ?? null,
+          mapUnavailableMessage: asset?.message ?? 'Geometria do talhão indisponível.',
+        };
+      });
   const farmMapColor = resolveFarmMapColor(
     applicationForPdf.farm ?? { id: applicationForPdf.farmId || 'farm-unknown' }
   );

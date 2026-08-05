@@ -1,6 +1,10 @@
 import { Document, Font, Image, Page, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
+import {
+  ReportPlotMapPages,
+  type ReportPlotMapSection,
+} from '@/components/PDFReports/ReportPlotMapPages';
 import { APPLICATION_ISSUE_LABELS, type ApplicationIssueFilter } from '@/types/applications.type';
 import type { ServiceOrderStatus } from '@/types/service-order.type';
 
@@ -54,6 +58,7 @@ interface ApplicationsGeneralReportPDFProps {
   periodLabel: string;
   rows: ApplicationsGeneralReportRow[];
   totalAppliedHectares: number;
+  mapSections?: ReportPlotMapSection[];
 }
 
 function formatHectares(value: number): string {
@@ -97,6 +102,7 @@ const ApplicationsGeneralReportPDF: React.FC<ApplicationsGeneralReportPDFProps> 
   periodLabel,
   rows,
   totalAppliedHectares,
+  mapSections = [],
 }) => {
   const totalApplications = rows.length;
   const detailPages = chunkRows(rows, 26);
@@ -353,6 +359,11 @@ const ApplicationsGeneralReportPDF: React.FC<ApplicationsGeneralReportPDFProps> 
           </View>
         </Page>
       ))}
+      <ReportPlotMapPages
+        sections={mapSections}
+        generatedAt={generatedAt}
+        title='Mapa das aplicações'
+      />
     </Document>
   );
 };

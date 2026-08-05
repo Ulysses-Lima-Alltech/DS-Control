@@ -1,6 +1,11 @@
 import { Document, Font, Image, Page, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
+import {
+  ReportPlotMapPages,
+  type ReportPlotMapSection,
+} from '@/components/PDFReports/ReportPlotMapPages';
+
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -44,6 +49,7 @@ interface FarmsReportPDFProps {
   rows: FarmsReportRow[];
   generatedAt: string;
   filtersSummary: Array<{ label: string; value: string }>;
+  mapSections?: ReportPlotMapSection[];
 }
 
 function formatHectares(value: number): string {
@@ -61,13 +67,18 @@ function chunkRows<T>(rows: T[], size: number): T[][] {
   return chunks;
 }
 
-const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filtersSummary }) => {
+const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({
+  rows,
+  generatedAt,
+  filtersSummary,
+  mapSections = [],
+}) => {
   const totalFarms = rows.length;
   const totalPlots = rows.reduce((sum, row) => sum + row.plotsCount, 0);
   const totalAreaHectares = rows.reduce((sum, row) => sum + row.totalAreaHectares, 0);
   const totalApplications = rows.reduce((sum, row) => sum + row.applicationsCount, 0);
   const totalServiceOrders = rows.reduce((sum, row) => sum + row.serviceOrdersCount, 0);
-  const detailPages = chunkRows(rows, 25);
+  const detailPages = chunkRows(rows.slice(11), 25);
 
   return (
     <Document>
@@ -271,7 +282,7 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
         </View>
       </Page>
 
-      {detailPages.slice(1).map((rowsChunk, pageIndex) => (
+      {detailPages.map((rowsChunk, pageIndex) => (
         <Page
           key={`farms-detail-${pageIndex}`}
           size='A4'
@@ -397,6 +408,11 @@ const FarmsReportPDF: React.FC<FarmsReportPDFProps> = ({ rows, generatedAt, filt
           </View>
         </Page>
       ))}
+      <ReportPlotMapPages
+        sections={mapSections}
+        generatedAt={generatedAt}
+        title='Mapa do talhão da fazenda'
+      />
     </Document>
   );
 };

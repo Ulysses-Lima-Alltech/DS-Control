@@ -1,6 +1,11 @@
 import { Document, Font, Image, Page, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
+import {
+  ReportPlotMapPages,
+  type ReportPlotMapSection,
+} from '@/components/PDFReports/ReportPlotMapPages';
+
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -55,6 +60,7 @@ interface GeneralReportPDFProps {
   byPilot: GeneralNamedValue[];
   byProduct: GeneralNamedValue[];
   byAssistant: GeneralNamedValue[];
+  mapSections?: ReportPlotMapSection[];
 }
 
 function formatHectares(value: number): string {
@@ -77,6 +83,7 @@ const GeneralReportPDF: React.FC<GeneralReportPDFProps> = ({
   byPilot,
   byProduct,
   byAssistant,
+  mapSections = [],
 }) => {
   const topFarms = topRows(byFarm, 10);
   const topPilots = topRows(byPilot, 10);
@@ -254,6 +261,11 @@ const GeneralReportPDF: React.FC<GeneralReportPDFProps> = ({
           />
         </View>
       </Page>
+      <ReportPlotMapPages
+        sections={mapSections}
+        generatedAt={generatedAt}
+        title='Mapa das aplicações'
+      />
     </Document>
   );
 };

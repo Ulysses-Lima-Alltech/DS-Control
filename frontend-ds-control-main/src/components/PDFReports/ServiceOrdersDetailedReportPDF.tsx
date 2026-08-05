@@ -1,6 +1,10 @@
 import { Document, Font, Page, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
+import {
+  ReportPlotMapPages,
+  type ReportPlotMapSection,
+} from '@/components/PDFReports/ReportPlotMapPages';
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 
@@ -24,6 +28,7 @@ interface ServiceOrdersDetailedReportPDFProps {
   generatedAt: string;
   filtersSummary: Array<{ label: string; value: string }>;
   sections: ServiceOrderDetailedSection[];
+  mapSections?: ReportPlotMapSection[];
 }
 
 function parseNumber(value: unknown): number {
@@ -47,6 +52,7 @@ const ServiceOrdersDetailedReportPDF: React.FC<ServiceOrdersDetailedReportPDFPro
   generatedAt,
   filtersSummary,
   sections,
+  mapSections = [],
 }) => {
   const totalApplications = sections.reduce((sum, item) => sum + item.applications.length, 0);
   const totalHectares = sections.reduce(
@@ -156,6 +162,11 @@ const ServiceOrdersDetailedReportPDF: React.FC<ServiceOrdersDetailedReportPDFPro
           );
         })}
       </Page>
+      <ReportPlotMapPages
+        sections={mapSections}
+        generatedAt={generatedAt}
+        title='Mapa dos talhões das OS'
+      />
     </Document>
   );
 };

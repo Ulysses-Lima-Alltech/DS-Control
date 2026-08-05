@@ -1,76 +1,79 @@
-const PREFETCH_DEBUG = '[REPORT_PREFETCH_DEBUG]';
+export type RemoteImageFetchOptions = {
+  timeoutMs?: number;
+  retries?: number;
+  signal?: AbortSignal;
+};
 
-/**
- * Pré-carrega uma imagem remota para data URL (útil com @react-pdf/renderer, que nem sempre embute URLs externas).
- */
-export async function fetchRemoteImageAsDataUrl(url: string): Promise<string | null> {
-  const urlPreview =
-    url.length > 160 ? `${url.slice(0, 160)}…(len=${url.length})` : url;
+const DEFAULT_TIMEOUT_MS = 10_000;
 
+/** Fetches an image without ever logging its URL, query string or credentials. */
+export async function fetchRemoteImageAsDataUrl(
+  url: string,
+  options: RemoteImageFetchOptions = {}
+): Promise<string | null> {
+  const retries = Math.max(0, options.retries ?? 0);
+  const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const resourceHost = safeHost(url);
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (options.signal?.aborted) return null;
+
+    const controller = new AbortController();
+    const abortFromParent = () => controller.abort();
+    options.signal?.addEventListener('abort', abortFromParent, { once: true });
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        if (attempt === retries || !isRetryableStatus(response.status)) {
+          console.warn('[REPORT_IMAGE_FETCH]', {
+            resourceHost,
+            responseStatus: response.status,
+            reason: 'response_not_ok',
+          });
+          return null;
+        }
+        continue;
+      }
+
+      const dataUrl = await blobToDataUrl(await response.blob());
+      if (dataUrl.startsWith('data:')) return dataUrl;
+
+      console.warn('[REPORT_IMAGE_FETCH]', {
+        resourceHost,
+        responseStatus: response.status,
+        reason: 'invalid_data_url',
+      });
+      return null;
+    } catch {
+      if (options.signal?.aborted) return null;
+      if (attempt === retries) {
+        console.warn('[REPORT_IMAGE_FETCH]', {
+          resourceHost,
+          responseStatus: null,
+          reason: controller.signal.aborted ? 'timeout' : 'fetch_failed',
+        });
+        return null;
+      }
+    } finally {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener('abort', abortFromParent);
+    }
+  }
+
+  return null;
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function safeHost(url: string): string {
   try {
-    const response = await fetch(url);
-    const contentType = response.headers.get('content-type');
-
-    if (!response.ok) {
-      console.log(PREFETCH_DEBUG, {
-        phase: 'fetchRemoteImageAsDataUrl',
-        urlPreview,
-        responseStatus: response.status,
-        responseOk: response.ok,
-        contentType,
-        returnNullReason: 'response_not_ok',
-      });
-      return null;
-    }
-
-    const blob = await response.blob();
-    const blobSize = blob.size;
-    const blobCreated = true;
-
-    const dataUrl = await blobToDataUrl(blob);
-    const dataUrlLength = dataUrl.length;
-    const dataUrlValidPrefix = dataUrl.startsWith('data:');
-
-    if (!dataUrlValidPrefix) {
-      console.log(PREFETCH_DEBUG, {
-        phase: 'fetchRemoteImageAsDataUrl',
-        urlPreview,
-        responseStatus: response.status,
-        responseOk: response.ok,
-        contentType,
-        blobCreated,
-        blobSize,
-        dataUrlLength,
-        returnNullReason: 'data_url_invalid_prefix',
-      });
-      return null;
-    }
-
-    console.log(PREFETCH_DEBUG, {
-      phase: 'fetchRemoteImageAsDataUrl',
-      urlPreview,
-      responseStatus: response.status,
-      responseOk: response.ok,
-      contentType,
-      blobCreated,
-      blobSize,
-      dataUrlApproxLength: dataUrlLength,
-      returnNullReason: null,
-    });
-
-    return dataUrl;
-  } catch (err) {
-    console.log(PREFETCH_DEBUG, {
-      phase: 'fetchRemoteImageAsDataUrl',
-      urlPreview,
-      responseStatus: null,
-      responseOk: null,
-      contentType: null,
-      blobCreated: false,
-      returnNullReason: 'fetch_or_blob_to_data_url_exception',
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
+    return new URL(url).host;
+  } catch {
+    return 'invalid-url';
   }
 }
 

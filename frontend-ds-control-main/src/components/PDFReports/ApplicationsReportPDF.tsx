@@ -5,11 +5,8 @@ import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
-import {
-  buildReportMapboxStaticUrl,
-  getReportMapPlaceholderMessage,
-} from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR } from '@/utils/operational-date';
+import type { ReportMapAsset } from '@/utils/report-map-assets';
 import { buildPlotPolygonSvgOverlay, buildPlotReportLabel } from '@/utils/reportPlotPolygonSvg';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
@@ -71,6 +68,7 @@ export interface ApplicationsReportPDFProps {
   };
   /** Data URLs pré-carregadas por plotId (evita <Image> com URL remota no react-pdf). */
   prefetchedMapImageDataUrls?: Record<string, string | null>;
+  reportMapAssetsByPlotId?: Record<string, ReportMapAsset>;
   djiImagesByApplicationId?: Record<
     string,
     {
@@ -152,6 +150,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   serviceOrder,
   applications,
   prefetchedMapImageDataUrls,
+  reportMapAssetsByPlotId,
   djiImagesByApplicationId,
   mode = 'operational',
   completedPlotIds = [],
@@ -933,23 +932,10 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
         const mapHeight = 480;
         const plotPolygonOverlay = buildPlotPolygonSvgOverlay(plot, mapWidth, mapHeight);
         const plotLabel = buildPlotReportLabel(plot);
-        // Temporário: mesmo fallback que MapViewer até NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN no build do Amplify.
-        const mapResult = buildReportMapboxStaticUrl({
-          plot,
-          mapWidth,
-          mapHeight,
-          accessToken:
-            process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-            'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
-        });
-        const mapUrl = mapResult.url;
-        const mapPlaceholderMessage = mapUrl
-          ? null
-          : getReportMapPlaceholderMessage(mapResult.unavailableReason);
-
+        const mapAsset = reportMapAssetsByPlotId?.[plotId];
+        const mapPlaceholderMessage = mapAsset?.message ?? 'Mapa indisponível';
         const prefetchedSrc = prefetchedMapImageDataUrls?.[plotId];
-        const usePrefetchedMap = prefetchedMapImageDataUrls !== undefined;
-        const mapImageSrc = usePrefetchedMap ? (prefetchedSrc ?? undefined) : (mapUrl ?? undefined);
+        const mapImageSrc = mapAsset?.imageDataUrl ?? prefetchedSrc ?? undefined;
         const plotDjiApplication = plotApplications.find((application) =>
           isTrustedDjiReportImage(djiImagesByApplicationId?.[application.id])
         );
@@ -964,46 +950,6 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
           : null;
         const reportVisualHeight = plotApplications.length > 1 ? 120 : DJI_REPORT_IMAGE_HEIGHT;
         const reportMapHeight = plotApplications.length > 1 ? 120 : 200;
-
-        if (!showMapImage && typeof console !== 'undefined') {
-          const key = plotId;
-          const hasPrefetchKey =
-            prefetchedMapImageDataUrls !== undefined &&
-            Object.prototype.hasOwnProperty.call(prefetchedMapImageDataUrls, key);
-          // eslint-disable-next-line no-console
-          console.log('[REPORT_PREFETCH_DEBUG]', {
-            phase: 'ApplicationsReportPDF:placeholder',
-            plotId: plot.id,
-            loopPlotId: plotId,
-            djiImageExists: showDjiImage,
-            mapUrlExists: Boolean(mapUrl),
-            usePrefetchedMap,
-            hasPrefetchKey,
-            prefetchedEntryType:
-              prefetchedMapImageDataUrls === undefined
-                ? 'prefetch_prop_undefined'
-                : prefetchedMapImageDataUrls[key] === null
-                  ? 'null'
-                  : typeof prefetchedMapImageDataUrls[key],
-            prefetchedStringLength: typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
-            placeholderText: mapPlaceholderMessage ?? 'Mapa indisponível',
-          });
-        }
-
-        if (typeof console !== 'undefined') {
-          // eslint-disable-next-line no-console
-          console.log('[REPORT_MAP_DEBUG]', {
-            phase: 'ApplicationsReportPDF',
-            plotId: plot.id,
-            plotName: plot.name,
-            djiImageExists: showDjiImage,
-            mapUrl: mapUrl ?? null,
-            mapUrlLength: mapUrl?.length ?? 0,
-            usedLongUrlFallback: mapResult.usedLongUrlFallback,
-            usePrefetchedMap,
-            prefetchedDataUrlLength: typeof prefetchedSrc === 'string' ? prefetchedSrc.length : 0,
-          });
-        }
 
         return (
           <Page
@@ -1144,10 +1090,10 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                           <Path
                             key={`plot-poly-${plotId}-${i}`}
                             d={d}
-                            fill='#3388ff'
+                            fill={mapAsset?.fillColor ?? '#3388ff'}
                             fillOpacity={0.35}
                             fillRule='evenodd'
-                            stroke='#1d4ed8'
+                            stroke={mapAsset?.strokeColor ?? '#1d4ed8'}
                             strokeWidth={2}
                           />
                         ))}
@@ -1183,7 +1129,39 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                     ) : null}
                   </>
                 )}
-                {!showMapImage && (
+                {!showMapImage && mapAsset?.vectorPathD ? (
+                  <>
+                    <Svg
+                      width='100%'
+                      height='100%'
+                      viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+                      preserveAspectRatio='none'
+                    >
+                      <Path d={`M 0 0 H ${mapWidth} V ${mapHeight} H 0 Z`} fill='#FFFFFF' />
+                      <Path
+                        d={mapAsset.vectorPathD}
+                        fill={mapAsset.fillColor}
+                        fillOpacity={0.58}
+                        fillRule='evenodd'
+                        stroke={mapAsset.strokeColor}
+                        strokeWidth={2.5}
+                      />
+                    </Svg>
+                    <View
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 4,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ fontSize: 8, color: '#6B7280' }}>
+                        {mapPlaceholderMessage}
+                      </Text>
+                    </View>
+                  </>
+                ) : !showMapImage ? (
                   <View
                     style={{
                       width: '100%',
@@ -1204,7 +1182,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                       {mapPlaceholderMessage ?? 'Mapa indisponível'}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
             )}
 

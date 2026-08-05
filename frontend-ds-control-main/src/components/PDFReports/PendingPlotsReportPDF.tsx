@@ -1,6 +1,10 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
+import {
+  ReportPlotMapPages,
+  type ReportPlotMapSection,
+} from '@/components/PDFReports/ReportPlotMapPages';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
@@ -28,9 +32,11 @@ const styles = StyleSheet.create({
 export function PendingPlotsReportPDF({
   serviceOrder,
   pendingPlotIds,
+  mapSections = [],
 }: {
   serviceOrder: ServiceOrder;
   pendingPlotIds: string[];
+  mapSections?: ReportPlotMapSection[];
 }) {
   const metrics = resolveServiceOrderMetrics(serviceOrder);
   const pendingIds = new Set(pendingPlotIds);
@@ -73,6 +79,11 @@ export function PendingPlotsReportPDF({
           fixed
         />
       </Page>
+      <ReportPlotMapPages
+        sections={mapSections}
+        generatedAt={new Date().toLocaleString('pt-BR')}
+        title='Mapa dos talhões pendentes'
+      />
     </Document>
   );
 }
