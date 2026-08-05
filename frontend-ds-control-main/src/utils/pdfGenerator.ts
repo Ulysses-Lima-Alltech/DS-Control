@@ -37,6 +37,11 @@ import {
 } from '@/utils/mapboxStaticReportMap';
 import { buildPlotPolygonSvgPathDs } from '@/utils/reportPlotPolygonSvg';
 import {
+  buildStrategicMapFilename,
+  scopeStrategicMapServiceOrder,
+  type StrategicMapScope,
+} from '@/utils/strategic-map-scope';
+import {
   buildStrategicMapStaticBaseUrl,
   buildStrategicMapViewport,
   buildStrategicMapProjection,
@@ -558,16 +563,32 @@ export async function generateServiceOrdersDetailedConsolidatedPDF({
   return blob;
 }
 
-export async function generateServiceOrderStrategicReportPDF({
-  serviceOrder,
-  applications,
-}: GeneratePDFParams): Promise<Blob> {
+export async function generateServiceOrderStrategicReportPDF(
+  params: GeneratePDFParams & { scope: StrategicMapScope }
+): Promise<Blob> {
+  const { serviceOrder, scope } = params;
   const { pdf } = await import('@react-pdf/renderer');
-  const diagnostics = buildStrategicPlotDiagnostics(serviceOrder);
+  const scopedServiceOrder = scopeStrategicMapServiceOrder(serviceOrder, scope);
+  if (scopedServiceOrder.plots.length === 0) {
+    throw new Error(
+      scope === 'completed'
+        ? 'Não há áreas concluídas para gerar o mapa estratégico.'
+        : 'Não há áreas pendentes ou em andamento para gerar o mapa estratégico.'
+    );
+  }
+  const diagnostics = buildStrategicPlotDiagnostics(scopedServiceOrder);
+  if (diagnostics.validPlots.length === 0) {
+    throw new Error(
+      scope === 'completed'
+        ? 'As áreas concluídas não possuem geometria válida para gerar o mapa estratégico.'
+        : 'As áreas pendentes não possuem geometria válida para gerar o mapa estratégico.'
+    );
+  }
   // eslint-disable-next-line no-console
   console.info('[StrategicPDF] Diagnostics', {
-    serviceOrderId: serviceOrder.id,
-    serviceOrderNumber: serviceOrder.number,
+    serviceOrderId: scopedServiceOrder.id,
+    serviceOrderNumber: scopedServiceOrder.number,
+    scope,
     totalPlotsInServiceOrder: diagnostics.totalPlots,
     totalValidPlots: diagnostics.validPlots.length,
     totalInvalidPlots: diagnostics.invalidPlots.length,
@@ -578,11 +599,11 @@ export async function generateServiceOrderStrategicReportPDF({
   });
 
   const { mapViewport, mapBaseDataUrl, mapImageDataUrl, farmColorMap } =
-    await prefetchStrategicReportMapBase(serviceOrder);
+    await prefetchStrategicReportMapBase(scopedServiceOrder);
 
   const element = ServiceOrderStrategicReportPDF({
-    serviceOrder,
-    applications,
+    serviceOrder: scopedServiceOrder,
+    scope,
     mapViewport,
     prefetchedMapBaseDataUrl: mapBaseDataUrl,
     prefetchedMapImageDataUrl: mapImageDataUrl,
@@ -593,6 +614,8 @@ export async function generateServiceOrderStrategicReportPDF({
   const blob = await pdf(element).toBlob();
   return blob;
 }
+
+export { buildStrategicMapFilename };
 
 export async function generateFarmsReportPDF({
   rows,

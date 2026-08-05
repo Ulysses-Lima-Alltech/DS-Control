@@ -1,10 +1,9 @@
 import { Document, Font, Image, Page, Path, Svg, Text, View } from '@react-pdf/renderer';
 import React from 'react';
 
-import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
-import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
+import { getStrategicMapScopeLabel, type StrategicMapScope } from '@/utils/strategic-map-scope';
 import {
   buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
@@ -14,10 +13,7 @@ import {
   type StrategicMapShapeProjected,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
-import {
-  buildStrategicPlotColorMap,
-  type StrategicFarmColor,
-} from '@/utils/strategicReportPalette';
+import { type StrategicFarmColor } from '@/utils/strategicReportPalette';
 
 Font.register({
   family: 'Roboto',
@@ -65,11 +61,10 @@ const STRATEGIC_LABEL_HALO = '#0F172A';
 const LABEL_COLLISION_GAP_PX = 1.6;
 const LABEL_MAP_MARGIN_PX = 3;
 const APPLIED_FILL_OPACITY = 0.88;
-const PENDING_FILL_OPACITY = 0.32;
 
 interface ServiceOrderStrategicReportPDFProps {
   serviceOrder: ServiceOrder;
-  applications: Application[];
+  scope: StrategicMapScope;
   prefetchedMapBaseDataUrl?: string | null;
   prefetchedMapImageDataUrl?: string | null;
   mapViewport?: StrategicMapViewport | null;
@@ -104,7 +99,6 @@ type StrategicVectorShape = {
   areaText: string;
   areaHa: number;
   color: StrategicFarmColor;
-  isApplied: boolean;
 };
 
 function parseNumber(value: unknown): number {
@@ -123,13 +117,6 @@ function formatHectares(value: number): string {
   })} ha`;
 }
 
-function formatPercent(value: number): string {
-  return `${value.toLocaleString('pt-BR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`;
-}
-
 function formatGeneratedAt(): string {
   return new Intl.DateTimeFormat('pt-BR', {
     timeZone: OPERATIONAL_TIME_ZONE,
@@ -141,26 +128,6 @@ function formatGeneratedAt(): string {
     second: '2-digit',
     hour12: false,
   }).format(new Date());
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.replace('#', '').trim();
-  if (!/^[\da-fA-F]{3,8}$/.test(normalized)) {
-    return `rgba(15, 23, 42, ${alpha})`;
-  }
-
-  if (normalized.length === 3) {
-    const r = Number.parseInt(normalized[0] + normalized[0], 16);
-    const g = Number.parseInt(normalized[1] + normalized[1], 16);
-    const b = Number.parseInt(normalized[2] + normalized[2], 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-
-  const base = normalized.slice(0, 6);
-  const r = Number.parseInt(base.slice(0, 2), 16);
-  const g = Number.parseInt(base.slice(2, 4), 16);
-  const b = Number.parseInt(base.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -629,10 +596,11 @@ function buildStrategicLabelPlacements(
 
 const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFProps> = ({
   serviceOrder,
-  applications,
+  scope,
   prefetchedMapBaseDataUrl = null,
   prefetchedMapImageDataUrl = null,
   mapViewport = null,
+  farmColorMap = new Map(),
 }) => {
   const generatedAt = formatGeneratedAt();
   const plotRows = (serviceOrder.plots || [])
@@ -683,19 +651,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
     );
 
   const plotRowsById = new Map(validPlotRows.map((row) => [row.plotId, row]));
-  const serviceOrderMetrics = resolveServiceOrderMetrics(serviceOrder);
-
-  const appliedPlotIds = new Set(
-    applications
-      .filter((application) => application.serviceOrderId === serviceOrder.id)
-      .map((application) => application.plotId)
-      .filter((plotId): plotId is string => Boolean(plotId))
-  );
-  const progressBarWidth = `${clamp(serviceOrderMetrics.registeredProgressPercent, 0, 100)}%`;
-
   const customerName = serviceOrder.customer?.name || 'CLIENTE';
   const observationTitle = (serviceOrder.observation || 'PROGRAMACAO').toUpperCase();
-  const title = `${customerName.toUpperCase()} - MAPA ESTRATEGICO - ${observationTitle}`;
+  const title = `${customerName.toUpperCase()} - MAPA ESTRATEGICO - ${observationTitle} - ${getStrategicMapScopeLabel(scope)}`;
 
   const scaleBarWidthPx = 116;
   const estimatedScaleKm = viewport
@@ -716,15 +674,11 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const plotAdjacencyMap = strategicProjection
     ? buildShapeAdjacencyMap(strategicProjection.shapes)
     : new Map<string, Set<string>>();
-  const plotColorMap = buildStrategicPlotColorMap(
-    strategicProjection?.shapes.map((shape) => shape.id) || [],
-    plotAdjacencyMap
-  );
 
   const strategicVectorShapes: StrategicVectorShape[] =
     strategicProjection?.shapes.map((shape) => {
       const row = plotRowsById.get(shape.id);
-      const plotColor = plotColorMap.get(shape.id) || {
+      const plotColor = farmColorMap.get(row?.farmId || 'farm-unknown') || {
         fill: '#60A5FA',
         stroke: '#1D4ED8',
       };
@@ -738,20 +692,21 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         areaText: formatHectares(areaHa),
         areaHa,
         color: plotColor,
-        isApplied: appliedPlotIds.has(shape.id),
       };
     }) || [];
 
-  const legendPlotRows = strategicVectorShapes
-    .map((shape) => ({
-      plotId: shape.shape.id,
-      labelCode: shape.labelCode,
-      areaHa: shape.areaHa,
-      color: shape.color,
-      isApplied: shape.isApplied,
-    }))
-    .sort((a, b) => a.labelCode.localeCompare(b.labelCode, 'pt-BR'));
-  const legendSampleColor = legendPlotRows[0]?.color.fill || '#1D4ED8';
+  const legendFarmRows = Array.from(
+    new Map(
+      validPlotRows.map((row) => [
+        row.farmId,
+        {
+          farmId: row.farmId,
+          farmName: row.farmName,
+          color: farmColorMap.get(row.farmId) || { fill: '#60A5FA', stroke: '#1D4ED8' },
+        },
+      ])
+    ).values()
+  ).sort((a, b) => a.farmName.localeCompare(b.farmName, 'pt-BR'));
 
   const strategicLabelLayout = buildStrategicLabelPlacements(
     strategicVectorShapes,
@@ -769,7 +724,6 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         2,
       hasBaseMap: hasMap,
       appliedOpacity: APPLIED_FILL_OPACITY,
-      pendingOpacity: PENDING_FILL_OPACITY,
       mapLogicalWidth: MAP_LOGICAL_WIDTH,
       mapLogicalHeight: MAP_LOGICAL_HEIGHT,
     });
@@ -848,12 +802,12 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               viewBox={`0 0 ${MAP_LOGICAL_WIDTH} ${MAP_LOGICAL_HEIGHT}`}
               preserveAspectRatio='none'
             >
-              {strategicVectorShapes.map(({ shape, color, isApplied }) => (
+              {strategicVectorShapes.map(({ shape, color }) => (
                 <Path
                   key={`shape-${shape.id}`}
                   d={shape.pathD}
                   fill={color.fill}
-                  fillOpacity={isApplied ? APPLIED_FILL_OPACITY : PENDING_FILL_OPACITY}
+                  fillOpacity={APPLIED_FILL_OPACITY}
                   fillRule='evenodd'
                   stroke={STRATEGIC_POLYGON_STROKE}
                   strokeOpacity={0.9}
@@ -968,9 +922,9 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
             }}
           >
             <Text style={{ fontSize: 8, fontWeight: 700, marginBottom: 2 }}>LEGENDA</Text>
-            {legendPlotRows.slice(0, LEGEND_MAX_ROWS).map((plotLegend) => (
+            {legendFarmRows.slice(0, LEGEND_MAX_ROWS).map((farmLegend) => (
               <View
-                key={plotLegend.plotId}
+                key={farmLegend.farmId}
                 style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.8 }}
               >
                 <View
@@ -978,109 +932,17 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
                     width: 8,
                     height: 8,
                     borderRadius: 1,
-                    backgroundColor: plotLegend.color.fill,
+                    backgroundColor: farmLegend.color.fill,
                     border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
                     marginRight: 4,
                   }}
                 />
-                <Text style={{ flex: 1, fontSize: 6.7 }}>
-                  {plotLegend.labelCode} ({formatHectares(plotLegend.areaHa)})
-                </Text>
+                <Text style={{ flex: 1, fontSize: 6.7 }}>{farmLegend.farmName}</Text>
               </View>
             ))}
-            {legendPlotRows.length > LEGEND_MAX_ROWS ? (
+            {legendFarmRows.length > LEGEND_MAX_ROWS ? (
               <Text style={{ fontSize: 6.2, color: MUTED_TEXT }}>
-                + {legendPlotRows.length - LEGEND_MAX_ROWS} talhao(es)
-              </Text>
-            ) : null}
-            <View style={{ marginTop: 2, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.2 }}>
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 1,
-                    backgroundColor: hexToRgba(legendSampleColor, APPLIED_FILL_OPACITY),
-                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
-                    marginRight: 4,
-                  }}
-                />
-                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                  Aplicado: preenchimento forte
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.2 }}>
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 1,
-                    backgroundColor: hexToRgba(legendSampleColor, PENDING_FILL_OPACITY),
-                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
-                    marginRight: 4,
-                  }}
-                />
-                <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                  Pendente/Programado: preenchimento claro
-                </Text>
-              </View>
-            </View>
-            <View style={{ marginTop: 2, borderTop: `1px solid ${LIGHT_BORDER}`, paddingTop: 2 }}>
-              <View
-                style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.4 }}
-              >
-                <Text style={{ fontSize: 6.3, color: MUTED_TEXT }}>
-                  Progresso cadastral concluido
-                </Text>
-                <Text style={{ fontSize: 6.6, fontWeight: 700 }}>
-                  {formatPercent(serviceOrderMetrics.registeredProgressPercent)}
-                </Text>
-              </View>
-              <View
-                style={{
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: '#E5E7EB',
-                  overflow: 'hidden',
-                  marginBottom: 1.6,
-                }}
-              >
-                <View
-                  style={{
-                    width: progressBarWidth,
-                    height: 4,
-                    backgroundColor: BRAND_YELLOW,
-                  }}
-                />
-              </View>
-              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Area cadastrada da OS: {formatHectares(serviceOrderMetrics.plannedAreaHa)}
-              </Text>
-              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Area bruta aplicada: {formatHectares(serviceOrderMetrics.grossAppliedAreaHa)} (
-                {formatPercent(serviceOrderMetrics.grossAppliedProgressPercent)})
-              </Text>
-              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Area cadastrada concluida:{' '}
-                {formatHectares(serviceOrderMetrics.registeredCompletedAreaHa)}
-              </Text>
-              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Area operacional consolidada:{' '}
-                {formatHectares(serviceOrderMetrics.consolidatedOperationalAreaHa)}
-              </Text>
-              <Text style={{ fontSize: 6.15, color: MUTED_TEXT }}>
-                Talhoes com aplicacao: {serviceOrderMetrics.plotsWithApplications}/
-                {serviceOrderMetrics.totalPlots}
-              </Text>
-            </View>
-            {invalidPlotRows.length > 0 ? (
-              <Text style={{ fontSize: 6.1, color: MUTED_TEXT, marginTop: 1 }}>
-                Talhoes sem geometria valida: {invalidPlotRows.length}
-              </Text>
-            ) : null}
-            {strategicProjection && strategicLabelLayout.labelsOmitted > 0 ? (
-              <Text style={{ fontSize: 5.8, color: MUTED_TEXT, marginTop: 1 }}>
-                Labels omitidos por sobreposicao extrema: {strategicLabelLayout.labelsOmitted}
+                + {legendFarmRows.length - LEGEND_MAX_ROWS} fazenda(s)
               </Text>
             ) : null}
           </View>

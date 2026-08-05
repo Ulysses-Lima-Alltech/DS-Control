@@ -117,7 +117,7 @@ function LoadedCardServiceOrderDetails({
     }
   }, [applicationsData]);
 
-  const handleGenerateStrategicPDFReport = async () => {
+  const handleGenerateStrategicPDFReport = async (scope: 'completed' | 'pending') => {
     try {
       setIsGeneratingPDF(true);
       setPdfProgress(0);
@@ -169,10 +169,14 @@ function LoadedCardServiceOrderDetails({
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
+        scope,
       });
 
       setPdfProgress(95);
-      downloadPDF(blob, `relatorio-os-${serviceOrder.number}-estrategico.pdf`);
+      downloadPDF(
+        blob,
+        `mapa-estrategico-os-${serviceOrder.number}-${scope === 'completed' ? 'concluidos' : 'pendentes'}.pdf`
+      );
       setPdfProgress(100);
       toast.success('Relatorio estrategico gerado com sucesso');
     } catch (error) {
@@ -487,16 +491,28 @@ function LoadedCardServiceOrderDetails({
                   size='sm'
                   className='flex items-center justify-center gap-2 text-blue-600 border-blue-600 hover:bg-blue-50 w-full'
                   disabled={isGeneratingPDF}
-                  onClick={handleGenerateStrategicPDFReport}
+                  onClick={() => handleGenerateStrategicPDFReport('completed')}
                 >
                   <FileText className='h-4 w-4 flex-shrink-0' />
                   <span className='text-nowrap overflow-hidden text-ellipsis'>
                     {isGeneratingPDF
                       ? `Gerando relatório${applicationCount ? ` (${applicationCount})` : ''}...`
-                      : 'Gerar relatório de aplicações'}
+                      : 'Baixar áreas concluídas'}
                   </span>
                 </Button>
-                                <Button
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='flex items-center justify-center gap-2 text-blue-600 border-blue-600 hover:bg-blue-50 w-full'
+                  disabled={isGeneratingPDF}
+                  onClick={() => handleGenerateStrategicPDFReport('pending')}
+                >
+                  <FileText className='h-4 w-4 flex-shrink-0' />
+                  <span className='text-nowrap overflow-hidden text-ellipsis'>
+                    {isGeneratingPDF ? 'Gerando relatório...' : 'Baixar áreas pendentes'}
+                  </span>
+                </Button>
+                <Button
                   variant='outline'
                   size='sm'
                   className='flex items-center justify-center gap-2 text-sky-700 border-sky-700 hover:bg-sky-50 w-full'
@@ -504,9 +520,11 @@ function LoadedCardServiceOrderDetails({
                   onClick={handleGenerateApplicationsPDFReport}
                 >
                   <FileText className='h-4 w-4 flex-shrink-0' />
-                  <span className='text-nowrap overflow-hidden text-ellipsis'>Relatorio de Aplicacao da OS</span>
+                  <span className='text-nowrap overflow-hidden text-ellipsis'>
+                    Relatorio de Aplicacao da OS
+                  </span>
                 </Button>
-{isGeneratingPDF && (
+                {isGeneratingPDF && (
                   <div className='space-y-2'>
                     <Progress value={pdfProgress} className='h-2' />
                     <p className='text-xs text-muted-foreground text-center'>

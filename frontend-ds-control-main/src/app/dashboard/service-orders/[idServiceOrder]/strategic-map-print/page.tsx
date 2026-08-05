@@ -1,25 +1,24 @@
 'use client';
 
-import type {
-  Feature,
-  FeatureCollection,
-  GeoJSON,
-  Geometry,
-  MultiPolygon,
-  Polygon,
-  Position,
-} from 'geojson';
+import type { FeatureCollection } from 'geojson';
 import type { jsPDF as JsPdf } from 'jspdf';
 import mapboxgl, { type AnyLayer } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { useSearchParams } from 'next/navigation';
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapboxMap, { Layer, MapRef, ScaleControl, Source } from 'react-map-gl/mapbox';
 
 import { useGetServiceOrderById } from '@/queries/service-order.query';
-import { Farm } from '@/types/farm.type';
-import { Plot } from '@/types/plot.type';
-import { ServiceOrder } from '@/types/service-order.type';
-import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
+import {
+  buildStrategicMapData,
+  buildStrategicMapFilename,
+  getStrategicMapDownloadLabel,
+  getStrategicMapScopeLabel,
+  parseStrategicMapScope,
+  type StrategicMapData,
+  type StrategicMapDrawableGeometry,
+  type StrategicMapFarmLegendItem,
+} from '@/utils/strategic-map-scope';
 
 const MAPBOX_TOKEN =
   'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q';
@@ -43,52 +42,6 @@ const EXPORT_PX_PER_CSS_PX_Y = EXPORT_HEIGHT_PX / PAGE_HEIGHT_CSS_PX;
 const EXPORT_TILE_WAIT_TIMEOUT_MS = 60000;
 const EXPORT_EXTRA_RENDER_DELAY_MS = 500;
 const LOGO_SRC = '/images/ds-drones-agricolas-logo.png';
-
-const FARM_COLOR_PALETTE = [
-  '#e74c3c',
-  '#8e44ad',
-  '#3498db',
-  '#16a085',
-  '#f1c40f',
-  '#e67e22',
-  '#e84118',
-  '#8c7ae6',
-  '#00a8ff',
-  '#44bd32',
-  '#2ed573',
-  '#ff4757',
-  '#5352ed',
-  '#1e90ff',
-  '#7bed9f',
-  '#ff6b81',
-  '#f5cd79',
-  '#596275',
-  '#574b90',
-  '#00b894',
-];
-
-type DrawableGeometry = Polygon | MultiPolygon;
-type LngLatBoundsTuple = [[number, number], [number, number]];
-
-type FarmLegendItem = {
-  key: string;
-  name: string;
-  hectares: number;
-  fill: string;
-};
-
-type PlotFeatureDraft = {
-  feature: Feature<DrawableGeometry>;
-  farmKey: string;
-};
-
-type StrategicMapData = {
-  featureCollection: FeatureCollection<DrawableGeometry>;
-  farms: FarmLegendItem[];
-  totalHectares: number;
-  totalAppliedHectares: number;
-  bounds: LngLatBoundsTuple | null;
-};
 
 type PdfScaleBar = {
   label: string;
@@ -159,6 +112,8 @@ export default function StrategicMapPrintPage({
   params: Promise<{ idServiceOrder: string }>;
 }) {
   const { idServiceOrder } = use(params);
+  const searchParams = useSearchParams();
+  const scope = parseStrategicMapScope(searchParams.get('scope'));
   const mapRef = useRef<MapRef | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [generatedAtLabel, setGeneratedAtLabel] = useState('');
@@ -177,20 +132,20 @@ export default function StrategicMapPrintPage({
   });
 
   const strategicMapData = useMemo(
-    () => (serviceOrder ? buildStrategicMapData(serviceOrder) : null),
-    [serviceOrder]
+    () => (serviceOrder && scope ? buildStrategicMapData(serviceOrder, scope) : null),
+    [scope, serviceOrder]
   );
 
   const mapTitle = useMemo(() => {
     if (!serviceOrder) {
-      return 'MAPA ESTRATÉGICO';
+      return `MAPA ESTRATÉGICO${scope ? ` - ${getStrategicMapScopeLabel(scope)}` : ''}`;
     }
 
     const customerName = getCustomerShortName(serviceOrder.customer?.name);
     const serviceOrderType = (serviceOrder.observation || 'OS').trim().toLocaleUpperCase('pt-BR');
 
-    return `${customerName} - MAPA ESTRATÉGICO - ${serviceOrderType}`;
-  }, [serviceOrder]);
+    return `${customerName} - MAPA ESTRATÉGICO - ${serviceOrderType} - ${scope ? getStrategicMapScopeLabel(scope) : 'ESCOPO INVÁLIDO'}`;
+  }, [scope, serviceOrder]);
 
   const fitMapToBounds = useCallback(() => {
     if (!mapRef.current || !strategicMapData?.bounds) {
@@ -267,21 +222,17 @@ export default function StrategicMapPrintPage({
         title: mapTitle,
         generatedAt,
         farms: strategicMapData.farms,
-        totalHectares: strategicMapData.totalHectares,
-        totalAppliedHectares: strategicMapData.totalAppliedHectares,
         scaleBar,
       });
 
-      pdf.save(
-        `mapa-estrategico-os-${sanitizeFilePart(serviceOrder?.number ?? idServiceOrder)}.pdf`
-      );
+      pdf.save(buildStrategicMapFilename(serviceOrder?.number ?? idServiceOrder, scope!));
     } catch (error) {
       console.error('Erro ao gerar PDF do mapa estrategico em alta resolucao:', error);
       alert('N\u00e3o foi poss\u00edvel gerar o PDF em alta resolu\u00e7\u00e3o.');
     } finally {
       setIsGeneratingPdf(false);
     }
-  }, [generatedAtLabel, idServiceOrder, mapTitle, serviceOrder?.number, strategicMapData]);
+  }, [generatedAtLabel, idServiceOrder, mapTitle, scope, serviceOrder?.number, strategicMapData]);
 
   const hasMapFeatures = Boolean(strategicMapData?.featureCollection.features.length);
 
@@ -294,7 +245,11 @@ export default function StrategicMapPrintPage({
           onClick={handleDownloadReport}
           disabled={isGeneratingPdf || !hasMapFeatures}
         >
-          {isGeneratingPdf ? 'Gerando PDF...' : 'Baixar relat\u00f3rio'}
+          {isGeneratingPdf
+            ? 'Gerando PDF...'
+            : scope
+              ? getStrategicMapDownloadLabel(scope)
+              : 'Escopo inválido'}
         </button>
 
         <div className='strategic-map-canvas'>
@@ -331,7 +286,9 @@ export default function StrategicMapPrintPage({
                 ? 'Carregando mapa estratégico...'
                 : isError
                   ? 'Não foi possível carregar a ordem de serviço.'
-                  : 'Mapa indisponível: talhões sem geoJson.'}
+                  : !scope
+                    ? 'Escopo inválido. Use scope=completed ou scope=pending.'
+                    : `Nenhum talhão com geometria disponível no escopo ${getStrategicMapScopeLabel(scope).toLocaleLowerCase('pt-BR')}.`}
             </div>
           )}
         </div>
@@ -352,17 +309,9 @@ export default function StrategicMapPrintPage({
                     className='strategic-map-legend-swatch'
                     style={{ backgroundColor: farm.fill }}
                   />
-                  <span>
-                    {farm.name} ({formatHectares(farm.hectares)} ha)
-                  </span>
+                  <span>{farm.name}</span>
                 </div>
               ))}
-            </div>
-            <div className='strategic-map-legend-total'>
-              ÁREA CADASTRADA DA OS: {formatHectares(strategicMapData.totalHectares)} HA
-            </div>
-            <div className='strategic-map-legend-total'>
-              ÁREA BRUTA APLICADA: {formatHectares(strategicMapData.totalAppliedHectares)} HA
             </div>
           </aside>
         )}
@@ -873,7 +822,7 @@ function forceDevicePixelRatio(value: number): DevicePixelRatioRestore {
 
 function addStrategicMapSourceAndLayers(
   map: mapboxgl.Map,
-  featureCollection: FeatureCollection<DrawableGeometry>
+  featureCollection: FeatureCollection<StrategicMapDrawableGeometry>
 ): void {
   map.addSource(STRATEGIC_MAP_SOURCE_ID, {
     type: 'geojson',
@@ -1012,16 +961,14 @@ async function drawStrategicMapPdfOverlays(
   params: {
     title: string;
     generatedAt: string;
-    farms: FarmLegendItem[];
-    totalHectares: number;
-    totalAppliedHectares: number;
+    farms: StrategicMapFarmLegendItem[];
     scaleBar: PdfScaleBar | null;
   }
 ): Promise<void> {
   drawPdfTitle(pdf, params.title);
   drawPdfGeneratedAt(pdf, params.generatedAt);
   await drawPdfNorthArrow(pdf);
-  drawPdfLegend(pdf, params.farms, params.totalHectares, params.totalAppliedHectares);
+  drawPdfLegend(pdf, params.farms);
   drawPdfScaleBar(pdf, params.scaleBar);
   await drawPdfLogo(pdf);
 }
@@ -1078,15 +1025,9 @@ async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
   );
 }
 
-function drawPdfLegend(
-  pdf: JsPdf,
-  farms: FarmLegendItem[],
-  totalHectares: number,
-  totalAppliedHectares: number
-): void {
+function drawPdfLegend(pdf: JsPdf, farms: StrategicMapFarmLegendItem[]): void {
   const x = cssPxToMm(100);
-  const legendHeightCss =
-    56 + 32 + farms.length * 60 + Math.max(0, farms.length - 1) * 24 + 48 + 32 + 8 + 56;
+  const legendHeightCss = 56 + 32 + farms.length * 60 + Math.max(0, farms.length - 1) * 24;
   let y = PDF_HEIGHT_MM - cssPxToMm(100 + legendHeightCss);
 
   pdf.setTextColor(0, 0, 0);
@@ -1112,34 +1053,12 @@ function drawPdfLegend(
     pdf.setTextColor(0, 0, 0);
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(cssPxToPt(48));
-    pdf.text(
-      `${farm.name} (${formatHectares(farm.hectares)} ha)`,
-      x + swatchSize + cssPxToMm(40),
-      itemTop + swatchSize / 2,
-      {
-        baseline: 'middle',
-        maxWidth: cssPxToMm(1500),
-      }
-    );
+    pdf.text(farm.name, x + swatchSize + cssPxToMm(40), itemTop + swatchSize / 2, {
+      baseline: 'middle',
+      maxWidth: cssPxToMm(1500),
+    });
 
     y += cssPxToMm(60);
-  });
-
-  y += cssPxToMm(48);
-  pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(cssPxToMm(8));
-  pdf.line(x, y, x + cssPxToMm(720), y);
-  y += cssPxToMm(32);
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(cssPxToPt(56));
-  pdf.setTextColor(0, 0, 0);
-  pdf.text(`ÁREA CADASTRADA DA OS: ${formatHectares(totalHectares)} HA`, x, y, {
-    baseline: 'top',
-  });
-  y += cssPxToMm(72);
-  pdf.text(`ÁREA BRUTA APLICADA: ${formatHectares(totalAppliedHectares)} HA`, x, y, {
-    baseline: 'top',
   });
 }
 
@@ -1255,229 +1174,6 @@ function cssPxToExportPxY(value: number): number {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function sanitizeFilePart(value: string | number): string {
-  const sanitized = String(value)
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, '-');
-
-  return sanitized || 'sem-numero';
-}
-
-function buildStrategicMapData(serviceOrder: ServiceOrder): StrategicMapData {
-  const farmsById = buildFarmMap(serviceOrder.farms || []);
-  const farmSummaries = new Map<string, Omit<FarmLegendItem, 'fill'>>();
-  const drafts: PlotFeatureDraft[] = [];
-  const metrics = resolveServiceOrderMetrics(serviceOrder);
-
-  (serviceOrder.plots || []).forEach((plot) => {
-    const farmKey = plot.farmId || `farmless-${plot.name}`;
-    const farmName = formatFarmName(farmsById.get(plot.farmId || '')?.name || 'FAZENDA SEM NOME');
-    const hectares = parseHectares(plot.hectare);
-    const current = farmSummaries.get(farmKey) || {
-      key: farmKey,
-      name: farmName,
-      hectares: 0,
-    };
-
-    current.hectares += hectares;
-    farmSummaries.set(farmKey, current);
-
-    const plotGeoJson = parsePlotGeoJson(plot.geoJson);
-    if (!plotGeoJson) {
-      return;
-    }
-
-    plotGeoJson.features.forEach((feature, index) => {
-      if (!isDrawableGeometry(feature.geometry)) {
-        return;
-      }
-
-      drafts.push({
-        farmKey,
-        feature: {
-          type: 'Feature',
-          geometry: feature.geometry,
-          properties: {
-            ...(feature.properties || {}),
-            farm_id: farmKey,
-            farm_name: farmName,
-            hectare: formatHectares(hectares),
-            hectare_label: `${formatHectares(hectares)} ha`,
-            plot_id: plot.id || `${plot.name}-${index}`,
-            plot_name: plot.name,
-          },
-        },
-      });
-    });
-  });
-
-  const farms = Array.from(farmSummaries.values()).sort((a, b) =>
-    a.name.localeCompare(b.name, 'pt-BR', { numeric: true, sensitivity: 'base' })
-  );
-
-  const colorByFarm = new Map<string, string>();
-  farms.forEach((farm, index) => {
-    colorByFarm.set(farm.key, FARM_COLOR_PALETTE[index % FARM_COLOR_PALETTE.length]);
-  });
-
-  const features = drafts.map(({ feature, farmKey }) => ({
-    ...feature,
-    properties: {
-      ...(feature.properties || {}),
-      fill: colorByFarm.get(farmKey) || '#3388ff',
-      stroke: '#111111',
-    },
-  }));
-
-  const featureCollection: FeatureCollection<DrawableGeometry> = {
-    type: 'FeatureCollection',
-    features,
-  };
-
-  const legendFarms = farms.map((farm) => ({
-    ...farm,
-    fill: colorByFarm.get(farm.key) || '#3388ff',
-  }));
-
-  return {
-    featureCollection,
-    farms: legendFarms,
-    totalHectares: metrics.plannedAreaHa,
-    totalAppliedHectares: metrics.grossAppliedAreaHa,
-    bounds: getFeatureCollectionBounds(featureCollection),
-  };
-}
-
-function buildFarmMap(farms: Farm[]): Map<string, Farm> {
-  const map = new Map<string, Farm>();
-  farms.forEach((farm) => {
-    if (farm?.id) {
-      map.set(farm.id, farm);
-    }
-  });
-  return map;
-}
-
-function parsePlotGeoJson(value: unknown): FeatureCollection | null {
-  if (!value) {
-    return null;
-  }
-
-  let parsed = value;
-  if (typeof value === 'string') {
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      return null;
-    }
-  }
-
-  if (!parsed || typeof parsed !== 'object') {
-    return null;
-  }
-
-  const geoJson = parsed as GeoJSON;
-  if (geoJson.type === 'FeatureCollection' && Array.isArray(geoJson.features)) {
-    return geoJson;
-  }
-
-  if (geoJson.type === 'Feature') {
-    return {
-      type: 'FeatureCollection',
-      features: [geoJson],
-    };
-  }
-
-  if (geoJson.type === 'Polygon' || geoJson.type === 'MultiPolygon') {
-    return {
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {},
-          geometry: geoJson,
-        },
-      ],
-    };
-  }
-
-  return null;
-}
-
-function isDrawableGeometry(geometry: Geometry | null | undefined): geometry is DrawableGeometry {
-  return geometry?.type === 'Polygon' || geometry?.type === 'MultiPolygon';
-}
-
-function getFeatureCollectionBounds(
-  featureCollection: FeatureCollection<DrawableGeometry>
-): LngLatBoundsTuple | null {
-  let minLng = Number.POSITIVE_INFINITY;
-  let minLat = Number.POSITIVE_INFINITY;
-  let maxLng = Number.NEGATIVE_INFINITY;
-  let maxLat = Number.NEGATIVE_INFINITY;
-
-  featureCollection.features.forEach((feature) => {
-    collectPositions(feature.geometry).forEach(([lng, lat]) => {
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-        return;
-      }
-
-      minLng = Math.min(minLng, lng);
-      minLat = Math.min(minLat, lat);
-      maxLng = Math.max(maxLng, lng);
-      maxLat = Math.max(maxLat, lat);
-    });
-  });
-
-  if (
-    !Number.isFinite(minLng) ||
-    !Number.isFinite(minLat) ||
-    !Number.isFinite(maxLng) ||
-    !Number.isFinite(maxLat)
-  ) {
-    return null;
-  }
-
-  return [
-    [minLng, minLat],
-    [maxLng, maxLat],
-  ];
-}
-
-function collectPositions(geometry: DrawableGeometry): Position[] {
-  if (geometry.type === 'Polygon') {
-    return geometry.coordinates.flat();
-  }
-
-  return geometry.coordinates.flat(2);
-}
-
-function parseHectares(value: Plot['hectare']): number {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-
-  const raw = String(value).trim();
-  if (!raw) {
-    return 0;
-  }
-
-  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
-  const parsed = Number.parseFloat(normalized);
-
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatHectares(value: number): string {
-  return value.toFixed(2);
-}
-
-function formatFarmName(name: string): string {
-  const trimmed = name.trim();
-  return (trimmed || 'FAZENDA SEM NOME').toLocaleUpperCase('pt-BR');
 }
 
 function getCustomerShortName(name?: string): string {

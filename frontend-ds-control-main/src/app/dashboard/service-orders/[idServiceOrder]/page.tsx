@@ -68,6 +68,7 @@ import {
   resolveApplicationReportPeriod,
 } from '@/utils/service-order-application-report';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
+import { filterStrategicMapPlots } from '@/utils/strategic-map-scope';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -171,6 +172,14 @@ export default function ServiceOrderPage({
         .filter((plot) => plot.status === 'PENDING')
         .map((plot) => plot.id)
         .filter(Boolean) as string[],
+    [serviceOrderData?.plots]
+  );
+
+  const strategicMapScopeCounts = useMemo(
+    () => ({
+      completed: filterStrategicMapPlots(serviceOrderData?.plots, 'completed').length,
+      pending: filterStrategicMapPlots(serviceOrderData?.plots, 'pending').length,
+    }),
     [serviceOrderData?.plots]
   );
 
@@ -631,10 +640,7 @@ export default function ServiceOrderPage({
                   {progressData.progressoCadastral.toFixed(2).replace('.', ',')}%
                 </span>
               </div>
-              <Progress
-                value={Math.min(progressData.progressoCadastral, 100)}
-                className='h-2.5'
-              />
+              <Progress value={Math.min(progressData.progressoCadastral, 100)} className='h-2.5' />
               <div className='flex items-center justify-between text-sm'>
                 <span className='text-muted-foreground'>Progresso bruto aplicado</span>
                 <span className='font-semibold'>
@@ -764,20 +770,33 @@ export default function ServiceOrderPage({
             Cancelar OS
           </Button>
 
-          <Button
-            variant='outline'
-            disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={() =>
-              window.open(
-                `/dashboard/service-orders/${serviceOrderData.id}/strategic-map-print`,
-                '_blank',
-                'noopener,noreferrer'
-              )
-            }
-          >
-            <FileText className='mr-2 h-4 w-4' />
-            Mapa estrategico da OS
-          </Button>
+          {(['completed', 'pending'] as const).map((scope) => {
+            const isEmpty = strategicMapScopeCounts[scope] === 0;
+            const label =
+              scope === 'completed' ? 'Baixar áreas concluídas' : 'Baixar áreas pendentes';
+            return (
+              <Button
+                key={scope}
+                variant='outline'
+                disabled={isGeneratingReport || serviceOrderData.status === 'cancelled' || isEmpty}
+                title={
+                  isEmpty
+                    ? `Não há áreas ${scope === 'completed' ? 'concluídas' : 'pendentes ou em andamento'} para este mapa.`
+                    : label
+                }
+                onClick={() =>
+                  window.open(
+                    `/dashboard/service-orders/${serviceOrderData.id}/strategic-map-print?scope=${scope}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                  )
+                }
+              >
+                <FileText className='mr-2 h-4 w-4' />
+                {label}
+              </Button>
+            );
+          })}
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}

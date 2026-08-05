@@ -56,6 +56,10 @@ import {
   generateServiceOrderStrategicReportPDF,
   generateServiceOrdersDetailedConsolidatedPDF,
 } from '@/utils/pdfGenerator';
+import {
+  buildStrategicMapFilename,
+  type StrategicMapScope,
+} from '@/utils/strategic-map-scope';
 
 import { reportsCatalog, type ReportFilterKey, type ReportId } from './reportsCatalog';
 
@@ -771,7 +775,7 @@ export default function ReportsCenterPage() {
     }
   };
 
-  const handleGenerateServiceOrderReport = async () => {
+  const handleGenerateServiceOrderReport = async (scope: StrategicMapScope = 'completed') => {
     const targets = selectedServiceOrderIds;
     if (targets.length === 0) {
       throw new Error('Selecione ao menos uma OS para gerar o relatorio da OS.');
@@ -782,23 +786,28 @@ export default function ReportsCenterPage() {
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
+        scope,
       });
-      downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
+      downloadPDF(blob, buildStrategicMapFilename(serviceOrderForReport.number, scope));
     }
   };
 
-  const handleGenerateServiceOrderReportById = async (serviceOrderId: string) => {
+  const handleGenerateServiceOrderReportById = async (
+    serviceOrderId: string,
+    scope: StrategicMapScope
+  ) => {
     try {
-      setIsGeneratingRowReport(serviceOrderId);
+      setIsGeneratingRowReport(`${scope}-${serviceOrderId}`);
       setGenerationError(null);
       setGenerationSuccess(null);
       const { serviceOrderForReport, applications } = await fetchServiceOrderAndApplications(serviceOrderId);
       const blob = await generateServiceOrderStrategicReportPDF({
         serviceOrder: serviceOrderForReport,
         applications,
+        scope,
       });
 
-      downloadPDF(blob, `relatorio-os-${serviceOrderForReport.number}-estrategico.pdf`);
+      downloadPDF(blob, buildStrategicMapFilename(serviceOrderForReport.number, scope));
       setGenerationSuccess(`Relatorio da OS #${serviceOrderForReport.number} gerado com sucesso.`);
       toast.success('Relatorio gerado com sucesso.');
       setSelectedServiceOrderId(serviceOrderId);
@@ -1637,10 +1646,17 @@ export default function ReportsCenterPage() {
                 <Badge variant='outline'>Selecionadas: {selectedServiceOrderIds.length}</Badge>
                 <Button
                   size='sm'
-                  onClick={handleGenerateServiceOrderReport}
+                  onClick={() => handleGenerateServiceOrderReport('completed')}
                   disabled={isGeneratingReport || selectedServiceOrderIds.length === 0}
                 >
-                  Mapa estrategico (selecionadas)
+                  Baixar áreas concluídas (selecionadas)
+                </Button>
+                <Button
+                  size='sm'
+                  onClick={() => handleGenerateServiceOrderReport('pending')}
+                  disabled={isGeneratingReport || selectedServiceOrderIds.length === 0}
+                >
+                  Baixar áreas pendentes (selecionadas)
                 </Button>
                 <Button
                   size='sm'
@@ -1709,16 +1725,40 @@ export default function ReportsCenterPage() {
                         <div className='flex flex-wrap gap-2'>
                           <Button
                             size='sm'
-                            onClick={() => handleGenerateServiceOrderReportById(serviceOrder.id)}
-                            disabled={isGeneratingReport || isGeneratingRowReport === serviceOrder.id}
+                            onClick={() =>
+                              handleGenerateServiceOrderReportById(serviceOrder.id, 'completed')
+                            }
+                            disabled={
+                              isGeneratingReport ||
+                              isGeneratingRowReport === `completed-${serviceOrder.id}`
+                            }
                           >
-                            {isGeneratingRowReport === serviceOrder.id ? (
+                            {isGeneratingRowReport === `completed-${serviceOrder.id}` ? (
                               <>
                                 <Loader2 className='h-4 w-4 mr-2 animate-spin' />
                                 Gerando...
                               </>
                             ) : (
-                              'Mapa estrategico'
+                              'Baixar áreas concluídas'
+                            )}
+                          </Button>
+                          <Button
+                            size='sm'
+                            onClick={() =>
+                              handleGenerateServiceOrderReportById(serviceOrder.id, 'pending')
+                            }
+                            disabled={
+                              isGeneratingReport ||
+                              isGeneratingRowReport === `pending-${serviceOrder.id}`
+                            }
+                          >
+                            {isGeneratingRowReport === `pending-${serviceOrder.id}` ? (
+                              <>
+                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                Gerando...
+                              </>
+                            ) : (
+                              'Baixar áreas pendentes'
                             )}
                           </Button>
                           <Button
