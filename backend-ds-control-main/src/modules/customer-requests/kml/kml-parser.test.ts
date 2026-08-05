@@ -40,7 +40,9 @@ describe('secure KML parser', () => {
 
   it('ignores false hectare values from KML properties', () => {
     const result = parseKml(
-      kml(`<Placemark><name>A</name><ExtendedData><Data name="hectares"><value>999999</value></Data></ExtendedData>${polygon(square)}</Placemark>`),
+      kml(
+        `<Placemark><name>A</name><ExtendedData><Data name="hectares"><value>999999</value></Data></ExtendedData>${polygon(square)}</Placemark>`,
+      ),
     );
     expect(result.plots[0]?.calculatedAreaHa).toBeLessThan(999999);
   });

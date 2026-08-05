@@ -34,6 +34,8 @@ describe('customer request status transitions', () => {
     ['SUBMITTED', 'APPROVED'],
   ] as Array<[CustomerRequestStatus, CustomerRequestStatus]>)('rejects %s -> %s', (from, to) => {
     expect(canTransitionCustomerRequest(from, to)).toBe(false);
-    expect(() => assertCustomerRequestTransition(from, to)).toThrow('Transição de solicitação inválida');
+    expect(() => assertCustomerRequestTransition(from, to)).toThrow(
+      'Transição de solicitação inválida',
+    );
   });
 });

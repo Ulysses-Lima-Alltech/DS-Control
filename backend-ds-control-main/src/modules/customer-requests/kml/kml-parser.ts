@@ -128,7 +128,8 @@ function parseRing(boundary: unknown): Position[] {
   const linearRing = boundary.LinearRing;
   if (!isRecord(linearRing)) throw new KmlValidationError('LinearRing ausente');
   const coordinates = parseCoordinates(linearRing.coordinates);
-  if (coordinates.length < 4) throw new KmlValidationError('Anel deve possuir ao menos quatro posições');
+  if (coordinates.length < 4)
+    throw new KmlValidationError('Anel deve possuir ao menos quatro posições');
   if (!samePosition(coordinates[0]!, coordinates[coordinates.length - 1]!)) {
     throw new KmlValidationError('Anel de polígono não está fechado');
   }
@@ -152,7 +153,8 @@ function polygonNodes(placemark: XmlNode): unknown[] {
 
 function buildFeature(placemark: XmlNode, name: string): Feature<Polygon | MultiPolygon> {
   const nodes = polygonNodes(placemark);
-  if (nodes.length === 0) throw new KmlValidationError('Placemark não contém Polygon ou MultiPolygon');
+  if (nodes.length === 0)
+    throw new KmlValidationError('Placemark não contém Polygon ou MultiPolygon');
   const polygons = nodes.map(parsePolygon);
   const geometry: Polygon | MultiPolygon =
     polygons.length === 1
@@ -175,7 +177,8 @@ function coordinateCount(feature: Feature<Polygon | MultiPolygon>): number {
 export function parseKml(input: Buffer | string): KmlParseResult {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input, 'utf8');
   if (buffer.byteLength === 0) throw new KmlValidationError('Arquivo KML vazio');
-  if (buffer.byteLength > KML_LIMITS.maxBytes) throw new KmlValidationError('Arquivo KML excede 15 MB');
+  if (buffer.byteLength > KML_LIMITS.maxBytes)
+    throw new KmlValidationError('Arquivo KML excede 15 MB');
 
   const xml = buffer.toString('utf8');
   if (/<!DOCTYPE\b|<!ENTITY\b/i.test(xml)) {

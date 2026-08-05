@@ -14,7 +14,9 @@ export const CUSTOMER_REQUEST_STATUSES = [
 
 export type CustomerRequestStatus = (typeof CUSTOMER_REQUEST_STATUSES)[number];
 
-const ALLOWED_TRANSITIONS: Readonly<Record<CustomerRequestStatus, readonly CustomerRequestStatus[]>> = {
+const ALLOWED_TRANSITIONS: Readonly<
+  Record<CustomerRequestStatus, readonly CustomerRequestStatus[]>
+> = {
   DRAFT: ['SUBMITTED', 'CANCELLED'],
   SUBMITTED: ['PARSING', 'CANCELLED'],
   PARSING: ['UNDER_REVIEW', 'CHANGES_REQUESTED'],

@@ -17,12 +17,14 @@ const valid = {
 
 describe('KML upload policy', () => {
   it('normalizes safe metadata and uses a short expiry', () => {
-    expect(validateKmlUploadMetadata({
-      ...valid,
-      originalFileName: '../AREA.KML',
-      contentType: 'Application/XML; charset=utf-8',
-      sha256: 'A'.repeat(64),
-    })).toEqual({
+    expect(
+      validateKmlUploadMetadata({
+        ...valid,
+        originalFileName: '../AREA.KML',
+        contentType: 'Application/XML; charset=utf-8',
+        sha256: 'A'.repeat(64),
+      }),
+    ).toEqual({
       ...valid,
       originalFileName: 'AREA.KML',
       contentType: 'application/xml',
@@ -36,9 +38,12 @@ describe('KML upload policy', () => {
     );
   });
 
-  it.each(['application/zip', 'application/octet-stream', 'text/plain'])('rejects MIME %s', (contentType) => {
-    expect(() => validateKmlUploadMetadata({ ...valid, contentType })).toThrow('MIME type');
-  });
+  it.each(['application/zip', 'application/octet-stream', 'text/plain'])(
+    'rejects MIME %s',
+    (contentType) => {
+      expect(() => validateKmlUploadMetadata({ ...valid, contentType })).toThrow('MIME type');
+    },
+  );
 
   it('rejects empty, fractional and oversized files', () => {
     for (const sizeBytes of [0, 1.5, KML_LIMITS.maxBytes + 1]) {
@@ -55,7 +60,9 @@ describe('KML upload policy', () => {
   it('builds random immutable keys without the original filename', () => {
     const first = buildKmlStorageKey('11111111-1111-4111-8111-111111111111');
     const second = buildKmlStorageKey('11111111-1111-4111-8111-111111111111');
-    expect(first).toMatch(/^customer-requests\/areas\/11111111-1111-4111-8111-111111111111\/[0-9a-f-]+\.kml$/);
+    expect(first).toMatch(
+      /^customer-requests\/areas\/11111111-1111-4111-8111-111111111111\/[0-9a-f-]+\.kml$/,
+    );
     expect(first).not.toBe(second);
   });
 

@@ -3,9 +3,7 @@ import { Worker } from 'node:worker_threads';
 
 import { KML_LIMITS, KmlValidationError, type KmlParseResult } from './kml-parser';
 
-type WorkerResponse =
-  | { ok: true; result: KmlParseResult }
-  | { ok: false; error: string };
+type WorkerResponse = { ok: true; result: KmlParseResult } | { ok: false; error: string };
 
 export function parseKmlWithTimeout(
   input: Buffer,
