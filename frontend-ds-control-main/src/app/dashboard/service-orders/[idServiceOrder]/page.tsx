@@ -29,7 +29,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -38,6 +47,7 @@ import {
 } from '@/mutations/service-order.mutation';
 import { useGetApplicationsByServiceOrderId } from '@/queries/application.query';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
+import { getServiceOrderApplicationReport } from '@/services/application.service';
 import { getCompletedPlotsReport } from '@/services/service-order.service';
 import { Application } from '@/types/applications.type';
 import { Plot } from '@/types/plot.type';
@@ -50,6 +60,13 @@ import {
   generateCompletedPlotsPlannedAreaReportPDF,
   generatePendingPlotsReportPDF,
 } from '@/utils/pdfGenerator';
+import {
+  type ApplicationReportPeriodMode,
+  buildApplicationReportFilename,
+  buildApplicationReportMetrics,
+  hydrateApplicationReportPlots,
+  resolveApplicationReportPeriod,
+} from '@/utils/service-order-application-report';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
@@ -69,6 +86,11 @@ export default function ServiceOrderPage({
   const [isCompletedReportModalOpen, setIsCompletedReportModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isApplicationsReportModalOpen, setIsApplicationsReportModalOpen] = useState(false);
+  const [applicationsReportMode, setApplicationsReportMode] =
+    useState<ApplicationReportPeriodMode>('all');
+  const [applicationsReportStartDate, setApplicationsReportStartDate] = useState('');
+  const [applicationsReportEndDate, setApplicationsReportEndDate] = useState('');
   const [activeCompletedReportMode, setActiveCompletedReportMode] =
     useState<CompletedPlotsReportAreaMode | null>(null);
   const isGeneratingCompletedReportRef = useRef(false);
@@ -356,20 +378,39 @@ export default function ServiceOrderPage({
       return;
     }
 
-    if (currentServiceOrderApplications.length === 0) {
-      toast.info('Nao ha aplicacoes para o recorte selecionado');
-      return;
-    }
-
     try {
       setIsGeneratingReport(true);
+      const reportPeriod = resolveApplicationReportPeriod(
+        applicationsReportMode,
+        applicationsReportStartDate || undefined,
+        applicationsReportEndDate || undefined
+      );
+      const reportApplications = await getServiceOrderApplicationReport({
+        serviceOrderId: serviceOrderData.id,
+        startDate: reportPeriod.startDate,
+        endDate: reportPeriod.endDate,
+      });
+
+      if (reportApplications.length === 0) {
+        toast.info('Nenhuma aplicação encontrada no período selecionado.');
+        return;
+      }
+
+      const hydratedApplications = hydrateApplicationReportPlots(
+        reportApplications,
+        serviceOrderData.plots || []
+      );
+      const reportMetrics = buildApplicationReportMetrics(hydratedApplications);
 
       const blob = await generateApplicationsReportPDF({
         serviceOrder: serviceOrderData,
-        applications: currentServiceOrderApplications,
+        applications: hydratedApplications,
+        reportMetrics,
+        reportPeriod,
       });
 
-      downloadPDF(blob, `relatorio-aplicacoes-os-${serviceOrderData.number}-geral.pdf`);
+      downloadPDF(blob, buildApplicationReportFilename(serviceOrderData.number, reportPeriod));
+      setIsApplicationsReportModalOpen(false);
       toast.success('Relatorio de aplicacao gerado com sucesso');
     } catch (error) {
       if (error instanceof Error) {
@@ -740,7 +781,7 @@ export default function ServiceOrderPage({
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
-            onClick={handleGenerateApplicationsReport}
+            onClick={() => setIsApplicationsReportModalOpen(true)}
           >
             <FileText className='mr-2 h-4 w-4' />
             Relatorio de aplicacao da OS
@@ -814,6 +855,73 @@ export default function ServiceOrderPage({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isApplicationsReportModalOpen} onOpenChange={setIsApplicationsReportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Relatório de aplicações da OS</DialogTitle>
+            <DialogDescription>
+              Escolha todas as aplicações, uma data específica ou um intervalo inclusivo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <Label>Período</Label>
+              <Select
+                value={applicationsReportMode}
+                onValueChange={(value) =>
+                  setApplicationsReportMode(value as ApplicationReportPeriodMode)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>Todas as aplicações</SelectItem>
+                  <SelectItem value='single'>Uma data específica</SelectItem>
+                  <SelectItem value='range'>Intervalo de datas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {applicationsReportMode !== 'all' && (
+              <div className='space-y-2'>
+                <Label htmlFor='applications-report-start-date'>
+                  {applicationsReportMode === 'single' ? 'Data' : 'Data inicial'}
+                </Label>
+                <Input
+                  id='applications-report-start-date'
+                  type='date'
+                  value={applicationsReportStartDate}
+                  onChange={(event) => setApplicationsReportStartDate(event.target.value)}
+                />
+              </div>
+            )}
+            {applicationsReportMode === 'range' && (
+              <div className='space-y-2'>
+                <Label htmlFor='applications-report-end-date'>Data final</Label>
+                <Input
+                  id='applications-report-end-date'
+                  type='date'
+                  value={applicationsReportEndDate}
+                  onChange={(event) => setApplicationsReportEndDate(event.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setIsApplicationsReportModalOpen(false)}
+              disabled={isGeneratingReport}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateApplicationsReport} disabled={isGeneratingReport}>
+              {isGeneratingReport ? 'Gerando...' : 'Gerar relatório'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isMapsModalOpen} onOpenChange={setIsMapsModalOpen}>
         <DialogContent className='flex h-[94vh] w-[96vw] max-w-6xl flex-col overflow-hidden p-0 xl:max-w-7xl'>
           <DialogHeader className='space-y-2 border-b px-6 py-4'>
@@ -850,7 +958,7 @@ export default function ServiceOrderPage({
                 variant='outline'
                 size='sm'
                 disabled={isGeneratingReport}
-                onClick={handleGenerateApplicationsReport}
+                onClick={() => setIsApplicationsReportModalOpen(true)}
               >
                 PDF Aplicacoes (Geral)
               </Button>

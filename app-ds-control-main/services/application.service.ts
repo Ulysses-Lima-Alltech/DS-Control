@@ -42,6 +42,9 @@ const paginateOfflineApplications = (applications: Application[], params?: GetAl
       !params?.serviceOrderId || application.serviceOrderId === params.serviceOrderId;
     const matchesFarm = !params?.farmId || application.farmId === params.farmId;
     const matchesPlot = !params?.plotId || application.plotId === params.plotId;
+    const applicationDate = toOperationalDateYMD(application.applicationDate ?? application.date);
+    const matchesStartDate = !params?.startDate || Boolean(applicationDate && applicationDate >= params.startDate);
+    const matchesEndDate = !params?.endDate || Boolean(applicationDate && applicationDate <= params.endDate);
     const matchesSearch =
       !normalizedSearch ||
       application.product?.name?.toLowerCase().includes(normalizedSearch) ||
@@ -59,13 +62,23 @@ const paginateOfflineApplications = (applications: Application[], params?: GetAl
       matchesServiceOrder &&
       matchesFarm &&
       matchesPlot &&
+      matchesStartDate &&
+      matchesEndDate &&
       matchesSearch
     );
+  });
+  const ordered = [...filtered].sort((left, right) => {
+    if (params?.orderBy !== ApplicationOrderBy.DATE) return 0;
+
+    const leftDate = toOperationalDateYMD(left.applicationDate ?? left.date) ?? '';
+    const rightDate = toOperationalDateYMD(right.applicationDate ?? right.date) ?? '';
+    const comparison = leftDate.localeCompare(rightDate);
+    return params.orderType === ApplicationOrderType.ASC ? comparison : -comparison;
   });
   const start = (page - 1) * limit;
 
   return {
-    data: filtered.slice(start, start + limit),
+    data: ordered.slice(start, start + limit),
     page,
     limit,
     totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
@@ -222,6 +235,49 @@ export async function getAllApplications(
 
   const data = await response.json();
   return data;
+}
+
+const SERVICE_ORDER_REPORT_PAGE_SIZE = 100;
+const SERVICE_ORDER_REPORT_MAX_APPLICATIONS = 10_000;
+
+export async function getServiceOrderApplicationReport(params: {
+  serviceOrderId: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<Application[]> {
+  const applicationsById = new Map<string, Application>();
+  let page = 1;
+  let expectedTotal = 0;
+  let totalPages = 1;
+
+  do {
+    const response = await getAllApplications({
+      serviceOrderId: params.serviceOrderId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      includePlots: 'true',
+      page: String(page),
+      limit: String(SERVICE_ORDER_REPORT_PAGE_SIZE),
+      orderBy: ApplicationOrderBy.DATE,
+      orderType: ApplicationOrderType.DESC,
+    });
+
+    expectedTotal = response.totalCount;
+    totalPages = response.totalPages;
+    response.data.forEach((application) => applicationsById.set(application.id, application));
+
+    if (expectedTotal > SERVICE_ORDER_REPORT_MAX_APPLICATIONS) {
+      throw new Error('O relat\u00f3rio excede o limite seguro de 10.000 aplica\u00e7\u00f5es.');
+    }
+
+    page += 1;
+  } while (page <= totalPages);
+
+  if (applicationsById.size !== expectedTotal) {
+    throw new Error('N\u00e3o foi poss\u00edvel carregar todas as aplica\u00e7\u00f5es do relat\u00f3rio.');
+  }
+
+  return [...applicationsById.values()];
 }
 
 export type GetApplicationByIdResponse = {

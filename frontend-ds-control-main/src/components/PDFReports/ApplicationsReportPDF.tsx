@@ -2,6 +2,7 @@ import { Document, Font, Image, Page, Path, Svg, Text, View } from '@react-pdf/r
 import React from 'react';
 
 import { Application } from '@/types/applications.type';
+import { Plot } from '@/types/plot.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { formatApplicationDate } from '@/utils/application-date-formatter';
 import {
@@ -53,6 +54,7 @@ export interface ApplicationsReportMetrics {
   inProgressPlotsCount?: number;
   notStartedPlotsCount?: number;
   applicationsCount?: number;
+  distinctPlotsCount?: number;
 }
 
 export interface ApplicationsReportPDFProps {
@@ -61,6 +63,12 @@ export interface ApplicationsReportPDFProps {
   mode?: ApplicationsReportMode;
   completedPlotIds?: string[];
   reportMetrics?: ApplicationsReportMetrics;
+  reportPeriod?: {
+    mode: 'all' | 'single' | 'range';
+    label: string;
+    startDate?: string;
+    endDate?: string;
+  };
   /** Data URLs pré-carregadas por plotId (evita <Image> com URL remota no react-pdf). */
   prefetchedMapImageDataUrls?: Record<string, string | null>;
   djiImagesByApplicationId?: Record<
@@ -148,13 +156,15 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
   mode = 'operational',
   completedPlotIds = [],
   reportMetrics,
+  reportPeriod,
 }) => {
   const isCompletedPlannedArea = mode === 'completedPlannedArea';
-  const applicationsWithPlot = applications.filter((app) => app.plotId !== null);
+  const isPeriodFiltered =
+    !isCompletedPlannedArea && Boolean(reportPeriod && reportPeriod.mode !== 'all');
 
-  const applicationsByPlot = applicationsWithPlot.reduce(
+  const applicationsByPlot = applications.reduce(
     (acc, app) => {
-      const plotId = app.plotId!;
+      const plotId = app.plotId || '__without_plot__';
       if (!acc[plotId]) {
         acc[plotId] = [];
       }
@@ -282,6 +292,10 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
     reportMetrics?.inProgressPlotsCount ?? serviceOrderMetrics.inProgressPlots;
   const reportNotStartedPlotsCount =
     reportMetrics?.notStartedPlotsCount ?? serviceOrderMetrics.pendingPlots;
+  const reportDistinctPlotsCount =
+    reportMetrics?.distinctPlotsCount ??
+    new Set(applications.flatMap((application) => (application.plotId ? [application.plotId] : [])))
+      .size;
 
   const averageFlowRate =
     applications.length > 0
@@ -635,7 +649,7 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
             >
               {isCompletedPlannedArea
                 ? `Este relatório contabiliza área cadastrada integral para talhões com cobertura real a partir de ${serviceOrderMetrics.completionThresholdPercent}% e soma bruta aplicada para talhões em andamento.`
-                : 'Indicadores calculados a partir das aplicações incluídas neste relatório.'}
+                : `${reportPeriod?.label || 'Todas as aplicações'} — indicadores calculados somente a partir das aplicações incluídas neste relatório.`}
             </Text>
 
             <View style={{ flexDirection: 'row', marginBottom: 12 }}>
@@ -673,7 +687,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
                   {isCompletedPlannedArea
                     ? 'Área Operacional Consolidada'
-                    : 'Área Bruta Aplicada'}
+                    : isPeriodFiltered
+                      ? 'Área Aplicada no Período'
+                      : 'Área Bruta Aplicada'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
                   {formatHectares(reportAppliedHectares)}
@@ -681,7 +697,9 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
                     ? 'Talhões concluídos entram com área cadastrada; talhões em andamento entram com soma bruta aplicada.'
-                    : 'Soma real das áreas informadas em todas as aplicações ativas da Ordem de Serviço.'}
+                    : isPeriodFiltered
+                      ? 'Soma bruta das áreas informadas nas aplicações do período selecionado.'
+                      : 'Soma real das áreas informadas em todas as aplicações ativas da Ordem de Serviço.'}
                 </Text>
               </View>
 
@@ -695,47 +713,66 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: 700, color: '#6B7280' }}>
-                  {isCompletedPlannedArea ? 'Progresso Consolidado' : 'Progresso Bruto Aplicado'}
+                  {isCompletedPlannedArea
+                    ? 'Progresso Consolidado'
+                    : isPeriodFiltered
+                      ? 'Talhões com Aplicação no Período'
+                      : 'Progresso Bruto Aplicado'}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#EAAE07', marginTop: 5 }}>
-                  {formatNumber(reportProgress)}%
+                  {isPeriodFiltered ? reportDistinctPlotsCount : `${formatNumber(reportProgress)}%`}
                 </Text>
                 <Text style={{ fontSize: 7, color: '#6B7280', marginTop: 5, lineHeight: 1.3 }}>
                   {isCompletedPlannedArea
                     ? 'Relação entre a área consolidada contabilizada e a área planejada.'
-                    : 'Relação entre a área bruta aplicada e a área planejada.'}
+                    : isPeriodFiltered
+                      ? 'Quantidade de talhões distintos nas aplicações filtradas.'
+                      : 'Relação entre a área bruta aplicada e a área planejada.'}
                 </Text>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
-                Área cadastrada concluída: {formatHectares(registeredCompletedHectares)}
-              </Text>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
-                Área aplicada em andamento: {formatHectares(inProgressAppliedHectares)}
-              </Text>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '34%' }}>
-                Área operacional consolidada: {formatHectares(consolidatedPlotHectares)}
-              </Text>
-            </View>
+            {!isPeriodFiltered && (
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
+                  Área cadastrada concluída: {formatHectares(registeredCompletedHectares)}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '33%' }}>
+                  Área aplicada em andamento: {formatHectares(inProgressAppliedHectares)}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '34%' }}>
+                  Área operacional consolidada: {formatHectares(consolidatedPlotHectares)}
+                </Text>
+              </View>
+            )}
 
-            <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
-                Aplicações: {reportApplicationsCount}
-              </Text>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
-                Concluídos: {reportCompletedPlotsCount}
-              </Text>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
-                Em andamento: {reportInProgressPlotsCount}
-              </Text>
-              <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
-                Sem aplicação: {reportNotStartedPlotsCount}
-              </Text>
-            </View>
+            {isPeriodFiltered ? (
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '50%' }}>
+                  Quantidade de aplicações no período: {reportApplicationsCount}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '50%' }}>
+                  Talhões com aplicação no período: {reportDistinctPlotsCount}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
+                  Aplicações: {reportApplicationsCount}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
+                  Concluídos: {reportCompletedPlotsCount}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
+                  Em andamento: {reportInProgressPlotsCount}
+                </Text>
+                <Text style={{ fontSize: 8, color: '#6B7280', width: '25%' }}>
+                  Sem aplicação: {reportNotStartedPlotsCount}
+                </Text>
+              </View>
+            )}
 
-            {!isCompletedPlannedArea && (
+            {!isCompletedPlannedArea && !isPeriodFiltered && (
               <View style={{ flexDirection: 'row', marginBottom: 12 }}>
                 <Text style={{ fontSize: 8, color: '#6B7280', width: '60%' }}>
                   Progresso cadastral dos talhões concluídos:
@@ -863,7 +900,10 @@ const ApplicationsReportPDF: React.FC<ApplicationsReportPDFProps> = ({
 
       {Object.entries(applicationsByPlot).map(([plotId, plotApplications], plotIndex) => {
         const firstApp = plotApplications[0];
-        const plot = firstApp?.plot ?? completedPlotsById.get(plotId)!;
+        const plot =
+          firstApp?.plot ??
+          completedPlotsById.get(plotId) ??
+          ({ id: undefined, name: 'Não informado', hectare: '0' } as Plot);
         const registeredPlotArea = parseReportNumber(
           plot.registeredAreaHectares,
           parseReportNumber(plot.hectare)

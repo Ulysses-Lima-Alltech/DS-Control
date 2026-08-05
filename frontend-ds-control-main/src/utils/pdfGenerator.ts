@@ -3,6 +3,7 @@ import ApplicationsGeneralReportPDF, {
   type ApplicationsGeneralReportRow,
 } from '@/components/PDFReports/ApplicationsGeneralReportPDF';
 import ApplicationsReportPDF, {
+  type ApplicationsReportPDFProps,
   type ApplicationsReportMetrics,
 } from '@/components/PDFReports/ApplicationsReportPDF';
 import CompletedPlotsPlannedAreaReportPDF from '@/components/PDFReports/CompletedPlotsPlannedAreaReportPDF';
@@ -53,6 +54,7 @@ interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
   applications: Application[];
   reportMetrics?: ApplicationsReportMetrics;
+  reportPeriod?: ApplicationsReportPDFProps['reportPeriod'];
 }
 
 interface GenerateCompletedPlotsPlannedAreaPDFParams extends GeneratePDFParams {
@@ -472,6 +474,7 @@ export async function generateApplicationsReportPDF({
   serviceOrder,
   applications,
   reportMetrics,
+  reportPeriod,
 }: GeneratePDFParams): Promise<Blob> {
   const { pdf } = await import('@react-pdf/renderer');
   const enrichedApplications = await enrichApplicationsWithDjiImageUrl(serviceOrder, applications);
@@ -484,6 +487,7 @@ export async function generateApplicationsReportPDF({
     serviceOrder,
     applications: enrichedApplications,
     reportMetrics,
+    reportPeriod,
     prefetchedMapImageDataUrls,
     djiImagesByApplicationId,
   });

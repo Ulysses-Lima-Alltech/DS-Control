@@ -13,6 +13,7 @@ import {
 } from '@/types/applications.type';
 import { ServiceOrderStatus } from '@/types/service-order.type';
 import { normalizeApplicationSearch } from '@/utils/application-search';
+import { collectApplicationReportPages } from '@/utils/service-order-application-report';
 
 import { api } from './api.service';
 
@@ -298,6 +299,32 @@ export async function getApplicationsByServiceOrderId(
   }
 
   return { data: Array.from(applicationsById.values()) };
+}
+
+export type GetServiceOrderApplicationReportParams = {
+  serviceOrderId: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+export async function getServiceOrderApplicationReport({
+  serviceOrderId,
+  startDate,
+  endDate,
+}: GetServiceOrderApplicationReportParams): Promise<Application[]> {
+  const limit = 100;
+
+  return collectApplicationReportPages((page) =>
+    getAllApplications({
+      serviceOrderId,
+      startDate,
+      endDate,
+      page: String(page),
+      limit: String(limit),
+      orderBy: ApplicationOrderBy.DATE,
+      orderType: ApplicationOrderType.DESC,
+    })
+  );
 }
 
 export type RegisterNewApplicationParams = z.infer<typeof RegisterNewApplicationSchema>;

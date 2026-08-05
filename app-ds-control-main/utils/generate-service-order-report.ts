@@ -8,6 +8,10 @@ import {
   getReportMapPlaceholderMessage,
 } from '@/utils/mapboxStaticReportMap';
 import { formatOperationalDateBR } from '@/utils/operational-date';
+import {
+  ApplicationReportMetrics,
+  ApplicationReportPeriod,
+} from '@/utils/service-order-application-report';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
 
 const resolveImageUri = (imagePath: any): string => {
@@ -34,9 +38,11 @@ const formatPercent = (value: number) =>
 
 export const generateServiceOrderReportHTML = (
   serviceOrder: ServiceOrder,
-  applications: Application[]
+  applications: Application[],
+  report?: { period: ApplicationReportPeriod; metrics: ApplicationReportMetrics }
 ): string => {
   const metrics = resolveServiceOrderMetrics(serviceOrder);
+  const isPeriodFiltered = Boolean(report && report.period.mode !== 'all');
   // Load PDF logos
   let PDF_LOGO_COMPLETE: string;
   let PDF_LOGO_ONLY: string;
@@ -76,13 +82,10 @@ export const generateServiceOrderReportHTML = (
     });
   }
 
-  // Filter applications with plots and group by plot
-  const applicationsWithPlot = applications.filter((app): app is Application & { plotId: string } =>
-    Boolean(app.plotId)
-  );
-  const applicationsByPlot = applicationsWithPlot.reduce(
+  // Group every application, preserving records without a plot.
+  const applicationsByPlot = applications.reduce(
     (acc, app) => {
-      const plotId = app.plotId;
+      const plotId = app.plotId || '__without_plot__';
       if (!acc[plotId]) {
         acc[plotId] = [];
       }
@@ -142,40 +145,22 @@ export const generateServiceOrderReportHTML = (
           <span class="info-value">${formatDate(serviceOrder.plannedDate)}</span>
         </div>
 
-        <div class="info-row">
-          <span class="info-label">Área cadastrada da OS:</span>
-          <span class="info-value">${formatHectares(metrics.plannedAreaHa)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Área bruta aplicada:</span>
-          <span class="info-value">${formatHectares(metrics.grossAppliedAreaHa)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Área cadastrada concluída:</span>
-          <span class="info-value">${formatHectares(metrics.registeredCompletedAreaHa)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Área aplicada em andamento:</span>
-          <span class="info-value">${formatHectares(metrics.inProgressAppliedAreaHa)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Área operacional consolidada:</span>
-          <span class="info-value">${formatHectares(metrics.consolidatedOperationalAreaHa)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Progresso cadastral concluído:</span>
-          <span class="info-value">${formatPercent(metrics.registeredProgressPercent)}</span>
-        </div>
-
-        <div class="info-row">
-          <span class="info-label">Progresso bruto aplicado:</span>
-          <span class="info-value">${formatPercent(metrics.grossAppliedProgressPercent)}</span>
-        </div>
+        ${
+          isPeriodFiltered && report
+            ? `
+        <div class="info-row"><span class="info-label">Período:</span><span class="info-value">${report.period.label}</span></div>
+        <div class="info-row"><span class="info-label">Área Aplicada no Período:</span><span class="info-value">${formatHectares(report.metrics.grossAppliedAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Quantidade de aplicações no período:</span><span class="info-value">${report.metrics.applicationsCount}</span></div>
+        <div class="info-row"><span class="info-label">Talhões com aplicação no período:</span><span class="info-value">${report.metrics.distinctPlotsCount}</span></div>`
+            : `
+        <div class="info-row"><span class="info-label">Área cadastrada da OS:</span><span class="info-value">${formatHectares(metrics.plannedAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Área bruta aplicada:</span><span class="info-value">${formatHectares(metrics.grossAppliedAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Área cadastrada concluída:</span><span class="info-value">${formatHectares(metrics.registeredCompletedAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Área aplicada em andamento:</span><span class="info-value">${formatHectares(metrics.inProgressAppliedAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Área operacional consolidada:</span><span class="info-value">${formatHectares(metrics.consolidatedOperationalAreaHa)}</span></div>
+        <div class="info-row"><span class="info-label">Progresso cadastral concluído:</span><span class="info-value">${formatPercent(metrics.registeredProgressPercent)}</span></div>
+        <div class="info-row"><span class="info-label">Progresso bruto aplicado:</span><span class="info-value">${formatPercent(metrics.grossAppliedProgressPercent)}</span></div>`
+        }
         
         ${
           serviceOrder.farms && serviceOrder.farms.length > 0
@@ -226,21 +211,21 @@ export const generateServiceOrderReportHTML = (
 
       // Get plot data with GeoJSON from service order data
       const plot = plotDataMap.get(plotId) || firstApp.plot;
-      if (!plot) {
-        return '';
-      }
+      const hasPlot = Boolean(plot && plotId !== '__without_plot__');
 
       const mapWidth = 1280;
       const mapHeight = 480;
       // Temporário: alinhar ao web/MapViewer até EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN estável no build (EAS).
-      const mapResult = buildReportMapboxStaticUrl({
-        plot,
-        mapWidth,
-        mapHeight,
-        accessToken:
-          process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-          'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
-      });
+      const mapResult = plot
+        ? buildReportMapboxStaticUrl({
+            plot,
+            mapWidth,
+            mapHeight,
+            accessToken:
+              process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
+              'pk.eyJ1IjoiYW50b25pb3Zpbmk0NyIsImEiOiJjbWJoNW9wM2swNmlyMmlvbGlmb3J6NW4xIn0.wKznYpMm2m5Z0Opjjkpa-Q',
+          })
+        : { url: null, unavailableReason: 'geojson_missing' as const };
       const mapUrl = mapResult.url;
       const mapPlaceholderMessage = mapUrl
         ? ''
@@ -255,7 +240,7 @@ export const generateServiceOrderReportHTML = (
 
         <div class="map-container">
           ${
-            mapUrl
+            mapUrl && hasPlot
               ? `
           <img src="${mapUrl}" alt="Mapa do Talhão" class="map-image" />
           `
@@ -268,14 +253,14 @@ export const generateServiceOrderReportHTML = (
         </div>
 
         <div class="plot-info-card">
-          <h3 class="plot-name">${plot.name}</h3>
+          <h3 class="plot-name">${plot?.name || 'Sem talhão informado'}</h3>
           <div class="plot-detail">
             <span class="plot-label">Fazenda:</span>
-            <span class="plot-value">${farmMap.get(plotId) || 'N/A'}</span>
+            <span class="plot-value">${farmMap.get(plotId) || firstApp.farm?.name || 'N/A'}</span>
           </div>
           <div class="plot-detail">
             <span class="plot-label">Área:</span>
-            <span class="plot-value">${formatHectares(plot.hectare)}</span>
+            <span class="plot-value">${plot ? formatHectares(plot.hectare) : 'N/A'}</span>
           </div>
           <div class="plot-detail">
             <span class="plot-label">Aplicações:</span>
