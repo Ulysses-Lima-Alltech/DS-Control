@@ -28,6 +28,7 @@ Font.register({
 });
 
 const BRAND_YELLOW = '#EAAE07';
+const PDF_ASSET_BASE_PATH = process.env.NEXT_PUBLIC_PDF_ASSET_BASE_PATH || '';
 const DARK_TEXT = '#1F2937';
 const MUTED_TEXT = '#6B7280';
 const LIGHT_BORDER = '#E5E7EB';
@@ -257,7 +258,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image
-            src='/images/pdf-logo-only.png'
+            src={`${PDF_ASSET_BASE_PATH}/images/pdf-logo-only.png`}
             style={{ width: 126, height: 32, objectFit: 'contain' }}
           />
           <View style={{ alignItems: 'flex-end' }}>
@@ -629,7 +630,7 @@ const ApplicationIndividualReportPDF: React.FC<ApplicationIndividualReportPDFPro
         >
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image
-            src='/images/pdf-logo-only.png'
+            src={`${PDF_ASSET_BASE_PATH}/images/pdf-logo-only.png`}
             style={{ width: 126, height: 32, objectFit: 'contain' }}
           />
           <View style={{ alignItems: 'flex-end' }}>
