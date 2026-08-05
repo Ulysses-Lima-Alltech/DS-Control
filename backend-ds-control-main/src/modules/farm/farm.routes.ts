@@ -6,6 +6,7 @@ import type {
 
 import { PaginatedRequestQueryStringSchema, PaginatedRequestSchema } from "@common/types/paginated-request.types";
 import { AuthenticationJWT } from "@middleware/authentication-jwt-middleware";
+import { BackofficeOnly } from "@middleware/backoffice-only-middleware";
 import { FarmWithPlotsViewModelSchema } from "@models/farm.vm";
 import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
@@ -48,7 +49,7 @@ export function FarmV1Routes(
       summary: "Create farm",
       tags: ["farms"],
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.createFarm,
   });
 
@@ -112,7 +113,7 @@ export function FarmV1Routes(
         id: z.string().uuid(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updateFarm,
   });
 
@@ -127,9 +128,9 @@ export function FarmV1Routes(
         id: z.string().uuid(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.deleteFarm,
   });
 
   done();
-} 
+}

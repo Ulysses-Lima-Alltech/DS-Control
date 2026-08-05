@@ -302,6 +302,13 @@
       "when": 1785928684812,
       "tag": "0042_enable_unaccent",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1785940000000,
+      "tag": "0043_add_farm_map_color",
+      "breakpoints": true
     }
   ]
 }

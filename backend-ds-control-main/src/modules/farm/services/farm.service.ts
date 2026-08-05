@@ -3,6 +3,7 @@ import { HTTP_STATUS_CODES } from '@common/types/http-status.types';
 import { db } from '@infra/database';
 import { customers, farms, plots } from '@infra/database/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
+import { resolveFarmMapColor } from '@common/utils/farm-map-color';
 
 import type { PaginatedRequest } from '@common/types/paginated-request.types';
 import {
@@ -30,6 +31,7 @@ export class FarmService {
   public async createFarm({
     name,
     customerId,
+    mapColor,
     plots: plotsData,
   }: CreateFarmDTO): Promise<void> {
     app.log.info(
@@ -74,7 +76,12 @@ export class FarmService {
     const farm = await this.farmRepository.createFarm({
       name,
       customerId,
+      mapColor,
     });
+
+    if (!farm.mapColor) {
+      await this.farmRepository.updateFarm(farm.id, { mapColor: resolveFarmMapColor(farm) });
+    }
 
     app.log.info(
       '[FarmService] - Farm created successfully with ID %s',
@@ -358,9 +365,10 @@ export class FarmService {
       }
     }
 
-    const updateData: { name?: string; customerId?: string } = {};
+    const updateData: { name?: string; customerId?: string; mapColor?: string } = {};
     if (data.name) updateData.name = data.name;
     if (data.customerId) updateData.customerId = data.customerId;
+    if (data.mapColor) updateData.mapColor = data.mapColor;
 
     if (Object.keys(updateData).length > 0) {
       await this.farmRepository.updateFarm(farmId, updateData);

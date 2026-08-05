@@ -32,6 +32,7 @@ export type ServiceOrderWithDetails = ServiceOrder & {
   farms: Array<{
     id: string;
     name: string;
+    mapColor: string | null;
     customerId: string;
     createdAt: Date;
     updatedAt: Date;

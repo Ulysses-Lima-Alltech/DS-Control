@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { customers } from "./customer.schema";
 import { plots } from "./plot.schema";
 import { serviceOrders } from "./service_order.schema";
@@ -7,6 +7,7 @@ import { serviceOrders } from "./service_order.schema";
 export const farms = pgTable("farms", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  mapColor: varchar("map_color", { length: 7 }),
   customerId: uuid("customer_id").references(() => customers.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -24,4 +25,3 @@ export const farmsRelations = relations(farms, ({ one, many }) => ({
   plots: many(plots),
   serviceOrders: many(serviceOrders),
 }));
-

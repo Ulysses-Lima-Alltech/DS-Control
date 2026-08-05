@@ -9,12 +9,13 @@ export class FarmRepository {
    * @param {CreateFarm} data - The farm data
    * @returns {Promise<Farm>} The created farm
    */
-  public async createFarm({ name, customerId }: CreateFarm): Promise<Farm> {
+  public async createFarm({ name, customerId, mapColor }: CreateFarm): Promise<Farm> {
     const [farm] = await db
       .insert(farms)
       .values({
         name,
         customerId,
+        mapColor,
       })
       .returning();
 
@@ -386,6 +387,7 @@ export class FarmRepository {
     return {
       id: farm.id,
       name: farm.name,
+      mapColor: farm.mapColor,
       customerId: farm.customerId,
       createdAt: farm.createdAt,
       updatedAt: farm.updatedAt,
@@ -401,6 +403,7 @@ export class FarmRepository {
   private formatFarmWithPlots(farm?: {
     id: string;
     name: string;
+    mapColor: string | null;
     customerId: string;
     createdAt: Date;
     updatedAt: Date | null;
@@ -427,6 +430,7 @@ export class FarmRepository {
     return {
       id: farm.id,
       name: farm.name,
+      mapColor: farm.mapColor,
       customerId: farm.customerId,
       createdAt: farm.createdAt,
       updatedAt: farm.updatedAt,

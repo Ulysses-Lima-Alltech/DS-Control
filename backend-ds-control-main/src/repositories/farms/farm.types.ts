@@ -3,6 +3,7 @@ import type { Plot } from "../plots/plot.types";
 export type Farm = {
   id: string;
   name: string;
+  mapColor: string | null;
   customerId: string;
   createdAt: Date;
   updatedAt: Date | null;
@@ -20,7 +21,8 @@ export type FarmWithPlots = Farm & {
 export interface CreateFarm {
   name: string;
   customerId: string;
-} 
+  mapColor?: string | null;
+}
 
 export enum FarmOrderBy {
   NAME = 'name',

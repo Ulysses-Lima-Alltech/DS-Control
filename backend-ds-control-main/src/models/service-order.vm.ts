@@ -66,6 +66,7 @@ export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
       z.object({
         id: z.string().uuid(),
         name: z.string(),
+        mapColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable(),
         customerId: z.string().uuid(),
         createdAt: z.union([z.string(), z.date()]),
         updatedAt: z.union([z.string(), z.date()]),

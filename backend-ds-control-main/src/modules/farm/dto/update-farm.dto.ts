@@ -11,6 +11,7 @@ const PlotUpdateDataSchema = z.object({
 export const UpdateFarmSchema = z.object({
   name: z.string().min(1, "Farm name is required").optional(),
   customerId: z.string().uuid("Customer ID must be a valid UUID").optional(),
+  mapColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).transform((value) => value.toUpperCase()).optional(),
   plots: z.array(PlotUpdateDataSchema),
 });
 
