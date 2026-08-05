@@ -1,6 +1,6 @@
-import AppError from "@common/handlers/app-error";
-import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
-import { db } from "@infra/database";
+import AppError from '@common/handlers/app-error';
+import { HTTP_STATUS_CODES } from '@common/types/http-status.types';
+import { db } from '@infra/database';
 import {
   applications,
   assistants,
@@ -10,16 +10,15 @@ import {
   plots,
   products,
   routes,
-  serviceOrderFarms,
-  serviceOrderPilots,
-  serviceOrders,
   users,
-} from "@infra/database/schema";
-import { ServiceOrderRepository } from "@repositories/service-order/service-order.repository";
-import { UserType } from "@repositories/users/user.types";
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+} from '@infra/database/schema';
+import { ServiceOrderRepository } from '@repositories/service-order/service-order.repository';
+import { UserType } from '@repositories/users/user.types';
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { buildOfflineDatasetManifest } from './offline-dataset-manifest';
+import { toSafeOfflineUser } from './offline-dataset-scope';
 
-const MAPBOX_STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
+const MAPBOX_STYLE_URL = 'mapbox://styles/mapbox/satellite-streets-v12';
 const OFFLINE_MIN_ZOOM = 10;
 const OFFLINE_MAX_ZOOM = 17;
 
@@ -33,7 +32,8 @@ type FarmForOffline = typeof farms.$inferSelect & {
   plots?: Array<Record<string, unknown>>;
 };
 
-const isFiniteLongitude = (value: number) => Number.isFinite(value) && value >= -180 && value <= 180;
+const isFiniteLongitude = (value: number) =>
+  Number.isFinite(value) && value >= -180 && value <= 180;
 const isFiniteLatitude = (value: number) => Number.isFinite(value) && value >= -90 && value <= 90;
 
 const collectCoordinates = (value: unknown, result: Array<[number, number]>) => {
@@ -41,8 +41,8 @@ const collectCoordinates = (value: unknown, result: Array<[number, number]>) => 
 
   if (
     value.length >= 2 &&
-    typeof value[0] === "number" &&
-    typeof value[1] === "number" &&
+    typeof value[0] === 'number' &&
+    typeof value[1] === 'number' &&
     isFiniteLongitude(value[0]) &&
     isFiniteLatitude(value[1])
   ) {
@@ -50,11 +50,13 @@ const collectCoordinates = (value: unknown, result: Array<[number, number]>) => 
     return;
   }
 
-  value.forEach((item) => collectCoordinates(item, result));
+  value.forEach((item) => {
+    collectCoordinates(item, result);
+  });
 };
 
 const extractGeoJsonCoordinates = (geoJson: unknown): Array<[number, number]> => {
-  if (!geoJson || typeof geoJson !== "object") return [];
+  if (!geoJson || typeof geoJson !== 'object') return [];
 
   const coordinates: Array<[number, number]> = [];
   const candidate = geoJson as {
@@ -73,7 +75,9 @@ const extractGeoJsonCoordinates = (geoJson: unknown): Array<[number, number]> =>
   }
 
   if (Array.isArray(candidate.features)) {
-    candidate.features.forEach((feature) => collectCoordinates(feature.geometry?.coordinates, coordinates));
+    candidate.features.forEach((feature) => {
+      collectCoordinates(feature.geometry?.coordinates, coordinates);
+    });
   }
 
   return coordinates;
@@ -99,14 +103,8 @@ const calculateFarmBounds = (farm: FarmForOffline): CoordinateBounds | null => {
   const latPadding = Math.max((maxLat - minLat) * 0.08, 0.002);
 
   return {
-    northEast: [
-      Math.min(180, maxLng + lngPadding),
-      Math.min(90, maxLat + latPadding),
-    ],
-    southWest: [
-      Math.max(-180, minLng - lngPadding),
-      Math.max(-90, minLat - latPadding),
-    ],
+    northEast: [Math.min(180, maxLng + lngPadding), Math.min(90, maxLat + latPadding)],
+    southWest: [Math.max(-180, minLng - lngPadding), Math.max(-90, minLat - latPadding)],
   };
 };
 
@@ -127,7 +125,7 @@ export class MobileOfflineService {
     });
 
     if (!user) {
-      throw new AppError("Usuario autenticado nao encontrado", HTTP_STATUS_CODES.UNAUTHORIZED);
+      throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
     }
 
     const [serviceOrdersList, farmIds] = await this.getServiceOrdersAndFarmIds(user);
@@ -187,18 +185,104 @@ export class MobileOfflineService {
     };
   }
 
+  public async getDataset(userId: string, requestedServiceOrderIds: string[]) {
+    const user = await db.query.users.findFirst({
+      where: and(eq(users.id, userId), isNull(users.deletedAt)),
+      with: { customer: true },
+    });
+    if (!user) {
+      throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
+    }
+    if (user.type !== UserType.PILOT) {
+      throw new AppError(
+        'Somente pilotos podem preparar datasets offline operacionais',
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+
+    const selectedIds = [...new Set(requestedServiceOrderIds)].sort();
+    const assignedOpenOrders = await this.serviceOrderRepository.getOpenServiceOrdersByPilotId(
+      user.id,
+      1,
+      1000,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    );
+    const selectedIdSet = new Set(selectedIds);
+    const safePilot = toSafeOfflineUser(user);
+    const serviceOrdersList = assignedOpenOrders
+      .filter((serviceOrder) => selectedIdSet.has(serviceOrder.id))
+      .map((serviceOrder) => ({
+        ...serviceOrder,
+        pilots: serviceOrder.pilots?.filter((pilot) => pilot.id === user.id).map(() => safePilot),
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    if (serviceOrdersList.length !== selectedIds.length) {
+      throw new AppError(
+        'Uma ou mais Ordens de Servico nao estao abertas ou atribuidas ao piloto autenticado',
+        HTTP_STATUS_CODES.FORBIDDEN,
+      );
+    }
+
+    const farmIds = new Set<string>();
+    const plotIds = new Set<string>();
+    serviceOrdersList.forEach((serviceOrder) => {
+      serviceOrder.farms?.forEach((farm) => {
+        farmIds.add(farm.id);
+      });
+      serviceOrder.plots?.forEach((plot) => {
+        plotIds.add(plot.id);
+      });
+    });
+
+    const farmsList = await this.getFarms([...farmIds], user, plotIds);
+    const normalizedFarmIds = farmsList.map((farm) => farm.id);
+    const [applicationsList, routesList, supportData] = await Promise.all([
+      this.getSelectedPilotApplications(selectedIds, user.id),
+      this.getRoutes(normalizedFarmIds),
+      this.getSupportData(),
+    ]);
+    const mapPackages = this.buildMapPackages(farmsList);
+    const serverTime = new Date().toISOString();
+    const payload = {
+      user: safePilot,
+      tenant: user.customer ?? null,
+      permissions: this.getPermissions(user.type),
+      farms: farmsList,
+      plots: farmsList.flatMap((farm) => farm.plots ?? []),
+      serviceOrders: serviceOrdersList,
+      applications: applicationsList,
+      routes: routesList,
+      assistants: supportData.assistants,
+      drones: supportData.drones,
+      cultureTypes: supportData.cultureTypes,
+      products: supportData.products,
+      mapPackages,
+    };
+
+    return {
+      ...payload,
+      serverTime,
+      manifest: buildOfflineDatasetManifest(payload, selectedIds, serverTime),
+    };
+  }
+
   private getPermissions(userType: string) {
-    const basePermissions = ["offline:read", "maps:offline"];
+    const basePermissions = ['offline:read', 'maps:offline'];
 
     if (userType === UserType.PILOT) {
-      return [...basePermissions, "applications:create-offline"];
+      return [...basePermissions, 'applications:create-offline'];
     }
 
     if (userType === UserType.FARMER) {
-      return [...basePermissions, "farms:read", "service-orders:read"];
+      return [...basePermissions, 'farms:read', 'service-orders:read'];
     }
 
-    return [...basePermissions, "admin:read", "farms:read", "service-orders:read"];
+    return [...basePermissions, 'admin:read', 'farms:read', 'service-orders:read'];
   }
 
   private async getServiceOrdersAndFarmIds(user: typeof users.$inferSelect) {
@@ -217,15 +301,17 @@ export class MobileOfflineService {
 
       const farmIds = new Set<string>();
       serviceOrdersList.forEach((serviceOrder) => {
-        serviceOrder.farms?.forEach((farm) => farmIds.add(farm.id));
+        serviceOrder.farms?.forEach((farm) => {
+          farmIds.add(farm.id);
+        });
       });
 
       return [serviceOrdersList, farmIds] as const;
     }
 
     const filters = {
-      status: "open" as const,
-      customerId: user.type === UserType.FARMER ? user.customerId ?? undefined : undefined,
+      status: 'open' as const,
+      customerId: user.type === UserType.FARMER ? (user.customerId ?? undefined) : undefined,
     };
 
     const serviceOrdersList = await this.serviceOrderRepository.getAllServiceOrders(
@@ -243,13 +329,19 @@ export class MobileOfflineService {
 
     const farmIds = new Set<string>();
     serviceOrdersList.forEach((serviceOrder) => {
-      serviceOrder.farms?.forEach((farm) => farmIds.add(farm.id));
+      serviceOrder.farms?.forEach((farm) => {
+        farmIds.add(farm.id);
+      });
     });
 
     return [serviceOrdersList, farmIds] as const;
   }
 
-  private async getFarms(initialFarmIds: string[], user: typeof users.$inferSelect) {
+  private async getFarms(
+    initialFarmIds: string[],
+    user: typeof users.$inferSelect,
+    selectedPlotIds?: Set<string>,
+  ) {
     const conditions = [isNull(farms.deletedAt)];
 
     if (user.type === UserType.FARMER) {
@@ -260,7 +352,7 @@ export class MobileOfflineService {
       conditions.push(inArray(farms.id, initialFarmIds));
     }
 
-    return await db.query.farms.findMany({
+    const result = await db.query.farms.findMany({
       where: and(...conditions),
       with: {
         customer: {
@@ -275,6 +367,61 @@ export class MobileOfflineService {
       },
       orderBy: (table, { asc }) => [asc(table.name)],
     });
+    return result
+      .map((farm) => ({
+        ...farm,
+        plots:
+          selectedPlotIds === undefined
+            ? farm.plots
+            : farm.plots.filter((plot) => selectedPlotIds.has(plot.id)),
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  private async getSelectedPilotApplications(serviceOrderIds: string[], pilotId: string) {
+    if (serviceOrderIds.length === 0) return [];
+    const result = await db.query.applications.findMany({
+      where: and(
+        isNull(applications.deletedAt),
+        inArray(applications.serviceOrderId, serviceOrderIds),
+        eq(applications.pilotId, pilotId),
+      ),
+      with: {
+        assistant: true,
+        culture: true,
+        drone: true,
+        farm: true,
+        pilot: true,
+        plot: true,
+        product: true,
+        serviceOrder: true,
+      },
+      orderBy: [desc(applications.date)],
+    });
+    return result
+      .map((application) => ({
+        ...application,
+        pilot: toSafeOfflineUser(application.pilot),
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  private buildMapPackages(farmsList: FarmForOffline[]) {
+    return farmsList
+      .map((farm) => {
+        const bounds = calculateFarmBounds(farm);
+        if (!bounds) return null;
+        return {
+          farmId: farm.id,
+          name: farm.name,
+          styleURL: MAPBOX_STYLE_URL,
+          bounds,
+          center: centerFromBounds(bounds),
+          minZoom: OFFLINE_MIN_ZOOM,
+          maxZoom: OFFLINE_MAX_ZOOM,
+        };
+      })
+      .filter(Boolean);
   }
 
   private async getApplications(

@@ -5,6 +5,7 @@ import type { FastifyZodOpenApiTypeProvider } from 'fastify-zod-openapi';
 import { z } from 'zod';
 import { MobileOfflineController } from './mobile-offline.controller';
 import { SyncOfflineOperationsSchema } from './dto/sync-offline-operations.dto';
+import { DownloadOfflineDatasetSchema } from './dto/download-offline-dataset.dto';
 
 export function MobileOfflineV1Routes(
   app: FastifyInstance,
@@ -12,6 +13,20 @@ export function MobileOfflineV1Routes(
   done: HookHandlerDoneFunction,
 ) {
   const controller = new MobileOfflineController();
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: 'POST',
+    url: '/dataset',
+    schema: {
+      description:
+        'Download an authenticated offline dataset for explicitly selected service orders',
+      summary: 'Mobile selective offline dataset',
+      tags: ['mobile-offline'],
+      body: DownloadOfflineDatasetSchema,
+    },
+    preHandler: [AuthenticationJWT],
+    handler: controller.dataset,
+  });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
     method: 'POST',
