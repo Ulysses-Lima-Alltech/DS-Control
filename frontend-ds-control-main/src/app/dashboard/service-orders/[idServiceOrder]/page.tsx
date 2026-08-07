@@ -29,6 +29,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -781,23 +787,28 @@ export default function ServiceOrderPage({
             Cancelar OS
           </Button>
 
-          <Button
-            variant='outline'
-            disabled={
-              isGeneratingReport ||
-              serviceOrderData.status === 'cancelled' ||
-              strategicMapScopeCounts.all === 0
-            }
-            title={
-              strategicMapScopeCounts.all === 0
-                ? 'Não há talhões com geometria disponível para este mapa.'
-                : 'Mapa Estratégico'
-            }
-            onClick={() => setIsStrategicMapModalOpen(true)}
-          >
-            <MapIcon className='mr-2 h-4 w-4' />
-            Mapa Estratégico
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='outline'
+                disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
+              >
+                <FileText className='mr-2 h-4 w-4' />
+                Relatório PDF
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              <DropdownMenuItem onClick={() => setIsApplicationsReportModalOpen(true)}>
+                PDF Geral
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsCompletedReportModalOpen(true)}>
+                PDF Concluídos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleGeneratePendingPlotsReport}>
+                PDF Pendentes
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
@@ -1056,26 +1067,20 @@ export default function ServiceOrderPage({
               <Button
                 variant='outline'
                 size='sm'
-                disabled={isGeneratingReport}
-                onClick={() => setIsApplicationsReportModalOpen(true)}
+                disabled={
+                  isGeneratingReport ||
+                  serviceOrderData.status === 'cancelled' ||
+                  strategicMapScopeCounts.all === 0
+                }
+                title={
+                  strategicMapScopeCounts.all === 0
+                    ? 'Não há talhões com geometria disponível para este mapa.'
+                    : 'Mapa Estratégico'
+                }
+                onClick={() => setIsStrategicMapModalOpen(true)}
               >
-                PDF Aplicacoes (Geral)
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isGeneratingReport}
-                onClick={() => setIsCompletedReportModalOpen(true)}
-              >
-                PDF Concluídos
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isGeneratingReport}
-                onClick={handleGeneratePendingPlotsReport}
-              >
-                PDF Pendentes
+                <MapIcon className='mr-2 h-4 w-4' />
+                Mapa Estratégico
               </Button>
             </div>
           </div>
