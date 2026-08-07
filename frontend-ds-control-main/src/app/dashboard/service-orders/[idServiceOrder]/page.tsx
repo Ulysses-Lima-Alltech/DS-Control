@@ -1,7 +1,7 @@
 'use client';
 
 import type { GeoJSON } from 'geojson';
-import { CheckCircle, Eye, FileText, Pencil, XCircle } from 'lucide-react';
+import { CheckCircle, Eye, FileText, Map as MapIcon, Pencil, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { use, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -68,7 +68,7 @@ import {
   resolveApplicationReportPeriod,
 } from '@/utils/service-order-application-report';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
-import { filterStrategicMapPlots } from '@/utils/strategic-map-scope';
+import { buildStrategicMapData, type StrategicMapScope } from '@/utils/strategic-map-scope';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -84,6 +84,7 @@ export default function ServiceOrderPage({
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
+  const [isStrategicMapModalOpen, setIsStrategicMapModalOpen] = useState(false);
   const [isCompletedReportModalOpen, setIsCompletedReportModalOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -175,13 +176,23 @@ export default function ServiceOrderPage({
     [serviceOrderData?.plots]
   );
 
-  const strategicMapScopeCounts = useMemo(
-    () => ({
-      completed: filterStrategicMapPlots(serviceOrderData?.plots, 'completed').length,
-      pending: filterStrategicMapPlots(serviceOrderData?.plots, 'pending').length,
-    }),
-    [serviceOrderData?.plots]
-  );
+  const strategicMapScopeCounts = useMemo(() => {
+    if (!serviceOrderData) return { completed: 0, pending: 0, all: 0 };
+
+    const completeMapData = buildStrategicMapData(serviceOrderData, 'all');
+    const statusByPlot = new Map(
+      completeMapData.featureCollection.features.map((feature) => [
+        String(feature.properties?.plot_id || ''),
+        feature.properties?.derived_status,
+      ])
+    );
+    const statuses = Array.from(statusByPlot.values());
+    return {
+      completed: statuses.filter((status) => status === 'COMPLETED').length,
+      pending: statuses.filter((status) => status === 'PENDING' || status === 'IN_PROGRESS').length,
+      all: completeMapData.drawablePlotCount,
+    };
+  }, [serviceOrderData]);
 
   const progressData = useMemo(() => {
     const metrics = resolveServiceOrderMetrics(serviceOrderData);
@@ -770,33 +781,23 @@ export default function ServiceOrderPage({
             Cancelar OS
           </Button>
 
-          {(['completed', 'pending'] as const).map((scope) => {
-            const isEmpty = strategicMapScopeCounts[scope] === 0;
-            const label =
-              scope === 'completed' ? 'Baixar áreas concluídas' : 'Baixar áreas pendentes';
-            return (
-              <Button
-                key={scope}
-                variant='outline'
-                disabled={isGeneratingReport || serviceOrderData.status === 'cancelled' || isEmpty}
-                title={
-                  isEmpty
-                    ? `Não há áreas ${scope === 'completed' ? 'concluídas' : 'pendentes ou em andamento'} para este mapa.`
-                    : label
-                }
-                onClick={() =>
-                  window.open(
-                    `/dashboard/service-orders/${serviceOrderData.id}/strategic-map-print?scope=${scope}`,
-                    '_blank',
-                    'noopener,noreferrer'
-                  )
-                }
-              >
-                <FileText className='mr-2 h-4 w-4' />
-                {label}
-              </Button>
-            );
-          })}
+          <Button
+            variant='outline'
+            disabled={
+              isGeneratingReport ||
+              serviceOrderData.status === 'cancelled' ||
+              strategicMapScopeCounts.all === 0
+            }
+            title={
+              strategicMapScopeCounts.all === 0
+                ? 'Não há talhões com geometria disponível para este mapa.'
+                : 'Mapa Estratégico'
+            }
+            onClick={() => setIsStrategicMapModalOpen(true)}
+          >
+            <MapIcon className='mr-2 h-4 w-4' />
+            Mapa Estratégico
+          </Button>
           <Button
             variant='outline'
             disabled={isGeneratingReport || serviceOrderData.status === 'cancelled'}
@@ -819,6 +820,85 @@ export default function ServiceOrderPage({
           disableCustomerFilter={true}
         />
       </Card>
+
+      <Dialog open={isStrategicMapModalOpen} onOpenChange={setIsStrategicMapModalOpen}>
+        <DialogContent className='sm:max-w-3xl'>
+          <DialogHeader>
+            <DialogTitle>Mapa Estratégico</DialogTitle>
+            <DialogDescription>Escolha quais áreas deseja apresentar no mapa.</DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-3 md:grid-cols-3'>
+            {(
+              [
+                {
+                  scope: 'completed',
+                  title: 'Áreas concluídas',
+                  description: 'Apresenta somente os talhões classificados como concluídos.',
+                },
+                {
+                  scope: 'pending',
+                  title: 'Áreas pendentes e em andamento',
+                  description:
+                    'Apresenta os talhões pendentes e os que ainda estão em andamento.',
+                },
+                {
+                  scope: 'all',
+                  title: 'Todas as áreas',
+                  description:
+                    'Apresenta todos os talhões da Ordem de Serviço no mesmo Mapa Estratégico.',
+                },
+              ] as const satisfies ReadonlyArray<{
+                scope: StrategicMapScope;
+                title: string;
+                description: string;
+              }>
+            ).map((option) => {
+              const count = strategicMapScopeCounts[option.scope];
+              const disabled = count === 0;
+
+              return (
+                <Button
+                  key={option.scope}
+                  type='button'
+                  variant='outline'
+                  className='h-auto min-h-32 items-start justify-start whitespace-normal p-4 text-left'
+                  disabled={disabled}
+                  title={disabled ? 'Não há talhões desenháveis neste escopo.' : option.title}
+                  onClick={() => {
+                    setIsStrategicMapModalOpen(false);
+                    window.open(
+                      `/dashboard/service-orders/${serviceOrderData.id}/strategic-map-print?scope=${option.scope}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }}
+                >
+                  <span className='space-y-2'>
+                    <span className='block font-semibold'>{option.title}</span>
+                    <span className='block text-xs font-normal text-muted-foreground'>
+                      {option.description}
+                    </span>
+                    <span className='block text-xs font-medium text-foreground'>
+                      {count} {count === 1 ? 'talhão' : 'talhões'}
+                    </span>
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setIsStrategicMapModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
         <DialogContent>

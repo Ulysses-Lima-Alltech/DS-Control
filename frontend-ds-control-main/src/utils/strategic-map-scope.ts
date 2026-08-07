@@ -3,37 +3,35 @@ import type { Feature, FeatureCollection, GeoJSON, MultiPolygon, Polygon, Positi
 import type { Plot } from '@/types/plot.type';
 import type { ServiceOrder } from '@/types/service-order.type';
 
-import { buildStrategicPlotColorMap } from './strategicReportPalette';
+import { buildStrategicFarmColorMap } from './strategicReportPalette';
 
-export type StrategicMapScope = 'completed' | 'pending';
+export type StrategicMapScope = 'completed' | 'pending' | 'all';
 export type StrategicMapDerivedStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type StrategicMapDrawableGeometry = Polygon | MultiPolygon;
 export type StrategicMapBounds = [[number, number], [number, number]];
 
-export type StrategicMapPlotLegendItem = {
+export type StrategicMapFarmLegendItem = {
   key: string;
   name: string;
   hectares: number;
   fill: string;
-  status: StrategicMapDerivedStatus;
+  stroke: string;
   fillOpacity: number;
 };
 
 export type StrategicMapData = {
   plots: Plot[];
   featureCollection: FeatureCollection<StrategicMapDrawableGeometry>;
-  legendItems: StrategicMapPlotLegendItem[];
+  legendItems: StrategicMapFarmLegendItem[];
+  totalHectares: number;
+  drawablePlotCount: number;
   bounds: StrategicMapBounds | null;
 };
 
-export const STRATEGIC_MAP_STATUS_FILL_OPACITY: Record<StrategicMapDerivedStatus, number> = {
-  COMPLETED: 0.88,
-  IN_PROGRESS: 0.64,
-  PENDING: 0.36,
-};
+export const STRATEGIC_MAP_FILL_OPACITY = 0.82;
 
 export function parseStrategicMapScope(value: string | null | undefined): StrategicMapScope | null {
-  return value === 'completed' || value === 'pending' ? value : null;
+  return value === 'completed' || value === 'pending' || value === 'all' ? value : null;
 }
 
 export function resolveStrategicMapPlotStatus(plot: Plot): StrategicMapDerivedStatus | null {
@@ -50,9 +48,9 @@ export function filterStrategicMapPlots(
 ): Plot[] {
   return (plots || []).filter((plot) => {
     const status = resolveStrategicMapPlotStatus(plot);
-    return scope === 'completed'
-      ? status === 'COMPLETED'
-      : status === 'PENDING' || status === 'IN_PROGRESS';
+    if (scope === 'all') return status !== null;
+    if (scope === 'completed') return status === 'COMPLETED';
+    return status === 'PENDING' || status === 'IN_PROGRESS';
   });
 }
 
@@ -64,17 +62,15 @@ export function scopeStrategicMapServiceOrder(
 }
 
 export function getStrategicMapScopeLabel(scope: StrategicMapScope): string {
-  return scope === 'completed' ? 'ÁREAS CONCLUÍDAS' : 'ÁREAS PENDENTES E EM ANDAMENTO';
+  if (scope === 'completed') return 'ÁREAS CONCLUÍDAS';
+  if (scope === 'pending') return 'ÁREAS PENDENTES E EM ANDAMENTO';
+  return 'TODAS AS ÁREAS';
 }
 
 export function getStrategicMapDownloadLabel(scope: StrategicMapScope): string {
-  return scope === 'completed' ? 'Baixar áreas concluídas' : 'Baixar áreas pendentes';
-}
-
-export function getStrategicMapPlotStatusLabel(status: StrategicMapDerivedStatus): string {
-  if (status === 'COMPLETED') return 'Concluído';
-  if (status === 'IN_PROGRESS') return 'Em andamento';
-  return 'Pendente / Programado';
+  if (scope === 'completed') return 'Baixar áreas concluídas';
+  if (scope === 'pending') return 'Baixar áreas pendentes';
+  return 'Baixar mapa completo';
 }
 
 export function buildStrategicMapFilename(
@@ -87,7 +83,9 @@ export function buildStrategicMapFilename(
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9_-]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'os';
-  return `mapa-estrategico-os-${safeNumber}-${scope === 'completed' ? 'concluidos' : 'pendentes'}.pdf`;
+  const scopeSuffix =
+    scope === 'completed' ? 'concluidos' : scope === 'pending' ? 'pendentes' : 'completo';
+  return `mapa-estrategico-os-${safeNumber}-${scopeSuffix}.pdf`;
 }
 
 export function buildStrategicMapData(
@@ -95,20 +93,20 @@ export function buildStrategicMapData(
   scope: StrategicMapScope
 ): StrategicMapData {
   const plots = filterStrategicMapPlots(serviceOrder.plots, scope);
+  const farmById = new Map((serviceOrder.farms || []).map((farm) => [farm.id, farm]));
   const drafts: Array<{
     feature: Feature<StrategicMapDrawableGeometry>;
-    plotKey: string;
+    farmKey: string;
   }> = [];
-  const drawablePlots = new Map<
-    string,
-    { name: string; hectares: number; status: StrategicMapDerivedStatus }
-  >();
+  const drawablePlotKeys = new Set<string>();
+  const drawableFarms = new Map<string, { name: string; hectares: number }>();
 
   plots.forEach((plot) => {
     const status = resolveStrategicMapPlotStatus(plot);
     if (!status) return;
 
     const plotKey = plot.id || plot.externalId;
+    const farmKey = plot.farmId || 'farm-unknown';
     const parsed = parsePlotGeoJson(plot.geoJson);
     if (!parsed) return;
 
@@ -118,15 +116,16 @@ export function buildStrategicMapData(
     if (drawableFeatures.length === 0) return;
 
     const hectares = parseNumber(plot.hectare);
-    drawablePlots.set(plotKey, {
-      name: plot.name || 'Talhão sem nome',
-      hectares,
-      status,
+    drawablePlotKeys.add(plotKey);
+    const currentFarm = drawableFarms.get(farmKey);
+    drawableFarms.set(farmKey, {
+      name: farmById.get(farmKey)?.name || 'Fazenda não informada',
+      hectares: (currentFarm?.hectares || 0) + hectares,
     });
 
     drawableFeatures.forEach((feature) => {
       drafts.push({
-        plotKey,
+        farmKey,
         feature: {
           type: 'Feature',
           geometry: feature.geometry as StrategicMapDrawableGeometry,
@@ -135,7 +134,7 @@ export function buildStrategicMapData(
             plot_id: plotKey,
             plot_name: plot.name || 'Talhão sem nome',
             hectare_label: `${formatNumber(hectares)} ha`,
-            farm_key: plot.farmId || 'farm-unknown',
+            farm_key: farmKey,
             derived_status: status,
           },
         },
@@ -143,16 +142,17 @@ export function buildStrategicMapData(
     });
   });
 
-  const colorByPlot = buildStrategicPlotColorMap(Array.from(drawablePlots.keys()));
+  const colorByFarm = buildStrategicFarmColorMap(
+    Array.from(drawableFarms.keys()).map((farmKey) => farmById.get(farmKey) || { id: farmKey })
+  );
   const featureCollection: FeatureCollection<StrategicMapDrawableGeometry> = {
     type: 'FeatureCollection',
-    features: drafts.map(({ feature, plotKey }) => ({
+    features: drafts.map(({ feature, farmKey }) => ({
       ...feature,
       properties: {
         ...feature.properties,
-        fill: colorByPlot.get(plotKey)?.fill || '#3388ff',
-        fill_opacity:
-          STRATEGIC_MAP_STATUS_FILL_OPACITY[drawablePlots.get(plotKey)?.status || 'PENDING'],
+        fill: colorByFarm.get(farmKey)?.fill || '#3388ff',
+        fill_opacity: STRATEGIC_MAP_FILL_OPACITY,
       },
     })),
   };
@@ -160,14 +160,16 @@ export function buildStrategicMapData(
   return {
     plots,
     featureCollection,
-    legendItems: Array.from(drawablePlots, ([key, plot]) => ({
+    legendItems: Array.from(drawableFarms, ([key, farm]) => ({
       key,
-      name: plot.name,
-      hectares: plot.hectares,
-      fill: colorByPlot.get(key)?.fill || '#3388ff',
-      status: plot.status,
-      fillOpacity: STRATEGIC_MAP_STATUS_FILL_OPACITY[plot.status],
+      name: farm.name,
+      hectares: farm.hectares,
+      fill: colorByFarm.get(key)?.fill || '#3388ff',
+      stroke: colorByFarm.get(key)?.stroke || '#1D4ED8',
+      fillOpacity: STRATEGIC_MAP_FILL_OPACITY,
     })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true })),
+    totalHectares: Array.from(drawableFarms.values()).reduce((sum, farm) => sum + farm.hectares, 0),
+    drawablePlotCount: drawablePlotKeys.size,
     bounds: getStrategicMapBounds(featureCollection),
   };
 }

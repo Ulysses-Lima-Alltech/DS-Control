@@ -13,12 +13,11 @@ import {
   buildStrategicMapData,
   buildStrategicMapFilename,
   getStrategicMapDownloadLabel,
-  getStrategicMapPlotStatusLabel,
   getStrategicMapScopeLabel,
   parseStrategicMapScope,
   type StrategicMapData,
   type StrategicMapDrawableGeometry,
-  type StrategicMapPlotLegendItem,
+  type StrategicMapFarmLegendItem,
 } from '@/utils/strategic-map-scope';
 
 const MAPBOX_TOKEN =
@@ -288,7 +287,7 @@ export default function StrategicMapPrintPage({
                 : isError
                   ? 'Não foi possível carregar a ordem de serviço.'
                   : !scope
-                    ? 'Escopo inválido. Use scope=completed ou scope=pending.'
+                    ? 'Escopo inválido. Use scope=completed, scope=pending ou scope=all.'
                     : `Nenhum talhão com geometria disponível no escopo ${getStrategicMapScopeLabel(scope).toLocaleLowerCase('pt-BR')}.`}
             </div>
           )}
@@ -301,25 +300,24 @@ export default function StrategicMapPrintPage({
         <NorthArrow />
 
         {strategicMapData && (
-          <aside className='strategic-map-legend' aria-label='Legenda por talhão'>
+          <aside className='strategic-map-legend' aria-label='Legenda por fazenda'>
             <h2>LEGENDA</h2>
             <div className='strategic-map-legend-items'>
-              {strategicMapData.legendItems.map((plot) => (
-                <div className='strategic-map-legend-item' key={plot.key}>
+              {strategicMapData.legendItems.map((farm) => (
+                <div className='strategic-map-legend-item' key={farm.key}>
                   <span
                     className='strategic-map-legend-swatch'
-                    style={{ backgroundColor: plot.fill, opacity: plot.fillOpacity }}
+                    style={{ backgroundColor: farm.fill, opacity: farm.fillOpacity }}
                   />
-                  <span className='strategic-map-legend-copy'>
-                    <span>
-                      {plot.name} — {formatLegendHectares(plot.hectares)}
-                    </span>
-                    <span className='strategic-map-legend-status'>
-                      {getStrategicMapPlotStatusLabel(plot.status)}
-                    </span>
+                  <span>
+                    {farm.name} ({formatLegendHectares(farm.hectares)})
                   </span>
                 </div>
               ))}
+            </div>
+            <div className='strategic-map-legend-total'>
+              TOTAL:{' '}
+              {formatLegendHectares(strategicMapData.totalHectares).toLocaleUpperCase('pt-BR')}
             </div>
           </aside>
         )}
@@ -453,7 +451,7 @@ export default function StrategicMapPrintPage({
           bottom: 46px;
           left: 48px;
           z-index: 10;
-          width: min(1100px, calc(100vw - 760px));
+          max-width: min(720px, calc(100vw - 760px));
           color: #000000;
           pointer-events: none;
           text-transform: uppercase;
@@ -468,9 +466,8 @@ export default function StrategicMapPrintPage({
         }
 
         .strategic-map-legend-items {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-          column-gap: 22px;
+          display: flex;
+          flex-direction: column;
           gap: 7px;
         }
 
@@ -487,18 +484,6 @@ export default function StrategicMapPrintPage({
             1px -1px 0 #ffffff,
             -1px 1px 0 #ffffff,
             1px 1px 0 #ffffff;
-        }
-
-        .strategic-map-legend-copy {
-          display: flex;
-          min-width: 0;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .strategic-map-legend-status {
-          font-size: 10px;
-          font-weight: 700;
         }
 
         .strategic-map-legend-swatch {
@@ -634,8 +619,7 @@ export default function StrategicMapPrintPage({
           .strategic-map-legend {
             bottom: 100px !important;
             left: 100px !important;
-            width: 3600px !important;
-            max-width: 3600px !important;
+            max-width: 1600px !important;
           }
 
           .strategic-map-legend h2 {
@@ -645,8 +629,6 @@ export default function StrategicMapPrintPage({
           }
 
           .strategic-map-legend-items {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            column-gap: 80px !important;
             gap: 24px !important;
           }
 
@@ -661,14 +643,6 @@ export default function StrategicMapPrintPage({
             height: 60px !important;
             margin-right: 40px !important;
             border: 4px solid #ffffff !important;
-          }
-
-          .strategic-map-legend-copy {
-            gap: 8px !important;
-          }
-
-          .strategic-map-legend-status {
-            font-size: 34px !important;
           }
 
           .strategic-map-legend-total {
@@ -993,7 +967,7 @@ async function drawStrategicMapPdfOverlays(
   params: {
     title: string;
     generatedAt: string;
-    legendItems: StrategicMapPlotLegendItem[];
+    legendItems: StrategicMapFarmLegendItem[];
     scaleBar: PdfScaleBar | null;
   }
 ): Promise<void> {
@@ -1057,13 +1031,11 @@ async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
   );
 }
 
-function drawPdfLegend(pdf: JsPdf, legendItems: StrategicMapPlotLegendItem[]): void {
+function drawPdfLegend(pdf: JsPdf, legendItems: StrategicMapFarmLegendItem[]): void {
   const x = cssPxToMm(100);
-  const columnCount = Math.min(6, Math.max(1, Math.ceil(legendItems.length / 14)));
-  const rows = Math.max(1, Math.ceil(legendItems.length / columnCount));
-  const columnWidth = (PDF_WIDTH_MM - x * 2) / columnCount;
-  const rowHeightCss = rows > 20 ? 64 : 84;
-  const legendHeightCss = 56 + 32 + rows * rowHeightCss;
+  const itemGapCss = 24;
+  const legendHeightCss =
+    56 + 32 + legendItems.length * 60 + Math.max(0, legendItems.length - 1) * itemGapCss + 96;
   let y = PDF_HEIGHT_MM - cssPxToMm(100 + legendHeightCss);
 
   pdf.setTextColor(0, 0, 0);
@@ -1073,30 +1045,41 @@ function drawPdfLegend(pdf: JsPdf, legendItems: StrategicMapPlotLegendItem[]): v
 
   y += cssPxToMm(56 + 32);
 
-  legendItems.forEach((plot, index) => {
-    const column = Math.floor(index / rows);
-    const row = index % rows;
+  legendItems.forEach((farm, index) => {
+    if (index > 0) y += cssPxToMm(itemGapCss);
     const swatchSize = cssPxToMm(60);
-    const itemX = x + column * columnWidth;
-    const itemTop = y + row * cssPxToMm(rowHeightCss);
+    const itemTop = y;
 
-    pdf.setFillColor(plot.fill);
+    pdf.setFillColor(farm.fill);
     pdf.setDrawColor(255, 255, 255);
     pdf.setLineWidth(cssPxToMm(4));
-    pdf.rect(itemX, itemTop, swatchSize, swatchSize, 'FD');
+    pdf.rect(x, itemTop, swatchSize, swatchSize, 'FD');
 
     pdf.setTextColor(0, 0, 0);
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(cssPxToPt(42));
+    pdf.setFontSize(cssPxToPt(48));
     pdf.text(
-      `${plot.name} - ${formatLegendHectares(plot.hectares)} - ${getStrategicMapPlotStatusLabel(plot.status)}`,
-      itemX + swatchSize + cssPxToMm(32),
+      `${farm.name} (${formatLegendHectares(farm.hectares)})`,
+      x + swatchSize + cssPxToMm(40),
       itemTop + swatchSize / 2,
       {
         baseline: 'middle',
-        maxWidth: columnWidth - swatchSize - cssPxToMm(48),
+        maxWidth: cssPxToMm(1500),
       }
     );
+
+    y += cssPxToMm(60);
+  });
+
+  y += cssPxToMm(48);
+  pdf.setLineWidth(cssPxToMm(8));
+  pdf.setDrawColor(0, 0, 0);
+  pdf.line(x, y, x + cssPxToMm(1500), y);
+  y += cssPxToMm(32);
+  pdf.setFontSize(cssPxToPt(56));
+  const totalHectares = legendItems.reduce((sum, farm) => sum + farm.hectares, 0);
+  pdf.text(`TOTAL: ${formatLegendHectares(totalHectares).toLocaleUpperCase('pt-BR')}`, x, y, {
+    baseline: 'top',
   });
 }
 

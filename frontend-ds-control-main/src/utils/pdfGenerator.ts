@@ -517,19 +517,19 @@ export async function generateServiceOrderStrategicReportPDF(
   const { serviceOrder, scope } = params;
   const { pdf } = await import('@react-pdf/renderer');
   const scopedServiceOrder = scopeStrategicMapServiceOrder(serviceOrder, scope);
+  const scopeDescription =
+    scope === 'completed'
+      ? 'áreas concluídas'
+      : scope === 'pending'
+        ? 'áreas pendentes ou em andamento'
+        : 'áreas da Ordem de Serviço';
   if (scopedServiceOrder.plots.length === 0) {
-    throw new Error(
-      scope === 'completed'
-        ? 'Não há áreas concluídas para gerar o mapa estratégico.'
-        : 'Não há áreas pendentes ou em andamento para gerar o mapa estratégico.'
-    );
+    throw new Error(`Não há ${scopeDescription} para gerar o mapa estratégico.`);
   }
   const diagnostics = buildStrategicPlotDiagnostics(scopedServiceOrder);
   if (diagnostics.validPlots.length === 0) {
     throw new Error(
-      scope === 'completed'
-        ? 'As áreas concluídas não possuem geometria válida para gerar o mapa estratégico.'
-        : 'As áreas pendentes não possuem geometria válida para gerar o mapa estratégico.'
+      `As ${scopeDescription} não possuem geometria válida para gerar o mapa estratégico.`
     );
   }
   // eslint-disable-next-line no-console

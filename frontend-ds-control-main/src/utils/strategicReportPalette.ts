@@ -49,12 +49,66 @@ export function buildStrategicFarmColorMap(
   farms: Array<string | FarmColorSource>
 ): Map<string, StrategicFarmColor> {
   const map = new Map<string, StrategicFarmColor>();
-  farms.forEach((farm) => {
+  const usedColors = new Set<string>();
+  const uniqueFarms = Array.from(
+    new Map(
+      farms.map((farm) => {
+        const source = typeof farm === 'string' ? { id: farm } : farm;
+        return [source.id, source] as const;
+      })
+    ).values()
+  ).sort((farmA, farmB) => farmA.id.localeCompare(farmB.id));
+
+  uniqueFarms.forEach((farm, farmIndex) => {
     const source = typeof farm === 'string' ? { id: farm } : farm;
-    const fill = resolveFarmMapColor(source);
+    const preferredFill = resolveFarmMapColor(source).toUpperCase();
+    const fallbackPalette = [
+      ...STRATEGIC_FARM_COLORS.map(({ fill }) => fill.toUpperCase()),
+      ...STRATEGIC_PLOT_BASE_COLORS.map((fill) => fill.toUpperCase()),
+    ];
+    const fill = usedColors.has(preferredFill)
+      ? fallbackPalette.find((candidate) => !usedColors.has(candidate)) ||
+        buildOverflowFarmColor(farmIndex, usedColors)
+      : preferredFill;
+    usedColors.add(fill);
     map.set(source.id, { fill, stroke: deriveFarmStrokeColor(fill) });
   });
   return map;
+}
+
+function buildOverflowFarmColor(index: number, usedColors: Set<string>): string {
+  for (let offset = 0; offset < 360; offset += 1) {
+    const hue = (index * 137.508 + offset * 47) % 360;
+    const candidate = hslToHex(hue, 68, 48);
+    if (!usedColors.has(candidate)) return candidate;
+  }
+  return '#64748B';
+}
+
+function hslToHex(hue: number, saturationPercent: number, lightnessPercent: number): string {
+  const saturation = saturationPercent / 100;
+  const lightness = lightnessPercent / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const hueSegment = hue / 60;
+  const intermediate = chroma * (1 - Math.abs((hueSegment % 2) - 1));
+  const [red, green, blue] =
+    hueSegment < 1
+      ? [chroma, intermediate, 0]
+      : hueSegment < 2
+        ? [intermediate, chroma, 0]
+        : hueSegment < 3
+          ? [0, chroma, intermediate]
+          : hueSegment < 4
+            ? [0, intermediate, chroma]
+            : hueSegment < 5
+              ? [intermediate, 0, chroma]
+              : [chroma, 0, intermediate];
+  const match = lightness - chroma / 2;
+  const toHex = (channel: number) =>
+    Math.round((channel + match) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(red)}${toHex(green)}${toHex(blue)}`.toUpperCase();
 }
 
 function clamp(value: number, min: number, max: number): number {

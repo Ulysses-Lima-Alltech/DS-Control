@@ -45,23 +45,27 @@ const plot = (id: string, overrides: Partial<Plot> = {}): Plot => ({
   ...overrides,
 });
 
-const serviceOrder = (plots: Plot[]): ServiceOrder =>
+const serviceOrder = (
+  plots: Plot[],
+  farms: ServiceOrder['farms'] = [
+    { id: 'f1', name: 'Fazenda Um' },
+    { id: 'f2', name: 'Fazenda Dois' },
+  ] as ServiceOrder['farms']
+): ServiceOrder =>
   ({
     id: 'os',
     number: 142,
     status: 'open',
     plots,
-    farms: [
-      { id: 'f1', name: 'Fazenda Um' },
-      { id: 'f2', name: 'Fazenda Dois' },
-    ] as ServiceOrder['farms'],
+    farms,
   }) as ServiceOrder;
 
-test('aceita somente os dois escopos explícitos', () => {
+test('aceita os três escopos explícitos e rejeita valores inválidos', () => {
   assert.equal(parseStrategicMapScope('completed'), 'completed');
   assert.equal(parseStrategicMapScope('pending'), 'pending');
+  assert.equal(parseStrategicMapScope('all'), 'all');
   assert.equal(parseStrategicMapScope('COMPLETED'), null);
-  assert.equal(parseStrategicMapScope('all'), null);
+  assert.equal(parseStrategicMapScope('total'), null);
   assert.equal(parseStrategicMapScope(null), null);
 });
 
@@ -110,6 +114,20 @@ test('escopo pendente reúne PENDING e IN_PROGRESS', () => {
   );
 });
 
+test('escopo completo reúne todos os estados válidos sem cancelados ou removidos', () => {
+  const plots = [
+    plot('done', { derivedStatus: 'COMPLETED' }),
+    plot('doing', { derivedStatus: 'IN_PROGRESS' }),
+    plot('todo', { derivedStatus: 'PENDING' }),
+    plot('cancelled', { status: 'CANCELLED' }),
+    plot('deleted', { derivedStatus: 'PENDING', deletedAt: '2026-01-01' }),
+  ];
+  assert.deepEqual(
+    filterStrategicMapPlots(plots, 'all').map(({ id }) => id),
+    ['done', 'doing', 'todo']
+  );
+});
+
 test('escopo vazio permanece vazio', () => {
   assert.deepEqual(filterStrategicMapPlots(undefined, 'completed'), []);
 });
@@ -128,6 +146,7 @@ test('nomes de arquivo são exatos por escopo', () => {
     'mapa-estrategico-os-142-concluidos.pdf'
   );
   assert.equal(buildStrategicMapFilename(142, 'pending'), 'mapa-estrategico-os-142-pendentes.pdf');
+  assert.equal(buildStrategicMapFilename(142, 'all'), 'mapa-estrategico-os-142-completo.pdf');
 });
 
 test('nome de arquivo sanitiza número externo', () => {
@@ -140,6 +159,7 @@ test('nome de arquivo sanitiza número externo', () => {
 test('rótulos distinguem os escopos', () => {
   assert.equal(getStrategicMapScopeLabel('completed'), 'ÁREAS CONCLUÍDAS');
   assert.equal(getStrategicMapScopeLabel('pending'), 'ÁREAS PENDENTES E EM ANDAMENTO');
+  assert.equal(getStrategicMapScopeLabel('all'), 'TODAS AS ÁREAS');
 });
 
 test('dados concluídos usam somente geometria do escopo', () => {
@@ -187,7 +207,7 @@ test('geoJson inválido não cria feature, bounds ou item falso na legenda', () 
   assert.deepEqual(data.legendItems, []);
 });
 
-test('legenda concluída contém somente talhões visíveis e seus hectares atuais', () => {
+test('legenda concluída agrupa por fazenda e soma somente talhões visíveis do scope', () => {
   const data = buildStrategicMapData(
     serviceOrder([
       plot('done-a', {
@@ -196,56 +216,116 @@ test('legenda concluída contém somente talhões visíveis e seus hectares atua
         farmId: 'f1',
         derivedStatus: 'COMPLETED',
       }),
+      plot('done-b', {
+        name: 'Talhão 02',
+        hectare: '10.20',
+        farmId: 'f1',
+        derivedStatus: 'COMPLETED',
+      }),
       plot('todo', { farmId: 'f1', derivedStatus: 'PENDING' }),
     ]),
     'completed'
   );
   assert.equal(data.legendItems.length, 1);
-  assert.equal(data.legendItems[0].key, 'done-a');
-  assert.equal(data.legendItems[0].name, 'Talhão 01');
-  assert.equal(data.legendItems[0].hectares, 25.3);
-  assert.equal(data.legendItems[0].status, 'COMPLETED');
+  assert.equal(data.legendItems[0].key, 'f1');
+  assert.equal(data.legendItems[0].name, 'Fazenda Um');
+  assert.equal(data.legendItems[0].hectares, 35.5);
+  assert.equal(data.totalHectares, 35.5);
+  assert.equal(data.drawablePlotCount, 2);
 });
 
-test('legenda pendente mantém pending e in-progress de fazendas diferentes identificáveis', () => {
+test('pending agrupa PENDING e IN_PROGRESS por fazenda com cores distintas', () => {
   const data = buildStrategicMapData(
     serviceOrder([
-      plot('a', { name: 'Talhão A', farmId: 'f1', derivedStatus: 'PENDING' }),
-      plot('b', { name: 'Talhão B', farmId: 'f2', derivedStatus: 'IN_PROGRESS' }),
+      plot('a', { farmId: 'f1', hectare: '12.5', derivedStatus: 'PENDING' }),
+      plot('b', { farmId: 'f2', hectare: '8.25', derivedStatus: 'IN_PROGRESS' }),
       plot('done', { name: 'Talhão C', farmId: 'f2', derivedStatus: 'COMPLETED' }),
     ]),
     'pending'
   );
   assert.deepEqual(
-    data.legendItems.map(({ name, status }) => [name, status]),
+    data.legendItems.map(({ key, hectares }) => [key, hectares]),
     [
-      ['Talhão A', 'PENDING'],
-      ['Talhão B', 'IN_PROGRESS'],
+      ['f2', 8.25],
+      ['f1', 12.5],
     ]
   );
   assert.notEqual(data.legendItems[0].fill, data.legendItems[1].fill);
+  assert.equal(data.totalHectares, 20.75);
 });
 
-test('mapa e legenda compartilham cor e opacidade por talhão', () => {
+test('talhões da mesma fazenda compartilham exatamente cor e opacidade da legenda', () => {
   const data = buildStrategicMapData(
     serviceOrder([
-      plot('a', { derivedStatus: 'PENDING' }),
-      plot('b', { derivedStatus: 'IN_PROGRESS' }),
+      plot('a', { farmId: 'f1', derivedStatus: 'PENDING' }),
+      plot('b', { farmId: 'f1', derivedStatus: 'IN_PROGRESS' }),
     ]),
     'pending'
   );
 
-  data.legendItems.forEach((legendItem) => {
-    const feature = data.featureCollection.features.find(
-      (candidate) => candidate.properties?.plot_id === legendItem.key
-    );
-    assert.ok(feature);
-    assert.equal(feature.properties?.fill, legendItem.fill);
-    assert.equal(feature.properties?.fill_opacity, legendItem.fillOpacity);
+  assert.equal(data.legendItems.length, 1);
+  const farmLegend = data.legendItems[0];
+  data.featureCollection.features.forEach((feature) => {
+    assert.equal(feature.properties?.farm_key, farmLegend.key);
+    assert.equal(feature.properties?.fill, farmLegend.fill);
+    assert.equal(feature.properties?.fill_opacity, farmLegend.fillOpacity);
   });
 });
 
-test('múltiplas geometrias do mesmo talhão não duplicam a legenda', () => {
+test('legenda completa soma fazendas sem contar GeoJSON ausente ou geometria duplicada', () => {
+  const multiFeatureGeoJson = polygon(0);
+  multiFeatureGeoJson.features.push({
+    ...multiFeatureGeoJson.features[0],
+    geometry: polygon(5).features[0].geometry,
+  });
+  const data = buildStrategicMapData(
+    serviceOrder([
+      plot('done', {
+        name: 'Talhão 01',
+        hectare: '25.30',
+        farmId: 'f1',
+        derivedStatus: 'COMPLETED',
+        geoJson: multiFeatureGeoJson,
+      }),
+      plot('doing', {
+        name: 'Talhão 02',
+        hectare: '18,40',
+        farmId: 'f1',
+        derivedStatus: 'IN_PROGRESS',
+      }),
+      plot('todo', {
+        name: 'Talhão 03',
+        hectare: '22.10',
+        farmId: 'f2',
+        derivedStatus: 'PENDING',
+      }),
+      plot('without-geometry', {
+        hectare: '100',
+        farmId: 'f2',
+        derivedStatus: 'PENDING',
+        geoJson: undefined,
+      }),
+    ]),
+    'all'
+  );
+
+  assert.equal(data.featureCollection.features.length, 4);
+  assert.deepEqual(
+    data.legendItems.map(({ key, hectares }) => [key, hectares]),
+    [
+      ['f2', 22.1],
+      ['f1', 43.7],
+    ]
+  );
+  assert.ok(Math.abs(data.totalHectares - 65.8) < 1e-9);
+  assert.equal(
+    data.totalHectares,
+    data.legendItems.reduce((sum, farm) => sum + farm.hectares, 0)
+  );
+  assert.equal(data.drawablePlotCount, 3);
+});
+
+test('múltiplas geometrias do mesmo talhão não duplicam hectares', () => {
   const geoJson = polygon(0);
   geoJson.features.push({ ...geoJson.features[0], geometry: polygon(5).features[0].geometry });
   const data = buildStrategicMapData(
@@ -255,7 +335,45 @@ test('múltiplas geometrias do mesmo talhão não duplicam a legenda', () => {
 
   assert.equal(data.featureCollection.features.length, 2);
   assert.equal(data.legendItems.length, 1);
-  assert.equal(data.legendItems[0].key, 'a');
+  assert.equal(data.legendItems[0].hectares, 10);
+  assert.equal(data.totalHectares, 10);
+  assert.equal(data.drawablePlotCount, 1);
+});
+
+test('farm.mapColor é respeitado e fazendas com cor repetida recebem fallback local distinto', () => {
+  const data = buildStrategicMapData(
+    serviceOrder(
+      [
+        plot('a', { farmId: 'f1', derivedStatus: 'COMPLETED' }),
+        plot('b', { farmId: 'f2', derivedStatus: 'COMPLETED' }),
+      ],
+      [
+        { id: 'f1', name: 'Fazenda Um', mapColor: '#123456' },
+        { id: 'f2', name: 'Fazenda Dois', mapColor: '#123456' },
+      ] as ServiceOrder['farms']
+    ),
+    'completed'
+  );
+
+  const colorByFarm = new Map(data.legendItems.map((farm) => [farm.key, farm.fill]));
+  assert.equal(colorByFarm.get('f1'), '#123456');
+  assert.notEqual(colorByFarm.get('f2'), '#123456');
+  assert.notEqual(colorByFarm.get('f1'), colorByFarm.get('f2'));
+  data.featureCollection.features.forEach((feature) => {
+    assert.equal(feature.properties?.fill, colorByFarm.get(feature.properties?.farm_key));
+  });
+});
+
+test('fallback sem mapColor é determinístico e preserva o rótulo individual do talhão', () => {
+  const source = serviceOrder([
+    plot('a', { name: 'Talhão Identificado', farmId: 'f1', derivedStatus: 'COMPLETED' }),
+  ]);
+  const first = buildStrategicMapData(source, 'completed');
+  const second = buildStrategicMapData(source, 'completed');
+
+  assert.equal(first.legendItems[0].fill, second.legendItems[0].fill);
+  assert.equal(first.featureCollection.features[0].properties?.plot_name, 'Talhão Identificado');
+  assert.equal(first.featureCollection.features[0].properties?.plot_id, 'a');
 });
 
 test('coleção multipolígono participa do bounds', () => {
