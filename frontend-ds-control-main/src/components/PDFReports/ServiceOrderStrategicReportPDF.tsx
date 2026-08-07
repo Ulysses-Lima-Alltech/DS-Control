@@ -3,7 +3,14 @@ import React from 'react';
 
 import type { ServiceOrder } from '@/types/service-order.type';
 import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
-import { getStrategicMapScopeLabel, type StrategicMapScope } from '@/utils/strategic-map-scope';
+import {
+  getStrategicMapPlotStatusLabel,
+  getStrategicMapScopeLabel,
+  resolveStrategicMapPlotStatus,
+  STRATEGIC_MAP_STATUS_FILL_OPACITY,
+  type StrategicMapDerivedStatus,
+  type StrategicMapScope,
+} from '@/utils/strategic-map-scope';
 import {
   buildStrategicMapProjectionFromViewport,
   buildStrategicMapViewport,
@@ -13,7 +20,10 @@ import {
   type StrategicMapShapeProjected,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
-import { type StrategicFarmColor } from '@/utils/strategicReportPalette';
+import {
+  buildStrategicPlotColorMap,
+  type StrategicFarmColor,
+} from '@/utils/strategicReportPalette';
 
 Font.register({
   family: 'Roboto',
@@ -49,7 +59,8 @@ const MAP_SAFE_AREA_INSETS_PX = {
   bottom: 152,
   left: 344,
 } as const;
-const LEGEND_MAX_ROWS = 6;
+const MAP_LEGEND_MAX_ITEMS = 18;
+const CONTINUATION_LEGEND_PAGE_SIZE = 48;
 
 const BRAND_YELLOW = '#EAAE07';
 const DARK_TEXT = '#0F172A';
@@ -68,7 +79,6 @@ interface ServiceOrderStrategicReportPDFProps {
   prefetchedMapBaseDataUrl?: string | null;
   prefetchedMapImageDataUrl?: string | null;
   mapViewport?: StrategicMapViewport | null;
-  farmColorMap?: Map<string, StrategicFarmColor>;
 }
 
 type LabelDensity = 'large' | 'medium' | 'small';
@@ -99,6 +109,17 @@ type StrategicVectorShape = {
   areaText: string;
   areaHa: number;
   color: StrategicFarmColor;
+  status: StrategicMapDerivedStatus;
+  fillOpacity: number;
+};
+
+type StrategicLegendRow = {
+  plotId: string;
+  labelCode: string;
+  areaHa: number;
+  color: StrategicFarmColor;
+  status: StrategicMapDerivedStatus;
+  fillOpacity: number;
 };
 
 function parseNumber(value: unknown): number {
@@ -115,6 +136,54 @@ function formatHectares(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ha`;
+}
+
+function chunkLegendRows(rows: StrategicLegendRow[], size: number): StrategicLegendRow[][] {
+  const chunks: StrategicLegendRow[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function StrategicLegendGrid({ rows }: { rows: StrategicLegendRow[] }) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+      {rows.map((plotLegend) => (
+        <View
+          key={plotLegend.plotId}
+          style={{
+            width: '33.333%',
+            minHeight: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingRight: 6,
+            marginBottom: 2,
+          }}
+        >
+          <View
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: 1,
+              backgroundColor: plotLegend.color.fill,
+              opacity: plotLegend.fillOpacity,
+              border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
+              marginRight: 4,
+            }}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 6.5, fontWeight: 700 }}>
+              {plotLegend.labelCode} — {formatHectares(plotLegend.areaHa)}
+            </Text>
+            <Text style={{ fontSize: 5.6, color: MUTED_TEXT }}>
+              {getStrategicMapPlotStatusLabel(plotLegend.status)}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function formatGeneratedAt(): string {
@@ -600,12 +669,13 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   prefetchedMapBaseDataUrl = null,
   prefetchedMapImageDataUrl = null,
   mapViewport = null,
-  farmColorMap = new Map(),
 }) => {
   const generatedAt = formatGeneratedAt();
   const plotRows = (serviceOrder.plots || [])
     .map((plot) => {
       if (!plot.id) return null;
+      const status = resolveStrategicMapPlotStatus(plot);
+      if (!status) return null;
       const farmName =
         serviceOrder.farms?.find((farm) => farm.id === plot.farmId)?.name ||
         'Fazenda nao informada';
@@ -615,6 +685,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         plotName: plot.name || `Talhao ${plot.id}`,
         farmId: plot.farmId || 'farm-unknown',
         farmName,
+        status,
         hectares: parseNumber(plot.hectare),
         polygons: sanitizeStrategicPolygons(extractPlotPolygons(plot)),
       };
@@ -674,14 +745,18 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
   const plotAdjacencyMap = strategicProjection
     ? buildShapeAdjacencyMap(strategicProjection.shapes)
     : new Map<string, Set<string>>();
+  const plotColorMap = buildStrategicPlotColorMap(
+    strategicProjection?.shapes.map((shape) => shape.id) || []
+  );
 
   const strategicVectorShapes: StrategicVectorShape[] =
     strategicProjection?.shapes.map((shape) => {
       const row = plotRowsById.get(shape.id);
-      const plotColor = farmColorMap.get(row?.farmId || 'farm-unknown') || {
+      const plotColor = plotColorMap.get(shape.id) || {
         fill: '#60A5FA',
         stroke: '#1D4ED8',
       };
+      const status = row?.status || 'PENDING';
 
       const plotLabel = compactPlotCode(row?.plotName || shape.label, shape.id);
       const areaHa = row?.hectares || 0;
@@ -692,21 +767,26 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
         areaText: formatHectares(areaHa),
         areaHa,
         color: plotColor,
+        status,
+        fillOpacity: STRATEGIC_MAP_STATUS_FILL_OPACITY[status],
       };
     }) || [];
 
-  const legendFarmRows = Array.from(
-    new Map(
-      validPlotRows.map((row) => [
-        row.farmId,
-        {
-          farmId: row.farmId,
-          farmName: row.farmName,
-          color: farmColorMap.get(row.farmId) || { fill: '#60A5FA', stroke: '#1D4ED8' },
-        },
-      ])
-    ).values()
-  ).sort((a, b) => a.farmName.localeCompare(b.farmName, 'pt-BR'));
+  const legendPlotRows: StrategicLegendRow[] = strategicVectorShapes
+    .map((shape) => ({
+      plotId: shape.shape.id,
+      labelCode: shape.labelCode,
+      areaHa: shape.areaHa,
+      color: shape.color,
+      status: shape.status,
+      fillOpacity: shape.fillOpacity,
+    }))
+    .sort((a, b) => a.labelCode.localeCompare(b.labelCode, 'pt-BR', { numeric: true }));
+  const mapLegendRows = legendPlotRows.slice(0, MAP_LEGEND_MAX_ITEMS);
+  const continuationLegendPages = chunkLegendRows(
+    legendPlotRows.slice(MAP_LEGEND_MAX_ITEMS),
+    CONTINUATION_LEGEND_PAGE_SIZE
+  );
 
   const strategicLabelLayout = buildStrategicLabelPlacements(
     strategicVectorShapes,
@@ -802,12 +882,12 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               viewBox={`0 0 ${MAP_LOGICAL_WIDTH} ${MAP_LOGICAL_HEIGHT}`}
               preserveAspectRatio='none'
             >
-              {strategicVectorShapes.map(({ shape, color }) => (
+              {strategicVectorShapes.map(({ shape, color, fillOpacity }) => (
                 <Path
                   key={`shape-${shape.id}`}
                   d={shape.pathD}
                   fill={color.fill}
-                  fillOpacity={APPLIED_FILL_OPACITY}
+                  fillOpacity={fillOpacity}
                   fillRule='evenodd'
                   stroke={STRATEGIC_POLYGON_STROKE}
                   strokeOpacity={0.9}
@@ -912,7 +992,7 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               position: 'absolute',
               left: 10,
               bottom: 10,
-              width: 332,
+              width: 470,
               maxHeight: 132,
               border: `1px solid ${LIGHT_BORDER}`,
               borderRadius: 4,
@@ -921,28 +1001,13 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
               paddingVertical: 5,
             }}
           >
-            <Text style={{ fontSize: 8, fontWeight: 700, marginBottom: 2 }}>LEGENDA</Text>
-            {legendFarmRows.slice(0, LEGEND_MAX_ROWS).map((farmLegend) => (
-              <View
-                key={farmLegend.farmId}
-                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1.8 }}
-              >
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 1,
-                    backgroundColor: farmLegend.color.fill,
-                    border: `1px solid ${STRATEGIC_POLYGON_STROKE}`,
-                    marginRight: 4,
-                  }}
-                />
-                <Text style={{ flex: 1, fontSize: 6.7 }}>{farmLegend.farmName}</Text>
-              </View>
-            ))}
-            {legendFarmRows.length > LEGEND_MAX_ROWS ? (
+            <Text style={{ fontSize: 8, fontWeight: 700, marginBottom: 3 }}>
+              LEGENDA POR TALHÃO
+            </Text>
+            <StrategicLegendGrid rows={mapLegendRows} />
+            {continuationLegendPages.length > 0 ? (
               <Text style={{ fontSize: 6.2, color: MUTED_TEXT }}>
-                + {legendFarmRows.length - LEGEND_MAX_ROWS} fazenda(s)
+                Demais talhões identificados nas páginas de continuação da legenda.
               </Text>
             ) : null}
           </View>
@@ -1025,6 +1090,34 @@ const ServiceOrderStrategicReportPDF: React.FC<ServiceOrderStrategicReportPDFPro
           ) : null}
         </View>
       </Page>
+      {continuationLegendPages.map((rows, pageIndex) => (
+        <Page
+          key={`legend-continuation-${pageIndex}`}
+          size='A4'
+          orientation='landscape'
+          style={{
+            backgroundColor: '#FFFFFF',
+            fontFamily: 'Roboto',
+            color: DARK_TEXT,
+            padding: 24,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: 700 }}>{title}</Text>
+          <Text style={{ marginTop: 4, marginBottom: 14, fontSize: 9, color: MUTED_TEXT }}>
+            LEGENDA POR TALHÃO — CONTINUAÇÃO {pageIndex + 1}
+          </Text>
+          <View
+            style={{
+              flex: 1,
+              border: `1px solid ${LIGHT_BORDER}`,
+              borderRadius: 4,
+              padding: 12,
+            }}
+          >
+            <StrategicLegendGrid rows={rows} />
+          </View>
+        </Page>
+      ))}
     </Document>
   );
 };

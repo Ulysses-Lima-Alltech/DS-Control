@@ -13,11 +13,12 @@ import {
   buildStrategicMapData,
   buildStrategicMapFilename,
   getStrategicMapDownloadLabel,
+  getStrategicMapPlotStatusLabel,
   getStrategicMapScopeLabel,
   parseStrategicMapScope,
   type StrategicMapData,
   type StrategicMapDrawableGeometry,
-  type StrategicMapFarmLegendItem,
+  type StrategicMapPlotLegendItem,
 } from '@/utils/strategic-map-scope';
 
 const MAPBOX_TOKEN =
@@ -63,7 +64,7 @@ const STRATEGIC_MAP_FILL_LAYER: AnyLayer = {
   source: STRATEGIC_MAP_SOURCE_ID,
   paint: {
     'fill-color': ['coalesce', ['get', 'fill'], '#3388ff'],
-    'fill-opacity': 0.82,
+    'fill-opacity': ['coalesce', ['get', 'fill_opacity'], 0.82],
   },
 };
 
@@ -221,7 +222,7 @@ export default function StrategicMapPrintPage({
       await drawStrategicMapPdfOverlays(pdf, {
         title: mapTitle,
         generatedAt,
-        farms: strategicMapData.farms,
+        legendItems: strategicMapData.legendItems,
         scaleBar,
       });
 
@@ -300,16 +301,23 @@ export default function StrategicMapPrintPage({
         <NorthArrow />
 
         {strategicMapData && (
-          <aside className='strategic-map-legend' aria-label='Legenda por fazenda'>
+          <aside className='strategic-map-legend' aria-label='Legenda por talhão'>
             <h2>LEGENDA</h2>
             <div className='strategic-map-legend-items'>
-              {strategicMapData.farms.map((farm) => (
-                <div className='strategic-map-legend-item' key={farm.key}>
+              {strategicMapData.legendItems.map((plot) => (
+                <div className='strategic-map-legend-item' key={plot.key}>
                   <span
                     className='strategic-map-legend-swatch'
-                    style={{ backgroundColor: farm.fill }}
+                    style={{ backgroundColor: plot.fill, opacity: plot.fillOpacity }}
                   />
-                  <span>{farm.name}</span>
+                  <span className='strategic-map-legend-copy'>
+                    <span>
+                      {plot.name} — {formatLegendHectares(plot.hectares)}
+                    </span>
+                    <span className='strategic-map-legend-status'>
+                      {getStrategicMapPlotStatusLabel(plot.status)}
+                    </span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -445,7 +453,7 @@ export default function StrategicMapPrintPage({
           bottom: 46px;
           left: 48px;
           z-index: 10;
-          max-width: min(720px, calc(100vw - 760px));
+          width: min(1100px, calc(100vw - 760px));
           color: #000000;
           pointer-events: none;
           text-transform: uppercase;
@@ -460,8 +468,9 @@ export default function StrategicMapPrintPage({
         }
 
         .strategic-map-legend-items {
-          display: flex;
-          flex-direction: column;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          column-gap: 22px;
           gap: 7px;
         }
 
@@ -478,6 +487,18 @@ export default function StrategicMapPrintPage({
             1px -1px 0 #ffffff,
             -1px 1px 0 #ffffff,
             1px 1px 0 #ffffff;
+        }
+
+        .strategic-map-legend-copy {
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .strategic-map-legend-status {
+          font-size: 10px;
+          font-weight: 700;
         }
 
         .strategic-map-legend-swatch {
@@ -613,7 +634,8 @@ export default function StrategicMapPrintPage({
           .strategic-map-legend {
             bottom: 100px !important;
             left: 100px !important;
-            max-width: 1600px !important;
+            width: 3600px !important;
+            max-width: 3600px !important;
           }
 
           .strategic-map-legend h2 {
@@ -623,6 +645,8 @@ export default function StrategicMapPrintPage({
           }
 
           .strategic-map-legend-items {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            column-gap: 80px !important;
             gap: 24px !important;
           }
 
@@ -637,6 +661,14 @@ export default function StrategicMapPrintPage({
             height: 60px !important;
             margin-right: 40px !important;
             border: 4px solid #ffffff !important;
+          }
+
+          .strategic-map-legend-copy {
+            gap: 8px !important;
+          }
+
+          .strategic-map-legend-status {
+            font-size: 34px !important;
           }
 
           .strategic-map-legend-total {
@@ -961,14 +993,14 @@ async function drawStrategicMapPdfOverlays(
   params: {
     title: string;
     generatedAt: string;
-    farms: StrategicMapFarmLegendItem[];
+    legendItems: StrategicMapPlotLegendItem[];
     scaleBar: PdfScaleBar | null;
   }
 ): Promise<void> {
   drawPdfTitle(pdf, params.title);
   drawPdfGeneratedAt(pdf, params.generatedAt);
   await drawPdfNorthArrow(pdf);
-  drawPdfLegend(pdf, params.farms);
+  drawPdfLegend(pdf, params.legendItems);
   drawPdfScaleBar(pdf, params.scaleBar);
   await drawPdfLogo(pdf);
 }
@@ -1025,9 +1057,13 @@ async function drawPdfNorthArrow(pdf: JsPdf): Promise<void> {
   );
 }
 
-function drawPdfLegend(pdf: JsPdf, farms: StrategicMapFarmLegendItem[]): void {
+function drawPdfLegend(pdf: JsPdf, legendItems: StrategicMapPlotLegendItem[]): void {
   const x = cssPxToMm(100);
-  const legendHeightCss = 56 + 32 + farms.length * 60 + Math.max(0, farms.length - 1) * 24;
+  const columnCount = Math.min(6, Math.max(1, Math.ceil(legendItems.length / 14)));
+  const rows = Math.max(1, Math.ceil(legendItems.length / columnCount));
+  const columnWidth = (PDF_WIDTH_MM - x * 2) / columnCount;
+  const rowHeightCss = rows > 20 ? 64 : 84;
+  const legendHeightCss = 56 + 32 + rows * rowHeightCss;
   let y = PDF_HEIGHT_MM - cssPxToMm(100 + legendHeightCss);
 
   pdf.setTextColor(0, 0, 0);
@@ -1037,28 +1073,30 @@ function drawPdfLegend(pdf: JsPdf, farms: StrategicMapFarmLegendItem[]): void {
 
   y += cssPxToMm(56 + 32);
 
-  farms.forEach((farm, index) => {
-    if (index > 0) {
-      y += cssPxToMm(24);
-    }
-
+  legendItems.forEach((plot, index) => {
+    const column = Math.floor(index / rows);
+    const row = index % rows;
     const swatchSize = cssPxToMm(60);
-    const itemTop = y;
+    const itemX = x + column * columnWidth;
+    const itemTop = y + row * cssPxToMm(rowHeightCss);
 
-    pdf.setFillColor(farm.fill);
+    pdf.setFillColor(plot.fill);
     pdf.setDrawColor(255, 255, 255);
     pdf.setLineWidth(cssPxToMm(4));
-    pdf.rect(x, itemTop, swatchSize, swatchSize, 'FD');
+    pdf.rect(itemX, itemTop, swatchSize, swatchSize, 'FD');
 
     pdf.setTextColor(0, 0, 0);
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(cssPxToPt(48));
-    pdf.text(farm.name, x + swatchSize + cssPxToMm(40), itemTop + swatchSize / 2, {
-      baseline: 'middle',
-      maxWidth: cssPxToMm(1500),
-    });
-
-    y += cssPxToMm(60);
+    pdf.setFontSize(cssPxToPt(42));
+    pdf.text(
+      `${plot.name} - ${formatLegendHectares(plot.hectares)} - ${getStrategicMapPlotStatusLabel(plot.status)}`,
+      itemX + swatchSize + cssPxToMm(32),
+      itemTop + swatchSize / 2,
+      {
+        baseline: 'middle',
+        maxWidth: columnWidth - swatchSize - cssPxToMm(48),
+      }
+    );
   });
 }
 
@@ -1188,6 +1226,13 @@ function getCustomerShortName(name?: string): string {
   }
 
   return trimmed.split(/\s+/)[0].toLocaleUpperCase('pt-BR');
+}
+
+function formatLegendHectares(value: number): string {
+  return `${value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ha`;
 }
 
 function normalizeText(value: string): string {

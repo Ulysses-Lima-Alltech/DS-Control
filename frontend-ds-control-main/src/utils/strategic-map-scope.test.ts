@@ -171,7 +171,7 @@ test('bounds pendentes são recalculados depois do filtro', () => {
   ]);
 });
 
-test('geoJson inválido não cria feature, bounds ou fazenda na legenda', () => {
+test('geoJson inválido não cria feature, bounds ou item falso na legenda', () => {
   const data = buildStrategicMapData(
     serviceOrder([
       plot('bad', {
@@ -184,45 +184,78 @@ test('geoJson inválido não cria feature, bounds ou fazenda na legenda', () => 
   );
   assert.equal(data.featureCollection.features.length, 0);
   assert.equal(data.bounds, null);
-  assert.deepEqual(data.farms, []);
+  assert.deepEqual(data.legendItems, []);
 });
 
-test('uma fazenda produz uma única linha sem hectares', () => {
+test('legenda concluída contém somente talhões visíveis e seus hectares atuais', () => {
   const data = buildStrategicMapData(
     serviceOrder([
-      plot('a', { farmId: 'f1', derivedStatus: 'COMPLETED' }),
-      plot('b', { farmId: 'f1', derivedStatus: 'COMPLETED' }),
+      plot('done-a', {
+        name: 'Talhão 01',
+        hectare: '25.30',
+        farmId: 'f1',
+        derivedStatus: 'COMPLETED',
+      }),
+      plot('todo', { farmId: 'f1', derivedStatus: 'PENDING' }),
     ]),
     'completed'
   );
-  assert.equal(data.farms.length, 1);
-  assert.deepEqual(Object.keys(data.farms[0]).sort(), ['fill', 'key', 'name']);
+  assert.equal(data.legendItems.length, 1);
+  assert.equal(data.legendItems[0].key, 'done-a');
+  assert.equal(data.legendItems[0].name, 'Talhão 01');
+  assert.equal(data.legendItems[0].hectares, 25.3);
+  assert.equal(data.legendItems[0].status, 'COMPLETED');
 });
 
-test('múltiplas fazendas mantêm nome e cor consistentes', () => {
+test('legenda pendente mantém pending e in-progress de fazendas diferentes identificáveis', () => {
   const data = buildStrategicMapData(
     serviceOrder([
-      plot('a', { farmId: 'f1', derivedStatus: 'PENDING' }),
-      plot('b', { farmId: 'f2', derivedStatus: 'IN_PROGRESS' }),
+      plot('a', { name: 'Talhão A', farmId: 'f1', derivedStatus: 'PENDING' }),
+      plot('b', { name: 'Talhão B', farmId: 'f2', derivedStatus: 'IN_PROGRESS' }),
+      plot('done', { name: 'Talhão C', farmId: 'f2', derivedStatus: 'COMPLETED' }),
     ]),
     'pending'
   );
   assert.deepEqual(
-    data.farms.map(({ name }) => name),
-    ['Fazenda Um', 'Fazenda Dois']
+    data.legendItems.map(({ name, status }) => [name, status]),
+    [
+      ['Talhão A', 'PENDING'],
+      ['Talhão B', 'IN_PROGRESS'],
+    ]
   );
-  assert.equal(data.featureCollection.features[0].properties?.fill, data.farms[0].fill);
-  assert.equal(data.featureCollection.features[1].properties?.fill, data.farms[1].fill);
+  assert.notEqual(data.legendItems[0].fill, data.legendItems[1].fill);
 });
 
-test('legenda desconhecida não inventa métricas', () => {
+test('mapa e legenda compartilham cor e opacidade por talhão', () => {
   const data = buildStrategicMapData(
-    serviceOrder([plot('a', { farmId: undefined, derivedStatus: 'COMPLETED' })]),
+    serviceOrder([
+      plot('a', { derivedStatus: 'PENDING' }),
+      plot('b', { derivedStatus: 'IN_PROGRESS' }),
+    ]),
+    'pending'
+  );
+
+  data.legendItems.forEach((legendItem) => {
+    const feature = data.featureCollection.features.find(
+      (candidate) => candidate.properties?.plot_id === legendItem.key
+    );
+    assert.ok(feature);
+    assert.equal(feature.properties?.fill, legendItem.fill);
+    assert.equal(feature.properties?.fill_opacity, legendItem.fillOpacity);
+  });
+});
+
+test('múltiplas geometrias do mesmo talhão não duplicam a legenda', () => {
+  const geoJson = polygon(0);
+  geoJson.features.push({ ...geoJson.features[0], geometry: polygon(5).features[0].geometry });
+  const data = buildStrategicMapData(
+    serviceOrder([plot('a', { derivedStatus: 'COMPLETED', geoJson })]),
     'completed'
   );
-  assert.equal(data.farms[0].name, 'Fazenda não informada');
-  assert.equal('hectares' in data.farms[0], false);
-  assert.equal('total' in data.farms[0], false);
+
+  assert.equal(data.featureCollection.features.length, 2);
+  assert.equal(data.legendItems.length, 1);
+  assert.equal(data.legendItems[0].key, 'a');
 });
 
 test('coleção multipolígono participa do bounds', () => {

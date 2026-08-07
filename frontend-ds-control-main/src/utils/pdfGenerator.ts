@@ -48,10 +48,6 @@ import {
   type StrategicMapShapeInput,
   type StrategicMapViewport,
 } from '@/utils/strategicReportMap2d';
-import {
-  buildStrategicFarmColorMap,
-  type StrategicFarmColor,
-} from '@/utils/strategicReportPalette';
 
 interface GeneratePDFParams {
   serviceOrder: ServiceOrder;
@@ -148,30 +144,12 @@ function buildStrategicMapShapes(serviceOrder: ServiceOrder): StrategicMapShapeI
     .filter((shape): shape is StrategicMapShapeInput => shape !== null);
 }
 
-function buildStrategicFarmColorMapFromServiceOrder(
-  serviceOrder: ServiceOrder
-): Map<string, StrategicFarmColor> {
-  const orderedFarmIds = Array.from(
-    new Set(
-      (serviceOrder.plots || [])
-        .map((plot) => plot.farmId || 'farm-unknown')
-        .filter((farmId): farmId is string => Boolean(farmId))
-    )
-  );
-  const farmById = new Map((serviceOrder.farms || []).map((farm) => [farm.id, farm]));
-  return buildStrategicFarmColorMap(
-    orderedFarmIds.map((farmId) => farmById.get(farmId) ?? { id: farmId })
-  );
-}
-
 async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promise<{
   mapViewport: StrategicMapViewport | null;
   mapBaseDataUrl: string | null;
   mapImageDataUrl: string | null;
-  farmColorMap: Map<string, StrategicFarmColor>;
 }> {
   const shapes = buildStrategicMapShapes(serviceOrder);
-  const farmColorMap = buildStrategicFarmColorMapFromServiceOrder(serviceOrder);
   const mapViewport = buildStrategicMapViewport(
     shapes,
     STRATEGIC_REPORT_MAP_WIDTH,
@@ -191,7 +169,6 @@ async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promi
       mapViewport,
       mapBaseDataUrl: null,
       mapImageDataUrl: null,
-      farmColorMap,
     };
   }
 
@@ -215,7 +192,6 @@ async function prefetchStrategicReportMapBase(serviceOrder: ServiceOrder): Promi
     mapViewport,
     mapBaseDataUrl,
     mapImageDataUrl: null,
-    farmColorMap,
   };
 }
 
@@ -570,7 +546,7 @@ export async function generateServiceOrderStrategicReportPDF(
     invalidPlotIdsAndNames: diagnostics.invalidPlots,
   });
 
-  const { mapViewport, mapBaseDataUrl, mapImageDataUrl, farmColorMap } =
+  const { mapViewport, mapBaseDataUrl, mapImageDataUrl } =
     await prefetchStrategicReportMapBase(scopedServiceOrder);
 
   const element = ServiceOrderStrategicReportPDF({
@@ -579,7 +555,6 @@ export async function generateServiceOrderStrategicReportPDF(
     mapViewport,
     prefetchedMapBaseDataUrl: mapBaseDataUrl,
     prefetchedMapImageDataUrl: mapImageDataUrl,
-    farmColorMap,
   });
 
   // @ts-expect-error - toBlob is not typed
