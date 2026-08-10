@@ -123,6 +123,8 @@ export class ServiceOrderRepository {
         registeredAreaHectares: plots.hectare,
         applicationId: applications.id,
         appliedAreaHectares: applications.hectares,
+        manualOverride: serviceOrderPlots.manualOverride,
+        overrideStatus: serviceOrderPlots.status,
       })
       .from(serviceOrderPlots)
       .innerJoin(plots, eq(serviceOrderPlots.plotId, plots.id))
@@ -280,6 +282,7 @@ export class ServiceOrderRepository {
                   grossAppliedHectares: assessment.grossAppliedHectares,
                   coveragePercent: assessment.coveragePercent,
                   derivedStatus: assessment.derivedStatus,
+                  manualOverride: assessment.manualOverride,
                 }
               : plot;
           })

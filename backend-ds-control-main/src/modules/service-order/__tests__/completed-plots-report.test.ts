@@ -194,6 +194,92 @@ describe('completed plots report transformation', () => {
   });
 });
 
+describe('manual override precedence over coverage calculation', () => {
+  const plotId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  it('marks a plot COMPLETED when manually overridden, even below the coverage threshold', () => {
+    // OS 152 / plot 18A shape: 46.85 ha registered, largest single application only 26.06 ha
+    // (55.6%) — below the 70% threshold — but backoffice forced COMPLETED with a reason.
+    const [assessment] = buildPlotCoverageAssessments([
+      {
+        serviceOrderId: SERVICE_ORDER_ID,
+        farmId: FARM_ID,
+        plotId,
+        registeredAreaHectares: '46.85',
+        applicationId: 'app-1',
+        appliedAreaHectares: '26.06',
+        manualOverride: true,
+        overrideStatus: 'COMPLETED',
+      },
+    ]);
+
+    expect(assessment.derivedStatus).toBe('COMPLETED');
+    expect(assessment.status).toBe('COMPLETED');
+    expect(assessment.manualOverride).toBe(true);
+    // Real coverage numbers stay visible/unchanged for transparency.
+    expect(assessment.coveragePercent).toBe('55.624332');
+  });
+
+  it('keeps a plot PENDING when manually overridden back, even above the coverage threshold', () => {
+    const [assessment] = buildPlotCoverageAssessments([
+      {
+        serviceOrderId: SERVICE_ORDER_ID,
+        farmId: FARM_ID,
+        plotId,
+        registeredAreaHectares: '50',
+        applicationId: 'app-1',
+        appliedAreaHectares: '50',
+        manualOverride: true,
+        overrideStatus: 'PENDING',
+      },
+    ]);
+
+    expect(assessment.derivedStatus).toBe('PENDING');
+    expect(assessment.status).toBe('PENDING');
+    expect(assessment.manualOverride).toBe(true);
+  });
+
+  it('falls back to the coverage calculation when there is no override', () => {
+    const [assessment] = buildPlotCoverageAssessments([
+      {
+        serviceOrderId: SERVICE_ORDER_ID,
+        farmId: FARM_ID,
+        plotId,
+        registeredAreaHectares: '46.85',
+        applicationId: 'app-1',
+        appliedAreaHectares: '26.06',
+        manualOverride: false,
+        overrideStatus: null,
+      },
+    ]);
+
+    expect(assessment.derivedStatus).toBe('IN_PROGRESS');
+    expect(assessment.manualOverride).toBe(false);
+  });
+
+  it('includes a manually completed plot in the plot_area completed report', () => {
+    const report = buildCompletedPlotsReportData(
+      buildPlotCoverageAssessments([
+        {
+          serviceOrderId: SERVICE_ORDER_ID,
+          farmId: FARM_ID,
+          plotId,
+          registeredAreaHectares: '46.85',
+          applicationId: 'app-1',
+          appliedAreaHectares: '26.06',
+          manualOverride: true,
+          overrideStatus: 'COMPLETED',
+        },
+      ]),
+      'plot_area',
+      SERVICE_ORDER_ID,
+    );
+
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]).toMatchObject({ plotId, status: 'COMPLETED' });
+  });
+});
+
 describe('completed plots report contract', () => {
   it.each(['plot_area', 'applied_area'] as const)('accepts %s explicitly', (areaMode) => {
     expect(CompletedPlotsReportRequestSchema.parse({ areaMode })).toEqual({ areaMode });

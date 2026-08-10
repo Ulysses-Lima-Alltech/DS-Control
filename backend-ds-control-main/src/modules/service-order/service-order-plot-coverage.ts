@@ -11,6 +11,11 @@ export type PlotCoverageSourceRow = {
   registeredAreaHectares: string | number;
   applicationId: string | null;
   appliedAreaHectares: string | number | null;
+  // Backoffice-forced status (service_order_plots.manual_override /
+  // service_order_plots.status) that takes precedence over the coverage calculation
+  // below when present. Same value repeats across every application row of a plot.
+  manualOverride?: boolean;
+  overrideStatus?: 'PENDING' | 'COMPLETED' | 'CANCELLED' | null;
 };
 
 export type PlotCoverageApplication = {
@@ -28,6 +33,7 @@ export type PlotCoverageAssessment = {
   coveragePercent: string;
   status: PlotCompletionStatus;
   derivedStatus: PlotDerivedStatus;
+  manualOverride: boolean;
   applications: PlotCoverageApplication[];
 };
 
@@ -237,6 +243,8 @@ export function buildPlotCoverageAssessments(
       farmId: string;
       registeredArea: DecimalValue;
       applications: Map<string, DecimalValue>;
+      manualOverride: boolean;
+      overrideStatus: 'PENDING' | 'COMPLETED' | 'CANCELLED' | null;
     }
   >();
 
@@ -248,6 +256,8 @@ export function buildPlotCoverageAssessments(
       farmId: row.farmId,
       registeredArea: parseDecimal(row.registeredAreaHectares),
       applications: new Map<string, DecimalValue>(),
+      manualOverride: Boolean(row.manualOverride),
+      overrideStatus: row.manualOverride ? (row.overrideStatus ?? null) : null,
     };
 
     if (row.applicationId) {
@@ -269,7 +279,18 @@ export function buildPlotCoverageAssessments(
     const grossAppliedArea = addDecimals(applicationEntries.map((application) => application.area));
     const registeredAreaHectares = decimalToString(plot.registeredArea);
     const effectiveAppliedHectares = decimalToString(effectiveArea);
-    const derivedStatus = getDerivedStatus(effectiveAppliedHectares, registeredAreaHectares);
+    const coverageDerivedStatus = getDerivedStatus(
+      effectiveAppliedHectares,
+      registeredAreaHectares,
+    );
+    // A backoffice-forced status (PENDING/COMPLETED, with an audited reason) always wins
+    // over the coverage calculation — it exists specifically for cases the coverage rule
+    // can't classify correctly (e.g. a plot sprayed across multiple passes / "mapa dividido").
+    const derivedStatus =
+      plot.manualOverride &&
+      (plot.overrideStatus === 'COMPLETED' || plot.overrideStatus === 'PENDING')
+        ? plot.overrideStatus
+        : coverageDerivedStatus;
 
     return {
       serviceOrderId: plot.serviceOrderId,
@@ -281,6 +302,7 @@ export function buildPlotCoverageAssessments(
       coveragePercent: formatPercentage(effectiveArea, plot.registeredArea),
       status: derivedStatus === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
       derivedStatus,
+      manualOverride: plot.manualOverride,
       applications: applicationEntries.map(({ id, area }) => ({
         id,
         appliedAreaHectares: decimalToString(area),
@@ -315,10 +337,7 @@ export function buildServiceOrderMetrics(
       .filter((assessment) => assessment.derivedStatus === 'IN_PROGRESS')
       .map((assessment) => parseDecimal(assessment.grossAppliedHectares)),
   );
-  const consolidatedOperationalArea = addDecimals([
-    registeredCompletedArea,
-    inProgressAppliedArea,
-  ]);
+  const consolidatedOperationalArea = addDecimals([registeredCompletedArea, inProgressAppliedArea]);
 
   return {
     plannedAreaHa: decimalToResponseNumber(plannedArea),
@@ -327,22 +346,17 @@ export function buildServiceOrderMetrics(
     registeredCompletedAreaHa: decimalToResponseNumber(registeredCompletedArea),
     inProgressAppliedAreaHa: decimalToResponseNumber(inProgressAppliedArea),
     consolidatedOperationalAreaHa: decimalToResponseNumber(consolidatedOperationalArea),
-    registeredProgressPercent: percentageToResponseNumber(
-      registeredCompletedArea,
-      plannedArea,
-    ),
+    registeredProgressPercent: percentageToResponseNumber(registeredCompletedArea, plannedArea),
     grossAppliedProgressPercent: percentageToResponseNumber(grossAppliedArea, plannedArea),
     consolidatedProgressPercent: percentageToResponseNumber(
       consolidatedOperationalArea,
       plannedArea,
     ),
     totalPlots: assessments.length,
-    completedPlots: assessments.filter(
-      (assessment) => assessment.derivedStatus === 'COMPLETED',
-    ).length,
-    inProgressPlots: assessments.filter(
-      (assessment) => assessment.derivedStatus === 'IN_PROGRESS',
-    ).length,
+    completedPlots: assessments.filter((assessment) => assessment.derivedStatus === 'COMPLETED')
+      .length,
+    inProgressPlots: assessments.filter((assessment) => assessment.derivedStatus === 'IN_PROGRESS')
+      .length,
     pendingPlots: assessments.filter((assessment) => assessment.derivedStatus === 'PENDING').length,
     applicationsCount:
       applicationSummary?.applicationsCount ??
@@ -372,9 +386,7 @@ export function buildLegacyServiceOrderMetricAliases(
     progressPercent: metrics.registeredProgressPercent,
     completedHectares: metrics.registeredCompletedAreaHa,
     // Legacy pending values include both not-started and in-progress plots.
-    pendingHectares: Number(
-      (metrics.plannedAreaHa - metrics.registeredCompletedAreaHa).toFixed(2),
-    ),
+    pendingHectares: Number((metrics.plannedAreaHa - metrics.registeredCompletedAreaHa).toFixed(2)),
     completedPlots: metrics.completedPlots,
     inProgressPlots: metrics.inProgressPlots,
     pendingPlots: metrics.inProgressPlots + metrics.pendingPlots,
