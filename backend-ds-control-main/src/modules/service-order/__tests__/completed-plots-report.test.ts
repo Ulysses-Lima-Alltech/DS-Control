@@ -106,7 +106,7 @@ describe('completed plots report transformation', () => {
     }),
   ];
 
-  it('normalizes completed plots in plot_area and emits one row per reportable plot', () => {
+  it('normalizes completed plots in plot_area and emits one row per completed plot only', () => {
     const snapshot = structuredClone(sourceRows);
     const report = buildCompletedPlotsReportData(
       buildPlotCoverageAssessments(sourceRows),
@@ -114,8 +114,14 @@ describe('completed plots report transformation', () => {
       SERVICE_ORDER_ID,
     );
 
-    expect(report.rows).toHaveLength(3);
-    expect(report.rows.map((row) => row.plotId)).toEqual([plotA, plotB, pendingPlot]);
+    // plot_area is the "Talhões Concluídos" report: it must only ever include plots
+    // that reached the completion threshold. In-progress plots (below threshold) are
+    // reported through their own totals/metrics, never listed here — otherwise the
+    // report would visually diverge from the strategic map, which only marks a plot
+    // as completed when derivedStatus === 'COMPLETED'.
+    expect(report.rows).toHaveLength(2);
+    expect(report.rows.map((row) => row.plotId)).toEqual([plotA, plotB]);
+    expect(report.rows.every((row) => row.status === 'COMPLETED')).toBe(true);
     expect(report.rows[0]).toMatchObject({
       applicationId: null,
       displayedAppliedHectares: '51.34',
@@ -125,16 +131,7 @@ describe('completed plots report transformation', () => {
       status: 'COMPLETED',
       applicationsCount: 2,
     });
-    expect(report.rows[2]).toMatchObject({
-      applicationId: null,
-      displayedAppliedHectares: '13.99',
-      displayedCoveragePercent: '69.95',
-      accountedAreaHectares: '13.99',
-      accountedCoveragePercent: '69.95',
-      status: 'IN_PROGRESS',
-      applicationsCount: 1,
-    });
-    expect(report.totalDisplayedHectares).toBe('97.43');
+    expect(report.totalDisplayedHectares).toBe('83.44');
     expect(report.totals).toMatchObject({
       plannedAreaHa: '103.44',
       grossAppliedAreaHa: '118.04',
@@ -184,14 +181,14 @@ describe('completed plots report transformation', () => {
     expect(sourceRows).toEqual(snapshot);
   });
 
-  it('includes in-progress plots and excludes only data from another service order', () => {
+  it('excludes in-progress plots and data from another service order', () => {
     const report = buildCompletedPlotsReportData(
       buildPlotCoverageAssessments(sourceRows),
       'plot_area',
       SERVICE_ORDER_ID,
     );
 
-    expect(report.rows.some((row) => row.plotId === pendingPlot)).toBe(true);
+    expect(report.rows.some((row) => row.plotId === pendingPlot)).toBe(false);
     expect(report.rows.some((row) => row.registeredAreaHectares === '500')).toBe(false);
     expect(report.rows.every((row) => row.farmId === FARM_ID)).toBe(true);
   });

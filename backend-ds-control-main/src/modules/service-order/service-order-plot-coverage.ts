@@ -430,7 +430,7 @@ export function buildCompletedPlotsReportData(
     (assessment) => assessment.serviceOrderId === serviceOrderId,
   );
   const reportablePlots = serviceOrderAssessments.filter(
-    (assessment) => assessment.derivedStatus !== 'PENDING',
+    (assessment) => assessment.derivedStatus === 'COMPLETED',
   );
   const rows = (
     areaMode === 'plot_area' ? reportablePlots : serviceOrderAssessments

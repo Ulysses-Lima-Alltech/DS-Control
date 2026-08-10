@@ -459,7 +459,13 @@ export default function ServiceOrderPage({
       setActiveCompletedReportMode(areaMode);
       setIsGeneratingReport(true);
       const reportData = await getCompletedPlotsReport(serviceOrderData.id, areaMode);
-      const reportCompletedPlotIds = Array.from(new Set(reportData.rows.map((row) => row.plotId)));
+      const reportCompletedPlotIds = Array.from(
+        new Set(
+          reportData.rows
+            .filter((row) => row.status === 'COMPLETED')
+            .map((row) => row.plotId)
+        )
+      );
 
       if (reportCompletedPlotIds.length === 0) {
         toast.info('Não há talhões com aplicação para gerar o relatório');
