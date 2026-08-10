@@ -19,6 +19,7 @@ import {
   useUpdateApplicationById,
 } from '@/mutations/application.mutation';
 import { useUpdateServiceOrderPlotStatus } from '@/mutations/service-order.mutation';
+import { useAuth } from '@/providers/auth.provider';
 import { useGetAllAssistantsInfinite, useGetAssistantById } from '@/queries/assistant.query';
 import { useGetAllCultureTypesInfinite, useGetCultureTypeById } from '@/queries/culture-type.query';
 import { useGetAllDronesInfinite, useGetDroneById } from '@/queries/drone.query';
@@ -41,7 +42,7 @@ import { Drone } from '@/types/drone.type';
 import { Farm } from '@/types/farm.type';
 import { Product } from '@/types/product.type';
 import { ServiceOrder } from '@/types/service-order.type';
-import { User } from '@/types/user.type';
+import { User, UserType } from '@/types/user.type';
 import { toOperationalDateYMDOrToday } from '@/utils/operational-date';
 
 type FormApplicationProps = {
@@ -72,6 +73,11 @@ export default function FormApplication({
   const [statusRetry, setStatusRetry] = useState<{ serviceOrderId: string; plotId: string } | null>(
     null
   );
+  const [overrideReason, setOverrideReason] = useState('');
+
+  const { user } = useAuth();
+  const isBackoffice = user?.type === UserType.BACKOFFICE.value;
+  const MANUAL_OVERRIDE_REASON_MIN_LENGTH = 10;
 
   const {
     register,
@@ -395,9 +401,10 @@ export default function FormApplication({
   const selectedFarmId = watch('farmId');
   const availablePlots = farmData?.farm.plots || [];
 
-  const markPlotAsCompleted = async (serviceOrderId: string, plotId: string) => {
-    await updatePlotStatus({ serviceOrderId, plotId, status: 'COMPLETED' });
+  const markPlotAsCompleted = async (serviceOrderId: string, plotId: string, reason?: string) => {
+    await updatePlotStatus({ serviceOrderId, plotId, status: 'COMPLETED', reason });
     setStatusRetry(null);
+    setOverrideReason('');
     invalidateApplicationCaches(serviceOrderId);
   };
 
@@ -437,9 +444,8 @@ export default function FormApplication({
         } catch (error) {
           console.error('[FormApplication] Falha ao concluir talhão após salvar aplicação', error);
           setStatusRetry({ serviceOrderId: data.serviceOrderId, plotId: data.plotId });
-          toast.error(
-            'A aplicação foi salva, mas não foi possível marcar o talhão como concluído.'
-          );
+          const reasonSuffix = error instanceof Error ? ` ${error.message}` : '';
+          toast.error(`A aplicação foi salva, mas não foi possível marcar o talhão como concluído.${reasonSuffix}`);
           return;
         }
       }
@@ -655,7 +661,7 @@ export default function FormApplication({
             </span>
           </label>
 
-          {statusRetry && (
+          {statusRetry && !isBackoffice && (
             <Button
               type='button'
               variant='outline'
@@ -671,13 +677,62 @@ export default function FormApplication({
                   .catch((error) => {
                     console.error('[FormApplication] Nova falha ao concluir talhão', error);
                     toast.error(
-                      'Não foi possível marcar o talhão como concluído. Tente novamente.'
+                      error instanceof Error
+                        ? error.message
+                        : 'Não foi possível marcar o talhão como concluído. Tente novamente.'
                     );
                   })
               }
             >
               Tentar marcar como concluído novamente
             </Button>
+          )}
+
+          {statusRetry && isBackoffice && (
+            <div className='mt-3 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3'>
+              <p className='text-xs text-muted-foreground'>
+                A cobertura calculada automaticamente não atingiu o mínimo exigido. Para forçar a
+                conclusão manualmente, informe uma justificativa (mín.{' '}
+                {MANUAL_OVERRIDE_REASON_MIN_LENGTH} caracteres) — a ação fica registrada.
+              </p>
+              <Textarea
+                value={overrideReason}
+                onChange={(event) => setOverrideReason(event.target.value)}
+                placeholder='Ex.: talhão pulverizado em 3 passadas separadas (mapa dividido); cobertura confirmada em campo.'
+                disabled={isUpdatingPlotStatus}
+                rows={3}
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                disabled={
+                  isUpdatingPlotStatus ||
+                  overrideReason.trim().length < MANUAL_OVERRIDE_REASON_MIN_LENGTH
+                }
+                onClick={() =>
+                  markPlotAsCompleted(
+                    statusRetry.serviceOrderId,
+                    statusRetry.plotId,
+                    overrideReason.trim()
+                  )
+                    .then(() => {
+                      toast.success('Talhão marcado como concluído manualmente');
+                      onSuccess?.();
+                    })
+                    .catch((error) => {
+                      console.error('[FormApplication] Nova falha ao concluir talhão', error);
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : 'Não foi possível marcar o talhão como concluído. Tente novamente.'
+                      );
+                    })
+                }
+              >
+                Forçar conclusão manual
+              </Button>
+            </div>
           )}
 
           {isEditMode && selectedServiceOrderPlot?.status === 'COMPLETED' && (

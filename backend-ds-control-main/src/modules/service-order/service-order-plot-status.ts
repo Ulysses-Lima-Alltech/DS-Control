@@ -3,6 +3,7 @@ export type ServiceOrderPlotStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 export function buildServiceOrderPlotStatusUpdate(
   status: ServiceOrderPlotStatus,
   currentUserId: string,
+  overrideReason: string | null = null,
   now = new Date(),
 ) {
   const completed = status === 'COMPLETED';
@@ -10,6 +11,8 @@ export function buildServiceOrderPlotStatusUpdate(
     status,
     completedAt: completed ? now : null,
     completedBy: completed ? currentUserId : null,
+    manualOverride: overrideReason !== null,
+    overrideReason,
     updatedAt: now,
   };
 }

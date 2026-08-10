@@ -13,22 +13,62 @@ describe('official service order plot status', () => {
     expect(UpdateServiceOrderPlotStatusSchema.parse({ status })).toEqual({ status });
   });
 
+  it('accepts an optional override reason with at least 10 characters', () => {
+    expect(
+      UpdateServiceOrderPlotStatusSchema.parse({
+        status: 'COMPLETED',
+        reason: 'Cobertura confirmada em campo',
+      }),
+    ).toEqual({ status: 'COMPLETED', reason: 'Cobertura confirmada em campo' });
+  });
+
+  it('rejects an override reason shorter than 10 characters', () => {
+    expect(() =>
+      UpdateServiceOrderPlotStatusSchema.parse({ status: 'COMPLETED', reason: 'curto' }),
+    ).toThrow();
+  });
+
   it('fills completedAt and completedBy only when completed', () => {
-    expect(buildServiceOrderPlotStatusUpdate('COMPLETED', userId, now)).toEqual({
+    expect(buildServiceOrderPlotStatusUpdate('COMPLETED', userId, null, now)).toEqual({
       status: 'COMPLETED',
       completedAt: now,
       completedBy: userId,
+      manualOverride: false,
+      overrideReason: null,
       updatedAt: now,
     });
-    expect(buildServiceOrderPlotStatusUpdate('PENDING', userId, now)).toMatchObject({
+    expect(buildServiceOrderPlotStatusUpdate('PENDING', userId, null, now)).toMatchObject({
       status: 'PENDING',
       completedAt: null,
       completedBy: null,
+      manualOverride: false,
+      overrideReason: null,
     });
-    expect(buildServiceOrderPlotStatusUpdate('CANCELLED', userId, now)).toMatchObject({
+    expect(buildServiceOrderPlotStatusUpdate('CANCELLED', userId, null, now)).toMatchObject({
       status: 'CANCELLED',
       completedAt: null,
       completedBy: null,
+      manualOverride: false,
+      overrideReason: null,
+    });
+  });
+
+  it('records the manual override reason when the status is forced', () => {
+    expect(
+      buildServiceOrderPlotStatusUpdate(
+        'COMPLETED',
+        userId,
+        'Talhão pulverizado em 3 passadas separadas (mapa dividido); cobertura real confirmada em campo.',
+        now,
+      ),
+    ).toEqual({
+      status: 'COMPLETED',
+      completedAt: now,
+      completedBy: userId,
+      manualOverride: true,
+      overrideReason:
+        'Talhão pulverizado em 3 passadas separadas (mapa dividido); cobertura real confirmada em campo.',
+      updatedAt: now,
     });
   });
 

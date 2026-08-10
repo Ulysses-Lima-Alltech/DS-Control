@@ -1106,10 +1106,11 @@ export class ServiceOrderRepository {
     plotId: string,
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED',
     completedBy: string,
+    overrideReason: string | null = null,
   ) {
     const [updatedLink] = await db
       .update(serviceOrderPlots)
-      .set(buildServiceOrderPlotStatusUpdate(status, completedBy))
+      .set(buildServiceOrderPlotStatusUpdate(status, completedBy, overrideReason))
       .where(
         and(
           eq(serviceOrderPlots.serviceOrderId, serviceOrderId),

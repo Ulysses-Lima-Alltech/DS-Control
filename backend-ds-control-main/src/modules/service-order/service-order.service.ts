@@ -361,17 +361,35 @@ export class ServiceOrderService {
       );
     }
 
+    let overrideReason: string | null = null;
+
     if (dto.status !== 'CANCELLED') {
       const assessments =
         await this.serviceOrderRepository.getPlotCoverageAssessmentsByServiceOrderIds([
           serviceOrderId,
         ]);
       const canonicalStatus = assessments.find((plot) => plot.plotId === plotId)?.status;
-      if (canonicalStatus && canonicalStatus !== dto.status) {
-        throw new AppError(
-          `O status do talhÃ£o Ã© calculado pela cobertura real: ${PLOT_COMPLETION_THRESHOLD_PERCENT}% ou mais para concluÃ­do.`,
-          HTTP_STATUS_CODES.BAD_REQUEST,
-        );
+      const disagreesWithCoverage = Boolean(canonicalStatus) && canonicalStatus !== dto.status;
+
+      if (disagreesWithCoverage) {
+        // Coverage-based status can't tell a plot genuinely sprayed across multiple passes
+        // ("mapa dividido") from several small overlapping/duplicate applications. Only
+        // backoffice can force a disagreeing status, and only with a recorded justification.
+        if (authenticatedUser.type !== UserType.BACKOFFICE) {
+          throw new AppError(
+            `O status do talhão é calculado pela cobertura real: ${PLOT_COMPLETION_THRESHOLD_PERCENT}% ou mais para concluído.`,
+            HTTP_STATUS_CODES.BAD_REQUEST,
+          );
+        }
+
+        if (!dto.reason) {
+          throw new AppError(
+            `O status calculado pela cobertura real (mínimo ${PLOT_COMPLETION_THRESHOLD_PERCENT}%) diverge do status solicitado. Para forçar manualmente, informe uma justificativa com pelo menos 10 caracteres.`,
+            HTTP_STATUS_CODES.BAD_REQUEST,
+          );
+        }
+
+        overrideReason = dto.reason;
       }
     }
 
@@ -380,6 +398,7 @@ export class ServiceOrderService {
       plotId,
       dto.status,
       currentUserId,
+      overrideReason,
     );
   }
 

@@ -1,5 +1,14 @@
 import { relations } from 'drizzle-orm';
-import { index, pgEnum, pgTable, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { plots } from './plot.schema';
 import { serviceOrders } from './service_order.schema';
 import { users } from './user.schema';
@@ -23,6 +32,12 @@ export const serviceOrderPlots = pgTable(
     status: ServiceOrderPlotStatus('status').notNull().default('PENDING'),
     completedAt: timestamp('completed_at', { mode: 'date' }),
     completedBy: uuid('completed_by').references(() => users.id, { onDelete: 'set null' }),
+    // Set when a backoffice user forces a status that disagrees with the coverage-based
+    // canonical status (e.g. a plot sprayed in multiple passes where no single application
+    // reaches the completion threshold, but the field work is genuinely done). Auditable
+    // exception to the automatic coverage calculation, never applied automatically.
+    manualOverride: boolean('manual_override').notNull().default(false),
+    overrideReason: text('override_reason'),
     updatedAt: timestamp('updated_at', { mode: 'date' })
       .defaultNow()
       .notNull()

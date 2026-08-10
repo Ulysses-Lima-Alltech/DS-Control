@@ -264,12 +264,17 @@ export type UpdateServiceOrderPlotStatusParams = {
   serviceOrderId: string;
   plotId: string;
   status: ServiceOrderPlotStatus;
+  // Required only when overriding a status that disagrees with the coverage-based
+  // canonical status (backoffice-only escalation, min. 10 characters).
+  reason?: string;
 };
 
 export type ServiceOrderPlotStatusResponse = UpdateServiceOrderPlotStatusParams & {
   id: string;
   completedAt: string | null;
   completedBy: string | null;
+  manualOverride: boolean;
+  overrideReason: string | null;
   updatedAt: string;
 };
 
@@ -277,10 +282,11 @@ export async function updateServiceOrderPlotStatus({
   serviceOrderId,
   plotId,
   status,
+  reason,
 }: UpdateServiceOrderPlotStatusParams): Promise<ServiceOrderPlotStatusResponse> {
   const response = await api(`/service-orders/${serviceOrderId}/plots/${plotId}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(reason ? { status, reason } : { status }),
   });
 
   if (!response.ok) {
