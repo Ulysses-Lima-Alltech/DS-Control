@@ -135,6 +135,117 @@ export function convertDatabaseRoutesToMapViewerRoutesFeatureCollection(
   return formattedRoutes.features.length > 0 ? formattedRoutes : null;
 }
 
+function getLastCoordinateFromGeometry(geometry: any): [number, number] | null {
+  if (!geometry || !geometry.type) return null;
+
+  switch (geometry.type) {
+    case 'Point': {
+      const coordinate = geometry.coordinates;
+      return Array.isArray(coordinate) && coordinate.length >= 2
+        ? [coordinate[0], coordinate[1]]
+        : null;
+    }
+    case 'LineString': {
+      const coordinates = geometry.coordinates;
+      const last =
+        Array.isArray(coordinates) && coordinates.length > 0
+          ? coordinates[coordinates.length - 1]
+          : null;
+      return Array.isArray(last) && last.length >= 2 ? [last[0], last[1]] : null;
+    }
+    case 'MultiLineString': {
+      const lines = geometry.coordinates;
+      const lastLine = Array.isArray(lines) && lines.length > 0 ? lines[lines.length - 1] : null;
+      const last =
+        Array.isArray(lastLine) && lastLine.length > 0 ? lastLine[lastLine.length - 1] : null;
+      return Array.isArray(last) && last.length >= 2 ? [last[0], last[1]] : null;
+    }
+    case 'Polygon': {
+      const rings = geometry.coordinates;
+      const lastRing = Array.isArray(rings) && rings.length > 0 ? rings[rings.length - 1] : null;
+      const last =
+        Array.isArray(lastRing) && lastRing.length > 0 ? lastRing[lastRing.length - 1] : null;
+      return Array.isArray(last) && last.length >= 2 ? [last[0], last[1]] : null;
+    }
+    case 'MultiPolygon': {
+      const polygons = geometry.coordinates;
+      const lastPolygon =
+        Array.isArray(polygons) && polygons.length > 0 ? polygons[polygons.length - 1] : null;
+      const lastRing =
+        Array.isArray(lastPolygon) && lastPolygon.length > 0
+          ? lastPolygon[lastPolygon.length - 1]
+          : null;
+      const last =
+        Array.isArray(lastRing) && lastRing.length > 0 ? lastRing[lastRing.length - 1] : null;
+      return Array.isArray(last) && last.length >= 2 ? [last[0], last[1]] : null;
+    }
+    case 'GeometryCollection': {
+      const geometries = geometry.geometries;
+      if (!Array.isArray(geometries) || geometries.length === 0) return null;
+      for (let i = geometries.length - 1; i >= 0; i -= 1) {
+        const coordinate = getLastCoordinateFromGeometry(geometries[i]);
+        if (coordinate) return coordinate;
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+function getRouteEndpointCoordinate(routeGeoJson: any): [number, number] | null {
+  if (!routeGeoJson) return null;
+
+  if (routeGeoJson.type === 'Feature' && routeGeoJson.geometry) {
+    return getLastCoordinateFromGeometry(routeGeoJson.geometry);
+  }
+
+  if (routeGeoJson.type === 'FeatureCollection' && Array.isArray(routeGeoJson.features)) {
+    for (let i = routeGeoJson.features.length - 1; i >= 0; i -= 1) {
+      const feature = routeGeoJson.features[i];
+      const coordinate = feature?.geometry ? getLastCoordinateFromGeometry(feature.geometry) : null;
+      if (coordinate) return coordinate;
+    }
+    return null;
+  }
+
+  if (routeGeoJson.type && routeGeoJson.coordinates) {
+    return getLastCoordinateFromGeometry(routeGeoJson);
+  }
+
+  return null;
+}
+
+export function buildRouteEndpointMarkersGeoJson(
+  routes: Route[]
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+
+  (routes || []).forEach((route) => {
+    if (!route?.geoJson) return;
+
+    const endpoint = getRouteEndpointCoordinate(route.geoJson as any);
+    if (!endpoint) return;
+
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: endpoint,
+      },
+      properties: {
+        route_id: route.id,
+        label: route.name || 'Rota',
+      },
+    });
+  });
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
 export function calculateGeoJSONCenter(geoData: GeoJSON.FeatureCollection): {
   latitude: number;
   longitude: number;
