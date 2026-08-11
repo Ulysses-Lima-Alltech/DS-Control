@@ -10,6 +10,7 @@ import { Farm } from '@/types/farm.type';
 import { Plot } from '@/types/plot.type';
 import { Route } from '@/types/route.type';
 import {
+  buildRouteEndpointMarkersGeoJson,
   convertDatabasePlotsToMapViewerPlotsFeatureCollection,
   convertDatabaseRoutesToMapViewerRoutesFeatureCollection,
 } from '@/utils/map-utils';
@@ -79,6 +80,8 @@ export default function MapViewer({
   const geoDataRoute = useMemo(() => {
     return convertDatabaseRoutesToMapViewerRoutesFeatureCollection(routes);
   }, [routes]);
+
+  const routeEndpointMarkers = useMemo(() => buildRouteEndpointMarkersGeoJson(routes), [routes]);
 
   const mapToolsHookReturn = useMapTools();
 
@@ -153,6 +156,7 @@ export default function MapViewer({
       <MapContent
         geoData={geoData}
         geoDataRoute={geoDataRoute}
+        routeEndpointMarkers={routeEndpointMarkers}
         showGeoDataRoute={showRoute || isNavigationMode}
         navigationRoute={navigationRoute}
         operationalRouteMarkers={operationalRouteMarkers}

@@ -25,6 +25,7 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '');
 export type MapContentProps = {
   geoData?: GeoJSON.FeatureCollection;
   geoDataRoute?: GeoJSON.FeatureCollection | null;
+  routeEndpointMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
   showGeoDataRoute?: boolean;
   navigationRoute?: GeoJSON.FeatureCollection | null;
   operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
@@ -45,6 +46,7 @@ export type MapContentProps = {
 export default function MapContent({
   geoData,
   geoDataRoute,
+  routeEndpointMarkers,
   showGeoDataRoute = true,
   navigationRoute,
   operationalRouteMarkers,
@@ -318,6 +320,23 @@ export default function MapContent({
                 : 1,
               lineCap: 'round',
               lineJoin: 'round',
+            }}
+          />
+        </ShapeSource>
+      )}
+      {routeEndpointMarkers && (
+        <ShapeSource
+          id='route-endpoint-markers-source'
+          shape={routeEndpointMarkers}
+          onPress={handleMapPress}
+        >
+          <CircleLayer
+            id='route-endpoint-markers-circle'
+            style={{
+              circleRadius: 8,
+              circleColor: '#FF6B6B',
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 2,
             }}
           />
         </ShapeSource>
