@@ -173,7 +173,7 @@ export class RouteRepository {
     orderBy?: RouteOrderBy,
     orderType?: RouteOrderType,
   ): Promise<RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[]> {
-    const where = [isNull(routes.deletedAt)];
+    const where = [isNull(routes.deletedAt), isNull(farms.deletedAt), isNull(customers.deletedAt)];
 
     if (routeId) {
       where.push(eq(routes.id, routeId));
@@ -285,7 +285,7 @@ export class RouteRepository {
     orderBy?: RouteOrderBy,
     orderType?: RouteOrderType,
   ): Promise<RouteWithFarm[] | RouteWithCustomer[] | RouteWithFarmAndCustomer[] | Route[]> {
-    const where = [isNull(routes.deletedAt)];
+    const where = [isNull(routes.deletedAt), isNull(farms.deletedAt), isNull(customers.deletedAt)];
 
     if (search) {
       where.push(
@@ -437,7 +437,7 @@ export class RouteRepository {
     orderBy?: RouteOrderBy,
     orderType?: RouteOrderType,
   ): Promise<RouteWithFarmAndCustomer[]> {
-    const where = [isNull(routes.deletedAt)];
+    const where = [isNull(routes.deletedAt), isNull(farms.deletedAt), isNull(customers.deletedAt)];
 
     if (search) {
       where.push(
