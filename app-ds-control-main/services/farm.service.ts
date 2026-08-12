@@ -168,13 +168,26 @@ export async function getFarmById(
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch farm by id: ' + response.statusText);
+      let bodyMessage: string | undefined;
+      try {
+        const errorBody = await response.json();
+        bodyMessage = errorBody?.message;
+      } catch {
+        // response body wasn't JSON, ignore
+      }
+
+      throw new Error(
+        `Failed to fetch farm by id (${response.status} ${response.statusText})` +
+          (bodyMessage ? `: ${bodyMessage}` : '')
+      );
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('[Farm Service] Unknown error: ', error);
-    throw new Error('[Farm Service] Unknown error');
+    console.error('[Farm Service] getFarmById failed for farmId=' + farmId + ': ', error);
+    throw new Error(
+      `[Farm Service] ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
