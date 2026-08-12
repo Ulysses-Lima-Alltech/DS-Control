@@ -54,6 +54,7 @@ type DialogPlotDetailsProps = {
 
 type ReportSections = typeof DEFAULT_REPORT_SECTIONS;
 const REPORT_MAP_UNAVAILABLE_MESSAGE = 'Imagem do talhao indisponivel para este registro.';
+const ALL_PLOTS_VALUE = '__all_plots__';
 
 function parseNumericValue(value: string | number | null | undefined) {
   if (typeof value === 'number') {
@@ -267,12 +268,14 @@ export default function DialogPlotDetails({
   }, [data?.farm?.plots]);
 
   const plotOptions = useMemo(() => {
-    return farmPlots
+    const options = farmPlots
       .filter((plot): plot is Plot & { id: string } => Boolean(plot.id))
       .map((plot) => ({
         value: plot.id,
         label: plot.name,
       }));
+
+    return [{ value: ALL_PLOTS_VALUE, label: 'Todos os talhoes' }, ...options];
   }, [farmPlots]);
 
   useEffect(() => {
@@ -289,21 +292,29 @@ export default function DialogPlotDetails({
       return;
     }
 
-    setSelectedPlotFilter((previousValue) => previousValue ?? plotOptions[0]?.value);
-  }, [isOpen, plotId, plotOptions]);
+    setSelectedPlotFilter((previousValue) => previousValue ?? ALL_PLOTS_VALUE);
+  }, [isOpen, plotId]);
+
+  const isAllPlotsSelected = selectedPlotFilter === ALL_PLOTS_VALUE;
 
   const activePlot = useMemo(() => {
+    if (isAllPlotsSelected) {
+      return null;
+    }
+
     if (!selectedPlotFilter) {
       return farmPlots[0] ?? null;
     }
 
     return farmPlots.find((plot) => plot.id === selectedPlotFilter) ?? farmPlots[0] ?? null;
-  }, [farmPlots, selectedPlotFilter]);
+  }, [farmPlots, isAllPlotsSelected, selectedPlotFilter]);
 
   const filteredApplications = useMemo(() => {
-    if (!applicationData?.data || !activePlot?.id) return [];
+    if (!applicationData?.data) return [];
+    if (isAllPlotsSelected) return applicationData.data;
+    if (!activePlot?.id) return [];
     return applicationData.data.filter((application) => application.plotId === activePlot.id);
-  }, [applicationData?.data, activePlot?.id]);
+  }, [applicationData?.data, activePlot?.id, isAllPlotsSelected]);
 
   const sortedApplications = useMemo(() => {
     return [...filteredApplications].sort((first, second) => {
@@ -508,7 +519,11 @@ export default function DialogPlotDetails({
           <DialogHeader className='pr-28 text-left'>
             <DialogTitle className='text-xl sm:text-2xl font-semibold flex items-start gap-2'>
               <MapPin className='h-6 w-6 text-primary mt-0.5' />
-              <span>Historico Completo do Talhao - {activePlot?.name || 'Talhao'}</span>
+              <span>
+                {isAllPlotsSelected
+                  ? `Historico Completo da Fazenda - ${data?.farm?.name || 'Fazenda'}`
+                  : `Historico Completo do Talhao - ${activePlot?.name || 'Talhao'}`}
+              </span>
             </DialogTitle>
             <DialogDescription className='text-sm sm:text-base'>
               {data?.farm
@@ -856,7 +871,9 @@ export default function DialogPlotDetails({
                         <div className='rounded-md border border-dashed p-5 text-center'>
                           <SprayCan className='mx-auto mb-3 h-8 w-8 text-muted-foreground/70' />
                           <p className='text-sm font-medium'>
-                            Nenhuma aplicacao encontrada para este talhao.
+                            {isAllPlotsSelected
+                              ? 'Nenhuma aplicacao encontrada para esta fazenda.'
+                              : 'Nenhuma aplicacao encontrada para este talhao.'}
                           </p>
                         </div>
                       )}
@@ -889,6 +906,15 @@ export default function DialogPlotDetails({
                                         Operacao/Tipo
                                       </p>
                                       <p className='text-xs font-semibold'>{operationType}</p>
+                                    </div>
+                                  )}
+
+                                  {isAllPlotsSelected && (
+                                    <div className='rounded-sm bg-muted/30 p-2'>
+                                      <p className='text-[11px] text-muted-foreground'>Talhao</p>
+                                      <p className='text-xs font-semibold'>
+                                        {application.plot?.name || 'N/A'}
+                                      </p>
                                     </div>
                                   )}
 

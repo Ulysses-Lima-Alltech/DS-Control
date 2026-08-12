@@ -675,8 +675,6 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   const [navigationOriginCoordinate, setNavigationOriginCoordinate] =
     useState<MapNavigationCoordinate | null>(null);
   const [isNavigationFullscreenVisible, setIsNavigationFullscreenVisible] = useState(false);
-  const [activeOperationalRouteDirection, setActiveOperationalRouteDirection] =
-    useState<OperationalRouteDirection | null>(null);
   const [activeOperationalRouteGeoJson, setActiveOperationalRouteGeoJson] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [operationalRouteMarkerGeoJson, setOperationalRouteMarkerGeoJson] =
@@ -931,7 +929,6 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   }, [selectedRoute]);
 
   useEffect(() => {
-    setActiveOperationalRouteDirection(operationalRouteDirection);
     setOperationalRouteMarkerGeoJson(buildOperationalRouteMarkerGeoJson(operationalRouteDirection));
     setActiveOperationalRouteGeoJson(
       selectedRoute
@@ -1003,7 +1000,6 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       }
 
       setSelectedRouteId(bestCandidate.route.id);
-      setActiveOperationalRouteDirection(bestCandidate.direction);
       setOperationalRouteMarkerGeoJson(
         buildOperationalRouteMarkerGeoJson(bestCandidate.direction, originX)
       );
@@ -1807,7 +1803,6 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
           routeSummary={navigationBestRouteSummary}
           steps={navigationSteps}
           originCoordinate={navigationOriginCoordinate}
-          startCoordinate={activeOperationalRouteDirection?.start ?? null}
         />
       </ScrollView>
 
