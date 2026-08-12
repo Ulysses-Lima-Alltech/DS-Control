@@ -57,7 +57,6 @@ type NavigationMapFullscreenProps = {
   } | null;
   steps: MapboxNavigationStep[];
   originCoordinate: NavigationCoordinate | null;
-  startCoordinate: NavigationCoordinate | null;
 };
 
 const NAVIGATION_PITCH = 58;
@@ -152,7 +151,6 @@ export default function NavigationMapFullscreen({
   routeSummary,
   steps,
   originCoordinate,
-  startCoordinate,
 }: NavigationMapFullscreenProps) {
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<Camera>(null);
@@ -169,6 +167,9 @@ export default function NavigationMapFullscreen({
   const [mapMode, setMapMode] = useState<NavigationMapMode>('navigation3d');
   const [isMapModeSelectorOpen, setIsMapModeSelectorOpen] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [activeOverlayView, setActiveOverlayView] = useState<'none' | 'fullRoute' | 'operational'>(
+    'none'
+  );
 
   const activeStep = steps[activeStepIndex] ?? null;
   const activeMapModeOption =
@@ -288,20 +289,39 @@ export default function NavigationMapFullscreen({
     [activeMapModeOption.followPerspective]
   );
 
-  const fitFullRoute = useCallback(() => {
-    setIsFollowingUser(false);
-    logNavigationFullscreenDev('fit full route');
-    fitShape(fullRouteShape);
-  }, [fitShape, fullRouteShape]);
-
   const recenterUser = useCallback(() => {
     if (!userCoordinate) return;
 
+    setActiveOverlayView('none');
     setIsFollowingUser(true);
     logNavigationFullscreenDev('follow user enabled');
     logNavigationFullscreenDev('recenter user', { userCoordinate });
     setNavigationCamera(userCoordinate, userHeading);
   }, [setNavigationCamera, userCoordinate, userHeading]);
+
+  const toggleFullRouteView = useCallback(() => {
+    if (activeOverlayView === 'fullRoute') {
+      recenterUser();
+      return;
+    }
+
+    setActiveOverlayView('fullRoute');
+    setIsFollowingUser(false);
+    logNavigationFullscreenDev('fit full route');
+    fitShape(fullRouteShape);
+  }, [activeOverlayView, fitShape, fullRouteShape, recenterUser]);
+
+  const toggleOperationalView = useCallback(() => {
+    if (activeOverlayView === 'operational') {
+      recenterUser();
+      return;
+    }
+
+    setActiveOverlayView('operational');
+    setIsFollowingUser(false);
+    logNavigationFullscreenDev('fit operation');
+    fitShape(operationalRoute);
+  }, [activeOverlayView, fitShape, operationalRoute, recenterUser]);
 
   const pauseFollowByGesture = useCallback(() => {
     setIsFollowingUser((wasFollowing) => {
@@ -311,30 +331,6 @@ export default function NavigationMapFullscreen({
       return false;
     });
   }, []);
-
-  const centerStart = useCallback(() => {
-    if (!startCoordinate || !cameraRef.current) return;
-
-    setIsFollowingUser(false);
-    cameraRef.current.setCamera({
-      centerCoordinate: coordinateToPosition(startCoordinate),
-      zoomLevel: 16,
-      pitch: activeMapModeOption.followPerspective ? 20 : 0,
-      heading: activeMapModeOption.useBearing ? routeBearing : 0,
-      animationDuration: 600,
-    });
-  }, [
-    activeMapModeOption.followPerspective,
-    activeMapModeOption.useBearing,
-    routeBearing,
-    startCoordinate,
-  ]);
-
-  const fitOperation = useCallback(() => {
-    setIsFollowingUser(false);
-    logNavigationFullscreenDev('fit operation');
-    fitShape(operationalRoute);
-  }, [fitShape, operationalRoute]);
 
   const closeFullscreen = useCallback(() => {
     Speech.stop();
@@ -464,6 +460,7 @@ export default function NavigationMapFullscreen({
     setUserCoordinate(originCoordinate);
     setUserHeading(undefined);
     setIsFollowingUser(true);
+    setActiveOverlayView('none');
     setMapMode('navigation3d');
     setIsMapModeSelectorOpen(false);
     setIsVoiceEnabled(true);
@@ -474,10 +471,11 @@ export default function NavigationMapFullscreen({
   }, [originCoordinate, steps.length, visible]);
 
   useEffect(() => {
-    if (!visible || !isStyleLoaded || !originCoordinate) return;
+    if (!visible || !isStyleLoaded || !originCoordinate || !isFollowingUser) return;
     setNavigationCamera(originCoordinate, routeBearing, 800);
   }, [
     activeMapModeOption.mode,
+    isFollowingUser,
     isStyleLoaded,
     originCoordinate,
     routeBearing,
@@ -570,7 +568,7 @@ export default function NavigationMapFullscreen({
               <LineLayer
                 id='fullscreen-operational-route-line'
                 style={{
-                  lineColor: '#FF6B6B',
+                  lineColor: '#22C55E',
                   lineWidth: 4,
                   lineCap: 'round',
                   lineJoin: 'round',
@@ -642,10 +640,17 @@ export default function NavigationMapFullscreen({
         />
 
         <View style={styles.actions}>
-          <ActionButton icon='crosshairs-gps' label='Minha posição' onPress={recenterUser} />
-          <ActionButton icon='map-search' label='Rota completa' onPress={fitFullRoute} />
-          <ActionButton icon='flag-outline' label='Início' onPress={centerStart} />
-          <ActionButton icon='routes' label='Operação' onPress={fitOperation} />
+          <ActionButton icon='crosshairs-gps' label='Centralizar' onPress={recenterUser} />
+          <ActionButton
+            icon='map-search'
+            label={activeOverlayView === 'fullRoute' ? 'Navegar' : 'Rota completa'}
+            onPress={toggleFullRouteView}
+          />
+          <ActionButton
+            icon='routes'
+            label={activeOverlayView === 'operational' ? 'Voltar' : 'Rota interna'}
+            onPress={toggleOperationalView}
+          />
           <ActionButton
             icon={isVoiceEnabled ? 'volume-high' : 'volume-off'}
             label={isVoiceEnabled ? 'Voz' : 'Mudo'}

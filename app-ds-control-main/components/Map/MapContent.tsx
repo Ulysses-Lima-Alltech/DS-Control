@@ -310,8 +310,8 @@ export default function MapContent({
             id='routes-line'
             style={{
               lineColor: selectedRouteId
-                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], '#FF6B6B', '#94A3B8']
-                : '#FF6B6B',
+                ? ['case', ['==', ['get', 'route_id'], selectedRouteId], '#22C55E', '#94A3B8']
+                : '#22C55E',
               lineWidth: selectedRouteId
                 ? ['case', ['==', ['get', 'route_id'], selectedRouteId], 5, 2]
                 : 3,
@@ -334,7 +334,7 @@ export default function MapContent({
             id='route-endpoint-markers-circle'
             style={{
               circleRadius: 8,
-              circleColor: '#FF6B6B',
+              circleColor: '#22C55E',
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: 2,
             }}
