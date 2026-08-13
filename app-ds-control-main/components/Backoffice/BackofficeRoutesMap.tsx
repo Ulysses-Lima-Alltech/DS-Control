@@ -993,6 +993,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
         origin: originX,
         getDirections: getMapboxDirections,
         concurrency: 6,
+        farmRoutes: routeRecords,
       });
 
       if (!bestCandidate) {
@@ -1040,7 +1041,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       console.warn('[IrAgora][DEV] navigation calculation finished');
       setIsFetchingNavigationRoute(false);
     }
-  }, [selectedFarmId, selectedFarm?.name, selectedRoute, selectedRouteId]);
+  }, [selectedFarmId, selectedFarm?.name, selectedRoute, selectedRouteId, routeRecords]);
 
   const handleCustomerSelect = (value?: string) => {
     if (isPilotAudience && pilotCustomerId) return;
