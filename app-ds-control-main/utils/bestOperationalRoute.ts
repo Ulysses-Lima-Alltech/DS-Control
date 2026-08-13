@@ -235,6 +235,47 @@ const buildOperationalRouteGeoJson = (
   };
 };
 
+// Mapbox snaps the requested destination to the nearest point it can actually
+// route to on the road network — that snapped point can sit a few (or a few
+// hundred) meters away from the exact coordinate we asked for, since our
+// coordinate usually isn't on a mapped road at all. Without accounting for
+// that gap, the road segment and the operational segment don't visually (or
+// distance-wise) connect. This extracts Mapbox's own reported route endpoint
+// so we can bridge that gap explicitly.
+const getMapboxRouteLastCoordinate = (
+  mapboxRoute: MapboxDirectionsRoute
+): MapNavigationCoordinate | null => {
+  const geometry = mapboxRoute.geoJson?.features?.[0]?.geometry;
+  if (!geometry || geometry.type !== 'LineString') return null;
+
+  const coordinates = geometry.coordinates;
+  const last = coordinates[coordinates.length - 1];
+  if (!Array.isArray(last) || last.length < 2) return null;
+
+  const longitude = Number(last[0]);
+  const latitude = Number(last[1]);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+
+  return { longitude, latitude };
+};
+
+const MIN_BRIDGE_GAP_METERS = 1;
+
+const buildRoadGapBridgeFeature = (
+  from: MapNavigationCoordinate,
+  to: MapNavigationCoordinate
+): GeoJSON.Feature<GeoJSON.LineString> => ({
+  type: 'Feature',
+  properties: {
+    segment: 'operational',
+    label: 'Trecho de conexão',
+  },
+  geometry: {
+    type: 'LineString',
+    coordinates: [toPosition(from), toPosition(to)],
+  },
+});
+
 const buildCombinedGeoJson = ({
   mapboxRoute,
   operationalRouteGeoJson,
@@ -711,14 +752,22 @@ export async function resolveSelectedOperationalRouteNavigation({
     const mapboxDistanceMeters = getMapboxDistanceMeters(mapboxRoute);
     if (!Number.isFinite(mapboxDistanceMeters)) return [];
 
+    // Mapbox may have snapped the destination to a road point that isn't
+    // exactly our candidate coordinate — that gap has to be walked/driven
+    // too, so it counts as part of the operational distance.
+    const mapboxActualEnd = getMapboxRouteLastCoordinate(mapboxRoute) ?? candidate.coordinate;
+    const roadGapMeters = distanceMetersBetween(mapboxActualEnd, candidate.coordinate);
+
     const operationalDistanceMeters =
-      getOperationalDistanceMeters(route) + candidate.connectorDistanceMeters;
+      getOperationalDistanceMeters(route) + candidate.connectorDistanceMeters + roadGapMeters;
     const totalDistanceMeters = mapboxDistanceMeters + operationalDistanceMeters;
 
     return [
       {
         candidate,
         mapboxRoute,
+        mapboxActualEnd,
+        roadGapMeters,
         mapboxDistanceMeters,
         operationalDistanceMeters,
         totalDistanceMeters,
@@ -744,12 +793,26 @@ export async function resolveSelectedOperationalRouteNavigation({
     end: selectedExit,
   };
 
-  const operationalRouteGeoJson = buildConnectedOperationalGeoJson(
+  const connectedOperationalGeoJson = buildConnectedOperationalGeoJson(
     best.candidate.connectorPath,
     route,
     direction,
     best.candidate.arrivalEndpoint
   );
+
+  // Guarantee the road segment and the operational segment always physically
+  // touch on the map, even when Mapbox had to snap to a road point that
+  // isn't exactly our entry coordinate.
+  const operationalRouteGeoJson: GeoJSON.FeatureCollection =
+    best.roadGapMeters > MIN_BRIDGE_GAP_METERS
+      ? {
+          type: 'FeatureCollection',
+          features: [
+            buildRoadGapBridgeFeature(best.mapboxActualEnd, selectedEntry),
+            ...connectedOperationalGeoJson.features,
+          ],
+        }
+      : connectedOperationalGeoJson;
 
   return {
     route,
