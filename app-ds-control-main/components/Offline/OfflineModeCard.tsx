@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -60,6 +61,12 @@ export default function OfflineModeCard() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStatus();
+    }, [loadStatus])
+  );
 
   useEffect(() => {
     if (user?.type !== 'pilot' || isConnected === false) return;
@@ -183,7 +190,9 @@ export default function OfflineModeCard() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Modo Offline</Text>
-          <Text style={styles.subtitle}>Permite usar o app em fazendas sem sinal de celular.</Text>
+          <Text style={styles.subtitle}>
+            Novas OS atribuídas a você são baixadas automaticamente quando o app está online.
+          </Text>
         </View>
       </View>
 
@@ -299,7 +308,7 @@ export default function OfflineModeCard() {
           <Ionicons name='download-outline' size={17} color={COLORS.white} />
         )}
         <Text style={styles.primaryButtonText}>
-          {isReady ? 'Atualizar dados offline' : 'Baixar dados e mapas para uso offline'}
+          {isReady ? 'Forçar atualização agora' : 'Baixar dados e mapas para uso offline'}
         </Text>
       </TouchableOpacity>
 

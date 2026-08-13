@@ -8,6 +8,7 @@ import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import LoadingDSIcon from '@/components/IconLoadingDS';
 import { COLORS } from '@/constants/colors';
 import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
+import { useOfflineAutoProvision } from '@/hooks/useOfflineAutoProvision';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useAuth } from '@/providers/auth.provider';
 import { isPilotRole } from '@/utils/user-role';
@@ -18,6 +19,7 @@ export default function RootLayout() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const { isConnected } = useNetworkConnectivity();
   const { syncOfflineApplications, pendingCount, isSyncing } = useOfflineSync();
+  useOfflineAutoProvision();
 
   useEffect(() => {
     if (isConnected && isPilotRole(user?.type)) {

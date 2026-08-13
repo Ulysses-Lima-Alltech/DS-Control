@@ -360,17 +360,38 @@ export default function ServiceOrders() {
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.black }}>
                   Ordens de serviço
                 </Text>
-                <View
-                  style={{
-                    backgroundColor: COLORS.lightblue,
-                    borderRadius: 14,
-                    padding: 4,
-                    paddingHorizontal: 8,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: COLORS.blue }}>
-                    {data?.totalCount} ordens
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View
+                    style={{
+                      backgroundColor: COLORS.lightblue,
+                      borderRadius: 14,
+                      padding: 4,
+                      paddingHorizontal: 8,
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: COLORS.blue }}>
+                      {data?.totalCount} ordens
+                    </Text>
+                  </View>
+                  {isFarmerRole(user?.type) && (
+                    <TouchableOpacity
+                      onPress={() => router.push('/farmer/service-orders/create' as any)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        backgroundColor: COLORS.primaryDark,
+                        borderRadius: 14,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Feather name='plus' size={14} color={COLORS.white} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.white }}>
+                        Criar OS
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
