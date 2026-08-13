@@ -55,10 +55,15 @@ export async function fetchOfflineBootstrap(
   return await response.json();
 }
 
+let downloadInFlight = false;
+
 export async function downloadOfflineDataAndMaps(options?: {
   onProgress?: (progress: OfflineSyncProgress) => void;
   selectedServiceOrderIds?: string[];
 }): Promise<OfflineStatusSnapshot> {
+  if (downloadInFlight) {
+    throw new Error('Ja existe um download de dados offline em andamento.');
+  }
   if (!(await isOnline())) {
     throw new Error('Conecte-se a internet para baixar os dados offline.');
   }
@@ -67,6 +72,18 @@ export async function downloadOfflineDataAndMaps(options?: {
     throw new Error('Selecione ao menos uma Ordem de Servico para uso offline.');
   }
 
+  downloadInFlight = true;
+  try {
+    return await runOfflineDownload(options, selectedServiceOrderIds);
+  } finally {
+    downloadInFlight = false;
+  }
+}
+
+async function runOfflineDownload(
+  options: { onProgress?: (progress: OfflineSyncProgress) => void } | undefined,
+  selectedServiceOrderIds: string[]
+): Promise<OfflineStatusSnapshot> {
   emit(options?.onProgress, {
     stage: 'preparing',
     message: 'Preparando dados...',

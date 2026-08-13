@@ -7,6 +7,7 @@ import type { UpdateServiceOrderPlotStatusDTO } from './dto/update-service-order
 
 import AppError from '@common/handlers/app-error';
 import { assertCustomerScope, resolveCustomerScope } from '@common/security/customer-scope';
+import { HTTP_STATUS_CODES } from '@common/types/http-status.types';
 import { app } from '@modules/app/app.module';
 import type { GetServiceOrderQueryString } from './dto/get-all-service-order.dto';
 import type { ServiceOrderSearchQueryStringByPilot } from './dto/get-all-service-orders-by-pilot-dto';
@@ -26,6 +27,17 @@ export class ServiceOrderController {
     reply: FastifyReply,
   ) => {
     try {
+      const requesterType = request.payload?.type;
+      if (requesterType === 'farmer') {
+        request.body.customerId = resolveCustomerScope(request.payload, request.body.customerId) as string;
+        request.body.pilotsIds = [];
+      } else if (requesterType !== 'backoffice') {
+        throw new AppError(
+          'Acesso não permitido para criar ordens de serviço',
+          HTTP_STATUS_CODES.FORBIDDEN,
+        );
+      }
+
       app.log.info(
         '[ServiceOrderController] - Starting service order creation for customer %s',
         request.body.customerId,
