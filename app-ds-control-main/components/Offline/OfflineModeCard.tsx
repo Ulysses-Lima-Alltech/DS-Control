@@ -68,8 +68,11 @@ export default function OfflineModeCard() {
     }, [loadStatus])
   );
 
+  const isFarmer = user?.type === 'farmer';
+  const isPilot = user?.type === 'pilot';
+
   useEffect(() => {
-    if (user?.type !== 'pilot' || isConnected === false) return;
+    if ((!isPilot && !isFarmer) || isConnected === false) return;
     let active = true;
     setIsLoadingOrders(true);
     getAllMyOpenServiceOrders({
@@ -83,6 +86,10 @@ export default function OfflineModeCard() {
         setAvailableOrders(response.data);
         setSelectedOrderIds((current) => {
           const availableIds = new Set(response.data.map((order) => order.id));
+          if (isFarmer) {
+            // Farmer has no manual checklist - always keep everything selected.
+            return availableIds;
+          }
           if (current.size > 0) {
             return new Set([...current].filter((id) => availableIds.has(id)));
           }
@@ -101,7 +108,7 @@ export default function OfflineModeCard() {
     return () => {
       active = false;
     };
-  }, [isConnected, status?.selectedServiceOrderIds, user?.type]);
+  }, [isConnected, status?.selectedServiceOrderIds, isPilot, isFarmer]);
 
   const toggleOrder = (orderId: string) => {
     setSelectedOrderIds((current) => {
@@ -223,7 +230,7 @@ export default function OfflineModeCard() {
         ) : null}
       </View>
 
-      {user?.type === 'pilot' ? (
+      {isPilot ? (
         <View style={styles.selectionBox}>
           <Text style={styles.selectionTitle}>Ordens de Servico para uso offline</Text>
           <Text style={styles.selectionHint}>
@@ -259,9 +266,23 @@ export default function OfflineModeCard() {
             })
           )}
         </View>
+      ) : isFarmer ? (
+        <View style={styles.selectionBox}>
+          <Text style={styles.selectionTitle}>Suas ordens de servico abertas</Text>
+          {isLoadingOrders ? (
+            <ActivityIndicator size='small' color={COLORS.primaryDark} />
+          ) : availableOrders.length === 0 ? (
+            <Text style={styles.selectionHint}>Nenhuma OS aberta encontrada.</Text>
+          ) : (
+            <Text style={styles.selectionHint}>
+              Todas as {availableOrders.length} OS aberta(s) do seu cliente serao baixadas para
+              consulta offline.
+            </Text>
+          )}
+        </View>
       ) : (
         <Text style={styles.selectionHint}>
-          O dataset operacional offline seletivo esta disponivel somente para pilotos.
+          O modo offline esta disponivel somente para pilotos e fazendeiros.
         </Text>
       )}
 
@@ -297,10 +318,10 @@ export default function OfflineModeCard() {
       <TouchableOpacity
         style={[
           styles.primaryButton,
-          (isBusy || user?.type !== 'pilot' || selectedOrderIds.size === 0) && styles.disabled,
+          (isBusy || (!isPilot && !isFarmer) || selectedOrderIds.size === 0) && styles.disabled,
         ]}
         onPress={handleDownload}
-        disabled={isBusy || user?.type !== 'pilot' || selectedOrderIds.size === 0}
+        disabled={isBusy || (!isPilot && !isFarmer) || selectedOrderIds.size === 0}
       >
         {isBusy ? (
           <ActivityIndicator size='small' color={COLORS.white} />

@@ -1,9 +1,13 @@
-import { TouchableOpacity, Text } from 'react-native';
-import { COLORS, SHADOWS } from '../constants/colors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { TouchableOpacity, Text } from 'react-native';
+
+import { COLORS, SHADOWS } from '@/constants/colors';
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
 
 export default function ButtonFloatingNewLooseApplication() {
+  const { isConnected } = useNetworkConnectivity();
+
   return (
     <TouchableOpacity
       style={{
@@ -22,6 +26,10 @@ export default function ButtonFloatingNewLooseApplication() {
         gap: 8,
       }}
       onPress={() => {
+        if (isConnected === false) {
+          router.push('/pilot/applications/offline');
+          return;
+        }
         router.push('/pilot/applications/form-application?formMode=new-loose');
       }}
     >
