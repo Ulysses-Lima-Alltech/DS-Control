@@ -63,13 +63,7 @@ export default function RootLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name='map'
-        options={{
-          title: 'Mapa',
-          tabBarIcon: ({ color, size }) => <Foundation name='map' size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name='map' options={{ href: null }} />
       <Tabs.Screen
         name='service-orders'
         options={{
@@ -88,15 +82,7 @@ export default function RootLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name='requests'
-        options={{
-          title: 'Solicitações',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name='clipboard-check-outline' size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name='requests' options={{ href: null }} />
       <Tabs.Screen
         name='profile'
         options={{

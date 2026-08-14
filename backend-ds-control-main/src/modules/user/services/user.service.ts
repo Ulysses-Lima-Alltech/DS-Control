@@ -5,7 +5,7 @@ import AppError from "@common/handlers/app-error";
 import { HTTP_STATUS_CODES } from "@common/types/http-status.types";
 import { env } from "@config/index";
 import { db } from "@infra/database";
-import { users, userTokens } from "@infra/database/schema";
+import { customers, users, userTokens } from "@infra/database/schema";
 
 import type { PaginatedRequest } from "@common/types/paginated-request.types";
 import { resend } from "@infra/resend";
@@ -13,6 +13,7 @@ import { createForgotPasswordTemplate } from "@infra/resend/templates/forgot-pas
 import { UserVM, type UserViewModelSchema, type User as UserVMType } from "@models/user.vm";
 import { app } from "@modules/app/app.module";
 import { UserRepository } from "@repositories/users/user.repository";
+import { UserType } from "@repositories/users/user.types";
 import type { User, UserOrderBy, UserOrderType } from "@repositories/users/user.types";
 import crypto from "node:crypto";
 import type { ChangePasswordDTO } from "../dto/change-password.dto";
@@ -365,6 +366,25 @@ export class UserService {
           app.log.warn("[UserService] - User update failed: Email %s already exists", data.email);
           throw new AppError("Já existe usuário com este Email", HTTP_STATUS_CODES.CONFLICT);
         }
+      }
+
+      const effectiveType = data.type ?? existingUser.type;
+      if (effectiveType === UserType.FARMER) {
+        if (data.customerId) {
+          const customer = await db.query.customers.findFirst({
+            where: eq(customers.id, data.customerId),
+          });
+
+          if (!customer) {
+            app.log.warn(
+              "[UserService] - User update failed: Customer %s not found",
+              data.customerId,
+            );
+            throw new AppError("Cliente não encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+          }
+        }
+      } else {
+        data.customerId = null;
       }
 
       const updatedUser = await this.userRepository.updateUser(userId, data);

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 
-import { isAdminRole, isAdministrativeRole, isPilotRole } from '@/utils/user-role';
+import { isAdminRole, isAdministrativeRole, isFarmerRole, isPilotRole } from '@/utils/user-role';
 
 export type SideMenuItem = {
   id: string;
@@ -101,9 +101,30 @@ const PILOT_MENU_ITEMS: SideMenuItem[] = [
   },
 ];
 
+const FARMER_MENU_ITEMS: SideMenuItem[] = [
+  {
+    id: 'map',
+    title: 'Mapa',
+    icon: 'map-outline',
+    route: '/farmer/map',
+    enabled: true,
+  },
+  {
+    id: 'requests',
+    title: 'Solicitacoes',
+    icon: 'clipboard-outline',
+    route: '/farmer/requests',
+    enabled: true,
+  },
+];
+
 export const getSideMenuItemsByUserType = (userType?: string | null): SideMenuItem[] => {
   if (isPilotRole(userType)) {
     return PILOT_MENU_ITEMS;
+  }
+
+  if (isFarmerRole(userType)) {
+    return FARMER_MENU_ITEMS;
   }
 
   if (isAdministrativeRole(userType)) {

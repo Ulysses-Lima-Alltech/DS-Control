@@ -261,28 +261,6 @@ export async function getAllServiceOrders(
   return await response.json();
 }
 
-export type CreateServiceOrderPayload = {
-  farmsIds: string[];
-  customerId: string;
-  contractId: string;
-  observation?: string;
-  plannedDate: string;
-  pilotsIds: string[];
-  plotsIds: string[];
-};
-
-export async function createServiceOrder(payload: CreateServiceOrderPayload): Promise<void> {
-  const response = await api('/service-orders', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || 'Não foi possível criar a ordem de serviço.');
-  }
-}
-
 export type UpdateServiceOrderPlotStatusParams = {
   serviceOrderId: string;
   plotId: string;

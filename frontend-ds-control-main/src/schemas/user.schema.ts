@@ -84,10 +84,27 @@ export const ChangeCurrentUserPasswordDialogSchema = z
     path: ['confirmNewPassword'],
   });
 
-export const UpdateUserByIdSchema = z.object({
-  name: z.string().min(1, 'Nome completo é obrigatório'),
-  email: z.string().email('Endereço de e-mail inválido').min(1, 'Endereço de e-mail é obrigatório'),
-  type: z.enum(userTypeValues as [string, ...string[]], {
-    errorMap: () => ({ message: 'Escolha um tipo de usuário' }),
-  }),
-});
+export const UpdateUserByIdSchema = z
+  .object({
+    name: z.string().min(1, 'Nome completo é obrigatório'),
+    email: z
+      .string()
+      .email('Endereço de e-mail inválido')
+      .min(1, 'Endereço de e-mail é obrigatório'),
+    type: z.enum(userTypeValues as [string, ...string[]], {
+      errorMap: () => ({ message: 'Escolha um tipo de usuário' }),
+    }),
+    customerId: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.type === UserType.FARMER.value) {
+        return data.customerId && data.customerId !== '404' && data.customerId.trim() !== '';
+      }
+      return true;
+    },
+    {
+      message: 'É obrigatório selecionar um cliente para o usuário',
+      path: ['customerId'],
+    }
+  );

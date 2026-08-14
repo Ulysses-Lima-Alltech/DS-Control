@@ -28,14 +28,15 @@ function captureRoutes(): RegisteredRoute[] {
 }
 
 describe('service-order authorization contract', () => {
-  it('restricts administrative updates to backoffice users', () => {
+  it('restricts definitive creation and administrative updates to backoffice users', () => {
     const routes = captureRoutes();
     const protectedRoutes = routes.filter(
       (route) =>
+        (route.method === 'POST' && route.url === '/') ||
         (route.method === 'PUT' && route.url === '/:id') ||
         (route.method === 'PATCH' && route.url === '/:id/status'),
     );
-    expect(protectedRoutes).toHaveLength(2);
+    expect(protectedRoutes).toHaveLength(3);
     protectedRoutes.forEach((route) =>
       expect(route.preHandler).toStrictEqual([AuthenticationJWT, BackofficeOnly]),
     );
@@ -44,11 +45,5 @@ describe('service-order authorization contract', () => {
       (route) => route.method === 'PATCH' && route.url === '/:serviceOrderId/plots/:plotId/status',
     );
     expect(pilotPlotStatus?.preHandler).toStrictEqual([AuthenticationJWT]);
-  });
-
-  it('leaves creation open to any authenticated user, since farmer vs backoffice access is resolved in the controller', () => {
-    const routes = captureRoutes();
-    const createRoute = routes.find((route) => route.method === 'POST' && route.url === '/');
-    expect(createRoute?.preHandler).toStrictEqual([AuthenticationJWT]);
   });
 });
