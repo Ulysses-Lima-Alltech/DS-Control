@@ -199,9 +199,9 @@ export class MobileOfflineService {
     if (!user) {
       throw new AppError('Usuario autenticado nao encontrado', HTTP_STATUS_CODES.UNAUTHORIZED);
     }
-    if (user.type !== UserType.PILOT) {
+    if (user.type !== UserType.PILOT && user.type !== UserType.FARMER) {
       throw new AppError(
-        'Somente pilotos podem preparar datasets offline operacionais',
+        'Somente pilotos e fazendeiros podem preparar datasets offline',
         HTTP_STATUS_CODES.FORBIDDEN,
       );
     }
@@ -210,6 +210,10 @@ export class MobileOfflineService {
           where: and(eq(customers.id, user.customerId), isNull(customers.deletedAt)),
         })
       : null;
+
+    if (user.type === UserType.FARMER) {
+      return this.getFarmerDataset(user, tenant, requestedServiceOrderIds);
+    }
 
     const selectedIds = [...new Set(requestedServiceOrderIds)].sort();
     const assignedOpenOrders = await this.serviceOrderRepository.getOpenServiceOrdersByPilotId(
@@ -291,6 +295,64 @@ export class MobileOfflineService {
       ...payload,
       serverTime,
       manifest: buildOfflineDatasetManifest(payload, selectedIds, serverTime),
+    };
+  }
+
+  private async getFarmerDataset(
+    user: typeof users.$inferSelect,
+    tenant: Awaited<ReturnType<typeof db.query.customers.findFirst>> | null,
+    requestedServiceOrderIds: string[],
+  ) {
+    const [allOpenOrders] = await this.getServiceOrdersAndFarmIds(user);
+    const requestedIdSet = new Set(requestedServiceOrderIds);
+    const serviceOrdersList =
+      requestedIdSet.size > 0
+        ? allOpenOrders.filter((serviceOrder) => requestedIdSet.has(serviceOrder.id))
+        : allOpenOrders;
+
+    const farmIds = new Set<string>();
+    serviceOrdersList.forEach((serviceOrder) => {
+      serviceOrder.farms?.forEach((farm) => farmIds.add(farm.id));
+    });
+
+    const farmsList = await this.getFarms([...farmIds], user);
+    const normalizedFarmIds = farmsList.map((farm) => farm.id);
+    const serviceOrderIds = serviceOrdersList.map((serviceOrder) => serviceOrder.id);
+
+    const [applicationsList, routesList, supportData] = await Promise.all([
+      this.getApplications(normalizedFarmIds, serviceOrderIds, user.id, user.type),
+      this.getRoutes(normalizedFarmIds),
+      this.getSupportData(),
+    ]);
+    const mapPackages = this.buildMapPackages(farmsList);
+    if (mapPackages.length !== farmsList.length) {
+      throw new AppError(
+        'Uma ou mais fazendas nao possuem geometria valida para mapa offline',
+        HTTP_STATUS_CODES.BAD_REQUEST,
+      );
+    }
+
+    const serverTime = new Date().toISOString();
+    const payload = {
+      user: toSafeOfflineUser(user),
+      tenant,
+      permissions: this.getPermissions(user.type),
+      farms: farmsList,
+      plots: farmsList.flatMap((farm) => farm.plots ?? []),
+      serviceOrders: serviceOrdersList,
+      applications: applicationsList,
+      routes: routesList,
+      assistants: supportData.assistants,
+      drones: supportData.drones,
+      cultureTypes: supportData.cultureTypes,
+      products: supportData.products,
+      mapPackages,
+    };
+
+    return {
+      ...payload,
+      serverTime,
+      manifest: buildOfflineDatasetManifest(payload, serviceOrderIds, serverTime),
     };
   }
 

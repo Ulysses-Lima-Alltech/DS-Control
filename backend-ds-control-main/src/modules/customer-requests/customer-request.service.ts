@@ -6,10 +6,11 @@ import {
   areaSubmissionPlots,
   areaSubmissionRequests,
   farms,
+  plots,
   requestReviewEvents,
   serviceOrderRequests,
 } from '@infra/database/schema';
-import { and, asc, count, desc, eq, gte, isNull, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 
 import type {
   CreateAreaSubmissionRequestDTO,
@@ -50,6 +51,24 @@ export class CustomerRequestService {
     });
     if (!farm) throw new AppError('Fazenda não encontrada', HTTP_STATUS_CODES.NOT_FOUND);
 
+    const requestedPlotIds = [...new Set(dto.requestedPlotIds ?? [])];
+    if (requestedPlotIds.length > 0) {
+      const validPlots = await db.query.plots.findMany({
+        where: and(
+          inArray(plots.id, requestedPlotIds),
+          eq(plots.farmId, dto.farmId),
+          isNull(plots.deletedAt),
+        ),
+        columns: { id: true },
+      });
+      if (validPlots.length !== requestedPlotIds.length) {
+        throw new AppError(
+          'Um ou mais talhões selecionados não pertencem a esta fazenda',
+          HTTP_STATUS_CODES.BAD_REQUEST,
+        );
+      }
+    }
+
     return db.transaction(async (tx) => {
       const [request] = await tx
         .insert(serviceOrderRequests)
@@ -59,6 +78,7 @@ export class CustomerRequestService {
           requestedFarmId: dto.farmId,
           requestedDate: dto.requestedDate,
           serviceType: dto.serviceType,
+          requestedPlotIds,
           observation: dto.observation,
         })
         .returning();

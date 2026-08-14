@@ -47,7 +47,37 @@ const shouldUseOfflineData = async () => {
   return state.isConnected === false || state.isInternetReachable === false;
 };
 
+const buildOfflineRoutesList = async (
+  params?: GetAllRoutesParams
+): Promise<GetAllRoutesResponse> => {
+  const routes = await getOfflineRoutes();
+  const normalizedSearch = params?.search?.trim().toLowerCase();
+  const filtered = routes.filter((route) => {
+    const matchesCustomer = !params?.customerId || route.customerId === params.customerId;
+    const matchesFarm = !params?.farmId || route.farmId === params.farmId;
+    const matchesSearch = !normalizedSearch || route.name?.toLowerCase().includes(normalizedSearch);
+
+    return matchesCustomer && matchesFarm && matchesSearch;
+  });
+
+  const page = Number(params?.page ?? '1') || 1;
+  const limit = Number(params?.limit ?? '10') || 10;
+  const start = (page - 1) * limit;
+
+  return {
+    data: filtered.slice(start, start + limit),
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+    totalCount: filtered.length,
+  };
+};
+
 export async function getAllRoutes(params?: GetAllRoutesParams): Promise<GetAllRoutesResponse> {
+  if (await shouldUseOfflineData()) {
+    return buildOfflineRoutesList(params);
+  }
+
   const searchParams = new URLSearchParams();
   if (params?.customerId) searchParams.append('customerId', params.customerId);
   if (params?.farmId) searchParams.append('farmId', params.farmId);

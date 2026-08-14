@@ -21,6 +21,7 @@ export const CreateServiceOrderRequestSchema = z.object({
   farmId: z.string().uuid(),
   requestedDate: z.string().refine(isOperationalDateString, 'Data deve usar YYYY-MM-DD'),
   serviceType: z.string().trim().min(1).max(120),
+  requestedPlotIds: z.array(z.string().uuid()).max(500).optional(),
   observation: z.string().trim().max(4_000).optional(),
 });
 

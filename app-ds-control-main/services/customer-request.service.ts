@@ -25,6 +25,7 @@ export const createServiceOrderRequest = async (payload: {
   farmId: string;
   requestedDate: string;
   serviceType: string;
+  requestedPlotIds?: string[];
   observation?: string;
 }) =>
   parseResponse<{ data: FarmerServiceOrderRequest }>(

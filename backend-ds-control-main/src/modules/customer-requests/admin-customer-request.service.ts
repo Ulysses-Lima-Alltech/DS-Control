@@ -430,10 +430,21 @@ export class AdminCustomerRequestService {
         if (!existingFarm)
           throw new AppError('Fazenda vinculada não é válida', HTTP_STATUS_CODES.BAD_REQUEST);
       } else {
-        farmId = crypto.randomUUID();
         const farmName = dto.farmName ?? request.suggestedFarmName;
         if (!farmName)
           throw new AppError('Nome da fazenda é obrigatório', HTTP_STATUS_CODES.BAD_REQUEST);
+
+        const [duplicateFarm] = await tx
+          .select({ id: farms.id })
+          .from(farms)
+          .where(and(eq(farms.name, farmName), eq(farms.customerId, request.customerId)));
+        if (duplicateFarm)
+          throw new AppError(
+            'Ja existe uma fazenda com este nome para esse cliente. Use "vincular a fazenda existente" em vez de criar uma nova.',
+            HTTP_STATUS_CODES.CONFLICT,
+          );
+
+        farmId = crypto.randomUUID();
         await tx.insert(farms).values({
           id: farmId,
           name: farmName,

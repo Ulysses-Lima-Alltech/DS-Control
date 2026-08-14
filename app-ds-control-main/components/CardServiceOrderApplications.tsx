@@ -7,6 +7,7 @@ import { Octicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 import { useGetAllApplications } from '@/queries/application.query';
 import { useAuth } from '@/providers/auth.provider';
+import { useNetworkConnectivity } from '@/hooks/useNetworkConnectivity';
 import { Application } from '@/types/applications.type';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ export default function CardServiceOrderApplications({
 }) {
   const router = useRouter();
   const { user } = useAuth();
+  const { isConnected } = useNetworkConnectivity();
   const [currentPage, setCurrentPage] = useState(1);
 
   const {
@@ -83,11 +85,15 @@ export default function CardServiceOrderApplications({
             gap: 8,
             marginBottom: 12,
           }}
-          onPress={() =>
+          onPress={() => {
+            if (isConnected === false) {
+              router.push(`/pilot/applications/offline?serviceOrderId=${serviceOrderId}`);
+              return;
+            }
             router.push(
               `/pilot/service-orders/form-application?serviceOrderId=${serviceOrderId}&formMode=new`
-            )
-          }
+            );
+          }}
         >
           <Feather name='settings' size={14} color={COLORS.white} />
           <Text

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +14,9 @@ import {
   View,
 } from 'react-native';
 
+import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
+import SearchableMultiSelect from '@/components/ui/SearchableMultiSelect';
+import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import { COLORS, SHADOWS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
 import {
@@ -20,8 +24,24 @@ import {
   submitServiceOrderRequest,
 } from '@/services/customer-request.service';
 import { getAllFarmsPaginated } from '@/services/farm.service';
+import { isAndroid } from '@/utils/isAndroid';
 
-const todayYYYYMMDD = () => new Date().toISOString().slice(0, 10);
+const toYYYYMMDD = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const APPLICATION_TYPES = [
+  { id: 'Pulverização', name: 'Pulverização' },
+  { id: 'Pesticida', name: 'Pesticida' },
+  { id: 'Herbicida', name: 'Herbicida' },
+  { id: 'Fungicida', name: 'Fungicida' },
+  { id: 'Inseticida', name: 'Inseticida' },
+  { id: 'Adjuvante', name: 'Adjuvante' },
+  { id: 'Outro', name: 'Outro' },
+];
 
 export default function CreateServiceOrderScreen() {
   const router = useRouter();
@@ -29,13 +49,16 @@ export default function CreateServiceOrderScreen() {
   const queryClient = useQueryClient();
 
   const [farmId, setFarmId] = useState('');
-  const [plannedDate, setPlannedDate] = useState(todayYYYYMMDD());
-  const [serviceType, setServiceType] = useState('Pulverização');
+  const [plotIds, setPlotIds] = useState<string[]>([]);
+  const [plannedDate, setPlannedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [applicationType, setApplicationType] = useState('Pulverização');
   const [observation, setObservation] = useState('');
 
   const farmsQuery = useQuery({
     queryKey: ['farmer-create-os-farms', user?.customerId],
-    queryFn: () => getAllFarmsPaginated(user?.customerId, { page: '1', limit: '200' }),
+    queryFn: () =>
+      getAllFarmsPaginated(user?.customerId, { page: '1', limit: '200', includePlots: 'true' }),
     enabled: Boolean(user?.customerId),
   });
   const farms = farmsQuery.data?.data || [];
@@ -44,15 +67,28 @@ export default function CreateServiceOrderScreen() {
     if (!farmId && farms[0]?.id) setFarmId(farms[0].id);
   }, [farmId, farms]);
 
-  const isValid =
-    Boolean(farmId) && Boolean(serviceType.trim()) && /^\d{4}-\d{2}-\d{2}$/.test(plannedDate);
+  useEffect(() => {
+    setPlotIds([]);
+  }, [farmId]);
+
+  const selectedFarm = useMemo(() => farms.find((farm) => farm.id === farmId), [farms, farmId]);
+  const plotOptions = useMemo(
+    () =>
+      (selectedFarm?.plots || [])
+        .filter((plot) => plot.id)
+        .map((plot) => ({ id: plot.id as string, name: plot.name })),
+    [selectedFarm]
+  );
+
+  const isValid = Boolean(farmId) && plotIds.length > 0 && Boolean(applicationType);
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const created = await createServiceOrderRequest({
         farmId,
-        requestedDate: plannedDate,
-        serviceType: serviceType.trim(),
+        requestedDate: toYYYYMMDD(plannedDate),
+        serviceType: applicationType,
+        requestedPlotIds: plotIds,
         observation: observation.trim() || undefined,
       });
       await submitServiceOrderRequest(created.data.id);
@@ -110,11 +146,53 @@ export default function CreateServiceOrderScreen() {
           </ScrollView>
         )}
 
-        <Text style={styles.label}>Data planejada (AAAA-MM-DD)</Text>
-        <TextInput style={styles.input} value={plannedDate} onChangeText={setPlannedDate} />
+        <Text style={styles.label}>Talhões</Text>
+        {!selectedFarm ? (
+          <Text style={styles.hint}>Selecione uma fazenda para ver os talhões.</Text>
+        ) : plotOptions.length === 0 ? (
+          <Text style={styles.hint}>Nenhum talhão cadastrado nesta fazenda.</Text>
+        ) : (
+          <SearchableMultiSelect
+            placeholder='Buscar e selecionar talhões...'
+            listedData={plotOptions}
+            itemKey='name'
+            value={plotIds}
+            onChange={setPlotIds}
+          />
+        )}
 
-        <Text style={styles.label}>Serviço</Text>
-        <TextInput style={styles.input} value={serviceType} onChangeText={setServiceType} />
+        <Text style={styles.label}>Aplicação</Text>
+        <SearchableSelectQuery
+          placeholder='Selecione o tipo de aplicação'
+          listedData={APPLICATION_TYPES}
+          itemKey='name'
+          value={applicationType}
+          onItemSelect={setApplicationType}
+        />
+
+        <Text style={styles.label}>Data planejada</Text>
+        {isAndroid ? (
+          <>
+            <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
+              <Text style={{ color: COLORS.text, paddingTop: 10 }}>
+                {plannedDate.toLocaleDateString('pt-BR')}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={plannedDate}
+                mode='date'
+                display='default'
+                onChange={(_, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) setPlannedDate(selectedDate);
+                }}
+              />
+            )}
+          </>
+        ) : (
+          <DatePickeriOSModal value={plannedDate} onDateChange={setPlannedDate} />
+        )}
 
         <Text style={styles.label}>Observação</Text>
         <TextInput
@@ -122,7 +200,7 @@ export default function CreateServiceOrderScreen() {
           multiline
           value={observation}
           onChangeText={setObservation}
-          placeholder='Talhões, detalhes do serviço, etc. (opcional)'
+          placeholder='Detalhes adicionais do serviço (opcional)'
         />
 
         <TouchableOpacity

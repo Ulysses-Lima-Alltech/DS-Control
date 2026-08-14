@@ -2,7 +2,7 @@ import { Feather, Ionicons, Octicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Crypto from 'expo-crypto';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -39,6 +39,9 @@ import Separator from './ui/Separator';
 export default function OfflineFormApplication() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const router = useRouter();
+  const { serviceOrderId: serviceOrderIdParam } = useLocalSearchParams<{
+    serviceOrderId?: string;
+  }>();
   const [offlineData, setOfflineData] = useState<OfflineDataCache | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -124,6 +127,12 @@ export default function OfflineFormApplication() {
       setValue('pilotName', offlineData.pilot.name);
     }
   }, [offlineData, setValue]);
+
+  useEffect(() => {
+    if (!serviceOrderIdParam || !offlineData?.serviceOrders) return;
+    const exists = offlineData.serviceOrders.some((so) => so.id === serviceOrderIdParam);
+    if (exists) setValue('serviceOrderId', serviceOrderIdParam);
+  }, [serviceOrderIdParam, offlineData, setValue]);
 
   const offlineServiceOrders = offlineData?.serviceOrders || [];
   const serviceOrderOptions = offlineServiceOrders.map((serviceOrder) => ({

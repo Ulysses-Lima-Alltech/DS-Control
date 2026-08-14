@@ -77,6 +77,7 @@ export const serviceOrderRequests = pgTable(
       .notNull(),
     requestedDate: date('requested_date').notNull(),
     serviceType: text('service_type').notNull(),
+    requestedPlotIds: jsonb('requested_plot_ids').$type<string[]>().notNull().default([]),
     observation: text('observation'),
     status: customerRequestStatus('status').notNull().default('DRAFT'),
     submittedAt: timestamp('submitted_at'),
