@@ -1,9 +1,12 @@
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { router, usePathname } from 'expo-router';
-import { Image } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
+import { router, usePathname } from 'expo-router';
+import { useState } from 'react';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+
+import AdminSideMenu from '@/components/Admin/AdminSideMenu';
 import { COLORS, SHADOWS } from '@/constants/colors';
+import { useAuth } from '@/providers/auth.provider';
+import { isFarmerRole } from '@/utils/user-role';
 
 const logo = () => {
   return (
@@ -17,14 +20,19 @@ const logo = () => {
 
 export default function HeaderApp() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
 
   if (pathname.split('/')[1] === 'auth') {
     return null;
   }
 
+  const showBackButton = Boolean(pathname.split('/')[3]);
+  const showMenuButton = !showBackButton && isFarmerRole(user?.type);
+
   return (
     <View style={styles.container}>
-      {pathname.split('/')[3] && (
+      {showBackButton && (
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
@@ -32,9 +40,24 @@ export default function HeaderApp() {
           <Ionicons name='arrow-back' size={22} color={COLORS.primaryDark} />
         </TouchableOpacity>
       )}
+      {showMenuButton && (
+        <TouchableOpacity
+          onPress={() => setIsMenuVisible(true)}
+          style={styles.backButton}
+        >
+          <Ionicons name='menu' size={24} color={COLORS.primaryDark} />
+        </TouchableOpacity>
+      )}
       <View style={styles.logoContainer}>
         {logo()}
       </View>
+      {isFarmerRole(user?.type) && (
+        <AdminSideMenu
+          visible={isMenuVisible}
+          onClose={() => setIsMenuVisible(false)}
+          pathname={pathname}
+        />
+      )}
     </View>
   );
 }

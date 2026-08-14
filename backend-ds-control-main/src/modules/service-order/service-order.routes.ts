@@ -50,7 +50,7 @@ export function ServiceOrderV1Routes(
       summary: 'Create service order',
       tags: ['service-orders'],
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.createServiceOrder,
   });
 

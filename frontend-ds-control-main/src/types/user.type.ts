@@ -4,6 +4,7 @@ export type User = {
   name: string;
   password: string;
   type: (typeof UserType)[keyof typeof UserType]['value'];
+  customerId?: string | null;
   createdAt: Date;
   updatedAt: Date | null;
   deletedAt: Date | null;

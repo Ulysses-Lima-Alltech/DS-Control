@@ -90,7 +90,7 @@ export function UserV1Routes(
         timeWindow: "1 minute",
       },
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.createUser,
   });
 
@@ -174,7 +174,7 @@ export function UserV1Routes(
         id: z.string(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updateUser,
   });
 
@@ -189,7 +189,7 @@ export function UserV1Routes(
         id: z.string(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.deleteUser,
   });
 
@@ -204,7 +204,7 @@ export function UserV1Routes(
         id: z.string(),
       }),
     },
-    preHandler: [AuthenticationJWT],
+    preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.activateUser,
   });
 
