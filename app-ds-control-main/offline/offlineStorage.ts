@@ -72,6 +72,7 @@ async function getDb() {
       await db.execAsync(`
         PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
+        PRAGMA busy_timeout = 5000;
 
         CREATE TABLE IF NOT EXISTS offline_entities (
           collection TEXT NOT NULL,

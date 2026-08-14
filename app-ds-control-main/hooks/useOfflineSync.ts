@@ -11,6 +11,7 @@ import {
   getOfflineSupportData,
   retryOfflineOperation,
 } from '@/offline/offlineStorage';
+import { isOfflineDownloadInProgress } from '@/offline/offlineSync';
 import type { OfflineOutboxOperation } from '@/offline/offlineTypes';
 import { useAuth } from '@/providers/auth.provider';
 import { api } from '@/services/api.service';
@@ -84,7 +85,7 @@ export const useOfflineSync = () => {
   }, [checkPendingApplications, checkOfflineDataCache]);
 
   const syncOfflineApplications = useCallback(async () => {
-    if (!isConnected || isSyncing) return;
+    if (!isConnected || isSyncing || isOfflineDownloadInProgress()) return;
     setIsSyncing(true);
     setSyncStatus('syncing');
     let operations: OfflineOutboxOperation[] = [];

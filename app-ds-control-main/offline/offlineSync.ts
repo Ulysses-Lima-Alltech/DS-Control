@@ -57,6 +57,10 @@ export async function fetchOfflineBootstrap(
 
 let downloadInFlight = false;
 
+export function isOfflineDownloadInProgress(): boolean {
+  return downloadInFlight;
+}
+
 export async function downloadOfflineDataAndMaps(options?: {
   onProgress?: (progress: OfflineSyncProgress) => void;
   selectedServiceOrderIds?: string[];
