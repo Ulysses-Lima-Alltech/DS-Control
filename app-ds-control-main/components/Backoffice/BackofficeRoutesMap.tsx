@@ -40,6 +40,7 @@ import {
   getOperationalSegmentGeoJson,
   resolveSelectedOperationalRouteNavigation,
 } from '@/utils/bestOperationalRoute';
+import { findRoutesForPlot, RouteDistanceMatch } from '@/utils/findRoutesForPlot';
 import { convertDatabaseRoutesToMapViewerRoutesFeatureCollection } from '@/utils/map-utils';
 import {
   OperationalRouteDirection,
@@ -665,6 +666,10 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   );
   const [selectedFarmId, setSelectedFarmId] = useState<string | undefined>(undefined);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [plotRouteCandidates, setPlotRouteCandidates] = useState<RouteDistanceMatch[] | null>(
+    null
+  );
+  const [plotWithoutRouteMessage, setPlotWithoutRouteMessage] = useState<string | null>(null);
 
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [farmSearchTerm, setFarmSearchTerm] = useState('');
@@ -953,7 +958,37 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationErrorMessage(null);
     setNavigationBestRouteSummary(null);
     setActiveOperationalRouteGeoJson(null);
+    setPlotRouteCandidates(null);
+    setPlotWithoutRouteMessage(null);
   }, []);
+
+  const handlePlotPress = useCallback(
+    (plotId: string) => {
+      setPlotWithoutRouteMessage(null);
+
+      const plot = selectedFarmPlots.find((item) => item.id === plotId);
+      if (!plot) return;
+
+      const matches = findRoutesForPlot(plot, routeRecords);
+
+      if (matches.length === 0) {
+        setPlotRouteCandidates(null);
+        setPlotWithoutRouteMessage(
+          'Nenhuma rota conectada a este talhão. Escolha uma rota na lista abaixo.'
+        );
+        return;
+      }
+
+      if (matches.length === 1) {
+        setPlotRouteCandidates(null);
+        handleRouteSelect(matches[0].route.id);
+        return;
+      }
+
+      setPlotRouteCandidates(matches.slice(0, 3));
+    },
+    [selectedFarmPlots, routeRecords, handleRouteSelect]
+  );
 
   const handleStartNavigationToRoute = useCallback(async () => {
     if (!selectedRoute) {
@@ -1060,6 +1095,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationErrorMessage(null);
     setNavigationBestRouteSummary(null);
     setActiveOperationalRouteGeoJson(null);
+    setPlotRouteCandidates(null);
+    setPlotWithoutRouteMessage(null);
   };
 
   const handleFarmSelect = (value?: string) => {
@@ -1076,6 +1113,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationErrorMessage(null);
     setNavigationBestRouteSummary(null);
     setActiveOperationalRouteGeoJson(null);
+    setPlotRouteCandidates(null);
+    setPlotWithoutRouteMessage(null);
   };
 
   const clearFilters = () => {
@@ -1098,6 +1137,8 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
     setNavigationErrorMessage(null);
     setNavigationBestRouteSummary(null);
     setActiveOperationalRouteGeoJson(null);
+    setPlotRouteCandidates(null);
+    setPlotWithoutRouteMessage(null);
   };
 
   const activeFilters = useMemo(() => {
@@ -1138,10 +1179,12 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
         routes={routesForMap}
         selectedRouteId={selectedRoute?.id ?? null}
         onRoutePress={handleRouteSelect}
+        onPlotPress={isPilotAudience ? handlePlotPress : undefined}
+        disablePlotDetailModal={isPilotAudience}
         navigationRoute={navigationRoute}
         operationalRouteMarkers={operationalRouteMarkerGeoJson}
         showMapTools={Boolean(selectedFarmId)}
-        showRoute={routesForMap.length > 0}
+        showRoute={isPilotAudience ? Boolean(selectedRoute) : routesForMap.length > 0}
         showNavigationRoute={Boolean(navigationRoute)}
         isNavigationMode={isNavigationMode}
       />
@@ -1381,10 +1424,37 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
               <View style={styles.optionalFarmHint}>
                 <Ionicons name='information-circle-outline' size={16} color={COLORS.blue} />
                 <Text style={styles.optionalFarmHintText}>
-                  Primeiro escolha a fazenda. Depois toque na linha da rota desejada e use Ir agora.
+                  {isPilotAudience
+                    ? 'Primeiro escolha a fazenda. Depois toque no talhão desejado para encontrar a rota e use Ir agora.'
+                    : 'Primeiro escolha a fazenda. Depois toque na linha da rota desejada e use Ir agora.'}
                 </Text>
               </View>
             )}
+
+            {plotWithoutRouteMessage ? (
+              <Text style={styles.navigationErrorMessage}>{plotWithoutRouteMessage}</Text>
+            ) : null}
+
+            {plotRouteCandidates && plotRouteCandidates.length > 0 ? (
+              <View style={styles.navigationSummaryCard}>
+                <Text style={styles.navigationSummaryTitle}>Mais de uma rota perto do talhão</Text>
+                <Text style={styles.routesListSubtitle}>Escolha qual rota o piloto vai seguir.</Text>
+                {plotRouteCandidates.map((candidate) => (
+                  <TouchableOpacity
+                    key={candidate.route.id}
+                    onPress={() => handleRouteSelect(candidate.route.id)}
+                    style={styles.plotRouteCandidateRow}
+                  >
+                    <Text style={styles.plotRouteCandidateName} numberOfLines={1}>
+                      {buildRouteLabel(candidate.route, 0)}
+                    </Text>
+                    <Text style={styles.plotRouteCandidateDistance}>
+                      {Math.round(candidate.distanceMeters)} m
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
 
             {navigationErrorMessage ? (
               <Text style={styles.navigationErrorMessage}>{navigationErrorMessage}</Text>
@@ -2174,6 +2244,25 @@ const styles = StyleSheet.create({
     color: '#1D4ED8',
     fontSize: 12,
     fontWeight: '700',
+  },
+  plotRouteCandidateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#BFDBFE',
+    paddingVertical: 8,
+  },
+  plotRouteCandidateName: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  plotRouteCandidateDistance: {
+    color: '#1D4ED8',
+    fontSize: 12,
   },
   optionalFarmHint: {
     borderWidth: 1,

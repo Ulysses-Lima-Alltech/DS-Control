@@ -32,6 +32,7 @@ export type MapContentProps = {
   selectedRouteId?: string | null;
   showNavigationRoute?: boolean;
   selectedPlotId?: string;
+  selectedPlotIds?: string[];
   onPlotPress?: (plotId: string) => void;
   onRoutePress?: (routeId: string) => void;
   mapTools?: boolean;
@@ -53,6 +54,7 @@ export default function MapContent({
   selectedRouteId = null,
   showNavigationRoute = true,
   selectedPlotId,
+  selectedPlotIds,
   onPlotPress,
   onRoutePress,
   mapTools = true,
@@ -70,6 +72,12 @@ export default function MapContent({
   const cameraRef = useRef<Camera>(null!);
 
   const isDraggingSomePoint = mapToolsHookReturn.draggedPointIndex !== null;
+
+  const selectedPlotIdSet = useMemo(() => {
+    const ids = new Set(selectedPlotIds ?? []);
+    if (selectedPlotId) ids.add(selectedPlotId);
+    return ids;
+  }, [selectedPlotId, selectedPlotIds]);
 
   // GEODATA BBOX
   const geodataBBox = useMemo(() => {
@@ -225,6 +233,7 @@ export default function MapContent({
     >
       <Camera
         ref={cameraRef}
+        maxZoomLevel={20}
         followUserLocation={isCameraLockedOnUserLocation}
         followUserMode={
           isNavigationMode ? UserTrackingMode.FollowWithHeading : UserTrackingMode.Follow
@@ -246,7 +255,7 @@ export default function MapContent({
           type: 'FeatureCollection',
           features:
             geoData?.features?.filter(
-              (feature) => feature.properties?.plot_id !== selectedPlotId
+              (feature) => !selectedPlotIdSet.has(String(feature.properties?.plot_id))
             ) || [],
         }}
         onPress={mapToolsHookReturn.isSomeToolActive ? undefined : handleMapPress}
@@ -277,8 +286,8 @@ export default function MapContent({
         shape={{
           type: 'FeatureCollection',
           features:
-            geoData?.features?.filter(
-              (feature) => feature.properties?.plot_id === selectedPlotId
+            geoData?.features?.filter((feature) =>
+              selectedPlotIdSet.has(String(feature.properties?.plot_id))
             ) || [],
         }}
         onPress={mapToolsHookReturn.isSomeToolActive ? undefined : handleMapPress}

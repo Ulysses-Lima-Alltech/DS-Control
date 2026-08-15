@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import FarmPlotMapPicker from '@/components/Farmer/FarmPlotMapPicker';
 import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
 import SearchableMultiSelect from '@/components/ui/SearchableMultiSelect';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
@@ -54,11 +55,17 @@ export default function CreateServiceOrderScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [applicationType, setApplicationType] = useState('Pulverização');
   const [observation, setObservation] = useState('');
+  const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
   const farmsQuery = useQuery({
     queryKey: ['farmer-create-os-farms', user?.customerId],
     queryFn: () =>
-      getAllFarmsPaginated(user?.customerId, { page: '1', limit: '200', includePlots: 'true' }),
+      getAllFarmsPaginated(user?.customerId, {
+        page: '1',
+        limit: '200',
+        includePlots: 'true',
+        includeGeoJson: 'true',
+      }),
     enabled: Boolean(user?.customerId),
   });
   const farms = farmsQuery.data?.data || [];
@@ -152,13 +159,22 @@ export default function CreateServiceOrderScreen() {
         ) : plotOptions.length === 0 ? (
           <Text style={styles.hint}>Nenhum talhão cadastrado nesta fazenda.</Text>
         ) : (
-          <SearchableMultiSelect
-            placeholder='Buscar e selecionar talhões...'
-            listedData={plotOptions}
-            itemKey='name'
-            value={plotIds}
-            onChange={setPlotIds}
-          />
+          <>
+            <SearchableMultiSelect
+              placeholder='Buscar e selecionar talhões...'
+              listedData={plotOptions}
+              itemKey='name'
+              value={plotIds}
+              onChange={setPlotIds}
+            />
+            <TouchableOpacity
+              style={styles.mapPickerButton}
+              onPress={() => setIsMapPickerVisible(true)}
+            >
+              <Ionicons name='map-outline' size={16} color={COLORS.primaryDark} />
+              <Text style={styles.mapPickerButtonText}>Selecionar no mapa</Text>
+            </TouchableOpacity>
+          </>
         )}
 
         <Text style={styles.label}>Aplicação</Text>
@@ -215,6 +231,14 @@ export default function CreateServiceOrderScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <FarmPlotMapPicker
+        farm={selectedFarm}
+        visible={isMapPickerVisible}
+        initialSelectedPlotIds={plotIds}
+        onClose={() => setIsMapPickerVisible(false)}
+        onConfirm={setPlotIds}
+      />
     </ScrollView>
   );
 }
@@ -265,6 +289,18 @@ const styles = StyleSheet.create({
   choiceActive: { backgroundColor: COLORS.primaryDark, borderColor: COLORS.primaryDark },
   choiceText: { color: COLORS.text },
   choiceTextActive: { color: COLORS.white, fontWeight: '700' },
+  mapPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primaryDark,
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  mapPickerButtonText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13 },
   primaryButton: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 12,

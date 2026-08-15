@@ -25,7 +25,7 @@ import {
 
 const MAPBOX_STYLE_URL = 'mapbox://styles/mapbox/satellite-streets-v12';
 const OFFLINE_MIN_ZOOM = 10;
-const OFFLINE_MAX_ZOOM = 17;
+const OFFLINE_MAX_ZOOM = 19;
 
 type CoordinateBounds = {
   northEast: [number, number];

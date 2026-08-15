@@ -36,6 +36,8 @@ export type MapViewerProps = {
   operationalRouteMarkers?: GeoJSON.FeatureCollection<GeoJSON.Point> | null;
   selectedRouteId?: string | null;
   selectedPlotId?: string;
+  selectedPlotIds?: string[];
+  disablePlotDetailModal?: boolean;
   onPlotPress?: (plotId: string) => void;
   onRoutePress?: (routeId: string) => void;
   showMapControls?: boolean;
@@ -56,6 +58,8 @@ export default function MapViewer({
   operationalRouteMarkers = null,
   selectedRouteId = null,
   selectedPlotId,
+  selectedPlotIds,
+  disablePlotDetailModal = false,
   onPlotPress,
   onRoutePress,
   showMapControls = true,
@@ -86,8 +90,10 @@ export default function MapViewer({
   const mapToolsHookReturn = useMapTools();
 
   function handlePlotPress(plotId: string) {
-    setSelectedPlotIdForModal(plotId);
-    setIsPlotModalVisible(true);
+    if (!disablePlotDetailModal) {
+      setSelectedPlotIdForModal(plotId);
+      setIsPlotModalVisible(true);
+    }
 
     // Call the external onPlotPress handler if provided
     if (onPlotPress) {
@@ -163,6 +169,7 @@ export default function MapViewer({
         selectedRouteId={selectedRouteId}
         showNavigationRoute={showNavigationRoute}
         selectedPlotId={selectedPlotId}
+        selectedPlotIds={selectedPlotIds}
         onPlotPress={handlePlotPress}
         onRoutePress={onRoutePress}
         isCameraLockedOnUserLocation={isCameraLockedOnUserLocation}
