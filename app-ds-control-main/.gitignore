@@ -54,6 +54,8 @@ ios/
 #credentials
 credentials.json
 credentials/
+google-service-account.json
+*-service-account*.json
 .cursor/settings.json
 .vscode/settings.json
 node_modules
