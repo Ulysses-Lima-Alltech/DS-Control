@@ -974,7 +974,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       if (matches.length === 0) {
         setPlotRouteCandidates(null);
         setPlotWithoutRouteMessage(
-          'Nenhuma rota conectada a este talhão. Escolha uma rota na lista abaixo.'
+          'Nenhuma rota conectada a este talhão. Toque em outro talhão próximo a uma rota.'
         );
         return;
       }
@@ -1167,7 +1167,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
   const canStartNavigation = Boolean(selectedRoute && operationalRouteDirection);
 
   const shouldShowMapViewer = hasMapboxToken && !isSelectedFarmError && Boolean(selectedFarmId);
-  const isPilotFullscreenMap = isPilotAudience && Boolean(selectedFarmId);
+  const isPilotFullscreenMap = Boolean(selectedFarmId);
 
   const mapViewerElement = shouldShowMapViewer ? (
     <>
@@ -1179,12 +1179,12 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
         routes={routesForMap}
         selectedRouteId={selectedRoute?.id ?? null}
         onRoutePress={handleRouteSelect}
-        onPlotPress={isPilotAudience ? handlePlotPress : undefined}
-        disablePlotDetailModal={isPilotAudience}
+        onPlotPress={handlePlotPress}
+        disablePlotDetailModal
         navigationRoute={navigationRoute}
         operationalRouteMarkers={operationalRouteMarkerGeoJson}
         showMapTools={Boolean(selectedFarmId)}
-        showRoute={isPilotAudience ? Boolean(selectedRoute) : routesForMap.length > 0}
+        showRoute={Boolean(selectedRoute)}
         showNavigationRoute={Boolean(navigationRoute)}
         isNavigationMode={isNavigationMode}
       />
@@ -1561,7 +1561,7 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
           </View>
           <Text style={styles.routesListSubtitle}>
             {selectedFarmId
-              ? 'Toque em uma linha no mapa ou use a lista auxiliar para escolher a rota.'
+              ? 'Toque em um talhão no mapa em tela cheia para escolher a rota.'
               : 'Escolha uma fazenda para ver todas as rotas desenhadas no mapa.'}
           </Text>
 
@@ -1707,161 +1707,14 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
                 </View>
               )}
             </>
-          ) : isPilotAudience ? (
+          ) : (
             <View style={styles.optionalFarmHint}>
               <Ionicons name='information-circle-outline' size={16} color={COLORS.blue} />
               <Text style={styles.optionalFarmHintText}>
-                Toque em um ponto ou linha no mapa para escolher o destino e depois toque em Ir
-                agora.
+                Toque em um talhao no mapa para selecionar a rota correspondente e depois toque em
+                Ir agora.
               </Text>
             </View>
-          ) : routeRecords.length === 0 ? (
-            <View style={styles.emptyStateCard}>
-              <MaterialCommunityIcons name='map-marker-off-outline' size={28} color={COLORS.gray} />
-              <Text style={styles.emptyStateTitle}>Nenhuma rota encontrada</Text>
-              <Text style={styles.emptyStateDescription}>
-                Ajuste a busca/filtros ou selecione outra fazenda para visualizar rotas.
-              </Text>
-            </View>
-          ) : (
-            <>
-              <View style={styles.routesGrid}>
-                {routeRecords.map((route, index) => {
-                  const routeStats =
-                    routeStatsById.get(route.id) ?? extractRouteGeoStats(route.geoJson);
-                  const isSelected = selectedRoute?.id === route.id;
-
-                  return (
-                    <TouchableOpacity
-                      key={route.id}
-                      onPress={() => handleRouteSelect(route.id)}
-                      style={[
-                        styles.routeCard,
-                        { width: gridItemWidth },
-                        isSelected ? styles.routeCardSelected : undefined,
-                      ]}
-                    >
-                      <View style={styles.routeCardHeader}>
-                        <Text style={styles.routeCardTitle} numberOfLines={1}>
-                          {buildRouteLabel(route, index)}
-                        </Text>
-                        {isSelected && (
-                          <View style={styles.selectedBadge}>
-                            <Text style={styles.selectedBadgeText}>Selecionada</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <Text style={styles.routeCardSubline} numberOfLines={1}>
-                        {route.customer?.name ||
-                          selectedFarm?.customer?.name ||
-                          'Cliente nao informado'}
-                      </Text>
-                      <Text style={styles.routeCardSubline} numberOfLines={1}>
-                        {route.farm?.name || selectedFarm?.name || 'Fazenda nao informada'}
-                      </Text>
-
-                      <View style={styles.routeMetaRow}>
-                        <View style={styles.routeMetaChip}>
-                          <MaterialCommunityIcons
-                            name='map-marker-path'
-                            size={13}
-                            color={COLORS.blue}
-                          />
-                          <Text style={styles.routeMetaChipText}>
-                            {routeStats.pointCount.toLocaleString('pt-BR')} pontos
-                          </Text>
-                        </View>
-                        <View style={styles.routeMetaChip}>
-                          <MaterialCommunityIcons name='ruler' size={13} color={COLORS.blue} />
-                          <Text style={styles.routeMetaChipText}>
-                            {formatDistance(routeStats.distanceKm)}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {totalPages > 1 && (
-                <View style={styles.paginationWrap}>
-                  <Text style={styles.paginationText}>
-                    Pagina {currentPage} de {totalPages} | {totalCount.toLocaleString('pt-BR')}{' '}
-                    rotas
-                  </Text>
-
-                  <View style={styles.paginationButtons}>
-                    <TouchableOpacity
-                      onPress={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                      style={[
-                        styles.paginationButton,
-                        currentPage === 1
-                          ? styles.paginationButtonDisabled
-                          : styles.paginationButtonEnabled,
-                      ]}
-                    >
-                      <Feather
-                        name='chevrons-left'
-                        size={16}
-                        color={currentPage === 1 ? COLORS.gray : COLORS.white}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setCurrentPage((previous) => Math.max(1, previous - 1))}
-                      disabled={currentPage === 1}
-                      style={[
-                        styles.paginationButton,
-                        currentPage === 1
-                          ? styles.paginationButtonDisabled
-                          : styles.paginationButtonEnabled,
-                      ]}
-                    >
-                      <Feather
-                        name='chevron-left'
-                        size={16}
-                        color={currentPage === 1 ? COLORS.gray : COLORS.white}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() =>
-                        setCurrentPage((previous) => Math.min(totalPages, previous + 1))
-                      }
-                      disabled={currentPage === totalPages}
-                      style={[
-                        styles.paginationButton,
-                        currentPage === totalPages
-                          ? styles.paginationButtonDisabled
-                          : styles.paginationButtonEnabled,
-                      ]}
-                    >
-                      <Feather
-                        name='chevron-right'
-                        size={16}
-                        color={currentPage === totalPages ? COLORS.gray : COLORS.white}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                      style={[
-                        styles.paginationButton,
-                        currentPage === totalPages
-                          ? styles.paginationButtonDisabled
-                          : styles.paginationButtonEnabled,
-                      ]}
-                    >
-                      <Feather
-                        name='chevrons-right'
-                        size={16}
-                        color={currentPage === totalPages ? COLORS.gray : COLORS.white}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </>
           )}
         </View>
 

@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,10 +14,10 @@ import {
   View,
 } from 'react-native';
 
-import FarmPlotMapPicker from '@/components/Farmer/FarmPlotMapPicker';
-import TextInputSearchMultipleFarms from '@/components/TextInputSearchMultipleFarms';
+import FarmPlotMapPicker, {
+  SelectedPlotDetail,
+} from '@/components/Farmer/FarmPlotMapPicker';
 import DatePickeriOSModal from '@/components/ui/DatePickeriOSModal';
-import SearchableMultiSelect from '@/components/ui/SearchableMultiSelect';
 import SearchableSelectQuery from '@/components/ui/SearchableSelectQuery';
 import { COLORS, SHADOWS } from '@/constants/colors';
 import { useAuth } from '@/providers/auth.provider';
@@ -25,7 +25,7 @@ import {
   createServiceOrderRequest,
   submitServiceOrderRequest,
 } from '@/services/customer-request.service';
-import { Farm } from '@/types/farm.type';
+import { getAllFarmsPaginated } from '@/services/farm.service';
 import { isAndroid } from '@/utils/isAndroid';
 
 const toYYYYMMDD = (date: Date) => {
@@ -50,35 +50,44 @@ export default function CreateServiceOrderScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [selectedFarms, setSelectedFarms] = useState<Farm[]>([]);
-  const [plotIds, setPlotIds] = useState<string[]>([]);
+  const [selectedPlots, setSelectedPlots] = useState<SelectedPlotDetail[]>([]);
   const [plannedDate, setPlannedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [applicationType, setApplicationType] = useState('Pulverização');
   const [observation, setObservation] = useState('');
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
-  const previousSelectedFarmsRef = useRef<Farm[]>([]);
-  useEffect(() => {
-    const currentFarmIds = new Set(selectedFarms.map((farm) => farm.id));
-    const removedFarms = previousSelectedFarmsRef.current.filter(
-      (farm) => !currentFarmIds.has(farm.id)
-    );
-    if (removedFarms.length > 0) {
-      const removedPlotIds = new Set(
-        removedFarms.flatMap((farm) => (farm.plots || []).map((plot) => plot.id))
-      );
-      setPlotIds((previous) => previous.filter((plotId) => !removedPlotIds.has(plotId)));
-    }
-    previousSelectedFarmsRef.current = selectedFarms;
-  }, [selectedFarms]);
+  const farmsQuery = useQuery({
+    queryKey: ['farmer-create-os-farms', user?.customerId],
+    queryFn: () =>
+      getAllFarmsPaginated(user?.customerId, {
+        page: '1',
+        limit: '500',
+        includePlots: 'true',
+        includeGeoJson: 'true',
+      }),
+    enabled: Boolean(user?.customerId) && isMapPickerVisible,
+  });
+  const allFarms = farmsQuery.data?.data || [];
 
-  const isValid = selectedFarms.length > 0 && plotIds.length > 0 && Boolean(applicationType);
+  const selectedFarmGroups = useMemo(() => {
+    const groups = new Map<string, { farmName: string; plots: { id: string; name: string }[] }>();
+    selectedPlots.forEach((plot) => {
+      const group = groups.get(plot.farmId) ?? { farmName: plot.farmName, plots: [] };
+      group.plots.push({ id: plot.id, name: plot.name });
+      groups.set(plot.farmId, group);
+    });
+    return Array.from(groups.entries()).map(([farmId, group]) => ({ farmId, ...group }));
+  }, [selectedPlots]);
+
+  const isValid = selectedPlots.length > 0 && Boolean(applicationType);
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const farmIds = selectedFarmGroups.map((group) => group.farmId);
+      const plotIds = selectedPlots.map((plot) => plot.id);
       const created = await createServiceOrderRequest({
-        farmIds: selectedFarms.map((farm) => farm.id),
+        farmIds,
         requestedDate: toYYYYMMDD(plannedDate),
         serviceType: applicationType,
         requestedPlotIds: plotIds,
@@ -101,6 +110,9 @@ export default function CreateServiceOrderScreen() {
       ),
   });
 
+  const removePlot = (plotId: string) =>
+    setSelectedPlots((previous) => previous.filter((plot) => plot.id !== plotId));
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -115,72 +127,38 @@ export default function CreateServiceOrderScreen() {
         </View>
       </View>
 
-      <View style={[styles.formCard, styles.farmPickerCard]}>
-        <Text style={styles.label}>Fazendas</Text>
-        <Text style={styles.hint}>
-          Selecione uma ou mais fazendas do seu cliente. Uma OS pode ter talhões de fazendas
-          diferentes.
-        </Text>
-        <View style={styles.farmSearchWrap}>
-          <TextInputSearchMultipleFarms
-            placeholder='Buscar fazenda...'
-            customerId={user?.customerId}
-            selectedFarmsExternal={selectedFarms}
-            onFarmsSelect={setSelectedFarms}
-          />
-        </View>
-        {selectedFarms.length > 0 && (
-          <View style={styles.chipsWrap}>
-            {selectedFarms.map((farm) => (
-              <View key={farm.id} style={styles.selectedFarmChip}>
-                <Text style={styles.selectedFarmChipText}>{farm.name}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-
       <View style={styles.formCard}>
         <Text style={styles.label}>Talhões</Text>
-        {selectedFarms.length === 0 ? (
-          <Text style={styles.hint}>Selecione ao menos uma fazenda para ver os talhões.</Text>
+        <Text style={styles.hint}>
+          Navegue pelo mapa e toque nos talhões que deseja incluir na OS. Você pode selecionar
+          talhões de fazendas diferentes na mesma solicitação.
+        </Text>
+
+        <TouchableOpacity style={styles.mapPickerButton} onPress={() => setIsMapPickerVisible(true)}>
+          <Ionicons name='map-outline' size={18} color={COLORS.white} />
+          <Text style={styles.mapPickerButtonText}>Selecionar talhões no mapa</Text>
+        </TouchableOpacity>
+
+        {selectedFarmGroups.length === 0 ? (
+          <Text style={styles.hint}>Nenhum talhão selecionado ainda.</Text>
         ) : (
-          <>
-            {selectedFarms.map((farm) => {
-              const plotOptions = (farm.plots || [])
-                .filter((plot) => plot.id)
-                .map((plot) => ({ id: plot.id as string, name: plot.name }));
-              const farmPlotIdSet = new Set(plotOptions.map((plot) => plot.id));
-              const selectedIdsForFarm = plotIds.filter((id) => farmPlotIdSet.has(id));
-              const handleFarmPlotIdsChange = (nextIdsForFarm: string[]) => {
-                const otherFarmsPlotIds = plotIds.filter((id) => !farmPlotIdSet.has(id));
-                setPlotIds([...otherFarmsPlotIds, ...nextIdsForFarm]);
-              };
-              return (
-                <View key={farm.id} style={styles.farmPlotsSection}>
-                  <Text style={styles.farmPlotsTitle}>{farm.name}</Text>
-                  {plotOptions.length === 0 ? (
-                    <Text style={styles.hint}>Nenhum talhão cadastrado nesta fazenda.</Text>
-                  ) : (
-                    <SearchableMultiSelect
-                      placeholder={`Buscar talhões de ${farm.name}...`}
-                      listedData={plotOptions}
-                      itemKey='name'
-                      value={selectedIdsForFarm}
-                      onChange={handleFarmPlotIdsChange}
-                    />
-                  )}
-                </View>
-              );
-            })}
-            <TouchableOpacity
-              style={styles.mapPickerButton}
-              onPress={() => setIsMapPickerVisible(true)}
-            >
-              <Ionicons name='map-outline' size={16} color={COLORS.primaryDark} />
-              <Text style={styles.mapPickerButtonText}>Selecionar no mapa</Text>
-            </TouchableOpacity>
-          </>
+          selectedFarmGroups.map((group) => (
+            <View key={group.farmId} style={styles.farmPlotsSection}>
+              <Text style={styles.farmPlotsTitle}>{group.farmName}</Text>
+              <View style={styles.chipsWrap}>
+                {group.plots.map((plot) => (
+                  <TouchableOpacity
+                    key={plot.id}
+                    style={styles.selectedPlotChip}
+                    onPress={() => removePlot(plot.id)}
+                  >
+                    <Text style={styles.selectedPlotChipText}>{plot.name}</Text>
+                    <Ionicons name='close' size={14} color={COLORS.primaryDark} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))
         )}
 
         <Text style={styles.label}>Aplicação</Text>
@@ -239,11 +217,12 @@ export default function CreateServiceOrderScreen() {
       </View>
 
       <FarmPlotMapPicker
-        farms={selectedFarms}
+        farms={allFarms}
+        customerId={user?.customerId}
         visible={isMapPickerVisible}
-        initialSelectedPlotIds={plotIds}
+        initialSelectedPlots={selectedPlots}
         onClose={() => setIsMapPickerVisible(false)}
-        onConfirm={setPlotIds}
+        onConfirm={setSelectedPlots}
       />
     </ScrollView>
   );
@@ -285,39 +264,29 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 999,
-  },
-  choiceActive: { backgroundColor: COLORS.primaryDark, borderColor: COLORS.primaryDark },
-  choiceText: { color: COLORS.text },
-  choiceTextActive: { color: COLORS.white, fontWeight: '700' },
-  farmPickerCard: { position: 'relative', zIndex: 20, minHeight: 120 },
-  farmSearchWrap: { position: 'relative', minHeight: 54 },
-  selectedFarmChip: {
+  farmPlotsSection: { gap: 6, marginBottom: 4 },
+  farmPlotsTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  selectedPlotChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: COLORS.primarySoft,
   },
-  selectedFarmChipText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 12 },
-  farmPlotsSection: { gap: 6, marginBottom: 4 },
-  farmPlotsTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  selectedPlotChipText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 12 },
   mapPickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: COLORS.primaryDark,
+    gap: 8,
+    backgroundColor: COLORS.primaryDark,
     borderRadius: 12,
-    paddingVertical: 10,
-    marginTop: 8,
+    paddingVertical: 14,
+    marginTop: 4,
   },
-  mapPickerButtonText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13 },
+  mapPickerButtonText: { color: COLORS.white, fontWeight: '800', fontSize: 14 },
   primaryButton: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 12,
