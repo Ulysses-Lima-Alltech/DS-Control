@@ -11,12 +11,12 @@ export type CustomerRequestStatus =
 export type FarmerServiceOrderRequest = {
   id: string;
   status: CustomerRequestStatus;
-  requestedFarmId: string;
+  requestedFarmIds: string[];
   requestedDate: string;
   serviceType: string;
   observation?: string | null;
   rejectionReason?: string | null;
-  requestedFarm?: { id: string; name: string };
+  requestedFarms?: { id: string; name: string }[];
   approvedServiceOrderId?: string | null;
   createdAt: string;
 };

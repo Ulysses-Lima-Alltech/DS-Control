@@ -30,6 +30,7 @@ import {
   assertCustomerRequestTransition,
   type CustomerRequestStatus,
 } from './customer-request-status';
+import { findFarmsByIds } from './customer-request-farms';
 
 type AdminIdentity = { userId: string };
 
@@ -111,7 +112,6 @@ export class AdminCustomerRequestService {
         with: {
           customer: true,
           requestedBy: true,
-          requestedFarm: true,
           reviewedBy: true,
           approvedServiceOrder: true,
         },
@@ -120,6 +120,7 @@ export class AdminCustomerRequestService {
       return this.sanitizeDetail({
         ...request,
         requestType: 'SERVICE_ORDER',
+        requestedFarms: await findFarmsByIds(request.requestedFarmIds),
         events: await this.events('SERVICE_ORDER', params.id),
       });
     }
@@ -274,18 +275,22 @@ export class AdminCustomerRequestService {
         throw new AppError('Contrato inválido ou expirado', HTTP_STATUS_CODES.BAD_REQUEST);
       }
 
-      const [farm] = await tx
+      const requestedFarmIds = [...new Set(request.requestedFarmIds)];
+      if (requestedFarmIds.length === 0) {
+        throw new AppError('Solicitação não possui fazendas válidas', HTTP_STATUS_CODES.BAD_REQUEST);
+      }
+      const validFarms = await tx
         .select({ id: farms.id })
         .from(farms)
         .where(
           and(
-            eq(farms.id, request.requestedFarmId),
+            inArray(farms.id, requestedFarmIds),
             eq(farms.customerId, request.customerId),
             isNull(farms.deletedAt),
           ),
         );
-      if (!farm)
-        throw new AppError('Fazenda da solicitação não é válida', HTTP_STATUS_CODES.BAD_REQUEST);
+      if (validFarms.length !== requestedFarmIds.length)
+        throw new AppError('Fazendas da solicitação não são válidas', HTTP_STATUS_CODES.BAD_REQUEST);
 
       const uniquePlotIds = [...new Set(dto.plotIds)];
       const validPlots = await tx
@@ -294,14 +299,14 @@ export class AdminCustomerRequestService {
         .where(
           and(
             inArray(plots.id, uniquePlotIds),
-            eq(plots.farmId, farm.id),
+            inArray(plots.farmId, requestedFarmIds),
             eq(plots.customerId, request.customerId),
             isNull(plots.deletedAt),
           ),
         );
       if (validPlots.length !== uniquePlotIds.length) {
         throw new AppError(
-          'Talhões não pertencem à fazenda solicitada',
+          'Talhões não pertencem às fazendas solicitadas',
           HTTP_STATUS_CODES.BAD_REQUEST,
         );
       }
@@ -331,7 +336,7 @@ export class AdminCustomerRequestService {
 
       await tx
         .insert(serviceOrderFarms)
-        .values({ serviceOrderId: serviceOrder.id, farmId: farm.id });
+        .values(requestedFarmIds.map((farmId) => ({ serviceOrderId: serviceOrder.id, farmId })));
       await tx
         .insert(serviceOrderPilots)
         .values(uniquePilotIds.map((pilotId) => ({ serviceOrderId: serviceOrder.id, pilotId })));

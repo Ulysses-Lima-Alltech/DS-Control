@@ -21,7 +21,7 @@ export type CustomerRequestListItem = {
   status: CustomerRequestStatus;
   requestedDate?: string;
   serviceType?: string;
-  requestedFarmId?: string;
+  requestedFarmIds?: string[];
   suggestedFarmName?: string | null;
   existingFarmId?: string | null;
   createdAt: string;
@@ -59,7 +59,7 @@ export type AdminCustomerRequestDetail = CustomerRequestListItem & {
   customer?: { id: string; name: string };
   requestedBy?: PublicRequestUser | null;
   reviewedBy?: PublicRequestUser | null;
-  requestedFarm?: { id: string; name: string; customerId: string };
+  requestedFarms?: { id: string; name: string; customerId: string }[];
   existingFarm?: { id: string; name: string; customerId: string } | null;
   approvedFarm?: { id: string; name: string } | null;
   approvedServiceOrder?: { id: string; number: number } | null;

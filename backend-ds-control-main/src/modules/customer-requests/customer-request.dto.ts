@@ -17,13 +17,23 @@ export const CustomerRequestListQuerySchema = z.object({
 
 export type CustomerRequestListQuery = z.infer<typeof CustomerRequestListQuerySchema>;
 
-export const CreateServiceOrderRequestSchema = z.object({
-  farmId: z.string().uuid(),
-  requestedDate: z.string().refine(isOperationalDateString, 'Data deve usar YYYY-MM-DD'),
-  serviceType: z.string().trim().min(1).max(120),
-  requestedPlotIds: z.array(z.string().uuid()).max(500).optional(),
-  observation: z.string().trim().max(4_000).optional(),
-});
+export const CreateServiceOrderRequestSchema = z
+  .object({
+    farmId: z.string().uuid().optional(),
+    farmIds: z.array(z.string().uuid()).min(1).max(50).optional(),
+    requestedDate: z.string().refine(isOperationalDateString, 'Data deve usar YYYY-MM-DD'),
+    serviceType: z.string().trim().min(1).max(120),
+    requestedPlotIds: z.array(z.string().uuid()).max(500).optional(),
+    observation: z.string().trim().max(4_000).optional(),
+  })
+  .transform(({ farmId, farmIds, ...rest }) => ({
+    ...rest,
+    farmIds: [...new Set(farmIds && farmIds.length > 0 ? farmIds : farmId ? [farmId] : [])],
+  }))
+  .refine((value) => value.farmIds.length > 0, {
+    message: 'Informe ao menos uma fazenda',
+    path: ['farmIds'],
+  });
 
 export type CreateServiceOrderRequestDTO = z.infer<typeof CreateServiceOrderRequestSchema>;
 

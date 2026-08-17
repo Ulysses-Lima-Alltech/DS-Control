@@ -7,7 +7,7 @@ import { COLORS, SHADOWS } from '@/constants/colors';
 import { Farm } from '@/types/farm.type';
 
 type FarmPlotMapPickerProps = {
-  farm: Farm | undefined;
+  farms: Farm[];
   visible: boolean;
   initialSelectedPlotIds: string[];
   onClose: () => void;
@@ -15,7 +15,7 @@ type FarmPlotMapPickerProps = {
 };
 
 export default function FarmPlotMapPicker({
-  farm,
+  farms,
   visible,
   initialSelectedPlotIds,
   onClose,
@@ -49,7 +49,11 @@ export default function FarmPlotMapPicker({
         <View style={styles.titleWrap}>
           <Entypo name='map' size={14} color={COLORS.blue} />
           <Text numberOfLines={1} style={styles.title}>
-            {farm?.name || 'Selecionar talhões'}
+            {farms.length === 1
+              ? farms[0].name
+              : farms.length > 1
+                ? `${farms.length} fazendas selecionadas`
+                : 'Selecionar talhões'}
           </Text>
         </View>
         <TouchableOpacity onPress={onClose}>
@@ -61,9 +65,9 @@ export default function FarmPlotMapPicker({
 
       <View style={styles.mapWrap}>
         <MapViewer
-          selectedFarmId={farm?.id ?? null}
-          plots={farm?.plots ?? []}
-          farms={farm ? [farm] : []}
+          selectedFarmId={farms.length > 0 ? farms.map((farm) => farm.id).join('|') : null}
+          plots={farms.flatMap((farm) => farm.plots ?? [])}
+          farms={farms}
           selectedPlotIds={selectedPlotIds}
           disablePlotDetailModal
           onPlotPress={handlePlotPress}

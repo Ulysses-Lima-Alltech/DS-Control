@@ -146,7 +146,7 @@ export default function FarmerRequestsScreen() {
     mutationFn: async (action: string) => {
       if (action === 'create-so')
         return createServiceOrderRequest({
-          farmId,
+          farmIds: [farmId],
           requestedDate,
           serviceType: serviceType.trim(),
           observation: observation.trim() || undefined,
@@ -380,7 +380,8 @@ export default function FarmerRequestsScreen() {
                 <Text style={styles.status}>{STATUS_LABELS[item.status]}</Text>
               </View>
               <Text style={styles.muted}>
-                {item.requestedFarm?.name || 'Fazenda'} · {item.requestedDate}
+                {item.requestedFarms?.map((farm) => farm.name).join(', ') || 'Fazenda'} ·{' '}
+                {item.requestedDate}
               </Text>
               {item.rejectionReason && <Text style={styles.errorText}>{item.rejectionReason}</Text>}
               {editable(item.status) && (

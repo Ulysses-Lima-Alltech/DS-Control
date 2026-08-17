@@ -6,7 +6,9 @@ import {
   Calendar,
   ChevronDown,
   Eye,
+  Maximize2,
   MapPin,
+  Minimize2,
   Pencil,
   Route as RouteIcon,
   Trash2,
@@ -361,6 +363,16 @@ export default function TableRoutes({
   );
   const [orderBy, setOrderBy] = React.useState<RouteOrderBy | undefined>(undefined);
   const [orderType, setOrderType] = React.useState<RouteOrderType | undefined>(undefined);
+  const [fullscreenFarmId, setFullscreenFarmId] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    if (!fullscreenFarmId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreenFarmId(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenFarmId]);
 
   const orderByOptions = [
     { value: RouteOrderBy.CREATEDAT, label: 'Ultima atualizacao' },
@@ -772,6 +784,7 @@ export default function TableRoutes({
       group.routes.find((route) => route.id === selectedRouteId) ?? group.routes[0] ?? null;
     const selectedRouteStats = selectedRoute ? getRouteStats(selectedRoute) : null;
     const geoJson = buildFarmRoutesFeatureCollection(group.routes);
+    const isMapFullscreen = fullscreenFarmId === group.farmId;
 
     return (
       <div className='border-l-4 border-primary/20 bg-primary/5'>
@@ -798,14 +811,32 @@ export default function TableRoutes({
 
           <div className='grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]'>
             <div
-              className='overflow-hidden rounded-2xl border border-border/60 shadow-[0_10px_24px_rgba(15,23,42,0.05)]'
-              style={{ height: '460px' }}
+              className={
+                isMapFullscreen
+                  ? 'fixed inset-0 z-[9999] bg-background'
+                  : 'relative overflow-hidden rounded-2xl border border-border/60 shadow-[0_10px_24px_rgba(15,23,42,0.05)]'
+              }
+              style={isMapFullscreen ? undefined : { height: '460px' }}
             >
               <MapViewer
                 geoData={geoJson ?? undefined}
                 selectedRouteId={selectedRoute?.id ?? null}
                 onRouteClick={(routeId) => selectRouteInFarm(group.farmId, routeId)}
               />
+              <Button
+                type='button'
+                variant='secondary'
+                size='icon'
+                className='absolute right-3 top-3 z-10 shadow-md'
+                onClick={() => setFullscreenFarmId(isMapFullscreen ? null : group.farmId)}
+                title={isMapFullscreen ? 'Sair da tela cheia' : 'Ver mapa em tela cheia'}
+              >
+                {isMapFullscreen ? (
+                  <Minimize2 className='h-4 w-4' />
+                ) : (
+                  <Maximize2 className='h-4 w-4' />
+                )}
+              </Button>
             </div>
 
             <div className='rounded-2xl border border-border/60 bg-card p-4'>

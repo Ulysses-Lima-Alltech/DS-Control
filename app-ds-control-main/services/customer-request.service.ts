@@ -22,7 +22,7 @@ export const getServiceOrderRequest = async (id: string) =>
     await api(`/customer-requests/service-orders/${id}`, { method: 'GET' })
   );
 export const createServiceOrderRequest = async (payload: {
-  farmId: string;
+  farmIds: string[];
   requestedDate: string;
   serviceType: string;
   requestedPlotIds?: string[];

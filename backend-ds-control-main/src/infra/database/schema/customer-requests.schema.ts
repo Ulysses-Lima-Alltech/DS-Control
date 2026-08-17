@@ -72,9 +72,7 @@ export const serviceOrderRequests = pgTable(
     requestedByUserId: uuid('requested_by_user_id')
       .references(() => users.id, { onDelete: 'restrict' })
       .notNull(),
-    requestedFarmId: uuid('requested_farm_id')
-      .references(() => farms.id, { onDelete: 'restrict' })
-      .notNull(),
+    requestedFarmIds: jsonb('requested_farm_ids').$type<string[]>().notNull().default([]),
     requestedDate: date('requested_date').notNull(),
     serviceType: text('service_type').notNull(),
     requestedPlotIds: jsonb('requested_plot_ids').$type<string[]>().notNull().default([]),
@@ -250,10 +248,6 @@ export const serviceOrderRequestsRelations = relations(serviceOrderRequests, ({ 
     fields: [serviceOrderRequests.requestedByUserId],
     references: [users.id],
     relationName: 'serviceOrderRequestRequestedBy',
-  }),
-  requestedFarm: one(farms, {
-    fields: [serviceOrderRequests.requestedFarmId],
-    references: [farms.id],
   }),
   reviewedBy: one(users, {
     fields: [serviceOrderRequests.reviewedByUserId],

@@ -98,11 +98,26 @@ export default function CustomerRequestsPage() {
     queryFn: () => getAllUsers({ type: 'pilot', status: 'active', page: '1', limit: '100' }),
     enabled: detail?.requestType === 'SERVICE_ORDER',
   });
-  const farmQuery = useQuery({
-    queryKey: ['request-farm', detail?.requestedFarmId],
-    queryFn: () => getFarmById(detail!.requestedFarmId!, { includePlots: 'true' }),
-    enabled: detail?.requestType === 'SERVICE_ORDER' && Boolean(detail.requestedFarmId),
+  const requestedFarmIds = detail?.requestedFarmIds ?? [];
+  const farmsQuery = useQuery({
+    queryKey: ['request-farms', requestedFarmIds],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        requestedFarmIds.map((farmId) => getFarmById(farmId, { includePlots: 'true' }))
+      );
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      if (failedCount > 0) {
+        toast.error(
+          `Não foi possível carregar ${failedCount} de ${requestedFarmIds.length} fazenda(s) da solicitação.`
+        );
+      }
+      return results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value);
+    },
+    enabled: detail?.requestType === 'SERVICE_ORDER' && requestedFarmIds.length > 0,
   });
+  const requestedFarms = farmsQuery.data?.map((response) => response.farm) ?? [];
 
   useEffect(() => {
     setReason('');
@@ -344,7 +359,8 @@ export default function CustomerRequestsPage() {
                     <div className='rounded-lg border p-3 text-sm'>
                       <p className='font-medium'>{detail.serviceType}</p>
                       <p>
-                        {detail.requestedFarm?.name} · data solicitada {detail.requestedDate}
+                        {requestedFarms.map((farm) => farm.name).join(', ')} · data solicitada{' '}
+                        {detail.requestedDate}
                       </p>
                       <p className='text-muted-foreground'>
                         {detail.observation || 'Sem observação'}
@@ -422,10 +438,14 @@ export default function CustomerRequestsPage() {
                             )
                           }
                         >
-                          {farmQuery.data?.farm.plots?.map((plot) => (
-                            <option key={plot.id} value={plot.id}>
-                              {plot.name}
-                            </option>
+                          {requestedFarms.map((farm) => (
+                            <optgroup key={farm.id} label={farm.name}>
+                              {farm.plots?.map((plot) => (
+                                <option key={plot.id} value={plot.id}>
+                                  {plot.name}
+                                </option>
+                              ))}
+                            </optgroup>
                           ))}
                         </select>
                       </label>

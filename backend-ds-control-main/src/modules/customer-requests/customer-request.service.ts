@@ -23,6 +23,7 @@ import {
   assertCustomerRequestTransition,
   type CustomerRequestStatus,
 } from './customer-request-status';
+import { findFarmsByIds } from './customer-request-farms';
 
 type FarmerIdentity = {
   userId: string;
@@ -41,29 +42,32 @@ export class CustomerRequestService {
     identity: FarmerIdentity,
     dto: CreateServiceOrderRequestDTO,
   ) {
-    const farm = await db.query.farms.findFirst({
+    const farmIds = [...new Set(dto.farmIds)];
+    const validFarms = await db.query.farms.findMany({
       where: and(
-        eq(farms.id, dto.farmId),
+        inArray(farms.id, farmIds),
         eq(farms.customerId, identity.customerId),
         isNull(farms.deletedAt),
       ),
       columns: { id: true },
     });
-    if (!farm) throw new AppError('Fazenda não encontrada', HTTP_STATUS_CODES.NOT_FOUND);
+    if (validFarms.length !== farmIds.length) {
+      throw new AppError('Uma ou mais fazendas não foram encontradas', HTTP_STATUS_CODES.NOT_FOUND);
+    }
 
     const requestedPlotIds = [...new Set(dto.requestedPlotIds ?? [])];
     if (requestedPlotIds.length > 0) {
       const validPlots = await db.query.plots.findMany({
         where: and(
           inArray(plots.id, requestedPlotIds),
-          eq(plots.farmId, dto.farmId),
+          inArray(plots.farmId, farmIds),
           isNull(plots.deletedAt),
         ),
         columns: { id: true },
       });
       if (validPlots.length !== requestedPlotIds.length) {
         throw new AppError(
-          'Um ou mais talhões selecionados não pertencem a esta fazenda',
+          'Um ou mais talhões selecionados não pertencem às fazendas informadas',
           HTTP_STATUS_CODES.BAD_REQUEST,
         );
       }
@@ -75,7 +79,7 @@ export class CustomerRequestService {
         .values({
           customerId: identity.customerId,
           requestedByUserId: identity.userId,
-          requestedFarmId: dto.farmId,
+          requestedFarmIds: farmIds,
           requestedDate: dto.requestedDate,
           serviceType: dto.serviceType,
           requestedPlotIds,
@@ -134,11 +138,12 @@ export class CustomerRequestService {
         eq(serviceOrderRequests.requestedByUserId, identity.userId),
         isNull(serviceOrderRequests.deletedAt),
       ),
-      with: { requestedFarm: true, approvedServiceOrder: true },
+      with: { approvedServiceOrder: true },
     });
     if (!request) throw new AppError('Solicitação não encontrada', HTTP_STATUS_CODES.NOT_FOUND);
     const events = await this.listEvents('SERVICE_ORDER', id);
-    return { ...request, events };
+    const requestedFarms = await findFarmsByIds(request.requestedFarmIds);
+    return { ...request, requestedFarms, events };
   }
 
   public async createAreaSubmissionRequest(
