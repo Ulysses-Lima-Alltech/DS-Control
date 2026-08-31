@@ -8,6 +8,7 @@ import {
 } from '@expo/vector-icons';
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
 import { useGetServiceOrderById } from '@/queries/service-order.query';
@@ -28,7 +29,14 @@ const formatPercent = (value?: number) =>
     minimumFractionDigits: 1,
   })}%`;
 
-export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderId: string }) {
+export default function CardServiceOrderData({
+  serviceOrderId,
+  audience = 'backoffice',
+}: {
+  serviceOrderId: string;
+  audience?: 'pilot' | 'backoffice';
+}) {
+  const router = useRouter();
   const [isVisibleModalMapFarmViewer, setIsVisibleModalMapFarmViewer] = useState(false);
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
 
@@ -353,6 +361,30 @@ export default function CardServiceOrderData({ serviceOrderId }: { serviceOrderI
                             >
                               <Octicons name='stack' size={12} color={COLORS.gray} />
                               <Text style={{ fontSize: 10, color: COLORS.gray }}>{plot.name}</Text>
+                              {audience === 'pilot' ? (
+                                <TouchableOpacity
+                                  style={{
+                                    flexDirection: 'row',
+                                    gap: 3,
+                                    alignItems: 'center',
+                                    backgroundColor: COLORS.lightgreen,
+                                    borderRadius: 10,
+                                    paddingHorizontal: 6,
+                                    paddingVertical: 2,
+                                    marginLeft: 2,
+                                  }}
+                                  onPress={() =>
+                                    router.push(
+                                      `/pilot/routes?farmId=${farm.id}&plotId=${plot.id}&autoGo=true`
+                                    )
+                                  }
+                                >
+                                  <FontAwesome6 name='location-arrow' size={9} color={COLORS.green} />
+                                  <Text style={{ fontSize: 9, color: COLORS.green, fontWeight: '600' }}>
+                                    Ir até lá
+                                  </Text>
+                                </TouchableOpacity>
+                              ) : null}
                             </View>
                           );
                         })}

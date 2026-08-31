@@ -11,7 +11,7 @@ export default function ServiceOrderDetailsScreen() {
   return (
     <ScrollView style={{ padding: 12, backgroundColor: COLORS.background }}>
       <OfflineOSDownloadButton serviceOrderId={serviceOrderId} />
-      <CardServiceOrderData serviceOrderId={serviceOrderId} />
+      <CardServiceOrderData serviceOrderId={serviceOrderId} audience='pilot' />
       <CardServiceOrderApplications serviceOrderId={serviceOrderId} />
     </ScrollView>
   );

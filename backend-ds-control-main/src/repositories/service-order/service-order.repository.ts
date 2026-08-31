@@ -136,12 +136,7 @@ export class ServiceOrderRepository {
           isNull(applications.deletedAt),
         ),
       )
-      .where(
-        and(
-          inArray(serviceOrderPlots.serviceOrderId, uniqueServiceOrderIds),
-          isNull(plots.deletedAt),
-        ),
-      );
+      .where(inArray(serviceOrderPlots.serviceOrderId, uniqueServiceOrderIds));
 
     return buildPlotCoverageAssessments(rows);
   }
@@ -343,8 +338,7 @@ export class ServiceOrderRepository {
           completedBy: association.completedBy ?? null,
         };
       })
-      .filter(Boolean)
-      .filter((plot) => !(plot as { deletedAt?: Date | null }).deletedAt);
+      .filter(Boolean);
   }
   /**
    * Creates a new service order and associates it with farms, pilots and plots.

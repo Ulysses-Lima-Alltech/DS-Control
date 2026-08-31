@@ -3,7 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { InfiniteData } from '@tanstack/react-query';
 import * as turf from '@turf/turf';
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -52,6 +52,9 @@ type RoutesAudience = 'backoffice' | 'pilot';
 
 type BackofficeRoutesMapProps = {
   audience?: RoutesAudience;
+  initialFarmId?: string;
+  initialPlotId?: string;
+  autoStartNavigation?: boolean;
 };
 
 type LngLatCoordinate = [number, number];
@@ -637,7 +640,12 @@ function DetailsField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function BackofficeRoutesMap({ audience = 'backoffice' }: BackofficeRoutesMapProps) {
+export default function BackofficeRoutesMap({
+  audience = 'backoffice',
+  initialFarmId,
+  initialPlotId,
+  autoStartNavigation = false,
+}: BackofficeRoutesMapProps) {
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -1077,6 +1085,34 @@ export default function BackofficeRoutesMap({ audience = 'backoffice' }: Backoff
       setIsFetchingNavigationRoute(false);
     }
   }, [selectedFarmId, selectedFarm?.name, selectedRoute, selectedRouteId, routeRecords]);
+
+  const autoGoFlowRef = useRef({ plotSelected: false, navigationStarted: false });
+
+  useEffect(() => {
+    if (!initialFarmId) return;
+    setSelectedFarmId(initialFarmId);
+  }, [initialFarmId]);
+
+  useEffect(() => {
+    if (!initialFarmId || !initialPlotId) return;
+    if (autoGoFlowRef.current.plotSelected) return;
+    if (selectedFarmId !== initialFarmId) return;
+    if (!selectedFarmPlots.some((plot) => plot.id === initialPlotId)) return;
+
+    autoGoFlowRef.current.plotSelected = true;
+    handlePlotPress(initialPlotId);
+  }, [initialFarmId, initialPlotId, selectedFarmId, selectedFarmPlots, handlePlotPress]);
+
+  useEffect(() => {
+    if (!autoStartNavigation) return;
+    if (!autoGoFlowRef.current.plotSelected || autoGoFlowRef.current.navigationStarted) return;
+    // More than one route candidate: let the pilot choose instead of auto-starting.
+    if (plotRouteCandidates && plotRouteCandidates.length > 1) return;
+    if (!selectedRoute) return;
+
+    autoGoFlowRef.current.navigationStarted = true;
+    handleStartNavigationToRoute();
+  }, [autoStartNavigation, plotRouteCandidates, selectedRoute, handleStartNavigationToRoute]);
 
   const handleCustomerSelect = (value?: string) => {
     if (isPilotAudience && pilotCustomerId) return;

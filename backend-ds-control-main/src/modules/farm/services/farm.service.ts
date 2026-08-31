@@ -1,8 +1,8 @@
 import AppError from '@common/handlers/app-error';
 import { HTTP_STATUS_CODES } from '@common/types/http-status.types';
 import { db } from '@infra/database';
-import { customers, farms, plots } from '@infra/database/schema';
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { customers, farms, plots, serviceOrderPlots, serviceOrders } from '@infra/database/schema';
+import { and, count, eq, inArray, isNull, notInArray } from 'drizzle-orm';
 import { resolveFarmMapColor } from '@common/utils/farm-map-color';
 
 import type { PaginatedRequest } from '@common/types/paginated-request.types';
@@ -514,6 +514,30 @@ export class FarmService {
     await db.transaction(async () => {
       // Soft delete plots that are no longer in the incoming data
       if (plotsToDelete.length > 0) {
+        const plotsToDeleteIds = plotsToDelete.map((plot) => plot.id);
+        const openLinks = await db
+          .select({
+            plotId: serviceOrderPlots.plotId,
+            serviceOrderId: serviceOrderPlots.serviceOrderId,
+          })
+          .from(serviceOrderPlots)
+          .innerJoin(serviceOrders, eq(serviceOrders.id, serviceOrderPlots.serviceOrderId))
+          .where(
+            and(
+              inArray(serviceOrderPlots.plotId, plotsToDeleteIds),
+              notInArray(serviceOrders.status, ['completed', 'cancelled']),
+            ),
+          );
+
+        if (openLinks.length > 0) {
+          app.log.warn(
+            '[FarmService] - Soft-deleting %d plot(s) for farm %s that are still linked to open service order(s): %j',
+            openLinks.length,
+            farmId,
+            openLinks,
+          );
+        }
+
         await this.plotRepository.softDeletePlotsByExternalIds(
           plotsToDelete.map((plot) => plot.externalId),
           farmId,
