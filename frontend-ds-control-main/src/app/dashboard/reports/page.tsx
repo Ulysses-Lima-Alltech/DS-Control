@@ -55,7 +55,7 @@ import type { ServiceOrder, ServiceOrderStatus } from '@/types/service-order.typ
 import type { User } from '@/types/user.type';
 import { generateAndDownloadApplicationIndividualReport } from '@/utils/applicationIndividualReport';
 import { resolveFarmMapColor } from '@/utils/farm-map-color';
-import { OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
+import { formatOperationalDateBR, OPERATIONAL_TIME_ZONE } from '@/utils/operational-date';
 import {
   downloadPDF,
   generateApplicationsReportPDF,
@@ -425,9 +425,8 @@ function hasActiveFilters(filtersState: ReportsFiltersState): boolean {
 
 function formatDate(value?: Date | string): string {
   if (!value) return 'Nao informada';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Nao informada';
-  return new Intl.DateTimeFormat('pt-BR').format(date);
+  const formatted = formatOperationalDateBR(value);
+  return formatted === '-' ? 'Nao informada' : formatted;
 }
 
 function getStatusLabel(status?: ServiceOrderStatus): string {

@@ -40,6 +40,7 @@ import {
   buildCompletedPlotsReportData,
   PLOT_COMPLETION_THRESHOLD_PERCENT,
 } from './service-order-plot-coverage';
+import { nextServiceOrderPlannedDate } from './service-order-planned-date';
 
 export class ServiceOrderService {
   private readonly serviceOrderRepository: ServiceOrderRepository;
@@ -151,17 +152,14 @@ export class ServiceOrderService {
     orderBy,
     orderType,
   }: GetServiceOrderQueryString): Promise<PaginatedRequest<typeof ServiceOrderWithDetailsSchema>> {
-    const parsedStartDate = startDate ? new Date(startDate) : undefined;
-    const parsedEndDate = endDate ? new Date(endDate) : undefined;
-
     const filters = {
       status,
       farmId,
       pilotId,
       customerId,
       invalidApplication,
-      startDate: parsedStartDate,
-      endDate: parsedEndDate,
+      startDate,
+      endDate,
     };
 
     const serviceOrders = (await this.serviceOrderRepository.getAllServiceOrders(
@@ -571,16 +569,13 @@ export class ServiceOrderService {
   public async getGeneralStats(
     filters?: ServiceOrderStatsQueryString,
   ): Promise<ServiceOrderStatsDTO> {
-    const parsedStartDate = filters?.startDate ? new Date(filters.startDate) : undefined;
-    const parsedEndDate = filters?.endDate ? new Date(filters.endDate) : undefined;
-
     const filterParams = {
       status: filters?.status,
       farmId: filters?.farmId,
       pilotId: filters?.pilotId,
       customerId: filters?.customerId,
-      startDate: parsedStartDate,
-      endDate: parsedEndDate,
+      startDate: filters?.startDate,
+      endDate: filters?.endDate,
     };
 
     const [
@@ -646,8 +641,8 @@ export class ServiceOrderService {
       farmId?: string;
       pilotId?: string;
       customerId?: string;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     },
   ): Promise<number> {
     const conditions = [eq(serviceOrders.status, status)];
@@ -658,8 +653,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
         lt(serviceOrders.plannedDate, adjustEndDate),
@@ -718,8 +712,8 @@ export class ServiceOrderService {
     farmId?: string;
     pilotId?: string;
     customerId?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }): Promise<number> {
     if (
       !filters ||
@@ -766,8 +760,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters.startDate && filters.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       serviceOrderConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
@@ -807,8 +800,8 @@ export class ServiceOrderService {
     farmId?: string;
     pilotId?: string;
     customerId?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }): Promise<number> {
     if (
       !filters ||
@@ -855,8 +848,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters.startDate && filters.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       serviceOrderConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
@@ -896,8 +888,8 @@ export class ServiceOrderService {
     farmId?: string;
     pilotId?: string;
     customerId?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }): Promise<number> {
     if (
       !filters ||
@@ -944,8 +936,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters.startDate && filters.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       serviceOrderConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
@@ -988,8 +979,8 @@ export class ServiceOrderService {
       farmId?: string;
       pilotId?: string;
       customerId?: string;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     },
   ): Promise<number> {
     // Build where conditions
@@ -1018,8 +1009,7 @@ export class ServiceOrderService {
 
     // Date range filter
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       whereConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
@@ -1057,8 +1047,8 @@ export class ServiceOrderService {
       farmId?: string;
       pilotId?: string;
       customerId?: string;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     },
   ): Promise<number> {
     // Build where conditions
@@ -1087,8 +1077,7 @@ export class ServiceOrderService {
 
     // Date range filter
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       whereConditions.push(
         and(
           gte(serviceOrders.plannedDate, filters.startDate),
@@ -1125,8 +1114,8 @@ export class ServiceOrderService {
     farmId?: string;
     pilotId?: string;
     customerId?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }): Promise<number> {
     const conditions = [eq(serviceOrders.status, 'open')];
 
@@ -1140,8 +1129,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
         lt(serviceOrders.plannedDate, adjustEndDate),
@@ -1184,8 +1172,8 @@ export class ServiceOrderService {
     farmId?: string;
     pilotId?: string;
     customerId?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }): Promise<number> {
     const conditions = [
       inArray(
@@ -1203,8 +1191,7 @@ export class ServiceOrderService {
 
     // Date range filter - match repository pattern
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
       conditions.push(
         gte(serviceOrders.plannedDate, filters.startDate),
         lt(serviceOrders.plannedDate, adjustEndDate),

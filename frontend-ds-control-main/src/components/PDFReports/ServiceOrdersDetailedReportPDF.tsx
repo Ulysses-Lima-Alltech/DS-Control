@@ -7,6 +7,7 @@ import {
 } from '@/components/PDFReports/ReportPlotMapPages';
 import type { Application } from '@/types/applications.type';
 import type { ServiceOrder } from '@/types/service-order.type';
+import { formatOperationalDateBR } from '@/utils/operational-date';
 
 Font.register({
   family: 'Roboto',
@@ -42,9 +43,7 @@ function parseNumber(value: unknown): number {
 
 function fmtDate(value?: string | Date): string {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('pt-BR').format(date);
+  return formatOperationalDateBR(value);
 }
 
 const ServiceOrdersDetailedReportPDF: React.FC<ServiceOrdersDetailedReportPDFProps> = ({

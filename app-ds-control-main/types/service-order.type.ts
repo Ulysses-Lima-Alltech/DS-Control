@@ -40,7 +40,7 @@ export type ServiceOrder = {
   pilots: User[];
   plots: Plot[];
   observation: string;
-  plannedDate: Date;
+  plannedDate: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

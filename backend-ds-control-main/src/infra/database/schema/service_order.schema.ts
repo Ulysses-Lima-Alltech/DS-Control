@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { index, pgEnum, pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, index, pgEnum, pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { serviceOrderFarms, serviceOrderPilots, serviceOrderPlots } from ".";
 import { contracts } from "./contract.schema";
 import { customers } from "./customer.schema";
@@ -16,7 +16,7 @@ export const serviceOrders = pgTable("service_orders", {
   customerId: uuid("customer_id").references(() => customers.id).notNull(),
   contractId: uuid("contract_id").references(() => contracts.id).notNull(),
   observation: text("observation"),
-  plannedDate: timestamp("planned_date").notNull(),
+  plannedDate: date("planned_date", { mode: "string" }).notNull(),
   status: serviceOrderStatus("status").notNull().default("open"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

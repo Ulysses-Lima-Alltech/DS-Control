@@ -26,6 +26,7 @@ import type {
   AdminRequestParams,
   ApproveCustomerRequestDTO,
 } from './customer-request.dto';
+import { normalizeServiceOrderPlannedDate } from '@modules/service-order/service-order-planned-date';
 import {
   assertCustomerRequestTransition,
   type CustomerRequestStatus,
@@ -322,12 +323,16 @@ export class AdminCustomerRequestService {
         throw new AppError('Pilotos inválidos', HTTP_STATUS_CODES.BAD_REQUEST);
       }
 
+      const plannedDate = normalizeServiceOrderPlannedDate(
+        dto.plannedDate ?? request.requestedDate,
+      );
+
       const [serviceOrder] = await tx
         .insert(serviceOrders)
         .values({
           customerId: request.customerId,
           contractId: contract.id,
-          plannedDate: new Date(`${dto.plannedDate ?? request.requestedDate}T12:00:00.000Z`),
+          plannedDate,
           observation: dto.observation ?? request.observation,
           status: 'open',
         })
