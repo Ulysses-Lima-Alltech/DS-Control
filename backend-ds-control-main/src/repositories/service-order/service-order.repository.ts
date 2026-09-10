@@ -11,6 +11,7 @@ import {
 import type { CreateServiceOrderDTO } from '@modules/service-order/dto/create-service-order';
 import type { UpdateServiceOrderStatusDTO } from '@modules/service-order/dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from '@modules/service-order/dto/update-service-order.dto';
+import { buildRelationDiff } from '@modules/service-order/service-order-relation-diff';
 import { buildServiceOrderPlotStatusUpdate } from '@modules/service-order/service-order-plot-status';
 import {
   buildLegacyServiceOrderMetricAliases,
@@ -785,15 +786,29 @@ export class ServiceOrderRepository {
 
       // Update farms if provided
       if (dto.farmsIds) {
-        // Delete existing farms
-        await tx
-          .delete(serviceOrderFarms)
+        const existingLinks = await tx
+          .select({ farmId: serviceOrderFarms.farmId })
+          .from(serviceOrderFarms)
           .where(eq(serviceOrderFarms.serviceOrderId, serviceOrderId));
+        const { addedIds, removedIds } = buildRelationDiff(
+          existingLinks.map((link) => link.farmId),
+          dto.farmsIds,
+        );
 
-        // Insert new farms
-        if (dto.farmsIds.length > 0) {
+        if (removedIds.length > 0) {
+          await tx
+            .delete(serviceOrderFarms)
+            .where(
+              and(
+                eq(serviceOrderFarms.serviceOrderId, serviceOrderId),
+                inArray(serviceOrderFarms.farmId, removedIds),
+              ),
+            );
+        }
+
+        if (addedIds.length > 0) {
           await tx.insert(serviceOrderFarms).values(
-            dto.farmsIds.map((farmId) => ({
+            addedIds.map((farmId) => ({
               serviceOrderId,
               farmId,
             })),
@@ -803,15 +818,29 @@ export class ServiceOrderRepository {
 
       // Update pilots if provided
       if (dto.pilotsIds) {
-        // Delete existing pilots
-        await tx
-          .delete(serviceOrderPilots)
+        const existingLinks = await tx
+          .select({ pilotId: serviceOrderPilots.pilotId })
+          .from(serviceOrderPilots)
           .where(eq(serviceOrderPilots.serviceOrderId, serviceOrderId));
+        const { addedIds, removedIds } = buildRelationDiff(
+          existingLinks.map((link) => link.pilotId),
+          dto.pilotsIds,
+        );
 
-        // Insert new pilots
-        if (dto.pilotsIds.length > 0) {
+        if (removedIds.length > 0) {
+          await tx
+            .delete(serviceOrderPilots)
+            .where(
+              and(
+                eq(serviceOrderPilots.serviceOrderId, serviceOrderId),
+                inArray(serviceOrderPilots.pilotId, removedIds),
+              ),
+            );
+        }
+
+        if (addedIds.length > 0) {
           await tx.insert(serviceOrderPilots).values(
-            dto.pilotsIds.map((pilotId) => ({
+            addedIds.map((pilotId) => ({
               serviceOrderId,
               pilotId,
             })),
@@ -825,12 +854,10 @@ export class ServiceOrderRepository {
           .select({ plotId: serviceOrderPlots.plotId })
           .from(serviceOrderPlots)
           .where(eq(serviceOrderPlots.serviceOrderId, serviceOrderId));
-        const existingPlotIds = new Set(existingLinks.map((link) => link.plotId));
-        const requestedPlotIds = new Set(dto.plotsIds);
-        const removedPlotIds = existingLinks
-          .map((link) => link.plotId)
-          .filter((plotId) => !requestedPlotIds.has(plotId));
-        const addedPlotIds = dto.plotsIds.filter((plotId) => !existingPlotIds.has(plotId));
+        const { addedIds: addedPlotIds, removedIds: removedPlotIds } = buildRelationDiff(
+          existingLinks.map((link) => link.plotId),
+          dto.plotsIds,
+        );
 
         if (removedPlotIds.length > 0) {
           await tx
