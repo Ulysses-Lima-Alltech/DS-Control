@@ -53,12 +53,12 @@ and sets `name_overridden`, so later KML imports cannot overwrite the corrected 
 Run a read-only audit:
 
 ```sh
-npm run service-order:links:audit -- --service-order-number=158 --remove-deleted-links --expected-final-area=1109.79
+npm run service-order:links:audit -- --service-order-number=158 --remove-deleted-links --expected-final-area=1168.54
 ```
 
-The current dry-run projects 33 links and 1,168.54 ha after removing all 30 historical
-links. This does not match the reported expected area of 1,109.79 ha, so production must
-not be changed until the canonical plot list or expected area is confirmed.
+The dry-run projected 33 links and 1,168.54 ha after removing all 30 historical links.
+The initially reported 1,109.79 ha was later confirmed to be a sample value, and
+1,168.54 ha was explicitly approved as the canonical final area.
 
 The script writes the complete pre-change relationship rows to `artifacts/`. Apply mode
 requires `--apply`, `--remove-deleted-links`, `--expected-final-area`, and
@@ -66,3 +66,23 @@ requires `--apply`, `--remove-deleted-links`, `--expected-final-area`, and
 The captured `restoreRows` are the rollback source for reinserting the exact relationship
 IDs, statuses, completion timestamps, overrides, and actors if an approved repair must be
 reversed.
+
+## Applied repair
+
+The approved repair was committed on 2026-09-10. The script wrote the pre-change backup
+before deletion, removed exactly 30 historical relationships, checked every invariant
+inside the transaction, and only then committed.
+
+An independent read-only reconciliation after the commit returned:
+
+| Check | Result |
+| --- | ---: |
+| Service-order plot links | 33 |
+| Distinct plot IDs | 33 |
+| Soft-deleted plot links | 0 |
+| Registered area | 1,168.54 ha |
+| Completed plots | 21 |
+| Pending plots | 12 |
+| Active applications | 24 on 23 plots (824.97 ha) |
+| Applications outside OS plot links | 0 |
+| Farm links | 1 distinct farm |

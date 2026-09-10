@@ -53,6 +53,16 @@ const client = new Client({
 });
 
 async function main(): Promise<void> {
+  const artifactsDirectory = resolve(process.cwd(), 'artifacts');
+  mkdirSync(artifactsDirectory, { recursive: true });
+  const outputPath = resolve(
+    artifactsDirectory,
+    `service-order-${serviceOrderNumber}-link-audit-${Date.now()}.json`,
+  );
+  const writeAudit = (audit: Record<string, unknown>): void => {
+    writeFileSync(outputPath, `${JSON.stringify(audit, null, 2)}\n`, 'utf8');
+  };
+
   await client.connect();
 
   let audit: Record<string, unknown> | undefined;
@@ -99,16 +109,28 @@ async function main(): Promise<void> {
     const currentArea = linksResult.rows.reduce((sum, link) => sum + Number(link.hectare), 0);
     const removedArea = candidates.reduce((sum, link) => sum + Number(link.hectare), 0);
     const projectedArea = currentArea - removedArea;
+    const applicationsBefore = await client.query<{
+      count: number;
+      hectares: string;
+    }>(
+      `SELECT COUNT(*)::int AS count,
+              ROUND(COALESCE(SUM(hectares), 0)::numeric, 2)::text AS hectares
+         FROM applications
+        WHERE service_order_id = $1 AND deleted_at IS NULL`,
+      [serviceOrder.id],
+    );
 
     audit = {
       generatedAt: new Date().toISOString(),
       mode: apply ? 'apply' : 'dry-run',
+      transactionStatus: apply ? 'not-started' : 'read-only',
       serviceOrder,
       before: {
         links: linksResult.rows.length,
         activePlotLinks: linksResult.rows.filter((link) => link.plotDeletedAt === null).length,
         deletedPlotLinks: linksResult.rows.filter((link) => link.plotDeletedAt !== null).length,
         registeredAreaHa: currentArea.toFixed(2),
+        applications: applicationsBefore.rows[0],
       },
       proposal: {
         strategy: removeDeletedLinks ? 'remove-soft-deleted-plot-links' : 'audit-only',
@@ -145,37 +167,93 @@ async function main(): Promise<void> {
       if (candidates.length === 0)
         throw new Error('Repair refused: no candidate links were found.');
 
-      await client.query(`DELETE FROM service_order_plots WHERE id = ANY($1::uuid[])`, [
-        candidates.map((link) => link.linkId),
-      ]);
+      audit.transactionStatus = 'backup-written';
+      writeAudit(audit);
+
+      const deletion = await client.query(
+        `DELETE FROM service_order_plots WHERE id = ANY($1::uuid[])`,
+        [candidates.map((link) => link.linkId)],
+      );
+      if (deletion.rowCount !== candidates.length) {
+        throw new Error(
+          `Repair refused: expected to delete ${candidates.length} links, deleted ${deletion.rowCount}.`,
+        );
+      }
+
+      const afterResult = await client.query<{
+        links: number;
+        distinctPlots: number;
+        deletedPlotLinks: number;
+        registeredAreaHa: string;
+      }>(
+        `SELECT COUNT(*)::int AS links,
+                COUNT(DISTINCT sop.plot_id)::int AS "distinctPlots",
+                COUNT(*) FILTER (WHERE p.deleted_at IS NOT NULL)::int AS "deletedPlotLinks",
+                ROUND(COALESCE(SUM(p.hectare), 0)::numeric, 2)::text AS "registeredAreaHa"
+           FROM service_order_plots sop
+           JOIN plots p ON p.id = sop.plot_id
+          WHERE sop.service_order_id = $1`,
+        [serviceOrder.id],
+      );
+      const applicationsAfter = await client.query<{ count: number; hectares: string }>(
+        `SELECT COUNT(*)::int AS count,
+                ROUND(COALESCE(SUM(hectares), 0)::numeric, 2)::text AS hectares
+           FROM applications
+          WHERE service_order_id = $1 AND deleted_at IS NULL`,
+        [serviceOrder.id],
+      );
+      const after = afterResult.rows[0];
+      const expectedLinks = linksResult.rows.length - candidates.length;
+      if (
+        after.links !== expectedLinks ||
+        after.distinctPlots !== expectedLinks ||
+        after.deletedPlotLinks !== 0 ||
+        Math.abs(Number(after.registeredAreaHa) - expectedFinalArea) > 0.005
+      ) {
+        throw new Error(`Repair refused: post-delete relationship validation failed.`);
+      }
+      if (
+        applicationsAfter.rows[0].count !== applicationsBefore.rows[0].count ||
+        applicationsAfter.rows[0].hectares !== applicationsBefore.rows[0].hectares
+      ) {
+        throw new Error('Repair refused: application totals changed unexpectedly.');
+      }
+
       await client.query(`UPDATE service_orders SET updated_at = NOW() WHERE id = $1`, [
         serviceOrder.id,
       ]);
+      audit.after = { ...after, applications: applicationsAfter.rows[0] };
+      audit.transactionStatus = 'validated-before-commit';
+      writeAudit(audit);
       await client.query('COMMIT');
+      audit.transactionStatus = 'committed';
+      audit.committedAt = new Date().toISOString();
+      writeAudit(audit);
     } else {
       await client.query('ROLLBACK');
+      writeAudit(audit);
     }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
+    if (audit) {
+      audit.transactionStatus = 'rolled-back';
+      audit.error = error instanceof Error ? error.message : String(error);
+      writeAudit(audit);
+    }
     throw error;
   } finally {
     await client.end();
   }
 
-  const artifactsDirectory = resolve(process.cwd(), 'artifacts');
-  mkdirSync(artifactsDirectory, { recursive: true });
-  const outputPath = resolve(
-    artifactsDirectory,
-    `service-order-${serviceOrderNumber}-link-audit-${Date.now()}.json`,
-  );
-  writeFileSync(outputPath, `${JSON.stringify(audit, null, 2)}\n`, 'utf8');
   console.log(
     JSON.stringify(
       {
         outputPath,
         mode: audit.mode,
+        transactionStatus: audit.transactionStatus,
         before: audit.before,
         proposal: audit.proposal,
+        after: audit.after,
       },
       null,
       2,
