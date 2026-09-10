@@ -68,30 +68,24 @@ export default function FormEditServiceOrder({
     );
   }
 
-  const filteredPlots = serviceOrder?.plots?.filter((plot) => {
-    return !plot.deletedAt || (plot.id && serviceOrder.plotsIds?.includes(plot.id));
-  });
+  const linkedPlots = serviceOrder.plots || [];
 
   function puttingThePlotsInsideRespectiveFarm(plots: Plot[], farms: Farm[]): Farm[] {
     if (!plots || !farms) return [];
-    serviceOrder?.plots?.forEach((plot) => {
-      const farm = farms.find((farm) => farm.id === plot.farmId);
-      if (farm) {
-        farm.plots = [];
-        farm.plots = [...farm.plots, ...plots.filter((plot) => plot.farmId === farm.id)];
-      }
-    });
-    return farms;
+    return farms.map((farm) => ({
+      ...farm,
+      plots: plots.filter((plot) => plot.farmId === farm.id),
+    }));
   }
 
-  const farmsWithPlots = puttingThePlotsInsideRespectiveFarm(filteredPlots, serviceOrder?.farms);
+  const farmsWithPlots = puttingThePlotsInsideRespectiveFarm(linkedPlots, serviceOrder.farms);
 
   const initialValues: Partial<ServiceOrder> = {
     customer: serviceOrder?.customer,
     contract: serviceOrder?.contract,
     farms: farmsWithPlots || [],
     pilots: serviceOrder?.pilots || [],
-    plots: filteredPlots,
+    plots: linkedPlots,
     plannedDate: serviceOrder?.plannedDate,
     observation: serviceOrder?.observation,
   };

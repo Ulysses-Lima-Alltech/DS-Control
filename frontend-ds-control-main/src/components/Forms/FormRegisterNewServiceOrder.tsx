@@ -29,6 +29,7 @@ import { ServiceOrder } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
 import { toOperationalDateYMDOrToday } from '@/utils/operational-date';
+import { replaceFarmPlotSelection } from '@/utils/service-order-plot-selection';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -254,13 +255,28 @@ export default function FormRegisterNewServiceOrder({
     }
   );
 
-  const allListedFarms = (initialValues?.farms || [])
-    .concat(
-      ...((farmsFromInfiniteQuery as unknown as InfiniteData<{ data: Farm[] }>)?.pages?.flatMap(
-        (page) => page.data
-      ) || [])
-    )
-    .filter((farm, index, self) => index === self.findIndex((f) => f?.id === farm?.id));
+  const farmsById = new Map<string, Farm>();
+  const farmSources = [
+    ...(initialValues?.farms || []),
+    ...((farmsFromInfiniteQuery as unknown as InfiniteData<{ data: Farm[] }>)?.pages?.flatMap(
+      (page) => page.data
+    ) || []),
+  ];
+
+  farmSources.forEach((farm) => {
+    const existingFarm = farmsById.get(farm.id);
+    if (!existingFarm) {
+      farmsById.set(farm.id, { ...farm, plots: [...(farm.plots || [])] });
+      return;
+    }
+
+    const plotsById = new Map(
+      [...(existingFarm.plots || []), ...(farm.plots || [])].map((plot) => [plot.id, plot])
+    );
+    farmsById.set(farm.id, { ...existingFarm, ...farm, plots: Array.from(plotsById.values()) });
+  });
+
+  const allListedFarms = Array.from(farmsById.values());
 
   const { mutate: registerNewServiceOrder, isPending: isCreatingServiceOrder } =
     useRegisterNewServiceOrder({
@@ -307,16 +323,28 @@ export default function FormRegisterNewServiceOrder({
     }
   };
 
-  const handleToggleCurrentFarmPlots = (farmPlotIds: string[], areAllPlotsSelected: boolean) => {
-    if (areAllPlotsSelected) {
-      preserveFarmsOnClearPlotsRef.current = true;
-      setValue(
-        'plotsIds',
-        currentSelectedPlots.filter((plotId) => !farmPlotIds.includes(plotId))
-      );
-    } else {
-      setValue('plotsIds', [...new Set([...currentSelectedPlots, ...farmPlotIds])]);
-    }
+  const handleToggleCurrentFarmPlots = (
+    farmId: string,
+    currentFarmPlotIds: string[],
+    areAllPlotsSelected: boolean
+  ) => {
+    const knownFarmPlotIds = [
+      ...(initialValues?.plots || []),
+      ...(allListedFarms.find((farm) => farm.id === farmId)?.plots || []),
+      ...(lastClickedFarmData?.farm.plots || []),
+    ]
+      .filter((plot) => plot.farmId === farmId && plot.id)
+      .map((plot) => plot.id!);
+
+    preserveFarmsOnClearPlotsRef.current = areAllPlotsSelected;
+    setValue(
+      'plotsIds',
+      replaceFarmPlotSelection(
+        currentSelectedPlots,
+        knownFarmPlotIds,
+        areAllPlotsSelected ? [] : currentFarmPlotIds
+      )
+    );
   };
 
   const toggleFarmSelection = (farmId: string) => {
@@ -333,10 +361,7 @@ export default function FormRegisterNewServiceOrder({
 
     // Keep plotsIds in sync with farm toggle
     if (selectedFarm?.plots) {
-      const farmPlotIds = selectedFarm.plots
-        .filter((plot) => !plot.deletedAt)
-        .map((plot) => plot.id!)
-        .filter((id) => id);
+      const farmPlotIds = selectedFarm.plots.map((plot) => plot.id!).filter((id) => id);
       const currentPlotIds = watch('plotsIds');
 
       if (isFarmSelected) {
@@ -346,7 +371,14 @@ export default function FormRegisterNewServiceOrder({
         setLastClickedFarmId(null);
       } else {
         // Select: add all plots of this farm
-        const newPlotIds = [...new Set([...currentPlotIds, ...farmPlotIds])];
+        const currentFarmPlotIds = selectedFarm.plots
+          .filter((plot) => !plot.deletedAt && plot.id)
+          .map((plot) => plot.id!);
+        const newPlotIds = replaceFarmPlotSelection(
+          currentPlotIds,
+          farmPlotIds,
+          currentFarmPlotIds
+        );
         setValue('plotsIds', newPlotIds);
         setLastClickedFarmId(farmId);
       }
@@ -827,6 +859,7 @@ export default function FormRegisterNewServiceOrder({
                             disabled={currentFarmPlotIds.length === 0 || isSavingData}
                             onClick={() =>
                               handleToggleCurrentFarmPlots(
+                                lastClickedFarmData!.farm.id!,
                                 currentFarmPlotIds,
                                 areAllCurrentFarmPlotsSelected
                               )
