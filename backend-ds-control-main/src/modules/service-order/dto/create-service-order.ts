@@ -1,6 +1,18 @@
 import { z } from 'zod';
+import { normalizeServiceOrderPlannedDate } from '../service-order-planned-date';
 
 const UniqueUuidArraySchema = z.array(z.string().uuid()).transform((ids) => [...new Set(ids)]);
+const PlannedDateSchema = z.string().transform((value, ctx) => {
+  try {
+    return normalizeServiceOrderPlannedDate(value);
+  } catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Data planejada invalida. Use YYYY-MM-DD.',
+    });
+    return z.NEVER;
+  }
+});
 
 export const CreateServiceOrderSchema = z.object({
   farmsIds: UniqueUuidArraySchema.pipe(
@@ -9,7 +21,7 @@ export const CreateServiceOrderSchema = z.object({
   customerId: z.string().uuid(),
   contractId: z.string().uuid(),
   observation: z.string().optional(),
-  plannedDate: z.string().date(),
+  plannedDate: PlannedDateSchema,
   pilotsIds: UniqueUuidArraySchema,
   plotsIds: UniqueUuidArraySchema,
 });

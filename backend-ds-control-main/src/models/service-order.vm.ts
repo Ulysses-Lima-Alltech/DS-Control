@@ -1,4 +1,13 @@
 import z from 'zod';
+import { toServiceOrderPlannedDate } from '@modules/service-order/service-order-planned-date';
+
+const PlannedDateSchema = z.preprocess((value) => {
+  if (typeof value === 'string' || value instanceof Date) {
+    return toServiceOrderPlannedDate(value);
+  }
+
+  return value;
+}, z.string().regex(/^\d{4}-\d{2}-\d{2}$/));
 
 export const ServiceOrderSchema = z.object({
   id: z.string().uuid(),
@@ -6,7 +15,7 @@ export const ServiceOrderSchema = z.object({
   customerId: z.string().uuid(),
   contractId: z.string().uuid(),
   observation: z.string().nullable(),
-  plannedDate: z.date(),
+  plannedDate: PlannedDateSchema,
   status: z.enum(['open', 'completed', 'cancelled']),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -37,7 +46,7 @@ export const ServiceOrderMetricsSchema = z.object({
 export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]),
-  plannedDate: z.union([z.string(), z.date()]),
+  plannedDate: PlannedDateSchema,
   metrics: ServiceOrderMetricsSchema,
   plannedHectares: z.number(),
   totalAppliedHectares: z.number(),
@@ -153,7 +162,7 @@ export const ServiceOrderWithDetailsSchema = ServiceOrderSchema.extend({
 export const ServiceOrderViewModelSchema = ServiceOrderSchema.extend({
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]),
-  plannedDate: z.union([z.string(), z.date()]),
+  plannedDate: PlannedDateSchema,
 });
 
 export type ServiceOrder = z.infer<typeof ServiceOrderSchema>;

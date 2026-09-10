@@ -12,6 +12,7 @@ import type { CreateServiceOrderDTO } from '@modules/service-order/dto/create-se
 import type { UpdateServiceOrderStatusDTO } from '@modules/service-order/dto/update-service-order-status.dto';
 import type { UpdateServiceOrderDTO } from '@modules/service-order/dto/update-service-order.dto';
 import { buildRelationDiff } from '@modules/service-order/service-order-relation-diff';
+import { nextServiceOrderPlannedDate } from '@modules/service-order/service-order-planned-date';
 import { buildServiceOrderPlotStatusUpdate } from '@modules/service-order/service-order-plot-status';
 import {
   buildLegacyServiceOrderMetricAliases,
@@ -354,7 +355,7 @@ export class ServiceOrderRepository {
         .values({
           contractId: dto.contractId,
           customerId: dto.customerId,
-          plannedDate: new Date(dto.plannedDate),
+          plannedDate: dto.plannedDate,
           observation: dto.observation,
           status: 'open',
         })
@@ -519,8 +520,8 @@ export class ServiceOrderRepository {
       pilotId?: string;
       customerId?: string;
       invalidApplication?: boolean;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     },
     includePlots: boolean = false,
     includePilots: boolean = false,
@@ -608,8 +609,7 @@ export class ServiceOrderRepository {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
 
       whereConditions.push(
         and(
@@ -771,7 +771,7 @@ export class ServiceOrderRepository {
       const updateData: Partial<typeof serviceOrders.$inferInsert> = {};
       if (dto.contractId) updateData.contractId = dto.contractId;
       if (dto.observation !== undefined) updateData.observation = dto.observation;
-      if (dto.plannedDate) updateData.plannedDate = new Date(dto.plannedDate);
+      if (dto.plannedDate) updateData.plannedDate = dto.plannedDate;
       updateData.updatedAt = new Date();
 
       const [updatedServiceOrder] = await tx
@@ -926,8 +926,8 @@ export class ServiceOrderRepository {
       farmId?: string;
       pilotId?: string;
       customerId?: string;
-      startDate: Date | undefined;
-      endDate: Date | undefined;
+      startDate: string | undefined;
+      endDate: string | undefined;
     },
   ): Promise<number> {
     // Build where conditions
@@ -987,8 +987,7 @@ export class ServiceOrderRepository {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      const adjustEndDate = new Date(filters.endDate);
-      adjustEndDate.setDate(adjustEndDate.getDate() + 1);
+      const adjustEndDate = nextServiceOrderPlannedDate(filters.endDate);
 
       whereConditions.push(
         and(

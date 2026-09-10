@@ -46,7 +46,7 @@ export type ServiceOrder = {
   plotsIds: string[];
   plots: Plot[];
   observation: string;
-  plannedDate: Date;
+  plannedDate: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

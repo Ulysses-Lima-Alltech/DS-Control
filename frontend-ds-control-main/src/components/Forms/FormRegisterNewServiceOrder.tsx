@@ -28,7 +28,7 @@ import { Farm } from '@/types/farm.type';
 import { ServiceOrder } from '@/types/service-order.type';
 import { User } from '@/types/user.type';
 import { convertDatabasePlotsToMapViewerPlotsFeatureCollection } from '@/utils/map-utils';
-import { toOperationalDateYMDOrToday } from '@/utils/operational-date';
+import { toOperationalDateYMD, toOperationalDateYMDOrToday } from '@/utils/operational-date';
 import { replaceFarmPlotSelection } from '@/utils/service-order-plot-selection';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -110,7 +110,9 @@ export default function FormRegisterNewServiceOrder({
         initialValues?.plots
           ?.map((plot) => plot.id)
           .filter((id): id is string => id !== undefined) ?? [],
-      plannedDate: toOperationalDateYMDOrToday(initialValues?.plannedDate),
+      plannedDate: initialValues?.plannedDate
+        ? (toOperationalDateYMD(initialValues.plannedDate) ?? '')
+        : toOperationalDateYMDOrToday(),
       observation: initialValues?.observation ?? '',
     },
   });

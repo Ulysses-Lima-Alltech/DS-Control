@@ -93,7 +93,7 @@ const MOCK_SERVICE_ORDER: ServiceOrder = {
   plotsIds: ['mock-plot-id'],
   plots: [mockPlot],
   observation: 'Dados mockados para preview.',
-  plannedDate: new Date('2024-06-15'),
+  plannedDate: '2024-06-15',
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null,

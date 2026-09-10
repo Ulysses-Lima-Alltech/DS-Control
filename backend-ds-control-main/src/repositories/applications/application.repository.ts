@@ -1346,16 +1346,14 @@ export class ApplicationRepository {
     status: 'open' | 'completed' | 'cancelled'): Promise<number> {
     const startYmd = toOperationalDateYMD(startDate);
     const endYmd = toOperationalDateYMD(endDate);
-    const plannedOperationalDate = operationalDateSql(serviceOrders.plannedDate);
-
     const [result] = await db
       .select({ count: count() })
       .from(serviceOrders)
       .where(
         and(
           eq(serviceOrders.status, status),
-          sql`${plannedOperationalDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
-          sql`${plannedOperationalDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
+          sql`${serviceOrders.plannedDate} >= ${sql.raw(`'${startYmd}'`)}::date`,
+          sql`${serviceOrders.plannedDate} <= ${sql.raw(`'${endYmd}'`)}::date`,
         )
       );
 

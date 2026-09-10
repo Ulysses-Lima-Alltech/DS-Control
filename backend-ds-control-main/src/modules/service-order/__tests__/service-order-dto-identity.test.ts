@@ -33,5 +33,6 @@ describe('service-order DTO identity normalization', () => {
     expect(result.farmsIds).toEqual([FARM_ID]);
     expect(result.plotsIds).toEqual([PLOT_ID]);
     expect(result.pilotsIds).toEqual([PILOT_ID]);
+    expect(result.plannedDate).toBe('2026-09-10');
   });
 });
