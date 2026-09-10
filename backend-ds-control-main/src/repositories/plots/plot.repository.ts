@@ -123,6 +123,17 @@ export class PlotRepository {
     return this.formatPlot(plot);
   }
 
+  /** Update only the operator-facing name, keeping the imported plot identity intact. */
+  public async renamePlot(id: string, name: string): Promise<Plot | null> {
+    const [plot] = await db
+      .update(plots)
+      .set({ name, nameOverridden: true, updatedAt: new Date() })
+      .where(and(eq(plots.id, id), isNull(plots.deletedAt)))
+      .returning();
+
+    return this.formatPlot(plot);
+  }
+
   /**
    * @description Soft delete a plot
    * @param {string} id - The plot's ID
@@ -198,6 +209,7 @@ export class PlotRepository {
       customerId: plot.customerId,
       geoJson: plot.geoJson as Record<string, unknown>,
       externalId: plot.externalId,
+      nameOverridden: plot.nameOverridden,
       hectare: plot.hectare,
       createdAt: plot.createdAt,
       updatedAt: plot.updatedAt,

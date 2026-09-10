@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { CreatePlotDTO } from "./dto/create-plot.dto";
 import type { UpdatePlotDTO } from "./dto/update-plot.dto";
+import type { RenamePlotDTO } from "./dto/rename-plot.dto";
 
 import AppError from "@common/handlers/app-error";
 import { assertCustomerScope, resolveCustomerScope } from "@common/security/customer-scope";
@@ -173,6 +174,30 @@ export class PlotController {
       }
 
       app.log.error("[PlotController] - Unexpected error during plot update: %s", error);
+      reply.status(500).send(new AppError("Internal server error", 500, error).throw());
+    }
+  };
+
+  public renamePlot = async (
+    request: FastifyRequest<{ Params: { id: string }; Body: RenamePlotDTO }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      app.log.info("[PlotController] - Renaming plot %s", request.params.id);
+      const updatedPlot = await this.service.renamePlot(request.params.id, request.body.name);
+
+      return reply.status(200).send({
+        message: "Plot renamed successfully",
+        plot: PlotVM.toViewModel(updatedPlot),
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        app.log.warn("[PlotController] - Plot rename failed: %s", error.message);
+        reply.status(error.statusCode).send(error.throw());
+        return;
+      }
+
+      app.log.error("[PlotController] - Unexpected error during plot rename: %s", error);
       reply.status(500).send(new AppError("Internal server error", 500, error).throw());
     }
   };

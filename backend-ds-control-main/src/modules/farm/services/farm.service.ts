@@ -557,7 +557,7 @@ export class FarmService {
           );
 
           await this.plotRepository.updatePlot(existingPlot.id, {
-            name: plotData.name,
+            ...(existingPlot.nameOverridden ? {} : { name: plotData.name }),
             geoJson: plotData.geoJson,
             externalId: plotData.externalId,
           });

@@ -12,6 +12,7 @@ import type { FastifyZodOpenApiTypeProvider } from "fastify-zod-openapi";
 import { z } from "zod";
 import { CreatePlotSchema } from "./dto/create-plot.dto";
 import { UpdatePlotSchema } from "./dto/update-plot.dto";
+import { RenamePlotSchema } from "./dto/rename-plot.dto";
 import { PlotController } from "./plot.controller";
 
 export function PlotV1Routes(
@@ -109,6 +110,22 @@ export function PlotV1Routes(
     },
     preHandler: [AuthenticationJWT, BackofficeOnly],
     handler: controller.updatePlot,
+  });
+
+  app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({
+    method: "PATCH",
+    url: "/:id/name",
+    schema: {
+      body: RenamePlotSchema,
+      description: "Rename a plot without changing its geometry, area, or external identity",
+      summary: "Rename plot",
+      tags: ["plots"],
+      params: z.object({
+        id: z.string().uuid(),
+      }),
+    },
+    preHandler: [AuthenticationJWT, BackofficeOnly],
+    handler: controller.renamePlot,
   });
 
   app.withTypeProvider<FastifyZodOpenApiTypeProvider>().route({

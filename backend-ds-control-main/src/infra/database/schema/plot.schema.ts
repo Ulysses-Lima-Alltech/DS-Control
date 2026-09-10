@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { index, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./customer.schema";
 import { farms } from "./farms.schema";
 
@@ -11,6 +11,7 @@ export const plots = pgTable("plots", {
   farmId: uuid("farm_id").references(() => farms.id, { onDelete: "cascade" }).notNull(),
   customerId: uuid("customer_id").references(() => customers.id, { onDelete: "cascade" }).notNull(),
   externalId: text("external_id").notNull(),
+  nameOverridden: boolean("name_overridden").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),

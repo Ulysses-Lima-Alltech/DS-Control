@@ -330,6 +330,13 @@
       "when": 1785943000000,
       "tag": "0046_add_offline_operation_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789063200000,
+      "tag": "0050_add_plot_name_override",
+      "breakpoints": true
     }
   ]
 }

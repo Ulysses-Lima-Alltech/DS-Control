@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthenticationJWT } from '@middleware/authentication-jwt-middleware';
 import { BackofficeOnly } from '@middleware/backoffice-only-middleware';
+import { RenamePlotSchema } from '../dto/rename-plot.dto';
 
 const mocks = vi.hoisted(() => ({ handler: vi.fn() }));
 vi.mock('@middleware/authentication-jwt-middleware', () => ({ AuthenticationJWT: vi.fn() }));
@@ -30,11 +31,16 @@ function captureRoutes(): RegisteredRoute[] {
 describe('plot authorization contract', () => {
   it('restricts definitive plot mutations to backoffice users', () => {
     const mutations = captureRoutes().filter((route) =>
-      ['POST', 'PUT', 'DELETE'].includes(route.method || ''),
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(route.method || ''),
     );
-    expect(mutations).toHaveLength(3);
+    expect(mutations).toHaveLength(4);
     mutations.forEach((route) =>
       expect(route.preHandler).toStrictEqual([AuthenticationJWT, BackofficeOnly]),
     );
+  });
+
+  it('accepts a trimmed name and rejects an empty name', () => {
+    expect(RenamePlotSchema.parse({ name: '  Talhao Norte  ' })).toEqual({ name: 'Talhao Norte' });
+    expect(RenamePlotSchema.safeParse({ name: '   ' }).success).toBe(false);
   });
 });

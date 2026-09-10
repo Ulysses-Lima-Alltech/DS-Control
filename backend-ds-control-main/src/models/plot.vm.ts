@@ -7,6 +7,7 @@ export const PlotSchema = z.object({
   customerId: z.string().uuid(),
   geoJson: z.record(z.string(), z.unknown()).nullish(),
   externalId: z.string(),
+  nameOverridden: z.boolean(),
   hectare: z.string(),
   createdAt: z.date(),
   updatedAt: z.date().nullable(),
@@ -25,4 +26,4 @@ export const PlotVM = {
   toViewModel: (plot: Plot) => {
     return PlotViewModelSchema.parse(plot);
   },
-}; 
+};

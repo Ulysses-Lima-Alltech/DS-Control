@@ -2,7 +2,7 @@
 
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
-import { Calendar, ChevronDown, MapPin, MoreHorizontal, Users, VectorSquare } from 'lucide-react';
+import { Calendar, ChevronDown, MapPin, MoreHorizontal, Pencil, Users, VectorSquare } from 'lucide-react';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import { DataTable, type ColumnDefWithId } from '@/components/ui/table-data';
 import { createClickableColumn } from '@/components/ui/table-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDeleteFarmById } from '@/mutations/farm.mutation';
+import { useRenamePlot } from '@/mutations/plot.mutation';
 import { useGetAllCustomersInfinite } from '@/queries/customer.query';
 import { useGetAllFarms } from '@/queries/farm.query';
 import { Customer } from '@/types/customer.type';
@@ -56,6 +57,8 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
   );
   const [farmToDelete, setFarmToDelete] = React.useState<Farm | null>(null);
   const [farmToEdit, setFarmToEdit] = React.useState<Farm | null>(null);
+  const [plotToRename, setPlotToRename] = React.useState<Plot | null>(null);
+  const [plotName, setPlotName] = React.useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
   const [orderBy, setOrderBy] = React.useState<FarmOrderBy | undefined>(undefined);
@@ -116,6 +119,20 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
     },
   });
 
+  const { mutate: renamePlot, isPending: isRenamingPlot } = useRenamePlot({
+    onSuccess: () => {
+      toast.success('Nome do talhao atualizado');
+      queryClient.invalidateQueries({ queryKey: ['farms'] });
+      queryClient.invalidateQueries({ queryKey: ['farm'] });
+      queryClient.invalidateQueries({ queryKey: ['plots'] });
+      queryClient.invalidateQueries({ queryKey: ['service-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      setPlotToRename(null);
+      setPlotName('');
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const handleDeleteClick = useCallback((farm: Farm) => {
     setFarmToDelete(farm);
   }, []);
@@ -129,6 +146,20 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
     setIsEditDialogOpen(false);
     setFarmToEdit(null);
   }, []);
+
+  const handleRenameClick = useCallback((plot: Plot) => {
+    setPlotToRename(plot);
+    setPlotName(plot.name);
+  }, []);
+
+  const handleRenameSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!plotToRename?.id) return;
+      renamePlot({ plotId: plotToRename.id, data: { name: plotName } });
+    },
+    [plotName, plotToRename, renamePlot]
+  );
 
   const handleConfirmDelete = useCallback(() => {
     if (farmToDelete) {
@@ -453,6 +484,19 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
                   <div className='flex items-center space-x-2'>
                     <Tooltip>
                       <TooltipTrigger asChild>
+                        <Button
+                          variant='outline'
+                          size='icon'
+                          className='h-8 w-8'
+                          onClick={() => handleRenameClick(plot)}
+                        >
+                          <Pencil className='h-4 w-4' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Editar nome do talhao</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <DialogPlotDetails farmId={farm.id} plotId={plot.id} />
                       </TooltipTrigger>
                       <TooltipContent>Ver detalhes do talhão</TooltipContent>
@@ -495,6 +539,57 @@ export default function TableFarms({ customerId: initialCustomerId }: TableFarms
               {isDeletingFarm ? 'Deletando...' : 'Deletar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!plotToRename}
+        onOpenChange={(open) => {
+          if (!open && !isRenamingPlot) {
+            setPlotToRename(null);
+            setPlotName('');
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={handleRenameSubmit}>
+            <DialogHeader>
+              <DialogTitle>Editar nome do talhao</DialogTitle>
+              <DialogDescription>
+                Esta alteracao nao modifica a area, o mapa ou os registros existentes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className='py-4'>
+              <label htmlFor='plot-name' className='text-sm font-medium'>
+                Nome
+              </label>
+              <input
+                id='plot-name'
+                value={plotName}
+                onChange={(event) => setPlotName(event.target.value)}
+                className='mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+                maxLength={120}
+                autoFocus
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={isRenamingPlot}
+                onClick={() => {
+                  setPlotToRename(null);
+                  setPlotName('');
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type='submit' disabled={isRenamingPlot || !plotName.trim()}>
+                {isRenamingPlot ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

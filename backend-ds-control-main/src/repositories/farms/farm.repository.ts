@@ -65,6 +65,7 @@ export class FarmRepository {
             createdAt: true, 
             updatedAt: true,
             externalId: true,
+            nameOverridden: true,
           },
         } : undefined,
         customer: includeCustomer ? {
@@ -139,6 +140,7 @@ export class FarmRepository {
             'createdAt', ${sql`to_char(${plots.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`},
             'updatedAt', ${sql`to_char(${plots.updatedAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`},
             'externalId', ${plots.externalId},
+            'nameOverridden', ${plots.nameOverridden},
             'hectare', ${sql`${plots.hectare}::text`},
             'deletedAt', ${plots.deletedAt} 
           )
@@ -230,6 +232,7 @@ export class FarmRepository {
             'createdAt', ${sql`to_char(${plots.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`},
             'updatedAt', ${sql`to_char(${plots.updatedAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`},
             'externalId', ${plots.externalId},
+            'nameOverridden', ${plots.nameOverridden},
             'hectare', ${sql`${plots.hectare}::text`},
             'deletedAt', ${plots.deletedAt}
           )
@@ -421,6 +424,7 @@ export class FarmRepository {
       createdAt: Date;
       updatedAt: Date | null;
       externalId: string;
+      nameOverridden: boolean;
       hectare: string;
       deletedAt: Date | null;
     }>;
@@ -447,6 +451,7 @@ export class FarmRepository {
           updatedAt: plot.updatedAt,
           deletedAt: plot.deletedAt,
           externalId: plot.externalId,
+          nameOverridden: plot.nameOverridden,
           hectare: plot.hectare,
         })) || [],
     };

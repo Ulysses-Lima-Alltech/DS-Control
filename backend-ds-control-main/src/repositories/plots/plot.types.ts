@@ -5,6 +5,7 @@ export type Plot = {
   customerId: string;
   geoJson?: Record<string, unknown>;
   externalId: string;
+  nameOverridden: boolean;
   hectare: string;
   createdAt: Date;
   updatedAt: Date | null;
@@ -18,4 +19,4 @@ export interface CreatePlot {
   geoJson: Record<string, unknown>;
   externalId: string;
   hectare: string;
-} 
+}

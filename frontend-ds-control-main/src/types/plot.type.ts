@@ -4,6 +4,7 @@ export type Plot = {
   farmId?: string;
   customerId?: string;
   externalId: string;
+  nameOverridden?: boolean;
   hectare: string;
   geoJson: GeoJSON.FeatureCollection;
   createdAt?: string;

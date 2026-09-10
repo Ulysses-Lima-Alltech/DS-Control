@@ -271,6 +271,22 @@ export class PlotService {
     }
   }
 
+  public async renamePlot(plotId: string, name: string): Promise<PlotVMType> {
+    app.log.info("[PlotService] - Renaming plot %s", plotId);
+
+    const existingPlot = await this.plotRepository.getPlotById(plotId);
+    if (!existingPlot) {
+      throw new AppError("Talhao nao encontrado", HTTP_STATUS_CODES.NOT_FOUND);
+    }
+
+    const updatedPlot = await this.plotRepository.renamePlot(plotId, name);
+    if (!updatedPlot) {
+      throw new AppError("Falha ao renomear o talhao", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+    }
+
+    return updatedPlot as PlotVMType;
+  }
+
   /**
    * @description Delete a plot
    * @param {string} plotId - The plot's ID to delete

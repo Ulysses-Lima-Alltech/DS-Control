@@ -47,6 +47,9 @@ export const FarmVM = {
       createdAt: Date;
       updatedAt: Date | null;
       deletedAt: Date | null;
+      externalId: string;
+      nameOverridden: boolean;
+      hectare: string;
     }>;
   }) => {
     return FarmWithPlotsViewModelSchema.parse(farm);
