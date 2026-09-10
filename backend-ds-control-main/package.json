@@ -16,7 +16,8 @@
     "database:up": "drizzle-kit up",
     "database:check": "drizzle-kit check",
     "database:studio": "drizzle-kit studio",
-    "database:seed": "tsx src/infra/database/seed.ts"
+    "database:seed": "tsx src/infra/database/seed.ts",
+    "service-order:links:audit": "tsx scripts/audit-repair-service-order-links.ts"
   },
   "keywords": [],
   "author": "",

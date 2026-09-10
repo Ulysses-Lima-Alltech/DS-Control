@@ -74,7 +74,11 @@ import {
   resolveApplicationReportPeriod,
 } from '@/utils/service-order-application-report';
 import { resolveServiceOrderMetrics } from '@/utils/service-order-metrics';
-import { buildStrategicMapData, type StrategicMapScope } from '@/utils/strategic-map-scope';
+import {
+  buildStrategicMapData,
+  resolveStrategicMapPlotStatus,
+  type StrategicMapScope,
+} from '@/utils/strategic-map-scope';
 import { formatTimestamp } from '@/utils/timestamp-formatter';
 
 type MapFilter = 'all' | 'completed' | 'pending';
@@ -168,7 +172,7 @@ export default function ServiceOrderPage({
 
   const completedPlotIds = useMemo(() => {
     return (serviceOrderData?.plots || [])
-      .filter((plot) => plot.status === 'COMPLETED')
+      .filter((plot) => resolveStrategicMapPlotStatus(plot) === 'COMPLETED')
       .map((plot) => plot.id)
       .filter(Boolean) as string[];
   }, [serviceOrderData?.plots]);
@@ -176,7 +180,10 @@ export default function ServiceOrderPage({
   const pendingPlotIds = useMemo(
     () =>
       (serviceOrderData?.plots || [])
-        .filter((plot) => plot.status === 'PENDING')
+        .filter((plot) => {
+          const status = resolveStrategicMapPlotStatus(plot);
+          return status === 'PENDING' || status === 'IN_PROGRESS';
+        })
         .map((plot) => plot.id)
         .filter(Boolean) as string[],
     [serviceOrderData?.plots]
@@ -461,9 +468,7 @@ export default function ServiceOrderPage({
       const reportData = await getCompletedPlotsReport(serviceOrderData.id, areaMode);
       const reportCompletedPlotIds = Array.from(
         new Set(
-          reportData.rows
-            .filter((row) => row.status === 'COMPLETED')
-            .map((row) => row.plotId)
+          reportData.rows.filter((row) => row.status === 'COMPLETED').map((row) => row.plotId)
         )
       );
 
@@ -856,8 +861,7 @@ export default function ServiceOrderPage({
                 {
                   scope: 'pending',
                   title: 'Áreas pendentes e em andamento',
-                  description:
-                    'Apresenta os talhões pendentes e os que ainda estão em andamento.',
+                  description: 'Apresenta os talhões pendentes e os que ainda estão em andamento.',
                 },
                 {
                   scope: 'all',
